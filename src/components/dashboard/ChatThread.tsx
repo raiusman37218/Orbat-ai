@@ -2286,8 +2286,9 @@ export function ChatThread({
   return (
     <div className="@container/thread flex-1 min-w-0 h-[var(--app-vvh,100dvh)] flex flex-col bg-canvas overflow-x-hidden">
       {/* ── Header ── */}
-      <header className="shrink-0 px-3 sm:px-4 py-1.5 min-h-[46px] flex items-center justify-between gap-2 border-b border-line bg-surface max-w-full overflow-hidden">
-        <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+      <header className="shrink-0 px-3 sm:px-4 py-1.5 min-h-[48px] flex items-center justify-between gap-2 sm:gap-3 border-b border-line bg-surface max-w-full overflow-hidden">
+        {/* Left: Customer Profile — Guaranteed minimum width & never squashed */}
+        <div className="flex items-center gap-2 min-w-0 shrink-0">
           {onBack && (
             <button
               onClick={onBack}
@@ -2306,12 +2307,10 @@ export function ChatThread({
             muted={!visitor?.name && !visitor?.email}
             className="shrink-0"
           />
-          {/* Name on its own line, details under it: sharing one line made the
-              name the first thing to be squeezed down to an ellipsis. */}
-          <div className="flex flex-col min-w-0 flex-1 overflow-hidden">
+          <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5 min-w-0">
               <h2
-                className="text-sm font-semibold tracking-tight text-ink min-w-0 truncate leading-5"
+                className="text-sm font-semibold tracking-tight text-ink truncate max-w-[110px] sm:max-w-[180px] leading-5"
                 title={displayName}
               >
                 {displayName}
@@ -2343,27 +2342,17 @@ export function ChatThread({
                       countryCode={visitorPlace.countryCode}
                       className="w-3.5 h-2.5 shrink-0"
                     />
-                    <span className="truncate max-w-[100px]">{visitorPlace.label}</span>
+                    <span className="truncate max-w-[90px]">{visitorPlace.label}</span>
                   </span>
-                </>
-              )}
-              {visitor?.email && (
-                <>
-                  <span>·</span>
-                  <a
-                    href={`mailto:${visitor.email}`}
-                    className="truncate hover:text-accent transition-colors"
-                  >
-                    {visitor.email}
-                  </a>
                 </>
               )}
             </span>
           </div>
         </div>
 
-        {/* Actions strip in header: keep in one row without shifting or wrapping */}
-        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 ml-auto flex-nowrap">
+        {/* Right: Actions Strip — Adaptive & clean */}
+        <div className="flex items-center gap-1.5 min-w-0 shrink-0 ml-auto flex-nowrap">
+          {/* Status Dropdown */}
           <Menu<ConversationStatus>
             value={conversation.status}
             options={STATUS_OPTIONS}
@@ -2376,13 +2365,13 @@ export function ChatThread({
                   'btn btn-sm btn-secondary gap-1.5 shrink-0 px-2 sm:px-2.5 cursor-pointer',
                   open && 'bg-surface-3'
                 )}
-                title={`Status: ${active?.label ?? ''} (Click to change status)`}
+                title={`Status: ${active?.label ?? ''}`}
               >
                 <span
                   className="w-1.5 h-1.5 rounded-full shrink-0"
                   style={{ background: active?.dot }}
                 />
-                <span className="text-xs font-medium text-ink">{active?.label}</span>
+                <span className="text-xs font-semibold text-ink">{active?.label}</span>
                 <ChevronDown
                   className={cn(
                     'w-3.5 h-3.5 text-ink-3 transition-transform duration-150',
@@ -2393,24 +2382,23 @@ export function ChatThread({
             )}
           />
 
-          {onAskTeam && (
-            <button
-              type="button"
-              onClick={onAskTeam}
-              className="btn btn-sm btn-secondary shrink-0 px-2.5 flex items-center gap-1.5 cursor-pointer"
-              title="Ask a teammate about this chat"
-              aria-label="Ask the team about this conversation"
+          {/* Handover Active Badge in Header */}
+          {isHandoverPending && (
+            <span
+              className="inline-flex items-center gap-1 h-7 px-2 rounded-md text-2xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0 shadow-2xs"
+              title="AI Handover Active: Customer is waiting for a human reply"
             >
-              <MessagesSquare className="w-3.5 h-3.5" />
-              <span className="hidden md:inline text-xs font-semibold">Ask team</span>
-            </button>
+              <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+              <span className="hidden sm:inline">Handover</span>
+            </span>
           )}
 
+          {/* Primary Quick Action: Resolve / Reopen */}
           {conversation.status !== 'closed' ? (
             <button
               onClick={() => onUpdateStatus('closed')}
-              className="btn btn-sm btn-primary shadow-xs shrink-0 px-2.5 flex items-center gap-1.5 cursor-pointer"
-              title="Close and resolve this conversation"
+              className="btn btn-sm btn-primary shadow-xs shrink-0 px-2 sm:px-2.5 flex items-center gap-1.5 cursor-pointer"
+              title="Resolve conversation"
               aria-label="Resolve conversation"
             >
               <CheckCircle2 className="w-3.5 h-3.5" />
@@ -2419,8 +2407,8 @@ export function ChatThread({
           ) : (
             <button
               onClick={() => onUpdateStatus('open')}
-              className="btn btn-sm btn-secondary shadow-xs shrink-0 px-2.5 flex items-center gap-1.5 cursor-pointer"
-              title="Reopen this conversation"
+              className="btn btn-sm btn-secondary shadow-xs shrink-0 px-2 sm:px-2.5 flex items-center gap-1.5 cursor-pointer"
+              title="Reopen conversation"
               aria-label="Reopen conversation"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -2428,7 +2416,69 @@ export function ChatThread({
             </button>
           )}
 
-          {/* More actions: AI Autopilot, Snooze, Merge, Auto-Assign */}
+          {/* Assignee Menu — visible on 2xl or in details/more */}
+          <div className="hidden 2xl:inline-flex items-center shrink-0">
+            <Menu<string>
+              value={conversation.agent_id || ''}
+              options={assignOptions}
+              label="Assignee"
+              align="start"
+              className="shrink-0"
+              onChange={(v) => onAssignAgent(v || null)}
+            />
+          </div>
+
+          {/* Priority Menu — visible on 2xl or in details/more */}
+          <div className="hidden 2xl:inline-flex items-center shrink-0">
+            <Menu<ConversationPriority>
+              value={currentPriority}
+              options={PRIORITY_OPTIONS}
+              label="Priority"
+              align="start"
+              className="shrink-0"
+              onChange={(v) => onUpdatePriority?.(v)}
+            />
+          </div>
+
+          {/* AI Autopilot Pill Toggle */}
+          {onToggleAiMode && (() => {
+            const isFullAutopilot = conversation.ai_mode === 'autopilot';
+            const isAiDisabled = conversation.ai_mode === 'disabled';
+            return (
+              <button
+                type="button"
+                onClick={() => onToggleAiMode(isFullAutopilot ? 'disabled' : 'autopilot')}
+                className={cn(
+                  'hidden sm:inline-flex shrink-0 h-7 px-2 rounded-md transition-all cursor-pointer items-center gap-1 text-2xs border font-medium',
+                  isFullAutopilot
+                    ? 'bg-accent/10 text-accent border-accent/25 hover:bg-accent/15 font-semibold'
+                    : isAiDisabled
+                    ? 'bg-warn-soft text-warn border-warn-line hover:bg-warn-soft/80'
+                    : 'bg-surface border-line text-ink-3 hover:text-ink'
+                )}
+                title={isFullAutopilot ? 'AI Autopilot Active (click to pause)' : 'AI Paused (click to resume)'}
+              >
+                <Bot className={cn('w-3 h-3', isFullAutopilot ? 'text-accent' : isAiDisabled ? 'text-warn' : 'text-ink-3')} />
+                <span className="hidden md:inline">{isFullAutopilot ? 'AI On' : 'AI Paused'}</span>
+              </button>
+            );
+          })()}
+
+          {/* Ask team */}
+          {onAskTeam && (
+            <button
+              type="button"
+              onClick={onAskTeam}
+              className="btn btn-sm btn-secondary shrink-0 px-2 flex items-center gap-1.5 cursor-pointer"
+              title="Ask a teammate about this chat"
+              aria-label="Ask team"
+            >
+              <MessagesSquare className="w-3.5 h-3.5" />
+              <span className="hidden xl:inline text-xs font-semibold">Ask team</span>
+            </button>
+          )}
+
+          {/* More actions: Snooze, Merge, Auto-Assign */}
           <Menu<ThreadAction>
             value={"" as ThreadAction}
             label="More actions"
@@ -2445,7 +2495,7 @@ export function ChatThread({
                       description:
                         conversation.ai_mode !== "disabled"
                           ? "AI is answering this thread"
-                          : `${AI_PAUSED_LABEL[conversation.ai_paused_reason ?? ""] ?? "AI is off"}. Turning it on answers the next customer message; nothing is sent now.`,
+                          : `${AI_PAUSED_LABEL[conversation.ai_paused_reason ?? ""] ?? "AI is off"}. Turning it on answers the next customer message.`,
                     },
                   ]
                 : []),
@@ -2457,289 +2507,60 @@ export function ChatThread({
               },
               {
                 value: "merge",
-                label: "Merge with another conversation from this visitor",
-                description: "Combine with another thread from this visitor",
+                label: "Merge conversation",
+                description: "Combine with another conversation for this visitor",
               },
               {
                 value: "auto-assign",
-                label: isAutoAssigning ? "Assigning…" : "Auto-assign to agent",
-                description: "Round-robin to an available teammate",
+                label: "Run auto-assignment",
+                description: "Route to agent based on workspace routing rules",
               },
             ]}
             onChange={(action) => {
-              if (action === "snooze") setShowSnoozeModal(true);
-              else if (action === "merge") handleOpenMergeModal();
-              else if (action === "auto-assign") handleAutoAssign();
-              else if (action === "ai")
-                onToggleAiMode?.(
-                  conversation.ai_mode === "disabled" ? "autopilot" : "disabled"
+              if (action === "ai" && onToggleAiMode) {
+                onToggleAiMode(
+                  conversation.ai_mode !== "disabled" ? "disabled" : "autopilot"
                 );
+              } else if (action === "snooze") {
+                setShowSnoozeModal(true);
+              } else if (action === "merge") {
+                setShowMergeModal(true);
+              } else if (action === "auto-assign") {
+                handleAutoAssign();
+              }
             }}
             trigger={({ open }) => (
               <span
                 className={cn(
-                  "btn btn-sm btn-secondary w-8 h-8 px-0 flex items-center justify-center shrink-0",
-                  open && "bg-surface-3"
+                  "w-8 h-8 rounded-lg border border-line/70 flex items-center justify-center text-ink-3 hover:text-ink hover:bg-surface-3 transition-colors cursor-pointer shrink-0",
+                  open && "bg-surface-3 text-ink"
                 )}
                 title="More actions"
+                aria-label="More actions"
               >
                 <MoreHorizontal className="w-4 h-4" />
               </span>
             )}
           />
 
-          {/* CRM Details Sidebar Toggle */}
-          {onToggleDetailsSidebar && (
-            <button
-              onClick={onToggleDetailsSidebar}
-              title={isDetailsSidebarOpen ? "Hide customer details" : "Show customer details"}
-              aria-label={isDetailsSidebarOpen ? "Hide customer details" : "Show customer details"}
-              aria-pressed={!!isDetailsSidebarOpen}
-              className={cn(
-                "btn btn-sm btn-secondary w-8 h-8 px-0 flex items-center justify-center shrink-0 transition-all",
-                isDetailsSidebarOpen ? "text-accent bg-accent-soft border-accent-line" : "text-ink-3 hover:text-ink"
-              )}
-            >
-              {isDetailsSidebarOpen ? (
-                <PanelRightClose className="w-4 h-4" />
-              ) : (
-                <PanelRightOpen className="w-4 h-4" />
-              )}
-            </button>
-          )}
+          {/* Details Sidebar Toggle */}
+          <button
+            type="button"
+            onClick={onToggleDetailsSidebar}
+            title={isDetailsSidebarOpen ? "Hide customer details" : "Show customer details"}
+            aria-label={isDetailsSidebarOpen ? "Hide customer details" : "Show customer details"}
+            aria-pressed={!!isDetailsSidebarOpen}
+            className={cn(
+              "h-8 px-2 sm:px-2.5 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs shrink-0 cursor-pointer",
+              isDetailsSidebarOpen ? "text-accent bg-accent-soft border-accent-line" : "text-ink-3 hover:text-ink"
+            )}
+          >
+            {isDetailsSidebarOpen ? <PanelRightClose className="w-3.5 h-3.5" /> : <PanelRightOpen className="w-3.5 h-3.5" />}
+            <span className="hidden xl:inline">{isDetailsSidebarOpen ? "Details" : "Details"}</span>
+          </button>
         </div>
       </header>
-
-      {/* The ticket behind this chat: number, status, priority, type, SLA. */}
-      {conversation.current_ticket_id && workspace?.id && (
-        <ConversationTicketBar
-          workspaceId={workspace.id}
-          ticketId={conversation.current_ticket_id}
-          canEdit={currentAgent?.role !== 'light_agent'}
-          refreshKey={[conversation.status, conversation.priority, conversation.updated_at].join('|')}
-          onOpenTicket={onOpenTicket}
-        />
-      )}
-
-      {/* ── Compact Metadata Toolbar: single line ── */}
-      <div className="shrink-0 px-3 sm:px-4 py-1 flex items-center gap-1.5 border-b border-line bg-surface-2/60 min-h-[32px] overflow-x-auto no-scrollbar">
-        {/* Language selector chip moved from header to metadata row */}
-        <label
-          className="h-6 px-2 rounded-md bg-surface border border-line hover:border-line-3 text-2xs font-semibold text-ink flex items-center gap-1 shrink-0 cursor-pointer relative shadow-2xs transition-colors"
-          title={
-            languageOverride
-              ? `Language set manually: ${getLanguageInfo(detectedVisitorLang).name}`
-              : `Detected language: ${getLanguageInfo(detectedVisitorLang).name} — click to correct`
-          }
-        >
-          <Globe className="w-3 h-3 text-ink-3 shrink-0" />
-          <span className="uppercase text-2xs">{detectedVisitorLang}</span>
-          {languageOverride && <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" aria-hidden />}
-          <ChevronDown className="w-2.5 h-2.5 text-ink-3 shrink-0 opacity-60" />
-          <select
-            value={languageOverride || 'auto'}
-            onChange={(e) => handleLanguageOverride(e.target.value)}
-            aria-label="Conversation language"
-            className="absolute inset-0 opacity-0 cursor-pointer"
-          >
-            <option value="auto">Auto-detect ({detectedVisitorLang.toUpperCase()})</option>
-            {Object.values(SUPPORTED_LANGUAGES)
-              .sort((a, b) => a.name.localeCompare(b.name))
-              .map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.name}
-                  {l.nativeName && l.nativeName !== l.name ? ` (${l.nativeName})` : ''}
-                </option>
-              ))}
-          </select>
-        </label>
-
-        <Menu<ConversationPriority>
-          value={currentPriority}
-          options={PRIORITY_OPTIONS}
-          label="Priority"
-          align="start"
-          className="shrink-0"
-          onChange={(v) => onUpdatePriority?.(v)}
-        />
-
-        <div className="inline-flex items-center shrink-0">
-          <Menu<string>
-            value={conversation.agent_id || ''}
-            options={assignOptions}
-            label="Assignee"
-            align="start"
-            className="shrink-0"
-            onChange={(v) => onAssignAgent(v || null)}
-          />
-        </div>
-
-        {isHandoverPending && (
-          <span
-            className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-md text-2xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-2xs shrink-0"
-            title="AI Handover requested: Customer is waiting for a human agent"
-          >
-            <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
-            Handover Active
-          </span>
-        )}
-
-        {/* Interactive AI Autopilot Toggle Pill */}
-        {onToggleAiMode && (() => {
-          const isFullAutopilot = conversation.ai_mode === 'autopilot';
-          const isAiDisabled = conversation.ai_mode === 'disabled';
-          const isWorkspaceFirstReplyOn = Boolean(
-            workspace?.ai_settings?.enabled !== false &&
-            (workspace?.ai_settings?.auto_response_enabled ?? true)
-          );
-
-          return (
-            <button
-              type="button"
-              onClick={() =>
-                onToggleAiMode(
-                  isFullAutopilot ? 'disabled' : 'autopilot'
-                )
-              }
-              className={cn(
-                'shrink-0 h-6 px-2 rounded-md transition-all cursor-pointer inline-flex items-center gap-1 text-2xs',
-                isFullAutopilot
-                  ? 'bg-accent text-accent-ink font-semibold shadow-xs'
-                  : isAiDisabled
-                  ? 'bg-warn-soft text-warn border border-warn-line font-medium hover:bg-warn-line'
-                  : isWorkspaceFirstReplyOn
-                  ? 'bg-accent/15 text-accent border border-accent/30 font-medium'
-                  : 'bg-surface-3 text-ink-3 hover:text-ink hover:bg-surface-3/80 border border-line'
-              )}
-              title={
-                isFullAutopilot
-                  ? 'AI Autopilot is ON for this conversation (click to pause / take over)'
-                  : isAiDisabled
-                  ? 'AI is paused (Human Agent mode active). Click to turn AI Autopilot back ON'
-                  : isWorkspaceFirstReplyOn
-                  ? 'Workspace AI first reply is ON (click to turn on full Autopilot)'
-                  : 'AI Autopilot is OFF (click to activate)'
-              }
-            >
-              <Bot className={cn('w-3 h-3', isFullAutopilot ? 'text-accent-ink' : isAiDisabled ? 'text-warn' : isWorkspaceFirstReplyOn ? 'text-accent' : 'text-ink-3')} />
-              <span>
-                {isFullAutopilot
-                  ? 'Autopilot'
-                  : isAiDisabled
-                  ? 'AI Paused (Turn On)'
-                  : isWorkspaceFirstReplyOn
-                  ? 'AI reply on'
-                  : 'Autopilot Off'}
-              </span>
-            </button>
-          );
-        })()}
-
-        {conversation.status === "snoozed" && conversation.snoozed_until && (
-          <span className="inline-flex items-center gap-1 h-6 px-1.5 rounded-md text-2xs font-medium bg-warn/10 text-warn border border-warn/20 shrink-0">
-            <Clock className="w-3 h-3" />
-            Snoozed {formatTimeAgo(conversation.snoozed_until)}
-          </span>
-        )}
-
-        <span className="w-px h-3.5 bg-line-2 mx-0.5 shrink-0" />
-
-        <Tag className="w-3 h-3 text-ink-3 shrink-0" />
-
-        {conversation.tags?.length ? (
-          conversation.tags.map((t) => (
-            <span key={t} className="inline-flex items-center gap-1 h-6 px-1.5 rounded-md text-2xs font-medium bg-accent/10 text-accent border border-accent/20 group shrink-0">
-              {t}
-              <button
-                onClick={() => handleToggleTag(t)}
-                aria-label={`Remove tag ${t}`}
-                className="opacity-50 hover:opacity-100 transition-opacity"
-              >
-                <X className="w-2.5 h-2.5" />
-              </button>
-            </span>
-          ))
-        ) : null}
-
-        <div ref={tagPickerRef} className="relative shrink-0">
-          <button
-            onClick={() => setShowTagPicker((s) => !s)}
-            className="inline-flex items-center gap-1 h-6 px-2 rounded-md border border-dashed border-line-2 text-2xs font-medium text-ink-3 hover:text-ink hover:border-line-3 transition-colors shrink-0 whitespace-nowrap"
-          >
-            <Plus className="w-3 h-3 shrink-0" />
-            <span className="whitespace-nowrap">Tag</span>
-          </button>
-
-          {showTagPicker &&
-            typeof document !== 'undefined' &&
-            createPortal(
-              <div
-                ref={tagMenuRef}
-                style={{
-                  position: 'fixed',
-                  top: `${tagPickerCoords.top}px`,
-                  left: `${tagPickerCoords.left}px`,
-                  zIndex: 9999,
-                }}
-                className="w-56 p-2 rounded-xl border border-line bg-surface shadow-2xl animate-pop"
-              >
-                <div className="eyebrow px-1.5 pb-1.5">Tags</div>
-                <div className="space-y-0.5 mb-2">
-                  {PRESET_TAGS.map((pt) => {
-                    const active = (conversation.tags || []).includes(pt);
-                    return (
-                      <button
-                        key={pt}
-                        onClick={() => handleToggleTag(pt)}
-                        className={cn(
-                          'w-full flex items-center justify-between px-2 py-1.5 rounded-lg text-xs transition-colors cursor-pointer',
-                          active
-                            ? 'bg-accent-soft text-accent font-medium'
-                            : 'text-ink hover:bg-surface-3'
-                        )}
-                      >
-                        {pt}
-                        {active && <Check className="w-3.5 h-3.5" />}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="pt-2 border-t border-line flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    placeholder="Custom tag"
-                    value={customTagInput}
-                    onChange={(e) => setCustomTagInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && handleAddCustomTag()}
-                    className="input input-sm flex-1"
-                  />
-                  <button
-                    onClick={handleAddCustomTag}
-                    className="btn btn-sm btn-primary shrink-0"
-                  >
-                    Add
-                  </button>
-                </div>
-              </div>,
-              document.body
-            )}
-        </div>
-
-        {conversation.csat_rating && (
-          <span
-            className="inline-flex items-center gap-1 h-6 px-1.5 rounded-md text-2xs font-medium bg-warn/10 text-warn border border-warn/20 shrink-0"
-            title={
-              conversation.csat_feedback
-                ? `CSAT ${conversation.csat_rating}/5 — ${conversation.csat_feedback}`
-                : `CSAT ${conversation.csat_rating}/5`
-            }
-          >
-            <Star className="w-3 h-3 fill-current" />
-            {conversation.csat_rating}/5
-          </span>
-        )}
-      </div>
-
+      
       {/* ── Collision Warning Banner ── */}
       {collisionAgents.length > 0 && (
         <div className="bg-warn/10 border-b border-warn/25 px-5 py-2.5 flex items-center justify-between text-xs text-warn animate-in fade-in slide-in-from-top-1 duration-200">
@@ -3191,7 +3012,7 @@ export function ChatThread({
                       <strong>Handover Active:</strong> {displayName} is waiting for a live agent reply. Replying here will automatically assign you and take over.
                     </>
                   ) : (
-                    'The bot is paused while a person handles this conversation.'
+                    'Bot paused · Handled by agent'
                   )}
                 </span>
               </div>
@@ -3206,7 +3027,7 @@ export function ChatThread({
                 )}
               >
                 <Bot className="w-3 h-3 text-amber-500" />
-                <span>Turn the bot on</span>
+                <span>Resume bot</span>
               </button>
             </div>
           )}

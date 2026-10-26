@@ -244,7 +244,7 @@ export function VisitorDetailsSidebar({
 
   if (!liveVisitor) {
     return (
-      <aside className="hidden xl:flex w-[320px] shrink-0 h-screen border-l border-line bg-surface flex-col items-center justify-center gap-3 px-6 text-center select-none">
+      <aside className="flex w-[280px] 2xl:w-[300px] shrink-0 h-full border-l border-line bg-surface flex-col items-center justify-center gap-3 px-6 text-center select-none">
         <div className="w-10 h-10 rounded-xl bg-surface-2 border border-line flex items-center justify-center text-ink-3">
           <User className="w-5 h-5" />
         </div>
@@ -323,7 +323,7 @@ export function VisitorDetailsSidebar({
   return (
     <aside
       aria-label="Customer details"
-      className="hidden xl:flex w-[280px] 2xl:w-[300px] shrink-0 h-screen border-l border-line bg-surface-2 flex-col overflow-y-auto relative z-10"
+      className="flex w-[280px] 2xl:w-[300px] shrink-0 h-full border-l border-line bg-surface flex-col overflow-y-auto relative z-10"
     >
       {/* ── 1. Profile Header & Identity ── */}
       <div className="px-5 py-5 flex flex-col items-center text-center border-b border-line relative">

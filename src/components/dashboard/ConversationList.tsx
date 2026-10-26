@@ -174,10 +174,12 @@ function getSlaInfo(conv: Conversation): SlaInfo | null {
   let waitLabel = '';
   if (waitMinutes < 60) {
     waitLabel = `${waitMinutes}m`;
-  } else {
+  } else if (waitMinutes < 24 * 60) {
     const h = Math.floor(waitMinutes / 60);
-    const m = waitMinutes % 60;
-    waitLabel = m > 0 ? `${h}h ${m}m` : `${h}h`;
+    waitLabel = `${h}h`;
+  } else {
+    const d = Math.floor(waitMinutes / (24 * 60));
+    waitLabel = `${d}d`;
   }
 
   return {
@@ -457,87 +459,72 @@ const ConversationItem = memo(function ConversationItem({
           )}
         </div>
 
-        {/* Line 3: status chips on their own row, so they never squeeze the
-            name or the message on a narrow screen. */}
+        {/* Line 3: Streamlined Status & Metadata Row (Single, clean, non-wrapping) */}
         {hasChips && (
-          <div className="flex items-end gap-2 mt-2 min-w-0">
-            <div className="flex flex-wrap items-center gap-1.5 min-w-0 flex-1">
-              {sla?.isBreached ? (
+          <div className="flex items-center justify-between gap-1.5 mt-1.5 min-w-0">
+            <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
+              {/* 1. Primary Status Pill (Mutually exclusive & prioritized) */}
+              {isHandover ? (
+                <span
+                  className={cn(chip, 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-semibold')}
+                  title="AI Escalation: Customer is waiting for a live agent reply"
+                >
+                  <Sparkles className="w-3 h-3 text-amber-500 animate-pulse shrink-0" />
+                  Handover
+                </span>
+              ) : sla?.isBreached ? (
                 <span
                   className={cn(chip, 'bg-danger-soft text-danger border-danger-line')}
                   title={`SLA breached: customer waiting ${sla.waitLabel} without an agent reply`}
                 >
-                  <Clock className="w-3 h-3" />
+                  <Clock className="w-3 h-3 shrink-0" />
                   {sla.waitLabel} overdue
                 </span>
-              ) : sla?.isWarning ? (
-                <span
-                  className={cn(chip, 'bg-warn-soft text-warn border-warn-line')}
-                  title={`Approaching SLA limit: customer waiting ${sla.waitLabel}`}
-                >
-                  <Clock className="w-3 h-3" />
-                  Wait {sla.waitLabel}
-                </span>
-              ) : null}
-
-              {isUrgent ? (
-                <span className={cn(chip, 'bg-danger-soft text-danger border-danger-line')}>Urgent</span>
-              ) : isHigh ? (
-                <span className={cn(chip, 'bg-warn-soft text-warn border-warn-line')}>High</span>
-              ) : null}
-
-              {isHandover ? (
-                <span
-                  className={cn(chip, 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-semibold shadow-2xs')}
-                  title="AI Escalation: Customer is waiting for a live agent reply"
-                >
-                  <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
-                  Handover
-                </span>
-              ) : isWaiting && !isResolved ? (
-                <span className={cn(chip, 'bg-warn-soft text-warn border-warn-line')}>
-                  <span className="w-1.5 h-1.5 rounded-full bg-warn animate-pulse" />
-                  Waiting
-                </span>
-              ) : null}
-
-              {isBotGreeting && !isResolved && !isWaiting && (
-                <span className={cn(chip, 'bg-accent-soft text-accent border-accent-line font-medium')}>
-                  <Bot className="w-3 h-3" />
-                  Bot greeting
-                </span>
-              )}
-
-              {isResolved && (
-                <span className={cn(chip, 'bg-success-soft text-success border-success-line')}>
-                  <Check className="w-3 h-3 stroke-[2.5]" />
+              ) : isResolved ? (
+                <span className={cn(chip, 'bg-surface-2 text-ink-3 border-line font-medium')}>
+                  <Check className="w-3 h-3 stroke-[2] shrink-0" />
                   Resolved
                 </span>
-              )}
-
-              {showLang && (
-                <span
-                  title={`Visitor language: ${langCode!.toUpperCase()}`}
-                  className={cn(chip, 'bg-accent-soft text-accent border-accent-line uppercase')}
-                >
-                  <Globe className="w-3 h-3" />
-                  {langCode}
-                </span>
-              )}
-
-              {tags.map((t) => (
-                <span
-                  key={t}
-                  title={t}
-                  className={cn(chip, 'bg-surface-3 text-ink-2 border-line font-medium max-w-[120px]')}
-                >
-                  <span className="truncate">{t}</span>
-                </span>
-              ))}
-
-              {conv.csat_rating && (
+              ) : isWaiting ? (
                 <span className={cn(chip, 'bg-warn-soft text-warn border-warn-line')}>
-                  <Star className="w-3 h-3 fill-current" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-warn animate-pulse shrink-0" />
+                  Waiting
+                </span>
+              ) : isBotGreeting ? (
+                <span className={cn(chip, 'bg-surface-2 text-ink-3 border-line font-medium')}>
+                  <Bot className="w-3 h-3 shrink-0" />
+                  Bot
+                </span>
+              ) : null}
+
+              {/* 2. Priority indicator (Only for Urgent & High - clean micro badges) */}
+              {isUrgent ? (
+                <span className="inline-flex items-center h-4.5 px-1.5 rounded text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 shrink-0">
+                  Urgent
+                </span>
+              ) : isHigh ? (
+                <span className="inline-flex items-center h-4 px-1 rounded text-[10px] font-semibold uppercase tracking-wider bg-surface-2 text-ink-3 border border-line/60 shrink-0">
+                  High
+                </span>
+              ) : null}
+
+              {/* 3. Primary Tag (Only 1 tag, subtle) */}
+              {tags.length > 0 && (
+                <span
+                  title={tags.join(', ')}
+                  className={cn(chip, 'bg-surface-2 text-ink-3 border-line/60 font-medium max-w-[85px]')}
+                >
+                  <span className="truncate">#{tags[0]}</span>
+                  {tags.length > 1 && (
+                    <span className="text-[10px] text-ink-3 ml-0.5">+{tags.length - 1}</span>
+                  )}
+                </span>
+              )}
+
+              {/* 4. CSAT rating */}
+              {conv.csat_rating && (
+                <span className={cn(chip, 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20')}>
+                  <Star className="w-3 h-3 fill-amber-400 text-amber-400 shrink-0" />
                   {conv.csat_rating}
                 </span>
               )}

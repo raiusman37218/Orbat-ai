@@ -66,7 +66,12 @@ export default function DashboardPage() {
   const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>([]);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showMobileInstallModal, setShowMobileInstallModal] = useState(false);
-  const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useState(true);
+  const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1440;
+    }
+    return false;
+  });
   const [articlesCount, setArticlesCount] = useState(0);
   const [sectionsCount, setSectionsCount] = useState(0);
   const [unansweredCount, setUnansweredCount] = useState(0);
@@ -421,7 +426,14 @@ export default function DashboardPage() {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ workspace_id: workspace.id, days: autoCloseDays }),
-        }).catch(() => {});
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            if (data?.closed_count > 0 && workspace?.id) {
+              refreshConversations(workspace.id);
+            }
+          })
+          .catch(() => {});
       } catch (e) {}
 
       setLoading(false);
@@ -1765,8 +1777,8 @@ export default function DashboardPage() {
             className={cn(
               'h-full shrink-0 flex flex-col min-w-0',
               selectedConversationId
-                ? 'hidden md:flex md:w-[340px] xl:w-[360px]'
-                : 'flex w-full md:w-[340px] xl:w-[360px] pb-14 md:pb-0'
+                ? 'hidden md:flex md:w-[310px] xl:w-[330px]'
+                : 'flex w-full md:w-[310px] xl:w-[330px] pb-14 md:pb-0'
             )}
           >
             <div className="px-3 pt-2.5 pb-0">
