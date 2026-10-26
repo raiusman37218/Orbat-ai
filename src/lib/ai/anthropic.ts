@@ -1913,7 +1913,7 @@ export async function executeHandoverToHuman({
         ...(((convRow as any)?.channel_metadata as Record<string, any>) || {}),
         ai_disabled_at: now,
       };
-    } else if (!disableAi && control && 'ai_needs_attention_at' in control) {
+    } else if (!disableAi && !humanTookOver) {
       // The bot stays on, but the inbox shows the conversation needs someone.
       updatePayload.ai_needs_attention_at = now;
     }

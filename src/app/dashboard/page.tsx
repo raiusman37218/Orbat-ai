@@ -49,7 +49,7 @@ const MobileInstallModal = dynamic(() => import('@/components/pwa/MobileInstallM
  * will actually answer.
  */
 function isAiAnswering(conv: Conversation, ws: Workspace | null): boolean {
-  if (conv.ai_mode === 'disabled') return false;
+  if (conv.ai_mode === 'disabled' || conv.ai_needs_attention_at) return false;
   const s = ws?.ai_settings;
   return !s || (s.enabled !== false && s.auto_response_enabled !== false);
 }
@@ -1379,6 +1379,8 @@ export default function DashboardPage() {
           updated_at: now,
           status: newStatus,
           ai_mode: 'disabled',
+          ai_paused_reason: 'human_reply',
+          ai_needs_attention_at: null,
           channel_metadata: {
             ...((target?.channel_metadata as Record<string, any>) || {}),
             last_human_reply_at: now,
@@ -1394,6 +1396,8 @@ export default function DashboardPage() {
                 ...c,
                 status: newStatus,
                 ai_mode: 'disabled',
+                ai_paused_reason: 'human_reply',
+                ai_needs_attention_at: null,
                 last_message: (insertedMsg as Message) || c.last_message,
                 channel_metadata: {
                   ...((c.channel_metadata as Record<string, any>) || {}),
@@ -1585,6 +1589,10 @@ export default function DashboardPage() {
   const handleUpdateStatus = async (status: ConversationStatus) => {
     if (!selectedConversationId) return;
 
+    const currentConv = conversations.find((c) => c.id === selectedConversationId);
+    const wasPausedBeforeReopen =
+      status === 'open' && currentConv?.status === 'closed' && currentConv?.ai_mode === 'disabled';
+
     const updates: Partial<Conversation> = {
       status,
       closed_at: status === 'closed' ? new Date().toISOString() : null,
@@ -1599,6 +1607,15 @@ export default function DashboardPage() {
     if (error) {
       console.error('Error updating conversation status:', error);
       return;
+    }
+
+    if (wasPausedBeforeReopen) {
+      const keepPaused = {
+        ai_mode: 'disabled' as const,
+        ai_paused_reason: currentConv?.ai_paused_reason || ('agent_paused' as const),
+      };
+      await supabase.from('conversations').update(keepPaused).eq('id', selectedConversationId);
+      Object.assign(updates, keepPaused);
     }
 
     setConversations((prev) =>
@@ -1873,7 +1890,7 @@ export default function DashboardPage() {
                           ai_resumed_at: now,
                         }
                       : {
-                          ai_paused_reason: 'agent_takeover',
+                          ai_paused_reason: 'agent_paused',
                         }),
                   };
                   await supabase

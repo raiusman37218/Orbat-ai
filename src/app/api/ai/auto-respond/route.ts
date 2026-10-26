@@ -378,10 +378,50 @@ export async function POST(req: NextRequest) {
     // When the assistant was switched off: by a human reply, by hand, or by a handover.
     const disabledAt = latest(lastHumanReply?.created_at, meta.last_human_reply_at, meta.ai_disabled_at, conv.ai_control_changed_at);
 
+    const CLOSING_ACK_RE =
+      /^(?:ok(?:ay)?|k|kk|alright|got\s+it|understood|noted|fine|sure|thanks?(?:\s+you|\s+a\s+lot|\s+so\s+much)?|thank\s+you(?:\s+so\s+much|\s+very\s+much)?|thx|ty|tysm|shukriya|meherbani|bohat\s+shukriya|theek(?:\s+hai)?|thik(?:\s+hai)?|acha(?:\s+theek\s+hai|\s+ji)?|sahi(?:\s+hai)?|ji\s+(?:theek|shukriya|behtar)|👍+|👌+|🙏+|❤️+|✅+)[\s!.,👍👌🙏❤️✅]*$/iu;
+    const HUMAN_FOLLOWUP_RE =
+      /\b(?:still\s+(?:not|no|same|waiting)|not\s+(?:showing|working|received|updated|fixed)|didn'?t\s+(?:receive|get|work|show)|did\s+not\s+(?:receive|get|work|show)|when\s+(?:shall|will|can)\s+i\s+(?:receive|get)|abhi\s+tak\s+nahi|nahi\s+(?:mila|aaya|show|chal))\b/i;
+
+    const targetAtMs = Date.parse(visitorMsg.created_at);
+    const lastPublicBeforeVisitor = [...msgs]
+      .reverse()
+      .find(
+        (m) =>
+          m.id !== targetVisitorMsgId &&
+          !m.is_internal &&
+          !m.metadata?.is_welcome &&
+          !m.metadata?.system_event &&
+          Date.parse(m.created_at) <= targetAtMs &&
+          (m.sender_type === 'agent' || m.sender_type === 'ai')
+      );
+    const lastSpeakerWasHuman = Boolean(lastPublicBeforeVisitor && isHumanLine(lastPublicBeforeVisitor));
+    const explicitAutopilotAt = latest(meta.autopilot_enabled_at);
+    const agentExplicitlyResumed =
+      (explicitAutopilotAt > -Infinity && explicitAutopilotAt > lastHumanAt) ||
+      Boolean(conv.ai_resumed_at && Date.parse(conv.ai_resumed_at) > lastHumanAt && !(resolvedAt > -Infinity && resolvedAt >= lastHumanAt));
+    const trimmedVisitorText = String(visitorMsg.content || '').trim();
+    const isClosingAckToHuman = lastSpeakerWasHuman && !agentExplicitlyResumed && CLOSING_ACK_RE.test(trimmedVisitorText);
+    const isDirectFollowupToClosedHumanChat =
+      lastSpeakerWasHuman &&
+      !agentExplicitlyResumed &&
+      resolvedAt > -Infinity &&
+      resolvedAt >= lastHumanAt &&
+      HUMAN_FOLLOWUP_RE.test(trimmedVisitorText);
+    const keepWithHumanAgent = isClosingAckToHuman || isDirectFollowupToClosedHumanChat;
+
+    if (keepWithHumanAgent && conv.ai_mode !== 'disabled') {
+      await supabase
+        .from('conversations')
+        .update({ ai_mode: 'disabled', ai_paused_reason: 'human_reply' })
+        .eq('id', conversation_id);
+      Object.assign(conv, { ai_mode: 'disabled', ai_paused_reason: 'human_reply' });
+    }
+
     // A resolution after the switch-off starts a new exchange, and the bot
     // gets its turn back. (The database does this when a closed conversation
     // reopens; this covers resolutions it cannot see, such as a solved ticket.)
-    if (conv.ai_mode === 'disabled' && resolvedAt > -Infinity && resolvedAt > disabledAt) {
+    if (!keepWithHumanAgent && conv.ai_mode === 'disabled' && resolvedAt > -Infinity && resolvedAt > disabledAt) {
       const { error: resumeErr } = await supabase
         .from('conversations')
         .update({ ai_mode: 'autopilot' })
@@ -395,29 +435,55 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const needsAttentionAt = latest(conv.ai_needs_attention_at);
+    const lastHandoverMsg = [...msgs]
+      .reverse()
+      .find(
+        (m) =>
+          m.sender_type === 'ai' &&
+          !m.is_internal &&
+          Date.parse(m.created_at) <= targetAtMs &&
+          (m.metadata?.handover === true ||
+            m.metadata?.system_event === 'handover' ||
+            (typeof m.metadata?.system_event === 'object' && m.metadata?.system_event?.type === 'handover'))
+      );
+    const lastHandoverAt = latest(conv.ai_needs_attention_at, lastHandoverMsg?.created_at);
+    const alreadyHandedOverInExchange =
+      lastHandoverAt > -Infinity &&
+      lastHandoverAt > resolvedAt &&
+      lastHandoverAt > lastHumanAt &&
+      lastHandoverAt > autopilotAt;
+
     // If the visitor is waiting in the human queue (no human agent has replied yet)
     // and clicks "🤖 Ask AI Assistant meanwhile" / asks to resume AI help, re-enable autopilot
     // while keeping ai_needs_attention_at so the conversation stays in the agent queue.
-    const waitingInHumanQueue =
-      conv.ai_mode === 'disabled' &&
-      (conv.ai_paused_reason === 'human_requested' || conv.ai_paused_reason === 'needs_attention') &&
+    let waitingInHumanQueue =
+      ((conv.ai_mode === 'disabled' &&
+        (conv.ai_paused_reason === 'human_requested' || conv.ai_paused_reason === 'needs_attention')) ||
+        alreadyHandedOverInExchange) &&
       !(lastHumanAt > -Infinity && lastHumanAt > resolvedAt);
 
     if (waitingInHumanQueue && asksToResumeAi(visitorMsg.content)) {
       const nowIso = new Date().toISOString();
+      const attentionIso = conv.ai_needs_attention_at || new Date(Date.parse(nowIso) - 1000).toISOString();
       const { error: resumeAiErr } = await supabase
         .from('conversations')
         .update({
           ai_mode: 'autopilot',
           ai_paused_reason: null,
           ai_resumed_at: nowIso,
-          ai_needs_attention_at: conv.ai_needs_attention_at || nowIso,
+          ai_needs_attention_at: attentionIso,
+          channel_metadata: {
+            ...meta,
+            autopilot_enabled_at: nowIso,
+          },
         })
         .eq('id', conversation_id);
       if (!resumeAiErr) {
         const { data: freshConv } = await supabase.from('conversations').select('*').eq('id', conversation_id).single();
         if (freshConv) Object.assign(conv, freshConv);
         visitorMsg.content = 'I have another question.';
+        waitingInHumanQueue = false;
       }
     }
 
@@ -425,7 +491,12 @@ export async function POST(req: NextRequest) {
     // bot was last switched on, but the row still says autopilot.
     const legacyHumanOwned =
       conv.ai_mode !== 'disabled' && lastHumanAt > -Infinity && lastHumanAt > autopilotAt && lastHumanAt > resolvedAt;
-    const botState = legacyHumanOwned ? 'human_handling' : botControlState(conv, lastBotReply?.created_at);
+    const botState =
+      legacyHumanOwned || keepWithHumanAgent
+        ? 'human_handling'
+        : waitingInHumanQueue && conv.ai_mode !== 'disabled'
+        ? 'needs_attention'
+        : botControlState(conv, lastBotReply?.created_at);
     // Read before generating; delivery is refused if it changes meanwhile.
     const controlVersion: number | null =
       typeof conv.ai_control_version === 'number' ? conv.ai_control_version : null;
@@ -439,7 +510,7 @@ export async function POST(req: NextRequest) {
       isAskingForHuman,
     });
 
-    if (legacyHumanOwned || !botMayReply(conv)) {
+    if (legacyHumanOwned || keepWithHumanAgent || waitingInHumanQueue || !botMayReply(conv)) {
       // If the visitor is waiting in the human handover queue (no human agent has replied yet)
       // and sends follow-up messages (details, "hi", "why is no one responding?", "connect to team"),
       // do not leave them in dead silence: capture any account/email details for the agent and
@@ -478,8 +549,22 @@ export async function POST(req: NextRequest) {
         const sinceLastNoticeMs = lastQueueNotice?.created_at
           ? Date.now() - Date.parse(lastQueueNotice.created_at)
           : Infinity;
+        const lastDetailsNotice = [...msgs]
+          .reverse()
+          .find((m) => m.sender_type === 'ai' && !m.is_internal && m.metadata?.is_details_ack);
+        const sinceLastDetailsMs = lastDetailsNotice?.created_at
+          ? Date.now() - Date.parse(lastDetailsNotice.created_at)
+          : Infinity;
+        const sinceHandoverMs = lastHandoverAt > -Infinity ? Date.now() - lastHandoverAt : Infinity;
 
-        if (hasRefs || sinceLastNoticeMs > 3 * 60_000) {
+        const shouldSendDetailsAck = hasRefs && sinceLastDetailsMs > 2 * 60_000;
+        const shouldSendQueueReminder =
+          !hasRefs &&
+          !CLOSING_ACK_RE.test(trimmedVisitorText) &&
+          sinceLastNoticeMs > 3 * 60_000 &&
+          sinceHandoverMs > 2 * 60_000;
+
+        if (shouldSendDetailsAck || shouldSendQueueReminder) {
           const notice = getExpectedReplyTimeNotice(qLang);
           const queueText = hasRefs
             ? localized(qLang, {
@@ -502,6 +587,7 @@ export async function POST(req: NextRequest) {
             reply_to_message_id: currentVisitorMsgId,
             metadata: {
               is_queue_update: true,
+              is_details_ack: hasRefs ? true : undefined,
               bot_engine: 'built_in',
               quick_replies: [
                 { label: '🤖 Ask AI Assistant meanwhile', value: 'Resume AI assistant' },
@@ -550,7 +636,7 @@ export async function POST(req: NextRequest) {
     // The person who last handled this exchange, so the bot carries on from
     // what they said instead of starting over or contradicting them.
     const humanContext =
-      lastHumanReply && Date.parse(lastHumanReply.created_at) > resolvedAt
+      lastHumanReply && (Date.parse(lastHumanReply.created_at) > resolvedAt || targetAtMs - Date.parse(lastHumanReply.created_at) < 2 * 60 * 60_000)
         ? { lastReply: String(lastHumanReply.content || ''), at: lastHumanReply.created_at as string }
         : null;
 

@@ -514,4 +514,49 @@ describe('Zendesk queue status & AI resume while waiting for an agent', () => {
     expect(conv().ai_mode).toBe('autopilot');
     expect(generate).toHaveBeenCalledTimes(1);
   });
+
+  it('does not run a duplicate LLM handover when ai_needs_attention_at is already set in the exchange', async () => {
+    Object.assign(conv(), { ai_mode: 'autopilot', ai_needs_attention_at: new Date(db.clock).toISOString() });
+    db.clock += 1000;
+    const msg = visitorSays('ravikumarta@gmail.com');
+    const { body } = await respond(msg);
+    expect(body).toMatchObject({ replied: true, queue_update: true });
+    expect(generate).not.toHaveBeenCalled();
+    expect(publicBotReplies()).toHaveLength(1);
+    expect(publicBotReplies()[0].content).toContain('attached your details');
+  });
+
+  it('does not wake up on a closing acknowledgment ("ok") right after a human agent resolves the chat', async () => {
+    visitorSays('My account failed?');
+    agentSays('Your account failed due to overnight holding.');
+    Object.assign(conv(), {
+      ai_mode: 'autopilot',
+      last_resolved_at: new Date(db.clock + 500).toISOString(),
+      ai_resumed_at: new Date(db.clock + 600).toISOString(),
+    });
+    db.clock += 1000;
+    const msg = visitorSays('ok');
+    const { body } = await respond(msg);
+    expect(body.replied).toBe(false);
+    expect(generate).not.toHaveBeenCalled();
+    expect(conv().ai_mode).toBe('disabled');
+    expect(conv().ai_paused_reason).toBe('human_reply');
+  });
+
+  it('does not hijack a direct follow-up ("still not showing") right after a human agent resolves the chat', async () => {
+    visitorSays('Credentials not showing');
+    agentSays('I updated it now look into dashboard');
+    Object.assign(conv(), {
+      ai_mode: 'autopilot',
+      last_resolved_at: new Date(db.clock + 500).toISOString(),
+      ai_resumed_at: new Date(db.clock + 600).toISOString(),
+    });
+    db.clock += 1000;
+    const msg = visitorSays('still not showing');
+    const { body } = await respond(msg);
+    expect(body.replied).toBe(false);
+    expect(generate).not.toHaveBeenCalled();
+    expect(conv().ai_mode).toBe('disabled');
+    expect(conv().ai_paused_reason).toBe('human_reply');
+  });
 });
