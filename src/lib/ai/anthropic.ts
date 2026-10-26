@@ -36,6 +36,8 @@ import { executePlatformAiReply, getPlatformAiConfigServerOnly } from './platfor
 import { getWorkspaceEffectivePlan } from '@/lib/plans/enforce';
 import {
   accountSpecificReply,
+  ANOTHER_QUESTION_PROMPT,
+  ASKED_FOR_ACCOUNT_DETAILS,
   asksForHuman,
   BOT_FRUSTRATION,
   FRUSTRATION_REASON,
@@ -599,6 +601,11 @@ async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<He
       citedArticles,
       usedArticleIds,
       retrievalConfidence: context.confidence,
+      quickReplies: [
+        { label: '👍 Yes, that helped', value: 'Yes, that helped!' },
+        { label: '❓ Another question', value: 'I have another question.' },
+        { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
+      ],
     };
   };
 
@@ -624,6 +631,7 @@ async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<He
       }),
       disableAi: false,
       priority: 'normal',
+      quickReplies: null,
     };
   };
 
@@ -1159,10 +1167,11 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
     citedArticles: citation ? [{ id: citation.id, title: citation.title }] : [],
     usedArticleIds: articleIds,
     retrievalConfidence: source ? 'high' : 'medium',
-    // After answering a specific topic, offer a follow-up chip so the visitor
-    // can either ask another common question or escalate — no typing needed.
+    // After answering a specific topic, offer Zendesk-style resolution & follow-up chips
+    // so the visitor can confirm resolution, ask another question, or escalate — no typing needed.
     quickReplies: !parsed.handover
       ? [
+          { label: '👍 Yes, that helped', value: 'Yes, that helped!' },
           { label: '❓ Another question', value: 'I have another question.' },
           { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
         ]
@@ -1594,19 +1603,21 @@ async function respondToVisitor({
     if (route.agent === 'greeting' && intent.intent === 'small_talk') {
       const ongoing = resuming || Boolean(humanContext) || priorTurns.some((t) => t.role === 'assistant');
       const greeting = intent.smallTalkKind === 'greeting' || !intent.smallTalkKind;
+      const isAnotherQuestion = ANOTHER_QUESTION_PROMPT.test((incomingMessage || '').trim().replace(/[\s!.,?؟\\]+$/u, ''));
       const text = greeting && ongoing
         ? welcomeBackReply(lang)
         : greeting
         ? cannedGreeting || propFirmWelcome(lang, brand, name)
         : smallTalkReply(intent.smallTalkKind ?? 'greeting', lang, brand, name, null, incomingMessage);
-      // On a fresh greeting show topic chips so the visitor can jump to what they need
-      // without typing. Shown only on greetings, not on thanks/bye/other small talk.
+      // Show topic chips on a fresh greeting or when the visitor clicks "❓ Another question"
+      // so they can jump to what they need without typing.
       const greetingQuickReplies: Array<{ label: string; value: string }> | null =
-        greeting && !ongoing
+        (greeting && !ongoing) || isAnotherQuestion
           ? [
               { label: '💰 Pricing & Plans', value: 'What are the challenge prices and account sizes?' },
               { label: '📋 Trading Rules', value: 'What are the trading rules and drawdown limits?' },
               { label: '💸 Payouts', value: 'How and when can I request a payout?' },
+              { label: '🔐 Account & KYC', value: 'What documents are required for KYC verification?' },
               { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
             ]
           : null;
@@ -1634,7 +1645,16 @@ async function respondToVisitor({
       };
     }
 
-    if (specialist.engine === 'model' && !lookup) {
+    // If the bot just asked the visitor for their order/account number or email
+    // and they replied with those details, acknowledge immediately via accountSpecificReply
+    // instead of running the generative model and risking a duplicate handover pitch.
+    const prevAssistant = [...priorTurns].reverse().find((t) => t.role === 'assistant')?.content ?? null;
+    const isSupplyingRequestedDetails =
+      intent.intent === 'account_specific' &&
+      Boolean(prevAssistant && ASKED_FOR_ACCOUNT_DETAILS.test(prevAssistant)) &&
+      Boolean(intent.orderNumber || intent.accountNumber || intent.email);
+
+    if (specialist.engine === 'model' && !lookup && !isSupplyingRequestedDetails) {
       const reply = await answerAsSupportAgent({
         workspaceId,
         conversationId,
@@ -1669,17 +1689,19 @@ async function respondToVisitor({
       // going, or that a person handled before the bot came back, is not.
       const ongoing = resuming || Boolean(humanContext) || priorTurns.some((t) => t.role === 'assistant');
       const greeting = intent.smallTalkKind === 'greeting' || !intent.smallTalkKind;
+      const isAnotherQuestion = ANOTHER_QUESTION_PROMPT.test((incomingMessage || '').trim().replace(/[\s!.,?؟\\]+$/u, ''));
       const text = greeting && ongoing
         ? welcomeBackReply(lang)
         : cannedGreeting && greeting
         ? cannedGreeting
         : smallTalkReply(intent.smallTalkKind ?? 'greeting', lang, brand, name, null, incomingMessage);
       const strictGreetingQuickReplies: Array<{ label: string; value: string }> | null =
-        greeting && !ongoing
+        (greeting && !ongoing) || isAnotherQuestion
           ? [
               { label: '💰 Pricing & Plans', value: 'What are the challenge prices and account sizes?' },
               { label: '📋 Trading Rules', value: 'What are the trading rules and drawdown limits?' },
               { label: '💸 Payouts', value: 'How and when can I request a payout?' },
+              { label: '🔐 Account & KYC', value: 'What documents are required for KYC verification?' },
               { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
             ]
           : null;
@@ -1699,7 +1721,7 @@ async function respondToVisitor({
       return handover(wantsHumanReply(lang, hasHumanReplied), { disableAi: true, priority: 'high' });
 
     case 'account_specific': {
-      const baseReply = accountSpecificReply(lang, intent);
+      const baseReply = accountSpecificReply(lang, intent, conversationMessages);
       const bStatus = checkWorkspaceBusinessHours(businessHours);
       const fullReply = bStatus.isOpen ? baseReply : `${baseReply}\n\n${formatHandoverCustomerMessage({ lang, businessHours })}`;
       return handover(fullReply, { disableAi: false, priority: 'high' });
@@ -1903,6 +1925,21 @@ export async function executeHandoverToHuman({
     if (escalateErr) console.error('[executeHandoverToHuman] Could not escalate the conversation:', escalateErr.message);
 
     if (alreadyHandedOver && !disableAi) {
+      if (internalNote && internalNote.includes('Given: ')) {
+        await supabase.from('messages').insert({
+          conversation_id: conversationId,
+          sender_type: 'ai',
+          content: internalNote,
+          is_internal: true,
+          reply_to_message_id: visitorMessageId || null,
+          metadata: {
+            is_handover: true,
+            handover_for_message_id: visitorMessageId || null,
+            reason,
+            priority,
+          },
+        });
+      }
       return;
     }
 

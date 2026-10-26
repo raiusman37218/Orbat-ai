@@ -179,11 +179,35 @@ export const HANDOFF_OFFER =
 
 /** Asking for a person in Roman Urdu or mixed English, which `wantsHuman` does not know. */
 const HUMAN_REQUEST_ROMAN_UR =
-  /\b(?:(?:kisi\s+)?(?:insaan|insan|banday|bande|banda|agent|representative|staff|admin|support(?:\s+team)?|team(?:\s+member)?|manager)\s+(?:se|say|sy)\s+(?:baat|rabta|contact|connect)|(?:insaan|insan|human|agent|representative|real\s+person|team\s+member)\s+(?:chahiye|chahye|chaiye|se\s+milna)|(?:kisi\s+se\s+)?baat\s+(?:karwa|karwao|karao|krwa|kara|karni|krni|kar\s+sakta|kr\s+sakta)\w*|(?:human|agent|person|team\s+member)\s+(?:se\s+)?connect\s+(?:karo|kar\s+do|krdo|kardo|karwao|krwao|krwa\s+do|karwa\s+do)|handover\s+(?:kar\s+do|krdo|kardo|karo|krwao|karwao))\b/i;
+  /\b(?:(?:kisi\s+)?(?:insaan|insan|banday|bande|banda|agent|representative|staff|admin|support(?:\s+team)?|team(?:\s+member)?|manager)\s+(?:se|say|sy)\s+(?:baat|rabta|contact|connect)|(?:insaan|insan|human|agent|representative|real\s+person|team\s+member)\s+(?:chahiye|chahye|chaiye|se\s+milna)|(?:kisi\s+se\s+)?baat\s+(?:karwa|karwao|karao|krwa|kara|karni|krni|kar\s+sakta|kr\s+sakta)\w*|(?:human|agent|person|team\s+member)\s+(?:se\s+)?connect\s+(?:karo|kar\s+do|krdo|kardo|karwao|krwao|krwa\s+do|karwa\s+do)|handover\s+(?:kar\s+do|krdo|kardo|karo|krwao|karwao)|connect\s+(?:me\s+)?to\s+(?:the\s+|our\s+)?(?:team|support|agent|human))\b/i;
 
 export function asksForHuman(message: string): boolean {
   return wantsHuman(message) || HUMAN_REQUEST_ROMAN_UR.test(message);
 }
+
+/** Visitor clicked or typed to re-enable the AI assistant while waiting in the human queue. */
+export const RESUME_AI_REQUEST =
+  /^(?:🤖\s*)?(?:resume\s+ai(?:\s+assistant)?|ask\s+ai(?:\s+assistant)?(?:\s+meanwhile)?|get\s+instant\s+ai\s+help(?:\s+meanwhile)?|use\s+ai\s+assistant|talk\s+to\s+ai(?:\s+assistant)?|switch\s+back\s+to\s+ai)$/i;
+
+export function asksToResumeAi(message: string): boolean {
+  return RESUME_AI_REQUEST.test((message || '').trim().replace(/[\s!.,?؟\\]+$/u, ''));
+}
+
+/** Visitor clicked "❓ Another question" or asked to start another question topic. */
+export const ANOTHER_QUESTION_PROMPT =
+  /^(?:❓\s*)?(?:i\s+have\s+(?:an(?:other)?|one\s+more)\s+question|ask\s+another\s+question|another\s+question(?:\s+please)?|one\s+more\s+question|i\s+want\s+to\s+ask\s+(?:something(?:\s+else)?|another\s+question)|can\s+i\s+ask\s+(?:a|another)\s+question|mera\s+(?:ek\s+)?(?:aur\s+)?sawal\s+hai|ek\s+aur\s+sawal(?:\s+hai)?)$/i;
+
+/** Visitor confirmed the AI's answer resolved their question ("👍 Yes, that helped"). */
+export const RESOLVED_CONFIRMATION =
+  /^(?:👍\s*)?(?:yes,?\s*that\s+helped|that\s+helped(?:\s+a\s+lot)?|that\s+answered\s+my\s+question|yes,?\s*answered|problem\s+solved|issue\s+resolved|all\s+sorted|sorted,?\s*thanks|bohot\s+madad\s+mili|masla\s+hal\s+ho\s+gaya|sawal\s+ka\s+jawab\s+mil\s+gaya)$/i;
+
+/** Previous assistant message asked the visitor to share their order/account number or email. */
+export const ASKED_FOR_ACCOUNT_DETAILS =
+  /share your (?:order or account number|email address)|apna (?:order ya account number|email)|اپنا (?:آرڈر یا اکاؤنٹ نمبر|ای میل)|provide your (?:account|order|email)|noted #\S+ for our team/i;
+
+/** General pre-purchase or product/plan/rules inquiries ("i need an instant account", starter topic chips). */
+const PRE_PURCHASE_OR_PLAN_QUESTION =
+  /\b(?:(?:i\s+(?:need|want|would\s+like)(?:\s+to\s+(?:buy|get|purchase|open|start))?|how\s+(?:to|do\s+i|can\s+i)\s+(?:buy|get|purchase|open|start))\s+(?:an?\s+)?(?:instant|evaluation|funded|1-?step|2-?step|two-?step|one-?step|challenge|prop|\d+\s*k)\s*(?:account|challenge|plan|program)|what\s+are\s+the\s+(?:challenge\s+prices\s+and\s+account\s+sizes|trading\s+rules\s+and\s+drawdown\s+limits)|how\s+and\s+when\s+can\s+i\s+request\s+a\s+payout)\b/i;
 
 const OUT_OF_SCOPE =
   /\b(recipes?|bake|baking|biryani|pizza|cake|cookies?|weather|forecast|mausam|joke|jokes|lateefa|poem|poetry|shayari|song\s+lyrics|lyrics|essay|homework|assignment|calculus|algebra|equation|capital\s+of|president\s+of|prime\s+minister|who\s+won|world\s+cup|cricket\s+score|football\s+score|match\s+score|movie\s+recommendations?|horoscope|zodiac|write\s+(?:me\s+)?(?:an?\s+)?(?:essay|poem|story|song|python|code|script|program|cover\s+letter)|meaning\s+of\s+life|tell\s+me\s+a\s+story)\b/i;
@@ -222,6 +246,8 @@ const ACCOUNT_NUMBER =
 const ORDER_NUMBER =
   /\b(?:order|ord|booking|invoice|tracking|shipment|parcel|transaction|txn|ticket|ref(?:erence)?)\s*(?:#|no\.?|num(?:ber)?|id)?\s*[:=]?\s*#?\s*([A-Z0-9-]*\d[A-Z0-9-]{3,})\b/i;
 const BARE_REFERENCE = /(?:^|\s)#\s?([A-Z0-9-]*\d[A-Z0-9-]{3,})\b/i;
+const BRAND_HASH_REFERENCE = /\b([A-Za-z]{2,12}#\d{3,12})\b/;
+const BARE_NUMERIC_ID = /^(?:my\s+(?:id|number|account|order)\s*(?:is)?\s*[:=]?\s*)?#?(\d{5,12})$/i;
 
 /** The visitor talking about themselves. */
 const PERSONAL =
@@ -243,21 +269,31 @@ const STATUS_OR_ACTION =
 const HOW_TO =
   /^(?:how\s+(?:do|can|to|does|long|much)|what\s+(?:is|are|'s)|what's|is\s+(?:there|it)|are\s+there|do\s+you|does|can\s+(?:i|we|you)|which|kaise|kese|kya\s+(?:aap|ap|main|mein)|kitna|kitne|kitni)\b/i;
 
-function extractReferences(text: string) {
+export function extractReferences(text: string, previousAssistantMessage?: string | null) {
   const email = text.match(EMAIL)?.[0] ?? null;
   const orderNumber = text.match(ORDER_NUMBER)?.[1] ?? null;
+  const askedForDetails = Boolean(previousAssistantMessage && ASKED_FOR_ACCOUNT_DETAILS.test(previousAssistantMessage));
+  const bareNumeric =
+    text.trim().match(BARE_NUMERIC_ID)?.[1] ??
+    (askedForDetails ? text.match(/\b(\d{5,12})\b/)?.[1] ?? null : null);
   const accountNumber =
-    text.match(ACCOUNT_NUMBER)?.[1] ?? (!orderNumber ? text.match(BARE_REFERENCE)?.[1] ?? null : null);
+    text.match(ACCOUNT_NUMBER)?.[1] ??
+    (!orderNumber
+      ? text.match(BARE_REFERENCE)?.[1] ??
+        text.match(BRAND_HASH_REFERENCE)?.[1] ??
+        bareNumeric ??
+        null
+      : null);
   return { email, orderNumber, accountNumber };
 }
 
 /** Removes trailing punctuation and leading pleasantries ("hi, ", "thanks! "). */
 function core(text: string): string {
-  let s = text.trim().replace(/[\s!.,?؟]+$/u, '');
+  let s = text.trim().replace(/[\s!.,?؟\\]+$/u, '');
   for (let i = 0; i < 3; i++) {
     const stripped = s.replace(LEADING_PLEASANTRY, '').trim();
     if (stripped === s) break;
-    s = stripped.replace(/[\s!.,?؟]+$/u, '');
+    s = stripped.replace(/[\s!.,?؟\\]+$/u, '');
   }
   return s;
 }
@@ -265,7 +301,7 @@ function core(text: string): string {
 const EMOJI_ONLY = /^[\p{Extended_Pictographic}\p{Emoji_Presentation}\p{Emoji}\s\p{P}]+$/u;
 
 function smallTalkKindOf(text: string): SmallTalkKind | null {
-  const whole = text.trim().replace(/[\s!.,?؟]+$/u, '').replace(TRAILING_ADDRESS, '');
+  const whole = text.trim().replace(/[\s!.,?؟\\]+$/u, '').replace(TRAILING_ADDRESS, '');
   if (!whole) return 'greeting';
 
   // Pure emoji messages require zero model tokens
@@ -275,11 +311,15 @@ function smallTalkKindOf(text: string): SmallTalkKind | null {
     return 'greeting';
   }
 
+  if (RESOLVED_CONFIRMATION.test(whole)) return 'thanks';
+  if (ANOTHER_QUESTION_PROMPT.test(whole)) return 'other';
   if (GREETING.test(whole)) return 'greeting';
   if (THANKS.test(whole)) return 'thanks';
   if (OTHER_SMALL_TALK.test(whole)) return 'other';
   const rest = core(whole);
   if (!rest) return /^(thanks|thank|ok)/i.test(whole) ? 'thanks' : 'greeting';
+  if (RESOLVED_CONFIRMATION.test(rest)) return 'thanks';
+  if (ANOTHER_QUESTION_PROMPT.test(rest)) return 'other';
   if (OTHER_SMALL_TALK.test(rest)) return 'other';
   if (GREETING.test(rest)) return 'greeting';
   if (THANKS.test(rest)) return 'thanks';
@@ -318,7 +358,8 @@ export function classifyByRules(
   recentMessages: { role: string; content: string }[] = []
 ): RuleVerdict {
   const text = (message || '').trim();
-  const refs = extractReferences(text);
+  const previous = lastAssistantMessage(recentMessages);
+  const refs = extractReferences(text, previous);
   const isComplaint = COMPLAINT.test(text);
   const base = { source: 'rules' as const, isComplaint, isUrgent: URGENT.test(text), ...refs };
 
@@ -327,9 +368,24 @@ export function classifyByRules(
   }
 
   // "yes" to our own offer of a person is a request for one, not small talk.
-  const previous = lastAssistantMessage(recentMessages);
   if (previous && HANDOFF_OFFER.test(previous) && AFFIRMATIVE.test(text.replace(/[\s!.,?]+$/, ''))) {
     return { ...base, intent: 'wants_human', confidence: 0.97, certain: true, reason: 'Accepted the offer to talk to a team member' };
+  }
+
+  // Visitor replied with their account/order number or email right after the bot asked for it.
+  if (
+    previous &&
+    ASKED_FOR_ACCOUNT_DETAILS.test(previous) &&
+    Boolean(refs.email || refs.orderNumber || refs.accountNumber) &&
+    !HOW_TO.test(core(text))
+  ) {
+    return {
+      ...base,
+      intent: 'account_specific',
+      confidence: 0.96,
+      certain: true,
+      reason: `Provided account or contact details (${[refs.orderNumber, refs.accountNumber, refs.email].filter(Boolean).join(', ')})`,
+    };
   }
 
   // Before the human check: "are you a human?" is a question about the bot.
@@ -359,6 +415,19 @@ export function classifyByRules(
       reason: `About their own ${refs.orderNumber ? 'order' : 'account'} (${refs.orderNumber || refs.accountNumber})`,
     };
   }
+
+  // Pre-purchase or plan/rules inquiry ("i need an instant account", starter topic chips):
+  // never misclassify as an existing account issue when nothing is wrong with a record.
+  if (PRE_PURCHASE_OR_PLAN_QUESTION.test(body) && !problem && !hasReference) {
+    return {
+      ...base,
+      intent: 'help_center_question',
+      confidence: 0.95,
+      certain: true,
+      reason: 'Product, plan, or rules question for the help center',
+    };
+  }
+
   if (personal && record && (problem || (statusOrAction && !howTo))) {
     return { ...base, intent: 'account_specific', confidence: 0.85, certain: false, reason: 'About their own order, account or payment' };
   }
@@ -598,7 +667,19 @@ export function smallTalkReply(
   message?: string
 ): string {
   const n = name ? ` ${name}` : '';
+  const cleanedMsg = (message || '').trim().replace(/[\s!.,?؟\\]+$/u, '');
   if (kind === 'thanks') {
+    if (cleanedMsg && RESOLVED_CONFIRMATION.test(cleanedMsg)) {
+      return localized(lang, {
+        en: 'Glad I could help! If you need anything else, feel free to ask anytime.',
+        roman_ur: 'Khushi hui ke aapki madad ho saki! Agar kuch aur poochna ho to zaroor batayein.',
+        ur: 'خوشی ہوئی کہ آپ کی مدد ہو سکی! اگر کچھ اور پوچھنا ہو تو ضرور بتائیں۔',
+        hi: 'खुशी हुई कि मैं मदद कर सका! अगर कुछ और पूछना हो तो बेझिझक पूछें।',
+        ar: 'يسعدني أنني استطعت المساعدة! إذا احتجت لأي شيء آخر، فلا تتردد في السؤال.',
+        es: '¡Me alegra haber ayudado! Si necesitas algo más, no dudes en preguntar.',
+        fr: "Ravi d'avoir pu vous aider ! Si vous avez besoin d'autre chose, n'hésitez pas.",
+      });
+    }
     if (cannedSettings?.cannedThanks?.trim()) {
       return cannedSettings.cannedThanks.trim();
     }
@@ -610,6 +691,17 @@ export function smallTalkReply(
       ar: 'على الرحب والسعة! هل هناك شيء آخر يمكنني مساعدتك به؟',
       es: '¡De nada! ¿Puedo ayudarte con algo más?',
       fr: 'Avec plaisir ! Puis-je vous aider pour autre chose ?',
+    });
+  }
+  if (kind === 'other' && cleanedMsg && (ANOTHER_QUESTION_PROMPT.test(cleanedMsg) || ANOTHER_QUESTION_PROMPT.test(core(cleanedMsg)))) {
+    return localized(lang, {
+      en: 'Of course! What would you like to know? Pick a topic below or type your question.',
+      roman_ur: 'Zaroor! Aap kya poochna chahte hain? Neeche topic chunein ya apna sawal likhein.',
+      ur: 'ضرور! آپ کیا پوچھنا چاہتے ہیں؟ نیچے موضوع منتخب کریں یا اپنا سوال لکھیں۔',
+      hi: 'बिल्कुल! आप क्या जानना चाहते हैं? नीचे कोई विषय चुनें या अपना सवाल लिखें।',
+      ar: 'بالطبع! ماذا تود أن تعرف؟ اختر موضوعاً أدناه أو اكتب سؤالك.',
+      es: '¡Claro! ¿Qué te gustaría saber? Elige un tema abajo o escribe tu pregunta.',
+      fr: 'Bien sûr ! Que souhaitez-vous savoir ? Choisissez un sujet ci-dessous ou écrivez votre question.',
     });
   }
   if (kind === 'other' && message && HOW_ARE_YOU.test(message)) {
@@ -779,23 +871,70 @@ export function businessHoursReply(lang: ReplyLanguage, status: { isOpen: boolea
   });
 }
 
-export function accountSpecificReply(lang: ReplyLanguage, intent: IntentClassificationResult): string {
+export function accountSpecificReply(
+  lang: ReplyLanguage,
+  intent: IntentClassificationResult,
+  recentMessages: { role: string; content: string }[] = []
+): string {
   const notice = getExpectedReplyTimeNotice(lang);
-  const ref = intent.orderNumber || intent.accountNumber;
+  const previous = lastAssistantMessage(recentMessages);
+  const alreadyAskedForDetails = Boolean(previous && ASKED_FOR_ACCOUNT_DETAILS.test(previous));
+
+  // Gather any reference or email already provided in earlier turns of the current exchange.
+  let priorRef: string | null = null;
+  let priorEmail: string | null = null;
+  for (const m of recentMessages) {
+    if (m.role !== 'user' || !m.content) continue;
+    const r = extractReferences(m.content, previous);
+    if (!priorRef && (r.orderNumber || r.accountNumber)) priorRef = r.orderNumber || r.accountNumber;
+    if (!priorEmail && r.email) priorEmail = r.email;
+  }
+
+  const ref = intent.orderNumber || intent.accountNumber || priorRef;
+  const email = intent.email || priorEmail;
   const apology = intent.isComplaint ? complaintApology(lang) + ' ' : '';
-  if (ref && intent.email) {
+
+  if (ref && email) {
     return (
       apology +
       localized(lang, {
-        en: `Thanks, I've noted #${ref} for our team to check. ${notice}`,
-        roman_ur: `Shukriya, maine #${ref} team ke liye note kar liya hai. ${notice}`,
-        ur: `شکریہ، میں نے #${ref} ٹیم کے لیے درج کر لیا ہے۔ ${notice}`,
+        en: `Thanks, I've noted #${ref} and ${email} for our team to check. ${notice}`,
+        roman_ur: `Shukriya, maine #${ref} aur ${email} team ke liye note kar liya hai. ${notice}`,
+        ur: `شکریہ، میں نے #${ref} اور ${email} ٹیم کے لیے درج کر لیا ہے۔ ${notice}`,
       })
     );
   }
+
+  // If the bot already asked for details in the previous message and the visitor just supplied
+  // their account/order number or email, acknowledge what they shared instead of repeating the handover template.
+  if (alreadyAskedForDetails && (ref || email)) {
+    const noted = ref ? `#${ref}` : email!;
+    const stillMissing = !ref
+      ? localized(lang, {
+          en: ' If you also have your order or account number, feel free to share it here.',
+          roman_ur: ' Agar aapke paas order ya account number bhi hai to woh bhi share kar dein.',
+          ur: ' اگر آپ کے پاس آرڈر یا اکاؤنٹ نمبر بھی ہے تو وہ بھی بتا دیں۔',
+        })
+      : !email
+      ? localized(lang, {
+          en: ' If you also want to share your email address, I will attach it to your ticket.',
+          roman_ur: ' Agar aap apna email bhi share karna chahein to main ticket mein add kar doon ga.',
+          ur: ' اگر آپ اپنا ای میل بھی بتانا چاہیں تو میں ٹکٹ میں شامل کر دوں گا۔',
+        })
+      : '';
+    return (
+      apology +
+      localized(lang, {
+        en: `Thanks! I've added ${noted} to your ticket for our support team.${stillMissing} ${notice}`,
+        roman_ur: `Shukriya! Maine ${noted} aapki ticket mein team ke liye add kar diya hai.${stillMissing} ${notice}`,
+        ur: `شکریہ! میں نے ${noted} آپ کے ٹکٹ میں ٹیم کے لیے شامل کر دیا ہے۔${stillMissing} ${notice}`,
+      })
+    );
+  }
+
   const missing = [
     !ref ? localized(lang, { en: 'order or account number', roman_ur: 'order ya account number', ur: 'آرڈر یا اکاؤنٹ نمبر' }) : null,
-    !intent.email ? localized(lang, { en: 'email address', roman_ur: 'email', ur: 'ای میل' }) : null,
+    !email ? localized(lang, { en: 'email address', roman_ur: 'email', ur: 'ای میل' }) : null,
   ]
     .filter(Boolean)
     .join(localized(lang, { en: ' and ', roman_ur: ' aur ', ur: ' اور ' }));

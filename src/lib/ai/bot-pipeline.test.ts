@@ -1049,4 +1049,21 @@ describe('agent mode (whole help centre in the prompt)', () => {
       expect(agentCalls().length).toBeGreaterThanOrEqual(2);
     });
   });
+
+  describe('Zendesk quick-reply flow & follow-up detail collection', () => {
+    it('clicking "❓ Another question" prompts for a topic with starter chips and does not hand over', async () => {
+      const r = await askAgent('I have another question.');
+      expect(r.shouldHandover).toBe(false);
+      expect(r.intent).toBe('small_talk');
+      expect(r.replyText).toContain('What would you like to know?');
+      expect(r.quickReplies?.length).toBeGreaterThanOrEqual(4);
+    });
+
+    it('clicking "👍 Yes, that helped" confirms resolution warmly without handover', async () => {
+      const r = await askAgent('Yes, that helped!');
+      expect(r.shouldHandover).toBe(false);
+      expect(r.intent).toBe('small_talk');
+      expect(r.replyText).toContain('Glad I could help!');
+    });
+  });
 });

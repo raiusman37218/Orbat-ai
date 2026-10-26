@@ -6152,6 +6152,52 @@ class ZentryWidget {
         color: var(--w-brand);
       }
 
+      .chatify-agent-sender-name .chatify-ai-tag {
+        font-size: 9px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        padding: 1px 5px;
+        border-radius: 4px;
+        background: var(--w-surface-2, rgba(99, 102, 241, 0.1));
+        color: var(--w-ink-2);
+        border: 1px solid var(--w-line);
+      }
+
+      .chatify-handover-email-form {
+        display: flex;
+        gap: 6px;
+        margin-top: 8px;
+      }
+
+      .chatify-handover-email-input {
+        flex: 1;
+        min-width: 0;
+        padding: 6px 9px;
+        font-size: 12px;
+        border-radius: 7px;
+        border: 1px solid var(--w-line-2, var(--w-line));
+        background: var(--w-surface);
+        color: var(--w-ink);
+        outline: none;
+      }
+
+      .chatify-handover-email-input:focus {
+        border-color: var(--w-brand);
+      }
+
+      .chatify-handover-email-btn {
+        padding: 6px 11px;
+        font-size: 11.5px;
+        font-weight: 600;
+        border-radius: 7px;
+        border: none;
+        background: var(--w-brand);
+        color: var(--w-on-brand);
+        cursor: pointer;
+        white-space: nowrap;
+      }
+
       @media (prefers-reduced-motion: reduce) {
         *, *::before, *::after {
           animation-duration: .01ms !important;
@@ -6451,13 +6497,35 @@ class ZentryWidget {
     // Built off-screen; commitMessages puts it on screen only if it changed.
     const stage = document.createElement('div');
 
+    const defaultStarterChips: Array<{ label: string; value: string }> = [
+      { label: '💰 Pricing & Plans', value: 'What are the challenge prices and account sizes?' },
+      { label: '📋 Trading Rules', value: 'What are the trading rules and drawdown limits?' },
+      { label: '💸 Payouts', value: 'How and when can I request a payout?' },
+      { label: '🔐 Account & KYC', value: 'What documents are required for KYC verification?' },
+      { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
+    ];
+
     if (this.messages.length === 0) {
-      stage.innerHTML = `
-        <div style="text-align:center; margin:auto 0; padding:0 18px;">
-          <p style="color:var(--w-ink); font-size:15px; font-weight:600; letter-spacing:-.012em; margin-bottom:5px;">How can we help?</p>
-          <p style="color:var(--w-ink-2); font-size:13px; line-height:1.55;">Send a message below and someone from our team will pick it up.</p>
-        </div>
-      `;
+      const emptyWrap = document.createElement('div');
+      emptyWrap.style.cssText = 'text-align:center; margin:auto 0; padding:0 18px;';
+      emptyWrap.innerHTML =
+        `<p style="color:var(--w-ink); font-size:15px; font-weight:600; letter-spacing:-.012em; margin-bottom:5px;">How can we help?</p>` +
+        `<p style="color:var(--w-ink-2); font-size:13px; line-height:1.55; margin-bottom:14px;">Pick a topic below for instant answers, or type your question.</p>`;
+      const chipsRow = document.createElement('div');
+      chipsRow.className = 'chatify-quick-replies';
+      chipsRow.style.cssText = 'justify-content:center; max-width:100%; margin:0 auto;';
+      defaultStarterChips.forEach((qr) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'chatify-qr-btn';
+        btn.textContent = qr.label;
+        btn.addEventListener('click', () => {
+          this.sendMessage(qr.value || qr.label);
+        });
+        chipsRow.appendChild(btn);
+      });
+      emptyWrap.appendChild(chipsRow);
+      stage.appendChild(emptyWrap);
       this.commitMessages(body, stage);
       this.renderRecentConversation();
       return;
@@ -6515,7 +6583,7 @@ class ZentryWidget {
       const bubble = document.createElement('div');
       bubble.className = isVisitor ? 'chatify-msg-visitor' : 'chatify-msg-agent';
 
-      // Agent sender name badge
+      // Agent / AI sender name badge
       let senderTagHtml = '';
       if (this.isHumanReply(msg)) {
         const agent = this.humanSenderOf(msg);
@@ -6524,6 +6592,9 @@ class ZentryWidget {
           announcedAgent = agent.name || '';
         }
         senderTagHtml = `<div class="chatify-agent-sender-name"><span>${this.escapeHTML(agent.name || 'Support')}</span><span class="chatify-human-tag">Agent</span></div>`;
+      } else if (!isVisitor && (msg.sender_type === 'ai' || (msg.metadata as any)?.is_welcome)) {
+        const aiName = (this.config.businessName || this.config.title || 'Support').trim();
+        senderTagHtml = `<div class="chatify-agent-sender-name"><span>${this.escapeHTML(aiName)}</span><span class="chatify-ai-tag">AI Assistant</span></div>`;
       }
 
       // Kept on one line: the text element preserves whitespace, so any
@@ -6593,10 +6664,16 @@ class ZentryWidget {
       stage.appendChild(row);
 
       // Quick reply chips — shown below AI/agent bubbles when the message
-      // carries them, and only until the visitor has replied (they disappear
-      // automatically once the user sends anything after this message).
+      // carries them (or starter chips on the welcome message), and only until
+      // the visitor has replied (they disappear automatically once the user sends anything).
       if (!isVisitor) {
-        const quickReplies = (msg.metadata?.quick_replies as Array<{ label: string; value?: string }> | null | undefined);
+        const explicitQuickReplies = (msg.metadata?.quick_replies as Array<{ label: string; value?: string }> | null | undefined);
+        const quickReplies =
+          explicitQuickReplies && explicitQuickReplies.length > 0
+            ? explicitQuickReplies
+            : (msg.metadata as any)?.is_welcome
+            ? defaultStarterChips
+            : null;
         if (quickReplies && quickReplies.length > 0) {
           // Hide chips once the visitor has sent any message after this one.
           const hasVisitorReplyAfter = this.messages.some(
@@ -6605,7 +6682,7 @@ class ZentryWidget {
           if (!hasVisitorReplyAfter) {
             const chipsRow = document.createElement('div');
             chipsRow.className = 'chatify-quick-replies';
-            quickReplies.slice(0, 4).forEach((qr) => {
+            quickReplies.slice(0, 5).forEach((qr) => {
               const btn = document.createElement('button');
               btn.type = 'button';
               btn.className = 'chatify-qr-btn';
@@ -7315,13 +7392,40 @@ class ZentryWidget {
       ? `You're next in line. ${this.escapeHTML(this.getReplyTimeText())}.${emailText}`
       : `Our team is away right now. We'll reply here as soon as someone is back.${emailText}`;
 
+    const emailCaptureHtml = !email
+      ? `<form class="chatify-handover-email-form">` +
+        `<input type="email" class="chatify-handover-email-input" placeholder="Get email updates (you@example.com)" required />` +
+        `<button type="submit" class="chatify-handover-email-btn">Notify me</button>` +
+        `</form>`
+      : '';
+
     card.className = 'chatify-handover-card connecting';
     card.innerHTML =
       `<div class="chatify-handover-faces" aria-hidden="true">${facesHtml}</div>` +
       `<div class="chatify-handover-content"><div class="chatify-handover-title-row"><span class="chatify-handover-title">Connecting you to a human agent</span>` +
       `<span class="chatify-handover-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>` +
-      `<p class="chatify-handover-sub">${sub}</p></div>` +
+      `<p class="chatify-handover-sub">${sub}</p>${emailCaptureHtml}</div>` +
       `<span class="chatify-handover-progress" aria-hidden="true"></span>`;
+
+    if (!email) {
+      const form = card.querySelector('.chatify-handover-email-form') as HTMLFormElement | null;
+      const input = card.querySelector('.chatify-handover-email-input') as HTMLInputElement | null;
+      if (form && input) {
+        form.addEventListener('submit', (e) => {
+          e.preventDefault();
+          const val = input.value.trim();
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return;
+          this.visitorEmail = val;
+          const suffix = this.config.workspaceId ? `_${this.config.workspaceId.slice(0, 8)}` : '';
+          try {
+            localStorage.setItem(`zentry_visitor_email${suffix}`, val);
+            localStorage.setItem(`chatify_visitor_email${suffix}`, val);
+          } catch {}
+          this.saveVisitorDetails(null).catch(() => {});
+          this.renderMessages();
+        });
+      }
+    }
     return card;
   }
 

@@ -492,3 +492,26 @@ describe('when the model is slow or fails', () => {
     expect(db.tables.ai_reply_events.map((e) => e.event)).toContain('provider_error');
   });
 });
+
+describe('Zendesk queue status & AI resume while waiting for an agent', () => {
+  it('reassures the visitor and captures details when waiting in human_requested queue with no agent reply yet', async () => {
+    Object.assign(conv(), { ai_mode: 'disabled', ai_paused_reason: 'human_requested' });
+    const msg = visitorSays('salimalimohammad@gmail.com');
+    const { body } = await respond(msg);
+    expect(body).toMatchObject({ replied: true, queue_update: true });
+    expect(publicBotReplies()).toHaveLength(1);
+    expect(publicBotReplies()[0].content).toContain('attached your details');
+    expect(publicBotReplies()[0].metadata.quick_replies).toEqual([
+      { label: '🤖 Ask AI Assistant meanwhile', value: 'Resume AI assistant' },
+    ]);
+  });
+
+  it('re-enables autopilot when the visitor clicks "Resume AI assistant" while waiting in queue', async () => {
+    Object.assign(conv(), { ai_mode: 'disabled', ai_paused_reason: 'human_requested' });
+    const msg = visitorSays('Resume AI assistant');
+    const { body } = await respond(msg);
+    expect(body.replied).toBe(true);
+    expect(conv().ai_mode).toBe('autopilot');
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+});

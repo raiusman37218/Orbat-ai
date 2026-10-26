@@ -9,6 +9,8 @@ vi.mock('@/lib/ai/provider', async (importOriginal) => {
 import { chat, type ProviderConfig } from '@/lib/ai/provider';
 import {
   HANDOFF_OFFER,
+  accountSpecificReply,
+  asksToResumeAi,
   buildHandoverSummary,
   classifyByRules,
   classifyVisitorIntent,
@@ -232,5 +234,54 @@ describe('intent classification with a model configured', () => {
     mockedChat.mockResolvedValueOnce({ text: '{"intent": "complaint"}' } as Awaited<ReturnType<typeof chat>>);
     const unknown = await classifyVisitorIntent({ message: 'What is your refund policy?', providerConfig: provider });
     expect(unknown.intent).toBe('help_center_question');
+  });
+});
+
+describe('Zendesk conversational flow & detail collection', () => {
+  it('recognises quick-reply resolution and topic-picker chips deterministically', () => {
+    expect(classifyByRules('I have another question.')).toMatchObject({
+      intent: 'small_talk',
+      smallTalkKind: 'other',
+      certain: true,
+    });
+    expect(classifyByRules('Yes, that helped!')).toMatchObject({
+      intent: 'small_talk',
+      smallTalkKind: 'thanks',
+      certain: true,
+    });
+    expect(classifyByRules('ok\\')).toMatchObject({
+      intent: 'small_talk',
+      smallTalkKind: 'thanks',
+      certain: true,
+    });
+    expect(asksToResumeAi('Resume AI assistant')).toBe(true);
+    expect(asksToResumeAi('🤖 Ask AI Assistant meanwhile')).toBe(true);
+  });
+
+  it('keeps pre-purchase plan inquiries ("i need an instant account") as help_center_question', () => {
+    const r = classifyByRules('i need an instant account');
+    expect(r).toMatchObject({ intent: 'help_center_question', certain: true });
+  });
+
+  it('extracts bare numeric account IDs and brand#ID references when replying to a handover detail request', () => {
+    const botPrompt =
+      "I can't see your account details, so I've passed this to our team. To speed things up, please share your order or account number and email address.";
+    const recent = [{ role: 'assistant', content: botPrompt }];
+    const bareId = classifyByRules('26288189', recent);
+    expect(bareId).toMatchObject({
+      intent: 'account_specific',
+      accountNumber: '26288189',
+      certain: true,
+    });
+    const reply = accountSpecificReply('en', bareId, [...recent, { role: 'user', content: '26288189' }]);
+    expect(reply).toContain("added #26288189 to your ticket");
+    expect(reply).not.toContain("I can't see your account details");
+
+    const brandId = classifyByRules('Genz#10351', recent);
+    expect(brandId).toMatchObject({
+      intent: 'account_specific',
+      accountNumber: 'Genz#10351',
+      certain: true,
+    });
   });
 });

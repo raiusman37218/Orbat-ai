@@ -10,7 +10,14 @@ import { dispatchOutboundMessage } from '@/lib/channels/dispatcher';
 import { answerWithExternalAgent } from '@/lib/agent/external-agent';
 import { providerConfigFrom, warmHelpIndex } from '@/lib/ai/help-answer';
 import { getPlatformAiConfigServerOnly } from '@/lib/ai/platform-gateway';
-import { asksForHuman, replyLanguageOf } from '@/lib/ai/intent';
+import {
+  asksForHuman,
+  asksToResumeAi,
+  extractReferences,
+  getExpectedReplyTimeNotice,
+  localized,
+  replyLanguageOf,
+} from '@/lib/ai/intent';
 import {
   botControlState,
   botMayReply,
@@ -388,6 +395,32 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // If the visitor is waiting in the human queue (no human agent has replied yet)
+    // and clicks "🤖 Ask AI Assistant meanwhile" / asks to resume AI help, re-enable autopilot
+    // while keeping ai_needs_attention_at so the conversation stays in the agent queue.
+    const waitingInHumanQueue =
+      conv.ai_mode === 'disabled' &&
+      (conv.ai_paused_reason === 'human_requested' || conv.ai_paused_reason === 'needs_attention') &&
+      !(lastHumanAt > -Infinity && lastHumanAt > resolvedAt);
+
+    if (waitingInHumanQueue && asksToResumeAi(visitorMsg.content)) {
+      const nowIso = new Date().toISOString();
+      const { error: resumeAiErr } = await supabase
+        .from('conversations')
+        .update({
+          ai_mode: 'autopilot',
+          ai_paused_reason: null,
+          ai_resumed_at: nowIso,
+          ai_needs_attention_at: conv.ai_needs_attention_at || nowIso,
+        })
+        .eq('id', conversation_id);
+      if (!resumeAiErr) {
+        const { data: freshConv } = await supabase.from('conversations').select('*').eq('id', conversation_id).single();
+        if (freshConv) Object.assign(conv, freshConv);
+        visitorMsg.content = 'I have another question.';
+      }
+    }
+
     // Rows written before the takeover trigger: a person replied after the
     // bot was last switched on, but the row still says autopilot.
     const legacyHumanOwned =
@@ -407,6 +440,85 @@ export async function POST(req: NextRequest) {
     });
 
     if (legacyHumanOwned || !botMayReply(conv)) {
+      // If the visitor is waiting in the human handover queue (no human agent has replied yet)
+      // and sends follow-up messages (details, "hi", "why is no one responding?", "connect to team"),
+      // do not leave them in dead silence: capture any account/email details for the agent and
+      // send a rate-limited queue status update with an option to use the AI assistant meanwhile.
+      if (waitingInHumanQueue) {
+        const qLang = replyLanguageOf(visitorMsg.content);
+        const qRefs = extractReferences(visitorMsg.content, lastBotReply?.content ?? null);
+        const hasRefs = Boolean(qRefs.email || qRefs.orderNumber || qRefs.accountNumber);
+
+        if (hasRefs) {
+          const givenList = [
+            qRefs.orderNumber ? `order ${qRefs.orderNumber}` : null,
+            qRefs.accountNumber ? `account ${qRefs.accountNumber}` : null,
+            qRefs.email ? `email ${qRefs.email}` : null,
+          ]
+            .filter(Boolean)
+            .join(', ');
+          await notifyTeamOnly({
+            supabase,
+            conversationId: conversation_id,
+            visitorMessageId: currentVisitorMsgId,
+            note: `📌 Visitor shared details while waiting in queue: ${givenList}\nMessage: "${String(visitorMsg.content).slice(0, 240)}"`,
+          });
+        } else if (isAskingForHuman) {
+          await notifyTeamOnly({
+            supabase,
+            conversationId: conversation_id,
+            visitorMessageId: currentVisitorMsgId,
+            note: '🙋 The visitor asked for a person again while waiting in the queue.',
+          });
+        }
+
+        const lastQueueNotice = [...msgs]
+          .reverse()
+          .find((m) => m.sender_type === 'ai' && !m.is_internal && m.metadata?.is_queue_update);
+        const sinceLastNoticeMs = lastQueueNotice?.created_at
+          ? Date.now() - Date.parse(lastQueueNotice.created_at)
+          : Infinity;
+
+        if (hasRefs || sinceLastNoticeMs > 3 * 60_000) {
+          const notice = getExpectedReplyTimeNotice(qLang);
+          const queueText = hasRefs
+            ? localized(qLang, {
+                en: `Thanks! I've attached your details to your ticket for our support team. ${notice} If you'd like instant help with another question while you wait, tap below.`,
+                roman_ur: `Shukriya! Maine aapki details support team ke liye ticket mein add kar di hain. ${notice} Agar aap intezar ke dauran AI assistant se kuch poochna chahein to neeche click karein.`,
+                ur: `شکریہ! میں نے آپ کی تفصیلات سپورٹ ٹیم کے لیے ٹکٹ میں شامل کر دی ہیں۔ ${notice}`,
+              })
+            : localized(qLang, {
+                en: `Your conversation is in our support team's priority queue and we've notified our agents that you're waiting. ${notice} Need instant answers to general questions while you wait?`,
+                roman_ur: `Aapki conversation hamari support team ki priority queue mein hai aur humne agents ko bata diya hai ke aap intezar kar rahe hain. ${notice} Agar aap intezar ke dauran AI assistant se madad lena chahein to neeche click karein.`,
+                ur: `آپ کی گفتگو ہماری سپورٹ ٹیم کی قطار میں ہے اور ہم نے ایجنٹس کو مطلع کر دیا ہے۔ ${notice}`,
+              });
+
+          await supabase.from('messages').insert({
+            conversation_id: conversation_id,
+            sender_type: 'ai',
+            sender_id: null,
+            content: queueText,
+            is_internal: false,
+            reply_to_message_id: currentVisitorMsgId,
+            metadata: {
+              is_queue_update: true,
+              bot_engine: 'built_in',
+              quick_replies: [
+                { label: '🤖 Ask AI Assistant meanwhile', value: 'Resume AI assistant' },
+              ],
+            },
+          });
+
+          notifyTeamByEmailLater({
+            workspaceId: workspace_id,
+            conversationId: conversation_id,
+            event: 'customer_reply',
+            preview: visitorMsg.content,
+          });
+          return json({ replied: true, queue_update: true, reason: 'Sent queue status update while waiting for agent' });
+        }
+      }
+
       // A person owns this conversation, so the bot says nothing to the
       // visitor. Asking for a person again still reaches the team.
       if (isAskingForHuman) {
