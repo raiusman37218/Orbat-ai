@@ -869,7 +869,8 @@ export async function POST(req: NextRequest) {
         }
 
         // If visitor asked for human and an agent name is available, append professional connecting notice
-        if (preassignedAgent?.name && result.intent === 'wants_human') {
+        // only for non-web channels (WhatsApp, email, social) where rich widget handover cards do not render.
+        if (preassignedAgent?.name && result.intent === 'wants_human' && conv.channel && conv.channel !== 'web') {
           const agentName = preassignedAgent.name;
           const connectingNotice =
             visitorLang.code === 'ur'

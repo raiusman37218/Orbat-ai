@@ -3207,10 +3207,10 @@ class ZentryWidget {
   }
 
   public getReplyTimeText(): string {
-    if (this.config.subtitle && this.config.subtitle.trim()) {
+    if (this.config.subtitle && /(replies|minute|hour|instant|typical|usually|shortly)/i.test(this.config.subtitle)) {
       return this.config.subtitle.trim();
     }
-    return 'Typically replies in under 5 minutes';
+    return 'Usually replies within 10–15 minutes';
   }
 
   private checkIsOnline(): boolean {
@@ -5921,61 +5921,74 @@ class ZentryWidget {
 
       /* ── Handover Card & Agent Sender ─────────────────────────────── */
       .chatify-handover-card {
-        margin: 10px 0;
-        padding: 12px 14px;
+        margin: 12px 0 14px 0;
         background: var(--w-surface);
         border: 1px solid var(--w-line);
-        border-radius: var(--w-r-md);
-        box-shadow: 0 2px 8px rgba(11, 11, 15, 0.05);
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
         display: flex;
-        align-items: center;
-        gap: 12px;
+        flex-direction: column;
         animation: w-rise .3s var(--w-ease) both;
         position: relative;
         overflow: hidden;
       }
 
-      .chatify-handover-card.connecting {
-        border-left: 3.5px solid var(--w-brand);
-        background: linear-gradient(to right, var(--w-brand-a08), var(--w-surface));
+      .chatify-handover-accent-bar {
+        height: 3px;
+        width: 100%;
+        background: linear-gradient(90deg, var(--w-brand), #3b82f6, var(--w-brand));
+        background-size: 200% 100%;
+        animation: chatifyHandoverShimmer 2.2s linear infinite;
+      }
+      .chatify-handover-accent-bar.connected {
+        background: #10b981;
+        animation: none;
+      }
+      .chatify-handover-accent-bar.waiting {
+        background: var(--w-line-2, var(--w-line));
+        animation: none;
       }
 
-      .chatify-handover-card.connected {
-        border-left: 3.5px solid #10b981;
-        background: linear-gradient(to right, rgba(16, 185, 129, 0.08), var(--w-surface));
+      @keyframes chatifyHandoverShimmer {
+        0%   { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
       }
 
-      .chatify-handover-card.waiting {
-        border-left: 3.5px solid var(--w-line);
-      }
-
-      /* Overlapping faces of the team, pulsing while nobody has joined. */
-      .chatify-handover-faces {
+      .chatify-handover-inner {
         display: flex;
-        flex-shrink: 0;
-        padding-left: 6px;
+        gap: 12px;
+        align-items: flex-start;
+        padding: 13px 15px;
       }
 
+      .chatify-handover-avatar-wrap {
+        position: relative;
+        width: 36px;
+        height: 36px;
+        flex-shrink: 0;
+      }
+
+      .chatify-handover-avatar,
       .chatify-handover-face,
       .chatify-agent-joined-avatar {
-        width: 30px;
-        height: 30px;
-        margin-left: -8px;
+        width: 36px;
+        height: 36px;
         border-radius: 50%;
-        border: 2px solid var(--w-surface);
         background: var(--w-brand);
         color: var(--w-on-brand);
         display: flex;
         align-items: center;
         justify-content: center;
-        font-size: 10.5px;
+        font-size: 12px;
         font-weight: 700;
         text-transform: uppercase;
         overflow: hidden;
+        border: 2px solid var(--w-surface);
         position: relative;
         flex-shrink: 0;
       }
 
+      .chatify-handover-avatar img,
       .chatify-handover-face img,
       .chatify-agent-joined-avatar img {
         width: 100%;
@@ -5983,57 +5996,85 @@ class ZentryWidget {
         object-fit: cover;
       }
 
-      .chatify-handover-card.connecting .chatify-handover-face {
-        animation: chatifyHandoverPulse 1.8s var(--w-ease) infinite;
-      }
-      .chatify-handover-card.connecting .chatify-handover-face:nth-child(2) { animation-delay: .25s; }
-      .chatify-handover-card.connecting .chatify-handover-face:nth-child(3) { animation-delay: .5s; }
-
-      @keyframes chatifyHandoverPulse {
-        0%, 100% { box-shadow: 0 0 0 0 var(--w-brand-a28); }
-        50%      { box-shadow: 0 0 0 4px transparent; }
-      }
-
-      .chatify-handover-dots {
-        display: inline-flex;
-        gap: 3px;
-        align-items: center;
-      }
-      .chatify-handover-dots i {
-        width: 4px;
-        height: 4px;
-        border-radius: 50%;
-        background: var(--w-brand);
-        animation: chatifyHandoverDot 1.2s ease-in-out infinite;
-      }
-      .chatify-handover-dots i:nth-child(2) { animation-delay: .15s; }
-      .chatify-handover-dots i:nth-child(3) { animation-delay: .3s; }
-
-      @keyframes chatifyHandoverDot {
-        0%, 80%, 100% { opacity: .25; transform: translateY(0); }
-        40%           { opacity: 1; transform: translateY(-2px); }
-      }
-
-      /* A thin bar sweeping along the bottom edge: "we're on it". */
-      .chatify-handover-progress {
+      .chatify-handover-avatar-dot {
         position: absolute;
-        left: 0;
-        bottom: 0;
-        height: 2px;
-        width: 35%;
-        background: var(--w-brand);
-        opacity: .55;
-        animation: chatifyHandoverSweep 1.8s ease-in-out infinite;
+        bottom: 0px;
+        right: 0px;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        border: 2px solid var(--w-surface);
+      }
+      .chatify-handover-avatar-dot.online {
+        background: #10b981;
+      }
+      .chatify-handover-avatar-dot.away {
+        background: #f59e0b;
       }
 
-      @keyframes chatifyHandoverSweep {
-        from { transform: translateX(-100%); }
-        to   { transform: translateX(300%); }
+      .chatify-handover-body {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+
+      .chatify-handover-header-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+
+      .chatify-handover-heading {
+        font-size: 13px;
+        font-weight: 650;
+        color: var(--w-ink);
+        letter-spacing: -0.01em;
+      }
+
+      .chatify-handover-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 10.5px;
+        font-weight: 600;
+        padding: 2px 8px;
+        border-radius: 999px;
+        background: rgba(59, 130, 246, 0.08);
+        color: #2563eb;
+        white-space: nowrap;
+      }
+      .chatify-handover-status-pill.connected {
+        background: rgba(16, 185, 129, 0.1);
+        color: #059669;
+      }
+
+      .chatify-status-pulse {
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        background: #2563eb;
+        animation: chatifyStatusPulse 1.6s ease-in-out infinite;
+      }
+
+      @keyframes chatifyStatusPulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50%      { opacity: 0.35; transform: scale(0.85); }
+      }
+
+      .chatify-handover-desc {
+        font-size: 12px;
+        color: var(--w-ink-2);
+        line-height: 1.45;
+        margin: 2px 0 0 0;
       }
 
       .chatify-handover-check {
-        width: 30px;
-        height: 30px;
+        width: 32px;
+        height: 32px;
         border-radius: 50%;
         flex-shrink: 0;
         display: flex;
@@ -6041,6 +6082,69 @@ class ZentryWidget {
         justify-content: center;
         background: rgba(16, 185, 129, 0.14);
         color: #047857;
+      }
+
+      .chatify-handover-email-notice {
+        margin-top: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 11px;
+        color: var(--w-ink-2);
+        background: var(--w-surface-2, rgba(0,0,0,0.03));
+        border: 1px solid var(--w-line);
+        border-radius: 6px;
+        padding: 5px 9px;
+        line-height: 1.35;
+      }
+      .chatify-handover-email-notice svg {
+        flex-shrink: 0;
+        opacity: 0.7;
+      }
+      .chatify-handover-email-notice strong {
+        color: var(--w-ink);
+        font-weight: 600;
+      }
+
+      .chatify-handover-email-form {
+        margin-top: 9px;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+      .chatify-handover-email-prompt {
+        font-size: 11px;
+        color: var(--w-ink-2);
+        font-weight: 500;
+      }
+      .chatify-handover-email-row {
+        display: flex;
+        gap: 6px;
+      }
+      .chatify-handover-email-input {
+        flex: 1;
+        min-width: 0;
+        padding: 6px 9px;
+        font-size: 11.5px;
+        border-radius: 6px;
+        border: 1px solid var(--w-line-2, var(--w-line));
+        background: var(--w-surface);
+        color: var(--w-ink);
+        outline: none;
+      }
+      .chatify-handover-email-input:focus {
+        border-color: var(--w-brand);
+      }
+      .chatify-handover-email-btn {
+        padding: 6px 11px;
+        font-size: 11.5px;
+        font-weight: 600;
+        border-radius: 6px;
+        border: none;
+        background: var(--w-brand);
+        color: var(--w-on-brand);
+        cursor: pointer;
+        white-space: nowrap;
       }
 
       /* "Sara joined the conversation": a centred divider above the first reply. */
@@ -6548,14 +6652,17 @@ class ZentryWidget {
         // A second handover is a new hand-off: announce whoever answers it.
         announcedAgent = null;
         // If there's AI explanation content, render the AI bubble first so visitor sees it.
-        if (msg.content && msg.content !== "We've passed this to our team.") {
+        const cleanContent = (msg.content || '')
+          .replace(/\n*🔄\s*(?:Connecting you with|Main aapko|میں آپ کو).*$/i, '')
+          .trim();
+        if (cleanContent && cleanContent !== "We've passed this to our team.") {
           const row = document.createElement('div');
           row.className = 'chatify-message-row';
           const bubble = document.createElement('div');
           bubble.className = 'chatify-msg-agent';
           const timeStr = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           bubble.innerHTML =
-            `<div class="chatify-msg-text chatify-msg-rich">${this.formatChatMarkdown(msg.content)}</div>` +
+            `<div class="chatify-msg-text chatify-msg-rich">${this.formatChatMarkdown(cleanContent)}</div>` +
             `<div class="chatify-msg-time">${timeStr}</div>`;
           row.appendChild(bubble);
           stage.appendChild(row);
@@ -7362,50 +7469,93 @@ class ZentryWidget {
 
     const joined = this.messages.some((m) => this.isHumanReply(m) && m.created_at > msg.created_at);
     const email = (this.visitorEmail || '').trim();
-    const emailText = email ? ` We'll also email you at ${this.escapeHTML(email)}.` : '';
+
+    const meta = (msg.metadata || {}) as Record<string, any>;
+    const assignedName = (meta.assigned_agent_name || meta.system_event?.agent_name || null) as string | null;
+    const assignedAvatar = (meta.assigned_agent_avatar || meta.system_event?.agent_avatar || null) as string | null;
 
     if (joined) {
+      const humanMsg = this.messages.find((m) => this.isHumanReply(m) && m.created_at > msg.created_at);
+      const responder = humanMsg ? this.humanSenderOf(humanMsg) : null;
+      const responderName = responder?.name || assignedName || 'our support team';
       card.className = 'chatify-handover-card connected';
       card.innerHTML =
+        `<div class="chatify-handover-accent-bar connected"></div>` +
+        `<div class="chatify-handover-inner">` +
         `<div class="chatify-handover-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>` +
-        `<div class="chatify-handover-content"><div class="chatify-handover-title-row"><span class="chatify-handover-title">Transferred to our team</span><span class="chatify-handover-tag">Human agent</span></div>` +
-        `<p class="chatify-handover-sub">You're now chatting with a real person.</p></div>`;
+        `<div class="chatify-handover-body">` +
+        `<div class="chatify-handover-header-row"><span class="chatify-handover-heading">Connected with ${this.escapeHTML(responderName)}</span><span class="chatify-handover-status-pill connected"><span>Active</span></span></div>` +
+        `<p class="chatify-handover-desc">You are now chatting live with a real team member.</p>` +
+        `</div>` +
+        `</div>`;
       return card;
     }
 
     if (this.conversationStatus === 'closed') {
       card.className = 'chatify-handover-card waiting';
       card.innerHTML =
-        `<div class="chatify-handover-content"><div class="chatify-handover-title-row"><span class="chatify-handover-title">Passed to our team</span></div>` +
-        `<p class="chatify-handover-sub">We'll follow up on this.${emailText}</p></div>`;
+        `<div class="chatify-handover-accent-bar waiting"></div>` +
+        `<div class="chatify-handover-inner">` +
+        `<div class="chatify-handover-body">` +
+        `<div class="chatify-handover-header-row"><span class="chatify-handover-heading">Handed over to support</span></div>` +
+        `<p class="chatify-handover-desc">We've saved your request. Our team will follow up.${email ? ` Updates will be sent to <strong>${this.escapeHTML(email)}</strong>.` : ''}</p>` +
+        `</div>` +
+        `</div>`;
       return card;
     }
 
-    // Online agents first: they are the ones who might pick this up.
-    const faces = [...this.workspaceAgents]
-      .sort((a, b) => Number(b.status === 'online') - Number(a.status === 'online'))
-      .slice(0, 3);
-    const facesHtml = faces.length
-      ? faces.map((a) => `<span class="chatify-handover-face">${this.agentAvatarHtml(a)}</span>`).join('')
-      : `<span class="chatify-handover-face"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></span>`;
-    const sub = this.checkIsOnline()
-      ? `You're next in line. ${this.escapeHTML(this.getReplyTimeText())}.${emailText}`
-      : `Our team is away right now. We'll reply here as soon as someone is back.${emailText}`;
+    const isOnline = this.checkIsOnline();
+    const activeAgent = assignedName
+      ? { name: assignedName, avatar_url: assignedAvatar, status: 'online' }
+      : this.workspaceAgents.find((a) => a.status === 'online') || this.workspaceAgents[0] || null;
 
-    const emailCaptureHtml = !email
-      ? `<form class="chatify-handover-email-form">` +
-        `<input type="email" class="chatify-handover-email-input" placeholder="Get email updates (you@example.com)" required />` +
+    const displayName = assignedName || activeAgent?.name || null;
+    const title = displayName
+      ? `Connecting with ${this.escapeHTML(displayName)}`
+      : 'Connecting with support';
+
+    let avatarHtml = '';
+    if (activeAgent) {
+      const avatarSrc = this.safeUrl(activeAgent.avatar_url, true);
+      const initials = this.escapeHTML(this.getSenderInitials(activeAgent.name || 'Support'));
+      avatarHtml = avatarSrc
+        ? `<div class="chatify-handover-avatar"><img src="${avatarSrc}" alt="" /></div>`
+        : `<div class="chatify-handover-avatar">${initials}</div>`;
+    } else {
+      avatarHtml = `<div class="chatify-handover-avatar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>`;
+    }
+
+    const waitText = isOnline
+      ? `You're next in line. ${this.escapeHTML(this.getReplyTimeText())}.`
+      : `Our team is currently away. We'll reply here as soon as an agent is back online.`;
+
+    const emailNoticeHtml = email
+      ? `<div class="chatify-handover-email-notice"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg><span>Updates also sent to <strong>${this.escapeHTML(email)}</strong></span></div>`
+      : `<form class="chatify-handover-email-form">` +
+        `<span class="chatify-handover-email-prompt">Want an email if you step away?</span>` +
+        `<div class="chatify-handover-email-row">` +
+        `<input type="email" class="chatify-handover-email-input" placeholder="Enter your email" required />` +
         `<button type="submit" class="chatify-handover-email-btn">Notify me</button>` +
-        `</form>`
-      : '';
+        `</div>` +
+        `</form>`;
 
     card.className = 'chatify-handover-card connecting';
     card.innerHTML =
-      `<div class="chatify-handover-faces" aria-hidden="true">${facesHtml}</div>` +
-      `<div class="chatify-handover-content"><div class="chatify-handover-title-row"><span class="chatify-handover-title">Connecting you to a human agent</span>` +
-      `<span class="chatify-handover-dots" aria-hidden="true"><i></i><i></i><i></i></span></div>` +
-      `<p class="chatify-handover-sub">${sub}</p>${emailCaptureHtml}</div>` +
-      `<span class="chatify-handover-progress" aria-hidden="true"></span>`;
+      `<div class="chatify-handover-accent-bar"></div>` +
+      `<div class="chatify-handover-inner">` +
+      `<div class="chatify-handover-avatar-wrap">` +
+      avatarHtml +
+      `<span class="chatify-handover-avatar-dot ${isOnline ? 'online' : 'away'}"></span>` +
+      `</div>` +
+      `<div class="chatify-handover-body">` +
+      `<div class="chatify-handover-header-row">` +
+      `<span class="chatify-handover-heading">${title}</span>` +
+      `<span class="chatify-handover-status-pill"><span class="chatify-status-pulse"></span><span>In queue</span></span>` +
+      `</div>` +
+      `<p class="chatify-handover-desc">${waitText}</p>` +
+      emailNoticeHtml +
+      `</div>` +
+      `</div>`;
 
     if (!email) {
       const form = card.querySelector('.chatify-handover-email-form') as HTMLFormElement | null;
