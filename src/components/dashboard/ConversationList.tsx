@@ -31,6 +31,7 @@ import {
   Agent,
 } from '@/types/database';
 import { formatTimeAgo, cn, stripMarkdown, isGreetingMessage } from '@/lib/utils';
+import { isWaitingForPerson } from '@/lib/inbox/handovers';
 import { Avatar } from '@/components/ui/Avatar';
 import { ChannelBadge } from '@/components/ui/ChannelBadge';
 import { CountryFlag } from '@/components/ui/BrandIcon';
@@ -224,10 +225,11 @@ const ConversationItem = memo(function ConversationItem({
   const fromAi = conv.last_message?.sender_type === 'ai';
   const hasUnread = (conv.unread_count || 0) > 0;
   const isWaiting = isWaitingOnAgent(conv);
+  const isResolved = conv.status === 'closed';
+  const isHandover = !isResolved && isWaitingForPerson(conv);
   const sla = useMemo(() => getSlaInfo(conv), [conv]);
   const isUrgent = conv.priority === 'urgent';
   const isHigh = conv.priority === 'high';
-  const isResolved = conv.status === 'closed';
   const activityTime = getLastActivityTime(conv);
   const place = useMemo(
     () =>
@@ -484,12 +486,20 @@ const ConversationItem = memo(function ConversationItem({
                 <span className={cn(chip, 'bg-warn-soft text-warn border-warn-line')}>High</span>
               ) : null}
 
-              {isWaiting && !isResolved && (
+              {isHandover ? (
+                <span
+                  className={cn(chip, 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-semibold shadow-2xs')}
+                  title="AI Escalation: Customer is waiting for a live agent reply"
+                >
+                  <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+                  Handover
+                </span>
+              ) : isWaiting && !isResolved ? (
                 <span className={cn(chip, 'bg-warn-soft text-warn border-warn-line')}>
                   <span className="w-1.5 h-1.5 rounded-full bg-warn animate-pulse" />
                   Waiting
                 </span>
-              )}
+              ) : null}
 
               {isBotGreeting && !isResolved && !isWaiting && (
                 <span className={cn(chip, 'bg-accent-soft text-accent border-accent-line font-medium')}>
@@ -717,6 +727,9 @@ export function ConversationList({
       const timeB = getLastActivityTime(b);
 
       if (sortBy === 'waiting') {
+        const aHandover = isWaitingForPerson(a) ? 1 : 0;
+        const bHandover = isWaitingForPerson(b) ? 1 : 0;
+        if (aHandover !== bHandover) return bHandover - aHandover;
         const aWait = isWaitingOnAgent(a) ? 1 : 0;
         const bWait = isWaitingOnAgent(b) ? 1 : 0;
         if (aWait !== bWait) return bWait - aWait;

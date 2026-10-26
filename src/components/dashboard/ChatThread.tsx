@@ -23,6 +23,7 @@ import {
   Send,
   Sparkles,
   Star,
+  UserCheck,
   Tag,
   X,
   Zap,
@@ -43,6 +44,7 @@ import {
   MessagesSquare,
 } from 'lucide-react';
 import { isSubAgentId, SUB_AGENT_BY_ID } from '@/lib/ai/sub-agents';
+import { isWaitingForPerson, parseHandoverNote } from '@/lib/inbox/handovers';
 import { rateBotReplyAction, saveQuickQaAnswerAction } from '@/app/actions/unanswered';
 import {
   Agent,
@@ -1456,6 +1458,15 @@ export function ChatThread({
     );
   }, [workspaceMacros, macroSearch]);
 
+  const isHandoverPending = Boolean(
+    conversation.status !== 'closed' && isWaitingForPerson(conversation)
+  );
+
+  const assignedAgent = useMemo(
+    () => agentsList.find((a) => a.id === conversation.agent_id),
+    [agentsList, conversation.agent_id]
+  );
+
   const assignOptions = useMemo(
     () => [
       { value: '', label: 'Unassigned' },
@@ -1578,6 +1589,91 @@ export function ChatThread({
     }
 
     if (msg.is_internal) {
+      const isHandoverNote = Boolean(
+        msg.metadata?.is_handover ||
+        (msg.content && msg.content.includes('Bot handover:'))
+      );
+
+      if (isHandoverNote) {
+        const parsed = parseHandoverNote(msg.content);
+        rendered.push(
+          <div
+            key={msg.id}
+            id={`msg-${msg.id}`}
+            className="rounded-xl border border-amber-500/30 bg-gradient-to-b from-amber-500/10 via-amber-500/5 to-surface p-4 shadow-sm space-y-3 group/note relative"
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-amber-500/20 pb-2.5">
+              <div className="flex items-center gap-2">
+                <span className="w-6 h-6 rounded-md bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-3.5 h-3.5 fill-amber-500/20 text-amber-500" />
+                </span>
+                <div>
+                  <span className="text-xs font-bold text-ink flex items-center gap-2">
+                    AI Handover Briefing
+                    <span className="text-2xs font-semibold px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30 uppercase tracking-wide">
+                      {msg.metadata?.priority === 'urgent' ? '🚨 Urgent' : '⚡ High Priority'}
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-2xs text-ink-3 tabular-nums">
+                  {formatTime(msg.created_at)}
+                </span>
+                <span className="text-2xs font-medium px-1.5 py-0.5 rounded bg-surface border border-line text-ink-3">
+                  Internal Briefing
+                </span>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs">
+              {parsed.topic && (
+                <div className="rounded-lg bg-surface/80 border border-line p-2.5">
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-ink-3 block mb-0.5">Topic</span>
+                  <span className="font-semibold text-ink">{parsed.topic}</span>
+                </div>
+              )}
+              {parsed.reason && (
+                <div className="rounded-lg bg-surface/80 border border-line p-2.5">
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-ink-3 block mb-0.5">Handover Reason</span>
+                  <span className="text-ink">{parsed.reason}</span>
+                </div>
+              )}
+              {parsed.question && (
+                <div className="md:col-span-2 rounded-lg bg-surface/80 border border-line p-2.5">
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-ink-3 block mb-0.5">Visitor Question</span>
+                  <p className="text-ink font-medium italic">"{parsed.question}"</p>
+                </div>
+              )}
+              {parsed.given && (
+                <div className="md:col-span-2 rounded-lg bg-emerald-500/10 border border-emerald-500/20 p-2.5 text-emerald-800 dark:text-emerald-200">
+                  <span className="text-2xs font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 block mb-0.5">Provided Customer Data</span>
+                  <span className="font-semibold">{parsed.given}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-1 text-2xs text-ink-3">
+              <span>Visible to team members only · Not visible to visitor</span>
+              {(!conversation.agent_id || conversation.agent_id !== currentAgent?.id) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (currentAgent) onAssignAgent(currentAgent.id);
+                    textareaRef.current?.focus();
+                  }}
+                  className="px-2.5 py-1 text-xs font-semibold rounded-md bg-brand text-on-brand hover:opacity-95 shadow-xs transition-all flex items-center gap-1 cursor-pointer"
+                >
+                  <UserCheck className="w-3 h-3" />
+                  <span>Take over conversation</span>
+                </button>
+              )}
+            </div>
+          </div>
+        );
+        return;
+      }
+
       rendered.push(
         <div
           key={msg.id}
@@ -2478,6 +2574,16 @@ export function ChatThread({
           />
         </div>
 
+        {isHandoverPending && (
+          <span
+            className="inline-flex items-center gap-1.5 h-6 px-2.5 rounded-md text-2xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shadow-2xs shrink-0"
+            title="AI Handover requested: Customer is waiting for a human agent"
+          >
+            <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+            Handover Active
+          </span>
+        )}
+
         {/* Interactive AI Autopilot Toggle Pill */}
         {onToggleAiMode && (() => {
           const isFullAutopilot = conversation.ai_mode === 'autopilot';
@@ -2649,6 +2755,61 @@ export function ChatThread({
             {collisionAgents.map((a) => (
               <Avatar key={a.id} name={a.name} size="xs" />
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Handover Escalation Banner ── */}
+      {isHandoverPending && (
+        <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/8 to-surface border-b border-amber-500/25 px-5 py-2.5 flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <span className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-2xs">
+              <Sparkles className="w-4 h-4 fill-amber-500/20 text-amber-500 animate-pulse" />
+            </span>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-ink">AI Handover Active</span>
+                <span className="text-2xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-medium border border-amber-500/30">
+                  {conversation.ai_paused_reason === 'human_requested' ? 'Customer asked for human' : 'Needs Agent Response'}
+                </span>
+                {assignedAgent && (
+                  <span className="text-2xs text-ink-3">
+                    · Assigned to {assignedAgent.name || 'Agent'}
+                  </span>
+                )}
+              </div>
+              <p className="text-2xs text-ink-2 truncate">
+                {conversation.ai_paused_reason === 'human_requested'
+                  ? `${displayName} requested to speak with a human agent. Please reply below to assist.`
+                  : 'The AI assistant could not resolve this inquiry and handed over this conversation to your team.'}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {(!conversation.agent_id || conversation.agent_id !== currentAgent?.id) && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (currentAgent) onAssignAgent(currentAgent.id);
+                  textareaRef.current?.focus();
+                }}
+                className="px-3 py-1 text-xs font-semibold rounded-md bg-brand text-on-brand hover:opacity-95 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>Assign to me</span>
+              </button>
+            )}
+            {conversation.ai_mode === 'disabled' && onToggleAiMode && (
+              <button
+                type="button"
+                onClick={() => onToggleAiMode('autopilot')}
+                className="px-2.5 py-1 text-xs rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2 transition-all flex items-center gap-1 cursor-pointer"
+                title="Resume AI Auto-responder"
+              >
+                <Bot className="w-3.5 h-3.5" />
+                <span>Resume AI</span>
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -3012,17 +3173,39 @@ export function ChatThread({
           )}
 
           {!replyLocked && !isInternalMode && conversation.ai_mode === 'disabled' && onToggleAiMode && (
-            <div className="px-3 py-1.5 flex items-center gap-2 border-y border-warn-line bg-warn-soft text-xs">
-              <span className="w-2 h-2 rounded-full bg-warn shrink-0" aria-hidden="true" />
-              <span className="flex-1 min-w-0 text-2xs font-medium text-warn">
-                The bot is paused while a person handles this conversation.
-              </span>
+            <div className={cn(
+              "px-3.5 py-2 flex items-center justify-between gap-3 border-y text-xs transition-colors",
+              isHandoverPending
+                ? "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+                : "border-warn-line bg-warn-soft text-warn"
+            )}>
+              <div className="flex items-center gap-2 min-w-0">
+                {isHandoverPending ? (
+                  <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 animate-pulse" />
+                ) : (
+                  <span className="w-2 h-2 rounded-full bg-warn shrink-0" aria-hidden="true" />
+                )}
+                <span className="flex-1 min-w-0 text-2xs font-medium truncate">
+                  {isHandoverPending ? (
+                    <>
+                      <strong>Handover Active:</strong> {displayName} is waiting for a live agent reply. Replying here will automatically assign you and take over.
+                    </>
+                  ) : (
+                    'The bot is paused while a person handles this conversation.'
+                  )}
+                </span>
+              </div>
               <button
                 type="button"
                 onClick={() => onToggleAiMode('autopilot')}
-                className="h-6 px-2.5 rounded-md text-2xs font-bold bg-accent hover:bg-accent-hover text-accent-ink shrink-0 inline-flex items-center gap-1 cursor-pointer transition-colors shadow-xs"
+                className={cn(
+                  "h-6 px-2.5 rounded-md text-2xs font-bold shrink-0 inline-flex items-center gap-1 cursor-pointer transition-colors shadow-xs",
+                  isHandoverPending
+                    ? "border border-amber-500/30 bg-surface/90 hover:bg-surface text-ink"
+                    : "bg-accent hover:bg-accent-hover text-accent-ink"
+                )}
               >
-                <Bot className="w-3 h-3" />
+                <Bot className="w-3 h-3 text-amber-500" />
                 <span>Turn the bot on</span>
               </button>
             </div>

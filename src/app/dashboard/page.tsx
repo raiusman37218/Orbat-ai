@@ -947,13 +947,15 @@ export default function DashboardPage() {
           const meta = (newMsg.metadata || {}) as { is_handover?: boolean; assigned_agent_id?: string | null };
           if (newMsg.is_internal && meta.is_handover) {
             const me = currentAgentRef.current?.id;
-            if (!meta.assigned_agent_id || meta.assigned_agent_id === me) {
+            const myRole = currentAgentRef.current?.role;
+            const isRelevant = !meta.assigned_agent_id || meta.assigned_agent_id === me || myRole === 'owner' || myRole === 'admin';
+            if (isRelevant) {
               const conv = conversationsRef.current.find((c) => c.id === newMsg.conversation_id);
               const customer = conv?.visitor?.name || conv?.visitor?.email || 'A customer';
-              sound.playMention();
+              sound.playIncomingMessage();
               sendBrowserNotification(
-                meta.assigned_agent_id ? `${customer} needs you` : `${customer} needs someone`,
-                'The bot could not answer. Open the chat to reply.',
+                meta.assigned_agent_id === me ? `⚡ ${customer} needs you` : `⚡ Handover: ${customer} needs an agent`,
+                'The AI assistant handed over this conversation. Click to open and reply.',
                 {
                   tag: `handover-${newMsg.conversation_id}`,
                   onClick: () => {
