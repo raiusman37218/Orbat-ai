@@ -6706,9 +6706,9 @@ class ZentryWidget {
 
       // Kept on one line: the text element preserves whitespace, so any
       // indentation in this template would be rendered as blank lines.
-      // Ticks only on the visitor's own messages: a receipt for something the
-      // other side sent you is meaningless.
-      const ticks = isVisitor ? this.renderTicks(msg) : '';
+      // Ticks (single, double, blue) are intentionally kept only in the agent
+      // dashboard inbox — visitor bubbles in the widget show only the timestamp.
+      const ticks = '';
 
       // When the agent replied to a particular message, show which one. The
       // visitor otherwise has to guess which of their questions was answered.

@@ -441,8 +441,8 @@ const ConversationItem = memo(function ConversationItem({
             ) : fromAgent ? (
               <span className="text-ink-2 font-medium inline-flex items-center gap-1 mr-1 align-[-2px]">
                 {conv.last_message?.read_at ? (
-                  <CheckCheck className="w-3.5 h-3.5 text-accent stroke-[2.5]" />
-                ) : online ? (
+                  <CheckCheck className="w-3.5 h-3.5 text-[#34b7f1] stroke-[2.5]" />
+                ) : conv.last_message?.delivered_at || online ? (
                   <CheckCheck className="w-3.5 h-3.5 text-ink-3/70 stroke-[2]" />
                 ) : (
                   <Check className="w-3.5 h-3.5 text-ink-3/70 stroke-[2]" />
