@@ -41,6 +41,9 @@ const fakeDb = vi.hoisted(() => ({
   articles: [] as any[],
   automations: [] as any[],
   tickets: [] as any[],
+  conversations: [] as any[],
+  messages: [] as any[],
+  aiUsage: [] as any[],
 }));
 
 // Mock server-only, next/headers and next/cache
@@ -113,6 +116,10 @@ function createMockSupabase() {
           filters.push({ op: 'is', col, val });
           return builder;
         }),
+        in: vi.fn((col: string, vals: any[]) => {
+          filters.push({ op: 'in', col, val: vals });
+          return builder;
+        }),
         order: vi.fn((col: string) => {
           orderCol = col;
           return builder;
@@ -178,6 +185,7 @@ function createMockSupabase() {
               if (f.op === 'eq') return item[f.col] === f.val;
               if (f.op === 'neq') return item[f.col] !== f.val;
               if (f.op === 'is') return item[f.col] === f.val;
+              if (f.op === 'in') return Array.isArray(f.val) && f.val.includes(item[f.col]);
               if (f.op === 'gte') {
                 const itemTime = new Date(item[f.col]).getTime();
                 const targetTime = new Date(f.val).getTime();
@@ -250,6 +258,12 @@ function getDataset(table: string): any[] {
       return fakeDb.automations;
     case 'tickets':
       return fakeDb.tickets;
+    case 'conversations':
+      return fakeDb.conversations;
+    case 'messages':
+      return fakeDb.messages;
+    case 'workspace_ai_usage':
+      return fakeDb.aiUsage;
     case 'platform_access':
       if (fakeDb.currentAgent && fakeDb.currentAgent.is_super_admin) {
         return [{
@@ -394,6 +408,9 @@ describe('Plans & Platform Pricing System', () => {
     fakeDb.articles = [{ id: 'art-1', workspace_id: WS_ID, status: 'published' }];
     fakeDb.automations = [];
     fakeDb.tickets = [];
+    fakeDb.conversations = [];
+    fakeDb.messages = [];
+    fakeDb.aiUsage = [];
   });
 
   describe('1. Server Authorization & Access Control', () => {
@@ -521,6 +538,24 @@ describe('Plans & Platform Pricing System', () => {
       expect(check.limit).toBe(null);
       expect(check.isUnlimited).toBe(true);
       expect(check.isNearLimit).toBe(false);
+    });
+
+    it('scopes max_ai_bot_replies_per_month fallback message count to the current workspace only', async () => {
+      // Other workspace has 300 AI messages (exceeding starter limit of 200)
+      fakeDb.conversations.push({ id: 'conv-other', workspace_id: 'other-ws-id' });
+      for (let i = 0; i < 300; i++) {
+        fakeDb.messages.push({
+          id: `msg-other-${i}`,
+          conversation_id: 'conv-other',
+          sender_type: 'ai',
+          created_at: new Date().toISOString(),
+        });
+      }
+
+      // Current workspace has 0 conversations/messages
+      const check = await checkWorkspaceLimit(WS_ID, 'max_ai_bot_replies_per_month');
+      expect(check.currentUsage).toBe(0);
+      expect(check.allowed).toBe(true);
     });
   });
 

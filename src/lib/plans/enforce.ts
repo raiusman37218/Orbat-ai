@@ -278,10 +278,21 @@ export async function getWorkspaceCurrentUsage(
         return usageRow.ai_bot_replies_count;
       }
 
-      // Count directly from messages
+      // Count directly from messages for this workspace's conversations
+      const { data: wsConvs } = await adminClient
+        .from('conversations')
+        .select('id')
+        .eq('workspace_id', workspaceId);
+
+      const convIds = (wsConvs || []).map((c: any) => c.id);
+      if (convIds.length === 0) {
+        return 0;
+      }
+
       const { count } = await adminClient
         .from('messages')
         .select('id', { count: 'exact', head: true })
+        .in('conversation_id', convIds)
         .eq('sender_type', 'ai')
         .gte('created_at', thirtyDaysAgo);
       return count || 0;

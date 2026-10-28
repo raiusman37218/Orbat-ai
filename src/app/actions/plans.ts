@@ -240,6 +240,13 @@ export async function savePlanAction(input: {
         await adminClient.from('platform_plans').update({ is_default: false }).neq('id', input.id);
       }
 
+      const resolvedAiLimit =
+        input.ai_monthly_reply_limit !== undefined
+          ? input.ai_monthly_reply_limit
+          : input.max_ai_bot_replies_per_month !== undefined
+          ? input.max_ai_bot_replies_per_month
+          : existing.ai_monthly_reply_limit;
+
       const updatePayload: Record<string, any> = {
         name: cleanName,
         description: input.description.trim(),
@@ -254,14 +261,14 @@ export async function savePlanAction(input: {
         version: nextVersion,
         max_agents: input.max_agents,
         max_tickets_per_month: input.max_tickets_per_month,
-        max_ai_bot_replies_per_month: input.max_ai_bot_replies_per_month,
+        max_ai_bot_replies_per_month: resolvedAiLimit,
         max_channels_connected: input.max_channels_connected,
         max_articles: input.max_articles,
         max_automations: input.max_automations,
         max_storage_mb: input.max_storage_mb,
         max_api_requests_per_month: input.max_api_requests_per_month,
         ai_enabled: input.ai_enabled ?? existing.ai_enabled ?? true,
-        ai_monthly_reply_limit: input.ai_monthly_reply_limit !== undefined ? input.ai_monthly_reply_limit : existing.ai_monthly_reply_limit,
+        ai_monthly_reply_limit: resolvedAiLimit,
         features: input.features,
         updated_at: new Date().toISOString(),
       };
@@ -285,7 +292,7 @@ export async function savePlanAction(input: {
           currency: input.currency || 'USD',
           max_agents: input.max_agents,
           max_tickets_per_month: input.max_tickets_per_month,
-          max_ai_bot_replies_per_month: input.max_ai_bot_replies_per_month,
+          max_ai_bot_replies_per_month: updatePayload.max_ai_bot_replies_per_month,
           max_channels_connected: input.max_channels_connected,
           max_articles: input.max_articles,
           max_automations: input.max_automations,
@@ -310,6 +317,11 @@ export async function savePlanAction(input: {
         await adminClient.from('platform_plans').update({ is_default: false }).eq('is_default', true);
       }
 
+      const resolvedCreateAiLimit =
+        input.ai_monthly_reply_limit !== undefined
+          ? input.ai_monthly_reply_limit
+          : input.max_ai_bot_replies_per_month ?? null;
+
       const insertPayload: Record<string, any> = {
         name: cleanName,
         slug: cleanSlug,
@@ -326,14 +338,14 @@ export async function savePlanAction(input: {
         version: 1,
         max_agents: input.max_agents,
         max_tickets_per_month: input.max_tickets_per_month,
-        max_ai_bot_replies_per_month: input.max_ai_bot_replies_per_month,
+        max_ai_bot_replies_per_month: resolvedCreateAiLimit,
         max_channels_connected: input.max_channels_connected,
         max_articles: input.max_articles,
         max_automations: input.max_automations,
         max_storage_mb: input.max_storage_mb,
         max_api_requests_per_month: input.max_api_requests_per_month,
         ai_enabled: input.ai_enabled ?? true,
-        ai_monthly_reply_limit: input.ai_monthly_reply_limit ?? null,
+        ai_monthly_reply_limit: resolvedCreateAiLimit,
         features: input.features,
       };
 
@@ -354,7 +366,7 @@ export async function savePlanAction(input: {
         currency: input.currency || 'USD',
         max_agents: input.max_agents,
         max_tickets_per_month: input.max_tickets_per_month,
-        max_ai_bot_replies_per_month: input.max_ai_bot_replies_per_month,
+        max_ai_bot_replies_per_month: insertPayload.max_ai_bot_replies_per_month,
         max_channels_connected: input.max_channels_connected,
         max_articles: input.max_articles,
         max_automations: input.max_automations,

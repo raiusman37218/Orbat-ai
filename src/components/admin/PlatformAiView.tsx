@@ -223,6 +223,7 @@ export function PlatformAiView() {
         ...editingPlan,
         ai_enabled: planAiEnabled,
         ai_monthly_reply_limit: parsedLimit,
+        max_ai_bot_replies_per_month: parsedLimit,
       });
 
       if (res.success) {
