@@ -270,6 +270,25 @@ describe('the bot answers', () => {
     expect(args.turns?.some((t) => t.content.startsWith('[Team member] '))).toBe(true);
   });
 
+  it('when a human agent replied over an hour ago and never resolved the chat (stale human_handling auto-resume)', async () => {
+    visitorSays('My MT5 is not connecting');
+    agentSays('Could you please explain the issue you are facing?');
+    Object.assign(conv(), {
+      ai_mode: 'disabled',
+      ai_paused_reason: 'human_reply',
+      ai_control_changed_at: new Date(db.clock).toISOString(),
+    });
+    // Advance clock by 80 minutes (stale > 60 minutes)
+    db.clock += 80 * 60_000;
+    const msg = visitorSays('Is news trading allowed');
+    const { body } = await respond(msg);
+    expect(body.replied).toBe(true);
+    expect(conv().ai_mode).toBe('autopilot');
+    expect(conv().ai_paused_reason).toBeNull();
+    expect(generate).toHaveBeenCalledTimes(1);
+    expect(generate.mock.calls[0][0].resuming).toBe(true);
+  });
+
   it('after the conversation was resolved, even though a person had taken it', async () => {
     visitorSays('Hi');
     agentSays('Sorted, closing now.');

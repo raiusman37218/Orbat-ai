@@ -374,7 +374,7 @@ export async function POST(req: NextRequest) {
 
     const resolvedAt = latest(conv.last_resolved_at, conv.closed_at, meta.last_resolved_at);
     const lastHumanAt = latest(lastHumanReply?.created_at, meta.last_human_reply_at);
-    const autopilotAt = latest(meta.autopilot_enabled_at, conv.ai_resumed_at);
+    let autopilotAt = latest(meta.autopilot_enabled_at, conv.ai_resumed_at);
     // When the assistant was switched off: by a human reply, by hand, or by a handover.
     const disabledAt = latest(lastHumanReply?.created_at, meta.last_human_reply_at, meta.ai_disabled_at, conv.ai_control_changed_at);
 
@@ -432,6 +432,43 @@ export async function POST(req: NextRequest) {
       } else {
         const { data: fresh } = await supabase.from('conversations').select('*').eq('id', conversation_id).single();
         if (fresh) Object.assign(conv, fresh);
+      }
+    }
+
+    // If a human agent replied earlier (human_reply), never resolved the chat,
+    // and has been completely silent for 1+ hour while the visitor returns with
+    // a new message (not just a closing ack), auto-resume autopilot so the
+    // conversation does not stay stuck in human_handling forever.
+    const STALE_HUMAN_TAKEOVER_MS = 60 * 60_000;
+    const lastHumanActivityAt = latest(lastHumanAt, conv.ai_control_changed_at, meta.ai_disabled_at);
+    const isStaleHumanTakeover =
+      !keepWithHumanAgent &&
+      !CLOSING_ACK_RE.test(trimmedVisitorText) &&
+      lastHumanActivityAt > -Infinity &&
+      targetAtMs - lastHumanActivityAt >= STALE_HUMAN_TAKEOVER_MS &&
+      ((conv.ai_mode === 'disabled' && conv.ai_paused_reason === 'human_reply') ||
+        (conv.ai_mode !== 'disabled' && lastHumanAt > -Infinity && lastHumanAt > autopilotAt && lastHumanAt > resolvedAt));
+
+    if (isStaleHumanTakeover) {
+      const resumedIso = new Date(targetAtMs).toISOString();
+      const { error: staleResumeErr } = await supabase
+        .from('conversations')
+        .update({
+          ai_mode: 'autopilot',
+          ai_paused_reason: null,
+          ai_resumed_at: resumedIso,
+          channel_metadata: {
+            ...meta,
+            autopilot_enabled_at: resumedIso,
+          },
+        })
+        .eq('id', conversation_id);
+      if (staleResumeErr) {
+        console.error('[Auto-Respond] Could not auto-resume stale human takeover:', staleResumeErr);
+      } else {
+        const { data: freshStale } = await supabase.from('conversations').select('*').eq('id', conversation_id).single();
+        if (freshStale) Object.assign(conv, freshStale);
+        autopilotAt = latest((conv.channel_metadata as Record<string, any>)?.autopilot_enabled_at, conv.ai_resumed_at);
       }
     }
 
