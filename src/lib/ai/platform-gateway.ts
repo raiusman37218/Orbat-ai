@@ -11,6 +11,13 @@ export interface ExecuteAiReplyParams {
   channel?: string | null;
   visitorName?: string | null;
   providerConfig?: ProviderConfig | null;
+  /**
+   * Whether this call should increment `replies_used` by 1 (default: true).
+   * Set to `false` on internal rewrite/retry drafts or fallback attempts within
+   * the same visitor turn so a single customer message is never billed twice,
+   * while still recording `tokens_in` and `tokens_out`.
+   */
+  countReply?: boolean;
 }
 
 export type AiUnavailableReason =
@@ -279,7 +286,14 @@ export async function executePlatformAiReply(
   // 4. On success, increment usage atomically
   const tokensIn = chatResult.tokensIn || 0;
   const tokensOut = chatResult.tokensOut || 0;
-  const newRepliesUsed = await incrementUsageAtomically(workspaceId, periodStart, 1, tokensIn, tokensOut);
+  const replyIncrement = params.countReply === false ? 0 : 1;
+  const newRepliesUsed = await incrementUsageAtomically(
+    workspaceId,
+    periodStart,
+    replyIncrement,
+    tokensIn,
+    tokensOut
+  );
 
   return {
     ok: true,

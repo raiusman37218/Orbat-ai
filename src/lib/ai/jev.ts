@@ -409,10 +409,10 @@ export async function jevGrounding(
       supported: {
         type: 'noul',
         instructions:
-          'Every fact, number, rule and promise in the drafted answer is stated in the help center passages. Greetings and polite phrases do not count.',
+          'Every fact, number, rule and promise about the company in the drafted answer is stated in the help center passages. Greetings, polite phrases, asking the customer for their email or account/order ID, and saying the team will check their account or dashboard do not count as unsupported claims.',
         criteria: {
-          true: 'All facts in the drafted answer come from the passages.',
-          false: 'The drafted answer states something the passages do not say, or contradicts them.',
+          true: 'All factual claims about the company, its rules, prices, or the customer record come from the passages.',
+          false: 'The drafted answer invents a rule, number, price or policy not in the passages, or contradicts them.',
         },
       },
     },

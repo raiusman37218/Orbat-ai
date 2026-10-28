@@ -390,6 +390,8 @@ interface HelpCenterInput {
   jev?: JevRuntime | null;
   /** Scores at which the top passage counts as a direct answer; set by the policy arm. */
   highConfidence?: { similarity: number; combined: number };
+  /** False when agent mode already counted a reply on this turn, so fallback does not double-bill. */
+  countReply?: boolean;
 }
 
 /** The last public reply a person wrote in the current exchange. */
@@ -668,6 +670,7 @@ async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<He
       workspaceId,
       conversationId,
       providerConfig,
+      countReply: input.countReply,
       request: {
         system,
         // Send up to 8 recent turns for proper context retention
@@ -817,6 +820,7 @@ async function answerGeneralQuestion({
   brand,
   botName,
   providerConfig,
+  countReply,
 }: {
   workspaceId: string;
   conversationId: string;
@@ -829,6 +833,7 @@ async function answerGeneralQuestion({
   memoryContext?: string | null;
   demonstrations?: string | null;
   providerConfig?: ProviderConfig | null;
+  countReply?: boolean;
 }): Promise<string | null> {
   if (!isConfigured(providerConfig)) return null;
   const system = [
@@ -843,6 +848,7 @@ async function answerGeneralQuestion({
       workspaceId,
       conversationId,
       providerConfig,
+      countReply,
       request: {
         system,
         messages: [...conversationMessages.slice(-3, -1), { role: 'user', content: incomingMessage }],
@@ -1044,11 +1050,14 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
 
   // The route gives the whole reply 35 s, and the intent call may already
   // have used some: the first draft gets 18 s, a rewrite only what is left.
-  const draft = async (system: string, timeoutMs = 18_000) =>
+  // Rewrites pass countReply = false so internal self-corrections never bill
+  // the workspace for multiple replies on a single visitor message.
+  const draft = async (system: string, timeoutMs = 18_000, countReply = true) =>
     executePlatformAiReply({
       workspaceId,
       conversationId,
       providerConfig: input.providerConfig,
+      countReply,
       request: {
         system,
         // More turns than the strict path: understanding a short follow-up
@@ -1096,7 +1105,8 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
         `${baseSystem}\n\n# CORRECTION\nYour previous draft stated figures that are not in the HELP CENTER or the conversation: ${invented
           .slice(0, 5)
           .join(', ')}. Write the reply again using only figures stated there (or simple arithmetic on them, shown). If the figure the customer needs is not stated, say so.`,
-        timeLeft
+        timeLeft,
+        false
       );
       if (retry.ok && retry.text) {
         parsed = parseAgentReply(retry.text.trim());
@@ -1117,8 +1127,10 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
   // too long for it, the cited article is what the reply claims to rest on.
   // Live and below the bar: the strict path answers instead.
   if (input.jev && parsed.sourceIndex) {
+    // Trader record comes first so Jev's 6,000-char slice never truncates the
+    // customer's own account/order data when checking an account-specific reply.
     const passagesFor = (p: typeof parsed) =>
-      [groundingPassages(knowledge.text, p.sourceIndex ?? parsed.sourceIndex!, p.text), record?.text ?? ''].filter(Boolean).join('\n\n');
+      [record?.text ?? '', groundingPassages(knowledge.text, p.sourceIndex ?? parsed.sourceIndex!, p.text)].filter(Boolean).join('\n\n');
     if (await jevRejectsAgentReply(input, parsed.text, passagesFor(parsed))) {
       // One refusal is not the end: Jev sees only part of the help centre,
       // and falling to the strict path turned correct answers into "I
@@ -1132,7 +1144,8 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
         try {
           const again = await draft(
             `${baseSystem}\n\n# CORRECTION\nA checker could not match your previous draft to the article you cited. Write the reply again stating only what the HELP CENTER says, in its own terms and figures, and end with [SOURCE: n] for the article that states the main fact. If the HELP CENTER does not say it, say so.`,
-            timeLeftForCheck
+            timeLeftForCheck,
+            false
           );
           if (again.ok && again.text) {
             const second = parseAgentReply(again.text.trim());
@@ -1431,6 +1444,7 @@ async function respondToVisitor({
 
   // Agent mode needs a model; without one the strict path's rules apply.
   const agentMode = answerMode === 'agent' && isConfigured(activeConfig);
+  let agentModeCountedReply = false;
 
   // Never Frustrate Customer Rule 1: Immediate handover for anger or strong frustration.
   // In agent mode an upset customer with something to answer is answered,
@@ -1558,6 +1572,7 @@ async function respondToVisitor({
     }
     const lookup = step.kind === 'answer' ? step : null;
     if (lookup) {
+      agentModeCountedReply = true;
       const reply = await answerAsSupportAgent({
         workspaceId,
         conversationId,
@@ -1655,6 +1670,7 @@ async function respondToVisitor({
       Boolean(intent.orderNumber || intent.accountNumber || intent.email);
 
     if (specialist.engine === 'model' && !lookup && !isSupplyingRequestedDetails) {
+      agentModeCountedReply = true;
       const reply = await answerAsSupportAgent({
         workspaceId,
         conversationId,
@@ -1740,6 +1756,7 @@ async function respondToVisitor({
         memoryContext,
         demonstrations,
         providerConfig: activeConfig,
+        countReply: !agentModeCountedReply,
       });
       if (general) {
         return {
@@ -1781,6 +1798,7 @@ async function respondToVisitor({
         runningSummary,
         humanContext,
         jev,
+        countReply: !agentModeCountedReply,
       });
   }
 }

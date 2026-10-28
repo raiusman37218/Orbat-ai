@@ -70,16 +70,19 @@ function createMockClient(isServiceRole = false) {
         const found = fakeDb.workspaceUsage.find(
           (u) => u.workspace_id === args.p_workspace_id && u.period_start === args.p_period_start
         );
+        const inc = args.p_replies ?? 1;
         if (found) {
-          found.replies_used += (args.p_replies || 1);
+          found.replies_used += inc;
+          found.tokens_in = (found.tokens_in || 0) + (args.p_tokens_in || 0);
+          found.tokens_out = (found.tokens_out || 0) + (args.p_tokens_out || 0);
           return { data: { replies_used: found.replies_used }, error: null };
         } else {
           const newRow = {
             workspace_id: args.p_workspace_id,
             period_start: args.p_period_start,
-            replies_used: args.p_replies || 1,
-            tokens_in: 0,
-            tokens_out: 0,
+            replies_used: inc,
+            tokens_in: args.p_tokens_in || 0,
+            tokens_out: args.p_tokens_out || 0,
           };
           fakeDb.workspaceUsage.push(newRow);
           return { data: { replies_used: newRow.replies_used }, error: null };
@@ -358,5 +361,33 @@ describe('Platform AI Architecture & Gateway', () => {
     // Crucial security requirement: full key is NEVER sent to browser clients
     expect((settings as any).apiKey).toBeUndefined();
     expect((settings as any).api_key).toBeUndefined();
+  });
+
+  it('Case 6: internal rewrite/retry with countReply=false records tokens without double-counting replies_used', async () => {
+    // Initial draft counts 1 reply
+    const res1 = await executePlatformAiReply({
+      workspaceId: WS_ID,
+      conversationId: CONV_ID,
+      request: {
+        system: 'You are an AI assistant.',
+        messages: [{ role: 'user', content: 'Initial question' }],
+      },
+    });
+    expect(res1.ok).toBe(true);
+    expect(res1.repliesUsed).toBe(1);
+
+    // Internal rewrite on same visitor message with countReply: false must NOT increment replies_used
+    const resRewrite = await executePlatformAiReply({
+      workspaceId: WS_ID,
+      conversationId: CONV_ID,
+      countReply: false,
+      request: {
+        system: 'You are an AI assistant.',
+        messages: [{ role: 'user', content: 'Rewrite same turn' }],
+      },
+    });
+    expect(resRewrite.ok).toBe(true);
+    expect(resRewrite.repliesUsed).toBe(1);
+    expect(fakeDb.workspaceUsage[0].replies_used).toBe(1);
   });
 });
