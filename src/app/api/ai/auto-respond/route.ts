@@ -440,7 +440,7 @@ export async function POST(req: NextRequest) {
     // a new message (not just a closing ack), auto-resume autopilot so the
     // conversation does not stay stuck in human_handling forever.
     const STALE_HUMAN_TAKEOVER_MS = 60 * 60_000;
-    const lastHumanActivityAt = latest(lastHumanAt, conv.ai_control_changed_at, meta.ai_disabled_at);
+    const lastHumanActivityAt = Math.max(lastHumanAt, latest(conv.ai_control_changed_at, meta.ai_disabled_at));
     const isStaleHumanTakeover =
       !keepWithHumanAgent &&
       !CLOSING_ACK_RE.test(trimmedVisitorText) &&
