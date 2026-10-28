@@ -97,6 +97,13 @@ describe('assistRoute', () => {
     expect(r).toMatchObject({ agent: 'general', decidedBy: 'rules' });
   });
 
+  it('lets Jev refine an account_specific message with no keyword topic into a specific account specialist', async () => {
+    const accountFallback = routeSubAgent({ message: 'please check what happened', intent: 'account_specific' });
+    vi.mocked(jevRoute).mockResolvedValue({ choice: 'account_status', confidence: 0.85, latencyMs: 70, usage: { inputTokens: 1, outputTokens: 1 } });
+    const r = await assistRoute({ ...base, message: 'please check what happened', route: accountFallback, jev: live, providerConfig: provider });
+    expect(r).toMatchObject({ agent: 'account_status', decidedBy: 'jev', certainty: 'sure' });
+  });
+
   it('a tie offers only the tied specialists, and a switched-off one is not offered', () => {
     const tie = routeSubAgent({ message: 'payout kab milega aur kyc ke documents kya hain', intent: 'help_center_question' });
     expect(assistOptions(tie, () => true).sort()).toEqual([...(tie.candidates || [])].sort());

@@ -64,7 +64,10 @@ export function readModelChoice(text: string, options: SubAgentId[]): SubAgentId
 
 export async function assistRoute(input: AssistInput): Promise<RouteResult> {
   const { route } = input;
-  if (route.certainty !== 'tie' && route.certainty !== 'none') return { ...route, decidedBy: 'rules' };
+  const isAccountNoTopic = route.agent === 'account' && !route.certainty;
+  if (route.certainty !== 'tie' && route.certainty !== 'none' && !(isAccountNoTopic && input.jev?.settings.router)) {
+    return { ...route, decidedBy: 'rules' };
+  }
   const options = assistOptions(route, input.enabled);
   if (options.length < 2) return { ...route, decidedBy: 'rules' };
 
@@ -107,7 +110,7 @@ export async function assistRoute(input: AssistInput): Promise<RouteResult> {
   }
 
   // 2. The model.
-  if (!isConfigured(input.providerConfig)) return { ...route, decidedBy: 'rules' };
+  if (isAccountNoTopic || !isConfigured(input.providerConfig)) return { ...route, decidedBy: 'rules' };
   const started = Date.now();
   try {
     const list = options.map((id) => `${id}: ${SUB_AGENT_BY_ID[id].summary}`).join('\n');

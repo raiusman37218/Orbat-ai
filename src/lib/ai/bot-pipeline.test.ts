@@ -1048,6 +1048,16 @@ describe('agent mode (whole help centre in the prompt)', () => {
       await askAgent('tell me phase 1 target');
       expect(agentCalls().length).toBeGreaterThanOrEqual(2);
     });
+
+    it('Jev still checks a factual answer and infers the citation even when the model omits [SOURCE: n]', async () => {
+      const checks = jevLive([0.92]);
+      agentAnswers('The maximum drawdown is 10% and the daily drawdown is 5%.');
+      const r = await askAgent('trading rules');
+      expect(checks).toHaveLength(1);
+      expect(checks[0]).toContain('maximum drawdown is 10%');
+      expect(r.shouldHandover).toBe(false);
+      expect(r.citation).toMatchObject({ title: 'Maximum loss rules' });
+    });
   });
 
   describe('Zendesk quick-reply flow & follow-up detail collection', () => {

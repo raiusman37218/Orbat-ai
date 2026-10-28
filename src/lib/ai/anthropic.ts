@@ -1126,11 +1126,11 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
   // record), the way it checks strict-path answers: the whole help centre is
   // too long for it, the cited article is what the reply claims to rest on.
   // Live and below the bar: the strict path answers instead.
-  if (input.jev && parsed.sourceIndex) {
+  if (input.jev && !parsed.handover) {
     // Trader record comes first so Jev's 6,000-char slice never truncates the
     // customer's own account/order data when checking an account-specific reply.
     const passagesFor = (p: typeof parsed) =>
-      [record?.text ?? '', groundingPassages(knowledge.text, p.sourceIndex ?? parsed.sourceIndex!, p.text)].filter(Boolean).join('\n\n');
+      [record?.text ?? '', groundingPassages(knowledge.text, p.sourceIndex ?? parsed.sourceIndex ?? 0, p.text)].filter(Boolean).join('\n\n');
     if (await jevRejectsAgentReply(input, parsed.text, passagesFor(parsed))) {
       // One refusal is not the end: Jev sees only part of the help centre,
       // and falling to the strict path turned correct answers into "I
@@ -1150,7 +1150,7 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
           if (again.ok && again.text) {
             const second = parseAgentReply(again.text.trim());
             const secondInvented = second.text ? unsupportedFigures(second.text, evidence) : ['(empty)'];
-            if (second.text && !secondInvented.length && !(second.sourceIndex && (await jevRejectsAgentReply(input, second.text, passagesFor(second))))) {
+            if (second.text && !secondInvented.length && !(!second.handover && (await jevRejectsAgentReply(input, second.text, passagesFor(second))))) {
               parsed = second;
               recovered = true;
             }
@@ -1166,7 +1166,12 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
     }
   }
 
-  const source = parsed.sourceIndex ? knowledge.sources[parsed.sourceIndex - 1] ?? null : null;
+  const effectiveSourceIndex =
+    parsed.sourceIndex ??
+    (!parsed.handover
+      ? Number(groundingPassages(knowledge.text, 0, parsed.text).match(/^\[ARTICLE (\d+)\]/)?.[1]) || null
+      : null);
+  const source = effectiveSourceIndex ? knowledge.sources[effectiveSourceIndex - 1] ?? null : null;
   const citation = source && source.kind !== 'knowledge' ? source : null;
   const articleIds = source && source.kind !== 'knowledge' ? [source.id] : [];
   const base: HelpDeskResponseResult = {
