@@ -44,6 +44,8 @@ const TeamChat = dynamic(() => import('@/components/team-chat/TeamChat').then((m
 const MobileInstallModal = dynamic(() => import('@/components/pwa/MobileInstallModal').then((m) => m.MobileInstallModal));
 import { TrialBanner } from '@/components/dashboard/TrialBanner';
 import { UpgradeModal } from '@/components/dashboard/UpgradeModal';
+import { getWorkspaceBillingAndUsageAction } from '@/app/actions/plans';
+import { completeSimulatedCheckoutAction } from '@/app/actions/platform-management';
 
 /**
  * Whether the AI assistant is the one replying on a thread. Mirrors the checks
@@ -83,10 +85,23 @@ export default function DashboardPage() {
   // What the command palette asked the tickets screen to show.
   const [ticketsRequest, setTicketsRequest] = useState<{ viewId?: string; ticketId?: string; nonce: number } | null>(null);
 
+  const [checkoutBannerMsg, setCheckoutBannerMsg] = useState<string | null>(null);
+
   useEffect(() => {
     if (currentWorkspace?.id) {
       getOpenUnansweredCountAction(currentWorkspace.id)
         .then(setUnansweredCount)
+        .catch(() => {});
+      getWorkspaceBillingAndUsageAction(currentWorkspace.id)
+        .then((res) => {
+          if (res) {
+            setSubscriptionInfo({
+              status: res.subscription.status,
+              trialDaysRemaining: res.trialDaysRemaining,
+              isTrialExpired: res.isTrialExpired,
+            });
+          }
+        })
         .catch(() => {});
     }
   }, [currentWorkspace?.id]);
@@ -467,10 +482,58 @@ export default function DashboardPage() {
     setActiveView('settings');
   }, []);
 
-  // Instagram's login sends the admin back here with ?settings=channels.
+  // Instagram's login sends the admin back here with ?settings=channels; Lemon Squeezy checkout returns with ?settings=billing&checkout=success.
   useEffect(() => {
-    const target = new URLSearchParams(window.location.search).get('settings');
+    const params = new URLSearchParams(window.location.search);
+    const target = params.get('settings');
     if (target === 'channels') handleOpenSettingsSection('channels');
+    if (target === 'billing') handleOpenSettingsSection('billing');
+
+    const checkoutStatus = params.get('checkout');
+    const sessionId = params.get('session_id');
+    const planSlug = params.get('plan');
+    const period = (params.get('period') as 'monthly' | 'yearly') || 'monthly';
+
+    if (checkoutStatus === 'success' && currentWorkspace?.id) {
+      if (sessionId && sessionId.startsWith('test_ls_') && planSlug) {
+        completeSimulatedCheckoutAction({ workspaceId: currentWorkspace.id, planSlug, billingPeriod: period, sessionId })
+          .then((res) => {
+            if (res.success) {
+              setCheckoutBannerMsg(`Payment verified! Your workspace is now upgraded to the ${planSlug.toUpperCase()} plan.`);
+              setCurrentWorkspace((prev) => (prev ? { ...prev, plan: planSlug as any } : prev));
+              getWorkspaceBillingAndUsageAction(currentWorkspace.id)
+                .then((b) => {
+                  if (b) {
+                    setSubscriptionInfo({
+                      status: b.subscription.status,
+                      trialDaysRemaining: b.trialDaysRemaining,
+                      isTrialExpired: b.isTrialExpired,
+                    });
+                  }
+                })
+                .catch(() => {});
+            }
+          })
+          .catch(() => {});
+      } else {
+        setCheckoutBannerMsg('Lemon Squeezy payment completed! Your subscription and workspace features are now active.');
+      }
+      // Clean URL query params
+      const cleanUrl = window.location.pathname + (target ? `?settings=${target}` : '');
+      window.history.replaceState({}, '', cleanUrl);
+    }
+  }, [handleOpenSettingsSection, currentWorkspace?.id]);
+
+  // Listen for UpgradeModal navigation events
+  useEffect(() => {
+    const handleNavigateEvent = (e: Event) => {
+      const detail = (e as CustomEvent<{ view?: string; tab?: string }>).detail;
+      if (detail?.view === 'settings' && detail?.tab === 'billing') {
+        handleOpenSettingsSection('billing');
+      }
+    };
+    window.addEventListener('zentry:navigate-view', handleNavigateEvent);
+    return () => window.removeEventListener('zentry:navigate-view', handleNavigateEvent);
   }, [handleOpenSettingsSection]);
 
   // Team alert emails link to /dashboard?conversation=<id>. RLS decides
@@ -1767,6 +1830,28 @@ export default function DashboardPage() {
         </div>
       )}
 
+      {/* Checkout Success Banner */}
+      {checkoutBannerMsg && (
+        <div className="bg-success text-white px-6 py-2 text-xs font-semibold flex items-center justify-between shadow-sm z-40 shrink-0">
+          <span>{checkoutBannerMsg}</span>
+          <button
+            type="button"
+            onClick={() => setCheckoutBannerMsg(null)}
+            className="text-white/80 hover:text-white text-xs font-bold"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Free Tier / Trial Status Banner */}
+      <TrialBanner
+        workspace={currentWorkspace}
+        trialDaysRemaining={subscriptionInfo?.trialDaysRemaining}
+        isTrialExpired={subscriptionInfo?.isTrialExpired}
+        onUpgradeClick={() => handleOpenSettingsSection('billing')}
+      />
+
       <div className="flex flex-1 overflow-hidden relative">
       {/* 1. Left Sidebar Navigation (Desktop) */}
       <div
@@ -2184,6 +2269,12 @@ export default function DashboardPage() {
       {showMobileInstallModal && (
         <MobileInstallModal isOpen onClose={() => setShowMobileInstallModal(false)} />
       )}
+
+      {/* 6. Global Upgrade & Lemon Squeezy Checkout Modal */}
+      <UpgradeModal
+        workspaceId={currentWorkspace?.id}
+        onNavigateToBilling={() => handleOpenSettingsSection('billing')}
+      />
       </div>
     </div>
   );

@@ -24,6 +24,7 @@ import {
   Sliders,
   KeyRound,
   Bot,
+  Wrench,
 } from 'lucide-react';
 import { Agent } from '@/types/database';
 import { Badge } from '@/components/ui/Badge';
@@ -47,10 +48,12 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { label: 'Overview', href: '/admin', icon: LayoutDashboard, exact: true },
+  { label: 'Plans & Billing', href: '/admin/plans', icon: CreditCard },
   { label: 'Workspaces', href: '/admin/workspaces', icon: Building2 },
   { label: 'Users', href: '/admin/users', icon: Users },
   { label: 'AI Model & Usage', href: '/admin/ai', icon: Bot },
   { label: 'Global Defaults', href: '/admin/defaults', icon: Sliders },
+  { label: 'Platform Ops', href: '/admin/platform', icon: Wrench },
   { label: 'Admin Access', href: '/admin/access', icon: KeyRound, ownerOnly: true },
   { label: 'System Health', href: '/admin/health', icon: Activity },
   { label: 'Audit Log', href: '/admin/audit', icon: ShieldAlert },
@@ -142,7 +145,7 @@ export function SuperAdminShell({ currentAgent, children }: SuperAdminShellProps
                 <Shield className="w-4 h-4" />
               </div>
               <div className="flex flex-col">
-                <span className="font-bold tracking-tight text-ink text-sm">Zen-try</span>
+                <span className="font-bold tracking-tight text-ink text-sm">Zentry</span>
                 <span className="text-2xs font-semibold uppercase tracking-wider text-accent -mt-0.5">
                   Platform Admin
                 </span>
@@ -233,9 +236,13 @@ export function SuperAdminShell({ currentAgent, children }: SuperAdminShellProps
             <div className="min-w-0">
               <h1 className="text-sm sm:text-base font-semibold text-ink tracking-tight truncate">
                 {pathname === '/admin' && 'Platform Overview'}
+                {pathname.startsWith('/admin/plans') && 'Plans, Pricing & Lemon Squeezy Billing'}
                 {pathname === '/admin/workspaces' && 'Workspaces Directory'}
                 {pathname.startsWith('/admin/workspaces/') && 'Workspace Detail'}
                 {pathname.startsWith('/admin/users') && 'All Platform Users'}
+                {pathname.startsWith('/admin/ai') && 'AI Model & Token Usage'}
+                {pathname.startsWith('/admin/defaults') && 'Global Defaults & Policies'}
+                {pathname.startsWith('/admin/platform') && 'Platform Operations & Broadcasts'}
                 {pathname.startsWith('/admin/access') && 'Admin Access Control'}
                 {pathname.startsWith('/admin/health') && 'System Health & Diagnostics'}
                 {pathname.startsWith('/admin/audit') && 'Super Admin Audit Log'}
@@ -381,7 +388,7 @@ export function SuperAdminShell({ currentAgent, children }: SuperAdminShellProps
                     <Shield className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="font-bold text-sm block">Zen-try</span>
+                    <span className="font-bold text-sm block">Zentry</span>
                     <span className="text-2xs text-accent uppercase font-semibold">Super Admin</span>
                   </div>
                 </div>

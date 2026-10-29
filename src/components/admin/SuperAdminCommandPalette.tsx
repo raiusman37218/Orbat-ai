@@ -15,6 +15,9 @@ import {
   ArrowRight,
   KeyRound,
   Sliders,
+  CreditCard,
+  Bot,
+  Wrench,
 } from 'lucide-react';
 import { getPlatformGlobalSearchAction } from '@/app/actions/platform';
 import { Badge } from '@/components/ui/Badge';
@@ -146,6 +149,16 @@ export function SuperAdminCommandPalette({ open, onClose }: SuperAdminCommandPal
                 <span className="text-2xs text-ink-3 font-mono">/admin</span>
               </button>
               <button
+                onClick={() => navigateTo('/admin/plans')}
+                className="w-full px-3 py-2 rounded-lg flex items-center justify-between text-left hover:bg-surface-3 transition-colors text-ink"
+              >
+                <span className="flex items-center gap-2.5">
+                  <CreditCard className="w-4 h-4 text-accent" />
+                  <span>Plans, Pricing & Lemon Squeezy Gateway</span>
+                </span>
+                <span className="text-2xs text-ink-3 font-mono">/admin/plans</span>
+              </button>
+              <button
                 onClick={() => navigateTo('/admin/workspaces')}
                 className="w-full px-3 py-2 rounded-lg flex items-center justify-between text-left hover:bg-surface-3 transition-colors text-ink"
               >
@@ -166,6 +179,16 @@ export function SuperAdminCommandPalette({ open, onClose }: SuperAdminCommandPal
                 <span className="text-2xs text-ink-3 font-mono">/admin/users</span>
               </button>
               <button
+                onClick={() => navigateTo('/admin/ai')}
+                className="w-full px-3 py-2 rounded-lg flex items-center justify-between text-left hover:bg-surface-3 transition-colors text-ink"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Bot className="w-4 h-4 text-accent" />
+                  <span>AI Model & Token Usage</span>
+                </span>
+                <span className="text-2xs text-ink-3 font-mono">/admin/ai</span>
+              </button>
+              <button
                 onClick={() => navigateTo('/admin/defaults')}
                 className="w-full px-3 py-2 rounded-lg flex items-center justify-between text-left hover:bg-surface-3 transition-colors text-ink"
               >
@@ -174,6 +197,16 @@ export function SuperAdminCommandPalette({ open, onClose }: SuperAdminCommandPal
                   <span>Global Defaults & Policies</span>
                 </span>
                 <span className="text-2xs text-ink-3 font-mono">/admin/defaults</span>
+              </button>
+              <button
+                onClick={() => navigateTo('/admin/platform')}
+                className="w-full px-3 py-2 rounded-lg flex items-center justify-between text-left hover:bg-surface-3 transition-colors text-ink"
+              >
+                <span className="flex items-center gap-2.5">
+                  <Wrench className="w-4 h-4 text-accent" />
+                  <span>Platform Operations & Broadcasts</span>
+                </span>
+                <span className="text-2xs text-ink-3 font-mono">/admin/platform</span>
               </button>
               <button
                 onClick={() => navigateTo('/admin/access')}

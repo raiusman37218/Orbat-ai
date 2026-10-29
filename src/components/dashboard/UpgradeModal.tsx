@@ -11,67 +11,78 @@ import {
   Globe,
   Phone,
   Bot,
-  Layers,
   Users,
+  CreditCard,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
+import { createWorkspaceCheckoutAction } from '@/app/actions/platform-management';
 
 export interface UpgradeModalProps {
   isOpen?: boolean;
   onClose?: () => void;
+  workspaceId?: string;
   feature?: string;
   featureTitle?: string;
   targetPlan?: 'starter' | 'pro' | 'enterprise';
   onNavigateToBilling?: () => void;
 }
 
-const FEATURE_HIGHLIGHTS: Record<string, { title: string; desc: string; plan: string; icon: any }> = {
+const FEATURE_HIGHLIGHTS: Record<string, { title: string; desc: string; plan: string; slug: 'starter' | 'pro' | 'enterprise'; icon: any }> = {
   channel_whatsapp: {
     title: 'WhatsApp Business Messaging',
     desc: 'Receive and reply to WhatsApp messages directly inside your unified inbox using the official Meta Cloud API.',
     plan: 'Pro',
+    slug: 'pro',
     icon: Phone,
   },
   channel_instagram: {
     title: 'Instagram & Facebook Messenger',
     desc: 'Unify direct messages, story mentions, and comments across Instagram and Facebook into one seamless stream.',
     plan: 'Pro',
+    slug: 'pro',
     icon: Globe,
   },
   custom_help_center_domain: {
     title: 'Custom Help Center Domain',
     desc: 'White-label your public knowledge base under your own domain (e.g. help.yourcompany.com) with automatic SSL.',
     plan: 'Enterprise',
+    slug: 'enterprise',
     icon: Globe,
   },
   remove_branding: {
     title: 'Remove Zentry Branding',
     desc: 'Deliver a 100% white-labeled experience by hiding the "Powered by Zentry" badge on your widget and help portal.',
     plan: 'Enterprise',
+    slug: 'enterprise',
     icon: Shield,
   },
   automations: {
     title: 'Automated Triggers & Workflows',
     desc: 'Set up event-driven triage rules, auto-assignment, auto-close timers, and webhook notifications.',
     plan: 'Pro',
+    slug: 'pro',
     icon: Zap,
   },
   sla: {
     title: 'SLA Policies & Business Hours',
     desc: 'Define first-response and resolution targets, track business hours calendars, and prevent breaches.',
     plan: 'Pro',
+    slug: 'pro',
     icon: Shield,
   },
   max_agents: {
     title: 'Add More Team Seats',
     desc: 'Grow your team beyond the Free 1-seat limit. Add agents, assign roles, and distribute tickets via round-robin.',
-    plan: 'Starter / Pro',
+    plan: 'Pro',
+    slug: 'pro',
     icon: Users,
   },
   ai_bot: {
     title: 'Autonomous Jev AI Auto-Responder',
     desc: 'Unlock 1,000+ monthly AI replies, custom system prompts, grounding with help docs, and smart escalations.',
     plan: 'Pro',
+    slug: 'pro',
     icon: Bot,
   },
 };
@@ -79,6 +90,7 @@ const FEATURE_HIGHLIGHTS: Record<string, { title: string; desc: string; plan: st
 export function UpgradeModal({
   isOpen = false,
   onClose,
+  workspaceId,
   feature,
   featureTitle,
   targetPlan = 'pro',
@@ -86,7 +98,8 @@ export function UpgradeModal({
 }: UpgradeModalProps) {
   const [active, setActive] = useState(isOpen);
   const [currentFeature, setCurrentFeature] = useState(feature);
-  const [currentPlan, setCurrentPlan] = useState(targetPlan);
+  const [currentPlan, setCurrentPlan] = useState<'starter' | 'pro' | 'enterprise'>(targetPlan);
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   useEffect(() => {
     setActive(isOpen);
@@ -117,21 +130,45 @@ export function UpgradeModal({
   const info = (currentFeature && FEATURE_HIGHLIGHTS[currentFeature]) || {
     title: featureTitle || 'Unlock Premium Features',
     desc: 'Upgrade your workspace to unlock advanced omnichannel messaging, automated workflows, and dedicated scale.',
-    plan: currentPlan === 'enterprise' ? 'Enterprise' : 'Pro',
+    plan: currentPlan === 'enterprise' ? 'Enterprise' : currentPlan === 'starter' ? 'Starter' : 'Pro',
+    slug: currentPlan,
     icon: Sparkles,
   };
 
   const IconComponent = info.icon;
 
-  const handleUpgradeClick = () => {
+  const handleViewAllPlans = () => {
     setActive(false);
     onClose?.();
     if (onNavigateToBilling) {
       onNavigateToBilling();
     } else {
-      // Dispatches navigation to billing view or opens pricing
       window.dispatchEvent(new CustomEvent('zentry:navigate-view', { detail: { view: 'settings', tab: 'billing' } }));
     }
+  };
+
+  const handleInstantCheckout = async () => {
+    if (!workspaceId) {
+      handleViewAllPlans();
+      return;
+    }
+    setCheckoutLoading(true);
+    try {
+      const res = await createWorkspaceCheckoutAction({
+        workspaceId,
+        planSlug: info.slug,
+        billingPeriod: 'monthly',
+      });
+      if (res.checkoutUrl) {
+        window.location.href = res.checkoutUrl;
+        return;
+      }
+    } catch {
+      // Fall back to billing view
+    } finally {
+      setCheckoutLoading(false);
+    }
+    handleViewAllPlans();
   };
 
   const handleDismiss = () => {
@@ -187,12 +224,12 @@ export function UpgradeModal({
         <div className="rounded-xl border border-line bg-surface-2/60 p-4 mb-6 space-y-2.5 text-xs">
           <div className="font-semibold text-ink flex items-center justify-between pb-1.5 border-b border-line">
             <span>What you get by upgrading:</span>
-            <span className="text-2xs text-accent font-bold uppercase">14-Day Free Trial Available</span>
+            <span className="text-2xs text-accent font-bold uppercase">Instant Activation</span>
           </div>
           <div className="grid grid-cols-1 gap-2 text-ink-2">
             <div className="flex items-center gap-2">
               <Check className="w-3.5 h-3.5 text-success shrink-0" />
-              <span><strong>WhatsApp & Instagram:</strong> Unified social direct messages</span>
+              <span><strong>WhatsApp &amp; Instagram:</strong> Unified social direct messages</span>
             </div>
             <div className="flex items-center gap-2">
               <Check className="w-3.5 h-3.5 text-success shrink-0" />
@@ -200,17 +237,17 @@ export function UpgradeModal({
             </div>
             <div className="flex items-center gap-2">
               <Check className="w-3.5 h-3.5 text-success shrink-0" />
-              <span><strong>Automations & SLAs:</strong> Event triggers and business hours</span>
+              <span><strong>Automations &amp; SLAs:</strong> Event triggers and business hours</span>
             </div>
             <div className="flex items-center gap-2">
               <Check className="w-3.5 h-3.5 text-success shrink-0" />
-              <span><strong>Custom Domain & White-label:</strong> help.yourbrand.com with 0 branding</span>
+              <span><strong>Custom Domain &amp; White-label:</strong> help.yourbrand.com with 0 branding</span>
             </div>
           </div>
         </div>
 
         {/* Action Buttons */}
-        <div className="flex items-center justify-end gap-2.5">
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
             type="button"
             variant="ghost"
@@ -222,11 +259,26 @@ export function UpgradeModal({
           </Button>
           <Button
             type="button"
+            variant="secondary"
+            size="sm"
+            onClick={handleViewAllPlans}
+            className="text-xs font-semibold"
+          >
+            Compare All Plans
+          </Button>
+          <Button
+            type="button"
             variant="primary"
             size="sm"
-            onClick={handleUpgradeClick}
+            onClick={handleInstantCheckout}
+            disabled={checkoutLoading}
             className="text-xs font-semibold gap-1.5 shadow-md shadow-accent/20"
           >
+            {checkoutLoading ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <CreditCard className="w-3.5 h-3.5" />
+            )}
             <span>Upgrade to {info.plan}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Button>

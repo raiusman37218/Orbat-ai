@@ -15,6 +15,9 @@ import {
   ShieldCheck,
   CheckCircle2,
   ExternalLink,
+  CreditCard,
+  Sliders,
+  Wrench,
 } from 'lucide-react';
 import {
   ResponsiveContainer,
@@ -114,6 +117,81 @@ export function OverviewView() {
           <span>Refresh Metrics</span>
         </Button>
       </div>
+
+      {/* Quick Admin Control Center */}
+      <section aria-label="Super Admin Control Center" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
+        <Link
+          href="/admin/plans"
+          className="card p-4 border border-accent/30 bg-accent/5 hover:bg-accent/10 transition-colors flex flex-col justify-between gap-2 group shadow-xs"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-ink group-hover:text-accent transition-colors">
+              Plans, Pricing & Gateway
+            </span>
+            <CreditCard className="w-4 h-4 text-accent" />
+          </div>
+          <p className="text-2xs text-ink-2 leading-relaxed">
+            Edit plan prices, limits, feature flags, coupons &amp; Lemon Squeezy API key.
+          </p>
+          <span className="text-2xs font-semibold text-accent flex items-center gap-1">
+            Manage Pricing &amp; Billing <ArrowRight className="w-3 h-3" />
+          </span>
+        </Link>
+
+        <Link
+          href="/admin/workspaces"
+          className="card p-4 border border-line bg-surface hover:border-accent/40 transition-colors flex flex-col justify-between gap-2 group shadow-xs"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-ink group-hover:text-accent transition-colors">
+              Workspaces &amp; Subscriptions
+            </span>
+            <Building2 className="w-4 h-4 text-accent" />
+          </div>
+          <p className="text-2xs text-ink-2 leading-relaxed">
+            Inspect tenants, override plans, extend trials, or enter any workspace.
+          </p>
+          <span className="text-2xs font-semibold text-accent flex items-center gap-1">
+            Open Directory <ArrowRight className="w-3 h-3" />
+          </span>
+        </Link>
+
+        <Link
+          href="/admin/ai"
+          className="card p-4 border border-line bg-surface hover:border-accent/40 transition-colors flex flex-col justify-between gap-2 group shadow-xs"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-ink group-hover:text-accent transition-colors">
+              AI Models &amp; Token Usage
+            </span>
+            <Bot className="w-4 h-4 text-accent" />
+          </div>
+          <p className="text-2xs text-ink-2 leading-relaxed">
+            Control Jev AI default models, confidence thresholds &amp; token budgets.
+          </p>
+          <span className="text-2xs font-semibold text-accent flex items-center gap-1">
+            Configure AI <ArrowRight className="w-3 h-3" />
+          </span>
+        </Link>
+
+        <Link
+          href="/admin/platform"
+          className="card p-4 border border-line bg-surface hover:border-accent/40 transition-colors flex flex-col justify-between gap-2 group shadow-xs"
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-ink group-hover:text-accent transition-colors">
+              Platform Ops &amp; Defaults
+            </span>
+            <Wrench className="w-4 h-4 text-accent" />
+          </div>
+          <p className="text-2xs text-ink-2 leading-relaxed">
+            Broadcast announcements, manage feature flags &amp; global workspace defaults.
+          </p>
+          <span className="text-2xs font-semibold text-accent flex items-center gap-1">
+            Open Operations <ArrowRight className="w-3 h-3" />
+          </span>
+        </Link>
+      </section>
 
       {/* 5 Key Metric Cards */}
       <section aria-label="Key Platform Indicators" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">

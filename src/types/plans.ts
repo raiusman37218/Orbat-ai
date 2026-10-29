@@ -17,6 +17,10 @@ export interface PlatformPlan {
   sort_order: number;
   version: number;
 
+  // Lemon Squeezy Variant Mapping (optional — if omitted, uses default variant + custom_price)
+  lemonsqueezy_monthly_variant_id?: string | null;
+  lemonsqueezy_yearly_variant_id?: string | null;
+
   // Limits (null = unlimited)
   max_agents: number | null;
   max_tickets_per_month: number | null;
@@ -91,6 +95,10 @@ export interface WorkspaceSubscription {
   custom_limits: Partial<Record<PlanLimitKey, number | null>>;
   custom_features: Partial<Record<PlanFeatureKey, boolean>>;
   admin_note: string | null;
+  lemonsqueezy_customer_id?: string | null;
+  lemonsqueezy_subscription_id?: string | null;
+  lemonsqueezy_variant_id?: string | null;
+  payment_method?: string | null;
   created_at: string;
   updated_at: string;
   plan?: PlatformPlan;

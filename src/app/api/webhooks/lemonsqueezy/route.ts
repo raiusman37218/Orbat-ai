@@ -6,9 +6,24 @@ export async function POST(req: NextRequest) {
   try {
     const rawBody = await req.text();
     const signature = req.headers.get('x-signature') || '';
-    const secret = process.env.LEMON_SQUEEZY_WEBHOOK_SECRET || '';
 
-    const billingProvider = getBillingProvider();
+    const adminClient = serviceClient();
+
+    // Check database billing_settings first, then fallback to env
+    const { data: settingsRow } = await adminClient
+      .from('platform_settings')
+      .select('billing_settings')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    const bs = (settingsRow?.billing_settings || {}) as Record<string, any>;
+    const secret = (
+      bs.lemonsqueezy_webhook_secret ||
+      process.env.LEMON_SQUEEZY_WEBHOOK_SECRET ||
+      ''
+    ).trim();
+
+    const billingProvider = getBillingProvider({ webhookSecret: secret });
 
     // Verify webhook signature if secret configured
     if (secret) {
@@ -24,8 +39,6 @@ export async function POST(req: NextRequest) {
     const customData = payload.meta?.custom_data || {};
     const attributes = payload.data?.attributes || {};
     const subscriptionId = String(payload.data?.id || '');
-
-    const adminClient = serviceClient();
 
     // Locate workspace by custom data or existing lemonsqueezy subscription id
     let workspaceId = customData.workspace_id;
@@ -66,21 +79,72 @@ export async function POST(req: NextRequest) {
         const mappedStatus = statusMap[lsStatus] || 'active';
 
         const renewsAt = attributes.renews_at || attributes.ends_at;
+        const variantId = String(attributes.variant_id || '');
 
-        await adminClient
+        // Resolve target plan from custom_data or variant_id
+        let resolvedPlanId = customData.plan_id || null;
+        let resolvedPlanSlug = customData.plan_slug || null;
+        const billingPeriod = customData.billing_period === 'yearly' ? 'yearly' : 'monthly';
+
+        if (!resolvedPlanId && (resolvedPlanSlug || variantId)) {
+          const { data: allPlans } = await adminClient.from('platform_plans').select('*');
+          if (allPlans) {
+            const matched = allPlans.find(
+              (p: any) =>
+                (resolvedPlanSlug && p.slug === resolvedPlanSlug) ||
+                (variantId &&
+                  (String(p.lemonsqueezy_monthly_variant_id) === variantId ||
+                    String(p.lemonsqueezy_yearly_variant_id) === variantId))
+            );
+            if (matched) {
+              resolvedPlanId = matched.id;
+              resolvedPlanSlug = matched.slug;
+            }
+          }
+        }
+
+        const { data: existingSub } = await adminClient
           .from('workspace_subscriptions')
-          .update({
-            status: mappedStatus,
-            lemonsqueezy_subscription_id: subscriptionId,
-            lemonsqueezy_customer_id: String(attributes.customer_id || ''),
-            lemonsqueezy_variant_id: String(attributes.variant_id || ''),
-            payment_method: 'lemonsqueezy',
-            current_period_end: renewsAt ? new Date(renewsAt).toISOString() : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-            failed_payment_count: 0,
-            grace_period_ends_at: null,
-            updated_at: now.toISOString(),
-          })
-          .eq('workspace_id', workspaceId);
+          .select('id, plan_id')
+          .eq('workspace_id', workspaceId)
+          .maybeSingle();
+
+        const subUpdate: Record<string, any> = {
+          workspace_id: workspaceId,
+          status: mappedStatus,
+          lemonsqueezy_subscription_id: subscriptionId,
+          lemonsqueezy_customer_id: String(attributes.customer_id || ''),
+          lemonsqueezy_variant_id: variantId,
+          payment_method: 'lemonsqueezy',
+          billing_period: billingPeriod,
+          current_period_end: renewsAt
+            ? new Date(renewsAt).toISOString()
+            : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+          failed_payment_count: 0,
+          grace_period_ends_at: null,
+          updated_at: now.toISOString(),
+        };
+
+        if (resolvedPlanId) {
+          subUpdate.plan_id = resolvedPlanId;
+        }
+
+        if (existingSub) {
+          await adminClient
+            .from('workspace_subscriptions')
+            .update(subUpdate)
+            .eq('id', existingSub.id);
+        } else if (resolvedPlanId) {
+          subUpdate.current_period_start = now.toISOString();
+          await adminClient.from('workspace_subscriptions').insert(subUpdate);
+        }
+
+        if (resolvedPlanSlug) {
+          await adminClient
+            .from('workspaces')
+            .update({ plan: resolvedPlanSlug })
+            .eq('id', workspaceId);
+        }
 
         break;
       }

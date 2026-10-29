@@ -1,5 +1,10 @@
 import crypto from 'crypto';
-import { BillingProvider, CreateCheckoutParams, CheckoutSessionResult } from './types';
+import {
+  BillingProvider,
+  CreateCheckoutParams,
+  CheckoutSessionResult,
+  LemonSqueezyStoreInfo,
+} from './types';
 import { userError } from '@/lib/errors/user-error';
 
 export class LemonSqueezyBillingProvider implements BillingProvider {
@@ -7,25 +12,147 @@ export class LemonSqueezyBillingProvider implements BillingProvider {
   private _apiKey?: string;
   private _webhookSecret?: string;
   private _storeId?: string;
+  private _defaultVariantId?: string;
+  private _testMode?: boolean;
 
-  constructor(options?: { apiKey?: string; webhookSecret?: string; storeId?: string }) {
+  constructor(options?: {
+    apiKey?: string;
+    webhookSecret?: string;
+    storeId?: string;
+    defaultVariantId?: string;
+    testMode?: boolean;
+  }) {
     if (options) {
       this._apiKey = options.apiKey;
       this._webhookSecret = options.webhookSecret;
       this._storeId = options.storeId;
+      this._defaultVariantId = options.defaultVariantId;
+      this._testMode = options.testMode;
     }
   }
 
   private get apiKey(): string {
-    return this._apiKey || process.env.LEMON_SQUEEZY_API_KEY || '';
+    return (this._apiKey || process.env.LEMON_SQUEEZY_API_KEY || '').trim();
   }
 
   private get storeId(): string {
-    return this._storeId || process.env.LEMON_SQUEEZY_STORE_ID || '';
+    return (this._storeId || process.env.LEMON_SQUEEZY_STORE_ID || '').trim();
+  }
+
+  private get defaultVariantId(): string {
+    return (this._defaultVariantId || process.env.LEMON_SQUEEZY_DEFAULT_VARIANT_ID || process.env.LEMON_SQUEEZY_VARIANT_ID || '').trim();
   }
 
   private get webhookSecret(): string {
-    return this._webhookSecret || process.env.LEMON_SQUEEZY_WEBHOOK_SECRET || '';
+    return (this._webhookSecret || process.env.LEMON_SQUEEZY_WEBHOOK_SECRET || '').trim();
+  }
+
+  private get testMode(): boolean {
+    if (this._testMode !== undefined) return this._testMode;
+    return process.env.LEMON_SQUEEZY_TEST_MODE === 'true';
+  }
+
+  /**
+   * Queries Lemon Squeezy API v1 to verify API key and auto-detect Store ID + Variants
+   */
+  async fetchStoreAndVariants(): Promise<{
+    success: boolean;
+    info?: LemonSqueezyStoreInfo;
+    error?: string;
+  }> {
+    if (!this.apiKey) {
+      return {
+        success: false,
+        error: 'Lemon Squeezy API Key is not configured yet.',
+      };
+    }
+
+    try {
+      const storesRes = await fetch('https://api.lemonsqueezy.com/v1/stores', {
+        headers: {
+          Accept: 'application/vnd.api+json',
+          'Content-Type': 'application/vnd.api+json',
+          Authorization: `Bearer ${this.apiKey}`,
+        },
+      });
+
+      if (!storesRes.ok) {
+        const errBody = await storesRes.text();
+        return {
+          success: false,
+          error: `Lemon Squeezy API rejected key (${storesRes.status}): ${errBody.slice(0, 180)}`,
+        };
+      }
+
+      const storesJson = await storesRes.json();
+      const storesList: any[] = storesJson.data || [];
+      if (storesList.length === 0) {
+        return {
+          success: false,
+          error: 'Connected to Lemon Squeezy, but no stores were found on this account.',
+        };
+      }
+
+      const matchedStore =
+        (this.storeId && storesList.find((s) => String(s.id) === String(this.storeId))) ||
+        storesList[0];
+
+      const resolvedStoreId = String(matchedStore.id);
+      const storeAttrs = matchedStore.attributes || {};
+
+      // Fetch variants for this store
+      const variantsRes = await fetch(
+        `https://api.lemonsqueezy.com/v1/variants?include=product&page[size]=50`,
+        {
+          headers: {
+            Accept: 'application/vnd.api+json',
+            'Content-Type': 'application/vnd.api+json',
+            Authorization: `Bearer ${this.apiKey}`,
+          },
+        }
+      );
+
+      const variants: LemonSqueezyStoreInfo['variants'] = [];
+      if (variantsRes.ok) {
+        const variantsJson = await variantsRes.json();
+        const includedProducts = new Map<string, string>();
+        for (const inc of variantsJson.included || []) {
+          if (inc.type === 'products') {
+            includedProducts.set(String(inc.id), inc.attributes?.name || 'Product');
+          }
+        }
+
+        for (const v of variantsJson.data || []) {
+          const vAttrs = v.attributes || {};
+          const prodId = String(v.relationships?.product?.data?.id || '');
+          const productName = includedProducts.get(prodId) || 'Subscription';
+          variants.push({
+            id: String(v.id),
+            name: vAttrs.name || 'Default',
+            productName,
+            priceCents: Number(vAttrs.price || 0),
+            interval: vAttrs.interval || null,
+            status: vAttrs.status || 'published',
+          });
+        }
+      }
+
+      return {
+        success: true,
+        info: {
+          storeId: resolvedStoreId,
+          storeName: storeAttrs.name || 'Lemon Squeezy Store',
+          currency: storeAttrs.currency || 'USD',
+          domain: storeAttrs.domain || '',
+          variants,
+        },
+      };
+    } catch (err: any) {
+      return {
+        success: false,
+        error: err.message || 'Failed to connect to Lemon Squeezy API.',
+      };
+    }
   }
 
   /**
@@ -33,8 +160,9 @@ export class LemonSqueezyBillingProvider implements BillingProvider {
    */
   async createCheckoutSession(params: CreateCheckoutParams): Promise<CheckoutSessionResult> {
     // If running in development/test without live API key, provide a sandbox checkout link
-    if (!this.apiKey || !this.storeId || this.apiKey.startsWith('test_dummy')) {
-      const simulatedUrl = `${params.successUrl}?session_id=test_ls_${Date.now()}&workspace_id=${params.workspaceId}&plan=${params.planSlug}`;
+    if (!this.apiKey || this.apiKey.startsWith('test_dummy')) {
+      const separator = params.successUrl.includes('?') ? '&' : '?';
+      const simulatedUrl = `${params.successUrl}${separator}session_id=test_ls_${Date.now()}&workspace_id=${params.workspaceId}&plan=${params.planSlug}&period=${params.billingPeriod}`;
       return {
         checkoutUrl: simulatedUrl,
         sessionId: `test_sess_${Date.now()}`,
@@ -42,6 +170,87 @@ export class LemonSqueezyBillingProvider implements BillingProvider {
     }
 
     try {
+      let resolvedStoreId = this.storeId;
+      let resolvedVariantId = (params.variantId || this.defaultVariantId || '').trim();
+
+      // Auto-discover Store ID & Variant ID from Lemon Squeezy API if not explicitly set
+      if (!resolvedStoreId || !resolvedVariantId) {
+        const discovery = await this.fetchStoreAndVariants();
+        if (discovery.success && discovery.info) {
+          if (!resolvedStoreId) {
+            resolvedStoreId = discovery.info.storeId;
+          }
+          if (!resolvedVariantId && discovery.info.variants.length > 0) {
+            const activeVariant =
+              discovery.info.variants.find((v) => v.status === 'published') ||
+              discovery.info.variants[0];
+            resolvedVariantId = activeVariant.id;
+          }
+        }
+      }
+
+      if (!resolvedStoreId) {
+        throw userError(
+          'Lemon Squeezy Store ID could not be resolved. Please check your Lemon Squeezy API Key & Store ID in Admin > Plans & Billing.'
+        );
+      }
+
+      const customPriceCents =
+        params.customPriceUsd !== undefined && params.customPriceUsd > 0
+          ? Math.round(params.customPriceUsd * 100)
+          : undefined;
+
+      const attributes: Record<string, any> = {
+        checkout_data: {
+          email: params.customerEmail || undefined,
+          name: params.workspaceName || undefined,
+          custom: {
+            workspace_id: params.workspaceId,
+            plan_id: params.planId,
+            plan_slug: params.planSlug,
+            billing_period: params.billingPeriod,
+          },
+          ...(params.discountCode ? { discount_code: params.discountCode } : {}),
+        },
+        checkout_options: {
+          embed: false,
+          media: true,
+          logo: true,
+          desc: true,
+          dark: true,
+        },
+        product_options: {
+          name: `Zentry ${params.planName || params.planSlug.toUpperCase()} Plan (${
+            params.billingPeriod === 'yearly' ? 'Annual' : 'Monthly'
+          })`,
+          description: `Workspace subscription for ${params.workspaceName}`,
+          redirect_url: params.successUrl,
+        },
+        test_mode: params.testMode ?? this.testMode,
+      };
+
+      if (customPriceCents !== undefined) {
+        attributes.custom_price = customPriceCents;
+      }
+
+      const relationships: Record<string, any> = {
+        store: {
+          data: {
+            type: 'stores',
+            id: String(resolvedStoreId),
+          },
+        },
+      };
+
+      if (resolvedVariantId) {
+        relationships.variant = {
+          data: {
+            type: 'variants',
+            id: String(resolvedVariantId),
+          },
+        };
+      }
+
       const response = await fetch('https://api.lemonsqueezy.com/v1/checkouts', {
         method: 'POST',
         headers: {
@@ -52,38 +261,8 @@ export class LemonSqueezyBillingProvider implements BillingProvider {
         body: JSON.stringify({
           data: {
             type: 'checkouts',
-            attributes: {
-              checkout_data: {
-                email: params.customerEmail,
-                custom: {
-                  workspace_id: params.workspaceId,
-                  plan_id: params.planId,
-                  plan_slug: params.planSlug,
-                  billing_period: params.billingPeriod,
-                },
-                discount_code: params.discountCode,
-              },
-              checkout_options: {
-                embed: false,
-                media: true,
-                logo: true,
-                desc: true,
-                dark: false,
-              },
-              product_options: {
-                name: `${params.workspaceName} - ${params.planSlug.toUpperCase()} Subscription`,
-                redirect_url: params.successUrl,
-              },
-              test_mode: true,
-            },
-            relationships: {
-              store: {
-                data: {
-                  type: 'stores',
-                  id: this.storeId,
-                },
-              },
-            },
+            attributes,
+            relationships,
           },
         }),
       });
@@ -98,14 +277,16 @@ export class LemonSqueezyBillingProvider implements BillingProvider {
       const checkoutUrl = resJson.data?.attributes?.url;
       const sessionId = resJson.data?.id;
 
+      const separator = params.successUrl.includes('?') ? '&' : '?';
       return {
-        checkoutUrl: checkoutUrl || `${params.successUrl}?checkout=completed`,
+        checkoutUrl: checkoutUrl || `${params.successUrl}${separator}checkout=completed`,
         sessionId,
       };
     } catch (err: any) {
       console.warn('[Lemon Squeezy Fallback to Mock]:', err.message);
+      const separator = params.successUrl.includes('?') ? '&' : '?';
       return {
-        checkoutUrl: `${params.successUrl}?checkout=simulated&workspace_id=${params.workspaceId}`,
+        checkoutUrl: `${params.successUrl}${separator}session_id=test_ls_${Date.now()}&workspace_id=${params.workspaceId}&plan=${params.planSlug}&period=${params.billingPeriod}`,
         sessionId: `fallback_${Date.now()}`,
       };
     }
@@ -270,9 +451,18 @@ export class LemonSqueezyBillingProvider implements BillingProvider {
 
 let _billingProviderInstance: BillingProvider | null = null;
 
-export function getBillingProvider(): BillingProvider {
+export function getBillingProvider(options?: {
+  apiKey?: string;
+  webhookSecret?: string;
+  storeId?: string;
+  defaultVariantId?: string;
+  testMode?: boolean;
+}): LemonSqueezyBillingProvider {
+  if (options) {
+    return new LemonSqueezyBillingProvider(options);
+  }
   if (!_billingProviderInstance) {
     _billingProviderInstance = new LemonSqueezyBillingProvider();
   }
-  return _billingProviderInstance;
+  return _billingProviderInstance as LemonSqueezyBillingProvider;
 }

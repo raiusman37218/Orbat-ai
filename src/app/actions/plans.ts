@@ -190,6 +190,8 @@ export async function savePlanAction(input: {
   is_popular?: boolean;
   is_default?: boolean;
   sort_order?: number;
+  lemonsqueezy_monthly_variant_id?: string | null;
+  lemonsqueezy_yearly_variant_id?: string | null;
   max_agents: number | null;
   max_tickets_per_month: number | null;
   max_ai_bot_replies_per_month: number | null;
@@ -259,6 +261,8 @@ export async function savePlanAction(input: {
         is_popular: Boolean(input.is_popular),
         is_default: Boolean(input.is_default),
         version: nextVersion,
+        ...(input.lemonsqueezy_monthly_variant_id !== undefined ? { lemonsqueezy_monthly_variant_id: input.lemonsqueezy_monthly_variant_id || null } : {}),
+        ...(input.lemonsqueezy_yearly_variant_id !== undefined ? { lemonsqueezy_yearly_variant_id: input.lemonsqueezy_yearly_variant_id || null } : {}),
         max_agents: input.max_agents,
         max_tickets_per_month: input.max_tickets_per_month,
         max_ai_bot_replies_per_month: resolvedAiLimit,
@@ -336,6 +340,8 @@ export async function savePlanAction(input: {
         is_default: Boolean(input.is_default),
         sort_order: input.sort_order ?? 10,
         version: 1,
+        ...(input.lemonsqueezy_monthly_variant_id !== undefined ? { lemonsqueezy_monthly_variant_id: input.lemonsqueezy_monthly_variant_id || null } : {}),
+        ...(input.lemonsqueezy_yearly_variant_id !== undefined ? { lemonsqueezy_yearly_variant_id: input.lemonsqueezy_yearly_variant_id || null } : {}),
         max_agents: input.max_agents,
         max_tickets_per_month: input.max_tickets_per_month,
         max_ai_bot_replies_per_month: resolvedCreateAiLimit,

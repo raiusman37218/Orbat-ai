@@ -14,6 +14,9 @@ import {
   RefreshCw,
   Tag,
   Lock,
+  CreditCard,
+  ExternalLink,
+  Loader2,
 } from 'lucide-react';
 import { Workspace } from '@/types/database';
 import { WorkspaceBillingOverview, PlatformPlan } from '@/types/plans';
@@ -22,6 +25,10 @@ import {
   getPublicPlansAction,
   applyCouponToWorkspaceAction,
 } from '@/app/actions/plans';
+import {
+  createWorkspaceCheckoutAction,
+  createWorkspaceCustomerPortalAction,
+} from '@/app/actions/platform-management';
 
 export function WorkspaceBillingView({
   workspace,
@@ -32,6 +39,10 @@ export function WorkspaceBillingView({
   const [loading, setLoading] = useState(true);
   const [availablePlans, setAvailablePlans] = useState<PlatformPlan[]>([]);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [selectedBillingPeriod, setSelectedBillingPeriod] = useState<'monthly' | 'yearly'>('monthly');
+  const [checkoutLoadingPlanId, setCheckoutLoadingPlanId] = useState<string | null>(null);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [portalLoading, setPortalLoading] = useState(false);
   const [couponCode, setCouponCode] = useState('');
   const [couponMsg, setCouponMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isApplyingCoupon, startCouponTransition] = useTransition();
@@ -44,6 +55,9 @@ export function WorkspaceBillingView({
         getPublicPlansAction(),
       ]);
       setOverview(res);
+      if (res?.subscription?.billing_period === 'yearly') {
+        setSelectedBillingPeriod('yearly');
+      }
       setAvailablePlans(publicPlans);
     } catch (e) {
       console.error('Failed to load billing overview:', e);
@@ -62,13 +76,63 @@ export function WorkspaceBillingView({
     startCouponTransition(async () => {
       const res = await applyCouponToWorkspaceAction(workspace.id, couponCode.trim());
       if (res.success) {
-        setCouponMsg({ type: 'success', text: res.discountSummary ? `Coupon applied: ${res.discountSummary}` : 'Coupon applied successfully!' });
+        setCouponMsg({
+          type: 'success',
+          text: res.discountSummary
+            ? `Coupon applied: ${res.discountSummary}`
+            : 'Coupon applied successfully!',
+        });
         setCouponCode('');
         loadData();
       } else {
         setCouponMsg({ type: 'error', text: res.error || 'Failed to apply coupon.' });
       }
     });
+  };
+
+  const handleStartCheckout = async (plan: PlatformPlan) => {
+    setCheckoutError(null);
+    setCheckoutLoadingPlanId(plan.id);
+    try {
+      const res = await createWorkspaceCheckoutAction({
+        workspaceId: workspace.id,
+        planId: plan.id,
+        planSlug: plan.slug,
+        billingPeriod: selectedBillingPeriod,
+      });
+      if (res.checkoutUrl) {
+        window.location.href = res.checkoutUrl;
+      } else {
+        setCheckoutError(res.error || 'Could not start checkout session.');
+      }
+    } catch (err: any) {
+      setCheckoutError(err?.message || 'Unexpected error starting checkout.');
+    } finally {
+      setCheckoutLoadingPlanId(null);
+    }
+  };
+
+  const handleOpenCustomerPortal = async () => {
+    setPortalLoading(true);
+    setCheckoutError(null);
+    try {
+      const res = await createWorkspaceCustomerPortalAction(workspace.id);
+      if (res.portalUrl) {
+        window.open(res.portalUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        setCouponMsg({
+          type: 'error',
+          text: res.error || 'Could not open Lemon Squeezy customer billing portal.',
+        });
+      }
+    } catch (err: any) {
+      setCouponMsg({
+        type: 'error',
+        text: err?.message || 'Failed to open customer billing portal.',
+      });
+    } finally {
+      setPortalLoading(false);
+    }
   };
 
   if (loading && !overview) {
@@ -146,6 +210,10 @@ export function WorkspaceBillingView({
             </h3>
             <p className="text-xs text-ink-2 mt-1">
               {sub.billing_period === 'yearly' ? 'Annual Billing' : 'Monthly Billing'}
+              {' • '}
+              <span className="font-semibold text-ink">
+                ${sub.billing_period === 'yearly' ? overview.plan.yearly_price : overview.plan.monthly_price}/mo
+              </span>
               {sub.current_period_end && (
                 <span>
                   {' '}• Renews on {new Date(sub.current_period_end).toLocaleDateString()}
@@ -154,14 +222,33 @@ export function WorkspaceBillingView({
             </p>
           </div>
 
-          <div className="flex items-center gap-2.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            {sub.lemonsqueezy_customer_id && (
+              <button
+                type="button"
+                onClick={handleOpenCustomerPortal}
+                disabled={portalLoading}
+                className="btn btn-outline text-xs flex items-center gap-1.5"
+              >
+                {portalLoading ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <CreditCard className="w-3.5 h-3.5" />
+                )}
+                <span>Manage Card &amp; Invoices</span>
+                <ExternalLink className="w-3 h-3 opacity-70" />
+              </button>
+            )}
             <button
               type="button"
-              onClick={() => setUpgradeModalOpen(true)}
+              onClick={() => {
+                setCheckoutError(null);
+                setUpgradeModalOpen(true);
+              }}
               className="btn btn-primary text-xs flex items-center gap-1.5"
             >
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Change Plan</span>
+              <span>Upgrade / Change Plan</span>
             </button>
           </div>
         </div>
@@ -177,7 +264,10 @@ export function WorkspaceBillingView({
             </div>
             <button
               type="button"
-              onClick={() => setUpgradeModalOpen(true)}
+              onClick={() => {
+                setCheckoutError(null);
+                setUpgradeModalOpen(true);
+              }}
               className="text-accent hover:underline font-semibold text-2xs"
             >
               Select Paid Plan &rarr;
@@ -224,7 +314,7 @@ export function WorkspaceBillingView({
       <div className="rounded-xl border border-line bg-surface p-6 shadow-sm">
         <div className="flex items-center justify-between mb-4">
           <div>
-            <h4 className="text-sm font-bold text-ink">Plan Limits & Usage</h4>
+            <h4 className="text-sm font-bold text-ink">Plan Limits &amp; Usage</h4>
             <p className="text-2xs text-ink-3">
               Usage tracked during current billing cycle ({new Date(sub.current_period_start).toLocaleDateString()} - {new Date(sub.current_period_end).toLocaleDateString()})
             </p>
@@ -343,29 +433,70 @@ export function WorkspaceBillingView({
         </div>
       </div>
 
-      {/* Upgrade / Change Plan Modal */}
+      {/* Upgrade / Change Plan Modal with Real Lemon Squeezy Checkout */}
       {upgradeModalOpen && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-surface rounded-2xl border border-line shadow-2xl max-w-2xl w-full p-6 animate-in fade-in zoom-in-95 duration-150 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between pb-4 border-b border-line">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-line">
               <div>
-                <h3 className="text-lg font-bold text-ink">Change Subscription Tier</h3>
+                <h3 className="text-lg font-bold text-ink">Upgrade or Change Subscription Tier</h3>
                 <p className="text-2xs text-ink-3">
-                  Choose a plan tailored to your team&apos;s support volume.
+                  Instant secure checkout powered by Lemon Squeezy. Prices and limits sync automatically.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setUpgradeModalOpen(false)}
-                className="btn btn-xs btn-ghost text-ink-3 hover:text-ink"
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-2">
+                <div className="inline-flex rounded-lg border border-line bg-surface-2 p-0.5 text-2xs">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBillingPeriod('monthly')}
+                    className={`px-2.5 py-1 rounded-md font-semibold transition-colors ${
+                      selectedBillingPeriod === 'monthly'
+                        ? 'bg-surface text-ink shadow-2xs'
+                        : 'text-ink-3 hover:text-ink'
+                    }`}
+                  >
+                    Monthly
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBillingPeriod('yearly')}
+                    className={`px-2.5 py-1 rounded-md font-semibold transition-colors flex items-center gap-1 ${
+                      selectedBillingPeriod === 'yearly'
+                        ? 'bg-surface text-ink shadow-2xs'
+                        : 'text-ink-3 hover:text-ink'
+                    }`}
+                  >
+                    <span>Yearly</span>
+                    <span className="text-3xs text-success font-bold">-20%</span>
+                  </button>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUpgradeModalOpen(false)}
+                  className="btn btn-xs btn-ghost text-ink-3 hover:text-ink"
+                >
+                  ✕
+                </button>
+              </div>
             </div>
 
-            <div className="mt-6 space-y-4">
+            {checkoutError && (
+              <div className="mt-4 p-3 rounded-lg border border-danger/30 bg-danger-soft text-danger text-xs flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{checkoutError}</span>
+              </div>
+            )}
+
+            <div className="mt-5 space-y-3.5">
               {availablePlans.map((plan) => {
-                const isCurrent = plan.slug === overview.plan.slug;
+                const isCurrent =
+                  plan.slug === overview.plan.slug &&
+                  sub.billing_period === selectedBillingPeriod &&
+                  sub.status === 'active';
+                const displayPrice =
+                  selectedBillingPeriod === 'yearly' ? plan.yearly_price : plan.monthly_price;
+                const isCheckingOut = checkoutLoadingPlanId === plan.id;
+
                 return (
                   <div
                     key={plan.id}
@@ -385,36 +516,55 @@ export function WorkspaceBillingView({
                         )}
                         {plan.is_popular && (
                           <span className="badge badge-warning text-3xs uppercase font-bold">
-                            Popular
+                            Most Popular
                           </span>
                         )}
                       </div>
                       <p className="text-xs text-ink-2 mt-1">{plan.description}</p>
-                      <div className="mt-2 text-2xs text-ink-3 flex items-center gap-3">
-                        <span>${plan.monthly_price}/mo</span>
-                        <span>•</span>
-                        <span>
-                          {plan.max_agents ?? '∞'} Seats
+                      <div className="mt-2 text-2xs text-ink-3 flex flex-wrap items-center gap-3">
+                        <span className="font-bold text-ink text-xs">
+                          ${displayPrice}/mo
+                          {selectedBillingPeriod === 'yearly' && displayPrice > 0 && (
+                            <span className="text-2xs font-normal text-ink-3">
+                              {' '}(billed ${displayPrice * 12}/yr)
+                            </span>
+                          )}
                         </span>
                         <span>•</span>
-                        <span>
-                          {plan.max_tickets_per_month ?? '∞'} Tickets
-                        </span>
+                        <span>{plan.max_agents ?? '∞'} Seats</span>
+                        <span>•</span>
+                        <span>{plan.max_tickets_per_month ?? '∞'} Tickets/mo</span>
+                        <span>•</span>
+                        <span>{plan.max_ai_bot_replies_per_month ?? plan.ai_monthly_reply_limit ?? '∞'} AI Replies/mo</span>
                       </div>
                     </div>
 
                     <div className="shrink-0">
                       {isCurrent ? (
                         <span className="text-xs font-semibold text-accent flex items-center gap-1">
-                          <Check className="w-3.5 h-3.5" /> Selected
+                          <Check className="w-3.5 h-3.5" /> Active Plan
                         </span>
                       ) : (
-                        <a
-                          href="mailto:support@zentry.io?subject=Upgrade%20Request%20for%20Workspace"
-                          className="btn btn-sm btn-primary text-xs"
+                        <button
+                          type="button"
+                          onClick={() => handleStartCheckout(plan)}
+                          disabled={checkoutLoadingPlanId !== null}
+                          className="btn btn-sm btn-primary text-xs flex items-center gap-1.5"
                         >
-                          Request Upgrade
-                        </a>
+                          {isCheckingOut ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Redirecting...</span>
+                            </>
+                          ) : displayPrice === 0 ? (
+                            <span>Switch to Free</span>
+                          ) : (
+                            <>
+                              <CreditCard className="w-3.5 h-3.5" />
+                              <span>Checkout (${displayPrice}/mo)</span>
+                            </>
+                          )}
+                        </button>
                       )}
                     </div>
                   </div>
@@ -422,7 +572,8 @@ export function WorkspaceBillingView({
               })}
             </div>
 
-            <div className="mt-6 pt-4 border-t border-line flex justify-end">
+            <div className="mt-6 pt-4 border-t border-line flex items-center justify-between text-2xs text-ink-3">
+              <span>Secured by Lemon Squeezy • Cancel or change anytime</span>
               <button
                 type="button"
                 onClick={() => setUpgradeModalOpen(false)}

@@ -59,38 +59,382 @@ export async function assertStaffCapability(
 // 1. Billing & Lemon Squeezy Invoicing & Manual Payments
 // ============================================================================
 
+async function resolveBillingProviderFromDb() {
+  const adminClient = serviceClient();
+  const { data: settingsRow } = await adminClient
+    .from('platform_settings')
+    .select('billing_settings')
+    .eq('id', 'default')
+    .maybeSingle();
+
+  const bs = (settingsRow?.billing_settings || {}) as Record<string, any>;
+  return getBillingProvider({
+    apiKey: bs.lemonsqueezy_api_key || process.env.LEMON_SQUEEZY_API_KEY || '',
+    storeId: bs.lemonsqueezy_store_id || process.env.LEMON_SQUEEZY_STORE_ID || '',
+    defaultVariantId:
+      bs.lemonsqueezy_default_variant_id ||
+      process.env.LEMON_SQUEEZY_DEFAULT_VARIANT_ID ||
+      process.env.LEMON_SQUEEZY_VARIANT_ID ||
+      '',
+    webhookSecret:
+      bs.lemonsqueezy_webhook_secret || process.env.LEMON_SQUEEZY_WEBHOOK_SECRET || '',
+    testMode:
+      bs.lemonsqueezy_test_mode !== undefined
+        ? Boolean(bs.lemonsqueezy_test_mode)
+        : process.env.LEMON_SQUEEZY_TEST_MODE === 'true',
+  });
+}
+
+function maskSecret(val?: string | null): string {
+  if (!val || !val.trim()) return '';
+  const clean = val.trim();
+  if (clean.length <= 10) return '••••••••';
+  return `${clean.slice(0, 6)}••••••••${clean.slice(-4)}`;
+}
+
+export async function getPlatformBillingSettingsAction(): Promise<{
+  hasApiKey: boolean;
+  apiKeyMasked: string;
+  apiKeySource: 'database' | 'env' | 'none';
+  storeId: string;
+  defaultVariantId: string;
+  hasWebhookSecret: boolean;
+  webhookSecretMasked: string;
+  testMode: boolean;
+  webhookUrl: string;
+}> {
+  await assertSuperAdmin();
+  const adminClient = serviceClient();
+  const appOrigin = await getRequestOrigin();
+
+  const { data: settingsRow } = await adminClient
+    .from('platform_settings')
+    .select('billing_settings')
+    .eq('id', 'default')
+    .maybeSingle();
+
+  const bs = (settingsRow?.billing_settings || {}) as Record<string, any>;
+  const dbKey = (bs.lemonsqueezy_api_key || '').trim();
+  const envKey = (process.env.LEMON_SQUEEZY_API_KEY || '').trim();
+  const activeKey = dbKey || envKey;
+
+  const dbSecret = (bs.lemonsqueezy_webhook_secret || '').trim();
+  const envSecret = (process.env.LEMON_SQUEEZY_WEBHOOK_SECRET || '').trim();
+  const activeSecret = dbSecret || envSecret;
+
+  return {
+    hasApiKey: Boolean(activeKey),
+    apiKeyMasked: maskSecret(activeKey),
+    apiKeySource: dbKey ? 'database' : envKey ? 'env' : 'none',
+    storeId: bs.lemonsqueezy_store_id || process.env.LEMON_SQUEEZY_STORE_ID || '',
+    defaultVariantId:
+      bs.lemonsqueezy_default_variant_id ||
+      process.env.LEMON_SQUEEZY_DEFAULT_VARIANT_ID ||
+      process.env.LEMON_SQUEEZY_VARIANT_ID ||
+      '',
+    hasWebhookSecret: Boolean(activeSecret),
+    webhookSecretMasked: maskSecret(activeSecret),
+    testMode:
+      bs.lemonsqueezy_test_mode !== undefined
+        ? Boolean(bs.lemonsqueezy_test_mode)
+        : process.env.LEMON_SQUEEZY_TEST_MODE === 'true',
+    webhookUrl: `${appOrigin}/api/webhooks/lemonsqueezy`,
+  };
+}
+
+export async function savePlatformBillingSettingsAction(input: {
+  apiKey?: string;
+  storeId?: string;
+  defaultVariantId?: string;
+  webhookSecret?: string;
+  testMode?: boolean;
+}): Promise<{ success: boolean; error?: string }> {
+  const { agent } = await assertPlatformOwner();
+  const adminClient = serviceClient();
+
+  try {
+    const { data: existingRow } = await adminClient
+      .from('platform_settings')
+      .select('billing_settings')
+      .eq('id', 'default')
+      .maybeSingle();
+
+    const prev = ((existingRow?.billing_settings || {}) as Record<string, any>) || {};
+    const nextBilling: Record<string, any> = {
+      ...prev,
+      ...(input.storeId !== undefined ? { lemonsqueezy_store_id: input.storeId.trim() } : {}),
+      ...(input.defaultVariantId !== undefined
+        ? { lemonsqueezy_default_variant_id: input.defaultVariantId.trim() }
+        : {}),
+      ...(input.testMode !== undefined ? { lemonsqueezy_test_mode: Boolean(input.testMode) } : {}),
+      updated_at: new Date().toISOString(),
+    };
+
+    if (input.apiKey !== undefined && input.apiKey.trim() !== '') {
+      nextBilling.lemonsqueezy_api_key = input.apiKey.trim();
+    }
+    if (input.webhookSecret !== undefined && input.webhookSecret.trim() !== '') {
+      nextBilling.lemonsqueezy_webhook_secret = input.webhookSecret.trim();
+    }
+
+    const { error } = await adminClient
+      .from('platform_settings')
+      .upsert({
+        id: 'default',
+        billing_settings: nextBilling,
+        updated_at: new Date().toISOString(),
+      });
+
+    if (error) throw error;
+
+    await adminClient.from('super_admin_audit_logs').insert({
+      action: 'billing_gateway_updated',
+      metadata: {
+        updatedBy: agent.email,
+        storeId: nextBilling.lemonsqueezy_store_id,
+        testMode: nextBilling.lemonsqueezy_test_mode,
+      },
+    });
+
+    revalidatePath('/admin/plans');
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err.message || 'Failed to save Lemon Squeezy settings.' };
+  }
+}
+
+export async function verifyLemonSqueezyConnectionAction(input?: {
+  apiKey?: string;
+  storeId?: string;
+}): Promise<{
+  success: boolean;
+  storeId?: string;
+  storeName?: string;
+  currency?: string;
+  domain?: string;
+  variants?: Array<{
+    id: string;
+    name: string;
+    productName: string;
+    priceCents: number;
+    interval: string | null;
+    status: string;
+  }>;
+  error?: string;
+}> {
+  await assertSuperAdmin();
+  const adminClient = serviceClient();
+
+  const { data: settingsRow } = await adminClient
+    .from('platform_settings')
+    .select('billing_settings')
+    .eq('id', 'default')
+    .maybeSingle();
+
+  const bs = (settingsRow?.billing_settings || {}) as Record<string, any>;
+  const resolvedKey =
+    (input?.apiKey && input.apiKey.trim()) ||
+    bs.lemonsqueezy_api_key ||
+    process.env.LEMON_SQUEEZY_API_KEY ||
+    '';
+  const resolvedStore =
+    (input?.storeId && input.storeId.trim()) ||
+    bs.lemonsqueezy_store_id ||
+    process.env.LEMON_SQUEEZY_STORE_ID ||
+    '';
+
+  const provider = getBillingProvider({
+    apiKey: resolvedKey,
+    storeId: resolvedStore,
+  });
+
+  const res = await provider.fetchStoreAndVariants();
+  if (!res.success || !res.info) {
+    return { success: false, error: res.error || 'Could not verify Lemon Squeezy connection.' };
+  }
+
+  return {
+    success: true,
+    storeId: res.info.storeId,
+    storeName: res.info.storeName,
+    currency: res.info.currency,
+    domain: res.info.domain,
+    variants: res.info.variants,
+  };
+}
+
 export async function createWorkspaceCheckoutAction(params: {
   workspaceId: string;
-  planId: string;
+  planId?: string;
+  planSlug?: string;
   billingPeriod: 'monthly' | 'yearly';
-  customerEmail: string;
+  customerEmail?: string;
+  discountCode?: string;
 }): Promise<{ checkoutUrl: string; error?: string }> {
   const adminClient = serviceClient();
 
+  let planQuery = adminClient.from('platform_plans').select('*');
+  if (params.planId) {
+    planQuery = planQuery.eq('id', params.planId);
+  } else if (params.planSlug) {
+    planQuery = planQuery.eq('slug', params.planSlug);
+  } else {
+    return { checkoutUrl: '', error: 'Plan ID or Slug is required.' };
+  }
+
   const [{ data: ws }, { data: plan }] = await Promise.all([
-    adminClient.from('workspaces').select('id, name').eq('id', params.workspaceId).single(),
-    adminClient.from('platform_plans').select('*').eq('id', params.planId).single(),
+    adminClient.from('workspaces').select('id, name, owner_id').eq('id', params.workspaceId).single(),
+    planQuery.maybeSingle(),
   ]);
 
   if (!ws || !plan) {
     return { checkoutUrl: '', error: 'Workspace or plan not found.' };
   }
 
+  let email = params.customerEmail || '';
+  if (!email) {
+    try {
+      const supabase = await createClient();
+      const { data: authData } = await supabase.auth.getUser();
+      if (authData?.user?.email) {
+        email = authData.user.email;
+      }
+    } catch {}
+  }
+
   const appOrigin = await getRequestOrigin();
-  const provider = getBillingProvider();
+  const provider = await resolveBillingProviderFromDb();
+
+  const priceUsd =
+    params.billingPeriod === 'yearly'
+      ? Number(plan.yearly_price || 0)
+      : Number(plan.monthly_price || 0);
+
+  const variantId =
+    params.billingPeriod === 'yearly'
+      ? plan.lemonsqueezy_yearly_variant_id || plan.lemonsqueezy_monthly_variant_id || null
+      : plan.lemonsqueezy_monthly_variant_id || null;
 
   const session = await provider.createCheckoutSession({
     workspaceId: ws.id,
     workspaceName: ws.name,
     planId: plan.id,
     planSlug: plan.slug,
+    planName: plan.name,
     billingPeriod: params.billingPeriod,
-    customerEmail: params.customerEmail,
-    successUrl: `${appOrigin}/dashboard?checkout=success`,
+    customerEmail: email,
+    customPriceUsd: priceUsd,
+    variantId,
+    discountCode: params.discountCode,
+    successUrl: `${appOrigin}/dashboard?checkout=success&plan=${plan.slug}&period=${params.billingPeriod}`,
     cancelUrl: `${appOrigin}/dashboard?checkout=cancelled`,
   });
 
   return { checkoutUrl: session.checkoutUrl };
+}
+
+export async function createWorkspaceCustomerPortalAction(
+  workspaceId: string
+): Promise<{ portalUrl: string; error?: string }> {
+  const adminClient = serviceClient();
+  const appOrigin = await getRequestOrigin();
+
+  const { data: sub } = await adminClient
+    .from('workspace_subscriptions')
+    .select('lemonsqueezy_customer_id')
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+
+  const provider = await resolveBillingProviderFromDb();
+  const res = await provider.createCustomerPortalSession({
+    workspaceId,
+    customerId: sub?.lemonsqueezy_customer_id || undefined,
+    returnUrl: `${appOrigin}/dashboard`,
+  });
+
+  return { portalUrl: res.portalUrl };
+}
+
+export async function completeSimulatedCheckoutAction(params: {
+  workspaceId: string;
+  planSlug: string;
+  billingPeriod: 'monthly' | 'yearly';
+  sessionId?: string;
+}): Promise<{ success: boolean; planName?: string; error?: string }> {
+  const adminClient = serviceClient();
+
+  const { data: targetPlan } = await adminClient
+    .from('platform_plans')
+    .select('*')
+    .eq('slug', params.planSlug)
+    .maybeSingle();
+
+  if (!targetPlan) {
+    return { success: false, error: 'Target plan not found.' };
+  }
+
+  const now = new Date();
+  const periodEnd = new Date(now);
+  if (params.billingPeriod === 'yearly') {
+    periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+  } else {
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+  }
+
+  const { data: existingSub } = await adminClient
+    .from('workspace_subscriptions')
+    .select('id')
+    .eq('workspace_id', params.workspaceId)
+    .maybeSingle();
+
+  const subPayload: Record<string, any> = {
+    workspace_id: params.workspaceId,
+    plan_id: targetPlan.id,
+    plan_version: targetPlan.version || 1,
+    status: 'active',
+    billing_period: params.billingPeriod,
+    payment_method: 'lemonsqueezy',
+    current_period_start: now.toISOString(),
+    current_period_end: periodEnd.toISOString(),
+    trial_ends_at: null,
+    failed_payment_count: 0,
+    grace_period_ends_at: null,
+    updated_at: now.toISOString(),
+  };
+
+  if (existingSub) {
+    await adminClient.from('workspace_subscriptions').update(subPayload).eq('id', existingSub.id);
+  } else {
+    await adminClient.from('workspace_subscriptions').insert(subPayload);
+  }
+
+  await adminClient
+    .from('workspaces')
+    .update({ plan: targetPlan.slug })
+    .eq('id', params.workspaceId);
+
+  const priceAmount =
+    params.billingPeriod === 'yearly'
+      ? Number(targetPlan.yearly_price || 0)
+      : Number(targetPlan.monthly_price || 0);
+
+  if (priceAmount > 0) {
+    await adminClient.from('workspace_invoices').insert({
+      workspace_id: params.workspaceId,
+      invoice_number: `INV-LS-${Date.now().toString().slice(-6)}`,
+      amount: priceAmount,
+      currency: targetPlan.currency || 'USD',
+      status: 'paid',
+      billing_reason: 'subscription_create',
+      payment_method: 'lemonsqueezy',
+      payment_reference: params.sessionId || `ls_checkout_${Date.now()}`,
+      paid_at: now.toISOString(),
+      period_start: now.toISOString(),
+      period_end: periodEnd.toISOString(),
+    });
+  }
+
+  return { success: true, planName: targetPlan.name };
 }
 
 export async function recordManualPaymentAction(params: {

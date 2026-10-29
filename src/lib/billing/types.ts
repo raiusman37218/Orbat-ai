@@ -3,17 +3,35 @@ export interface CreateCheckoutParams {
   workspaceName: string;
   planId: string;
   planSlug: string;
+  planName?: string;
   billingPeriod: 'monthly' | 'yearly';
   customerEmail: string;
   successUrl: string;
   cancelUrl: string;
   customPriceUsd?: number;
+  variantId?: string | null;
   discountCode?: string;
+  testMode?: boolean;
 }
 
 export interface CheckoutSessionResult {
   checkoutUrl: string;
   sessionId?: string;
+}
+
+export interface LemonSqueezyStoreInfo {
+  storeId: string;
+  storeName: string;
+  currency: string;
+  domain: string;
+  variants: Array<{
+    id: string;
+    name: string;
+    productName: string;
+    priceCents: number;
+    interval: string | null;
+    status: string;
+  }>;
 }
 
 export interface BillingProvider {
@@ -30,5 +48,6 @@ export interface BillingProvider {
     subscriptionId: string;
     variantId: string;
   }): Promise<{ success: boolean }>;
-  verifyWebhookSignature(rawBody: string, signature: string, secret: string): boolean;
+  verifyWebhookSignature(rawBody: string, signature: string, secret?: string): boolean;
+  fetchStoreAndVariants?(): Promise<{ success: boolean; info?: LemonSqueezyStoreInfo; error?: string }>;
 }
