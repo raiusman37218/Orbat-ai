@@ -365,9 +365,9 @@ export function IntegrationsSettings({
         {/* Navigation Tabs */}
         <div className="flex items-center gap-2 border-b border-line pb-px">
           {[
-            { id: 'whatsapp', label: 'WhatsApp Business', icon: Phone, activeClass: 'text-[#25D366] border-[#25D366]' },
-            { id: 'meta', label: 'Facebook & Instagram', icon: Globe, activeClass: 'text-[#0084FF] border-[#0084FF]' },
-            { id: 'linkedin', label: 'LinkedIn Messaging', icon: Link2, activeClass: 'text-[#0A66C2] border-[#0A66C2]' },
+            { id: 'whatsapp', label: 'WhatsApp Business', icon: Phone, activeClass: 'text-[#25D366] border-[#25D366]', planBadge: 'Pro' },
+            { id: 'meta', label: 'Facebook & Instagram', icon: Globe, activeClass: 'text-[#0084FF] border-[#0084FF]', planBadge: 'Pro' },
+            { id: 'linkedin', label: 'LinkedIn Messaging', icon: Link2, activeClass: 'text-[#0A66C2] border-[#0A66C2]', planBadge: 'Pro' },
             { id: 'slack', label: 'Slack & Alerts', icon: Bell, activeClass: 'text-[#E01E5A] border-[#E01E5A]' },
           ].map((tab) => {
             const active = activeTab === tab.id;
@@ -384,6 +384,11 @@ export function IntegrationsSettings({
               >
                 <Icon className="w-4 h-4" />
                 <span>{tab.label}</span>
+                {(tab as any).planBadge && (
+                  <span className="px-1.5 py-0.5 rounded text-3xs font-bold uppercase tracking-wider bg-accent/15 text-accent border border-accent/20">
+                    {(tab as any).planBadge}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -396,6 +401,26 @@ export function IntegrationsSettings({
         {/* ── TAB 2: WHATSAPP BUSINESS CLOUD API ── */}
         {activeTab === 'whatsapp' && (
           <div className="space-y-6 animate-rise">
+            {workspace?.plan === 'free' && (
+              <div className="rounded-xl border border-accent/25 bg-accent-soft/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-accent/15 text-accent flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-ink">WhatsApp Business requires Pro</h4>
+                    <p className="text-2xs text-ink-3">Upgrade from the Free plan to connect your official WhatsApp number and reply from your unified inbox.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('zentry:open-upgrade-modal', { detail: { feature: 'channel_whatsapp', targetPlan: 'pro' } }))}
+                  className="btn btn-xs btn-primary shrink-0 self-start sm:self-center font-semibold text-2xs"
+                >
+                  Upgrade to Pro
+                </button>
+              </div>
+            )}
             <div className="card p-6 space-y-5">
               <div className="flex items-start justify-between">
                 <div>
@@ -510,6 +535,26 @@ export function IntegrationsSettings({
         {/* ── TAB 3: FACEBOOK, INSTAGRAM & THREADS ── */}
         {activeTab === 'meta' && (
           <div className="space-y-6 animate-rise">
+            {workspace?.plan === 'free' && (
+              <div className="rounded-xl border border-accent/25 bg-accent-soft/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-start sm:items-center gap-3">
+                  <div className="w-9 h-9 rounded-lg bg-accent/15 text-accent flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-ink">Facebook & Instagram require Pro</h4>
+                    <p className="text-2xs text-ink-3">Upgrade from the Free plan to connect Instagram Direct and Facebook Messenger to your team inbox.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => window.dispatchEvent(new CustomEvent('zentry:open-upgrade-modal', { detail: { feature: 'channel_instagram', targetPlan: 'pro' } }))}
+                  className="btn btn-xs btn-primary shrink-0 self-start sm:self-center font-semibold text-2xs"
+                >
+                  Upgrade to Pro
+                </button>
+              </div>
+            )}
             <div className="card p-6 space-y-5">
               <div className="flex items-start justify-between">
                 <div>

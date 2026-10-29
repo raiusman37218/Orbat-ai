@@ -175,7 +175,7 @@ None of these routes checks a session, a secret or membership. The ones that use
 - Migrations also hardcode production data:
   - Personal emails promoted to super admin (`20261002030000:9-11`)
   - Specific article and workspace UUIDs (`20261003040000`)
-  - The seed "Chatify" workspace, which is assigned to *the first auth user whose email matches `%admin%`* (`20261004030000:32-41`). That makes an arbitrary user the owner of an enterprise-plan workspace.
+  - The seed "Zentry" workspace, which is assigned to *the first auth user whose email matches `%admin%`* (`20261004030000:32-41`). That makes an arbitrary user the owner of an enterprise-plan workspace.
 - Fix: dump the live schema into a baseline migration (`supabase db pull`) and move seed data to `supabase/seed.sql`.
 
 ### M-14: Cross-tenant leak through the platform Slack fallback
@@ -217,7 +217,7 @@ Visitor-controlled `visitorName` and `messageSnippet` are interpolated unescaped
 ## Low
 
 - **L-1: Hardcoded production Supabase URL and anon key** fallbacks in 20+ files (`src/lib/supabase/*.ts`, `src/middleware.ts`, every legacy API route, `verify_*.mjs`). A misconfigured preview or local run silently talks to production. Fail fast when env vars are missing.
-- **L-2: Demo credentials** (`agent@zentry.io` / `ChatifyDemo2026!`) are hardcoded in `login/page.tsx:152-155`. If that account exists, it's a known password on production.
+- **L-2: Demo credentials** (`agent@zentry.io` / `ZentryDemo2026!`) are hardcoded in `login/page.tsx:152-155`. If that account exists, it's a known password on production.
 - **L-3: `middleware.ts` is deprecated** in Next 16 (`node_modules/next/dist/docs/01-app/03-api-reference/03-file-conventions/middleware.md`). Rename it to `proxy.ts`.
 - **L-4: The middleware does 1–3 Supabase queries on every request**, including API and asset requests not covered by the matcher. Each custom-domain or subdomain hit does a `public_workspaces` lookup. Cache these lookups or narrow the matcher.
 - **L-5: The dashboard subscribes to all `messages` and `conversations` changes with no filter** (`dashboard/page.tsx:775, 947`) and filters on the client. Once RLS is fixed this is just wasteful; today it streams every tenant's traffic (H-2). Add `filter: workspace_id=eq.…` where the table has it.

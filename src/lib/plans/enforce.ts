@@ -5,6 +5,8 @@ import {
   FEATURE_MAP,
   LIMIT_MAP,
   STARTER_FEATURES,
+  FREE_FEATURES,
+  FREE_LIMITS,
   LEGACY_FEATURES,
 } from './features';
 import {
@@ -52,6 +54,38 @@ export interface WorkspaceEffectivePlan {
 /**
  * Fallback in-memory plans if database tables are unpopulated during transition/mocking
  */
+
+export const FALLBACK_FREE_PLAN: PlatformPlan = {
+  id: '00000000-0000-4000-a000-000000000001',
+  slug: 'free',
+  name: 'Free',
+  description: 'Essential live chat widget, shared inbox, and standard help center for solo founders and small starters.',
+  monthly_price: 0,
+  yearly_price: 0,
+  currency: 'USD',
+  trial_days: 0,
+  visibility: 'public',
+  custom_workspace_id: null,
+  is_popular: false,
+  is_archived: false,
+  is_default: false,
+  sort_order: 0,
+  version: 1,
+  max_agents: 1,
+  max_tickets_per_month: 100,
+  max_ai_bot_replies_per_month: 25,
+  max_channels_connected: 1,
+  max_articles: 10,
+  max_automations: 0,
+  max_storage_mb: 50,
+  max_api_requests_per_month: 100,
+  ai_enabled: true,
+  ai_monthly_reply_limit: 25,
+  features: FREE_FEATURES,
+  created_at: new Date().toISOString(),
+  updated_at: new Date().toISOString(),
+};
+
 const FALLBACK_LEGACY_PLAN: PlatformPlan = {
   id: '00000000-0000-4000-a000-000000000000',
   slug: 'legacy',
@@ -117,7 +151,7 @@ export async function getWorkspaceEffectivePlan(workspaceId: string): Promise<Wo
       .eq('id', workspaceId)
       .maybeSingle();
 
-    const planSlug = wsData?.plan || 'legacy';
+    const planSlug = wsData?.plan || (wsData?.created_at ? 'free' : 'legacy');
     const { data: matchedPlan } = await adminClient
       .from('platform_plans')
       .select('*')

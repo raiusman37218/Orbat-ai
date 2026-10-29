@@ -290,6 +290,37 @@ export function createEmptyPlanFeatures(): Record<PlanFeatureKey, boolean> {
 /**
  * Default feature sets for pre-seeded tiers
  */
+export const FREE_FEATURES: Record<PlanFeatureKey, boolean> = {
+  channel_email: true,
+  channel_whatsapp: false,
+  channel_instagram: false,
+  channel_x: false,
+  channel_linkedin: false,
+  channel_tiktok: false,
+  channel_threads: false,
+  ai_bot: true,
+  sla: false,
+  macros: true,
+  automations: false,
+  csat_reports: false,
+  custom_help_center_domain: false,
+  visitor_tracking: true,
+  roles_groups: false,
+  remove_branding: false,
+  api_webhooks: false,
+};
+
+export const FREE_LIMITS: Record<PlanLimitKey, number> = {
+  max_agents: 1,
+  max_tickets_per_month: 100,
+  max_ai_bot_replies_per_month: 25,
+  max_channels_connected: 1,
+  max_articles: 10,
+  max_automations: 0,
+  max_storage_mb: 50,
+  max_api_requests_per_month: 100,
+};
+
 export const STARTER_FEATURES: Record<PlanFeatureKey, boolean> = {
   channel_email: true,
   channel_whatsapp: true,

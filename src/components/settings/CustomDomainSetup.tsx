@@ -177,18 +177,47 @@ export function CustomDomainSetup({
     return (
       <section className="card p-6 space-y-4" aria-labelledby="cd-title">
         <div>
-          <h3 id="cd-title" className="text-md font-semibold text-ink flex items-center gap-2">
-            <Globe className="w-4 h-4 text-accent" aria-hidden="true" /> Use your own domain
-          </h3>
+          <div className="flex items-center justify-between">
+            <h3 id="cd-title" className="text-md font-semibold text-ink flex items-center gap-2">
+              <Globe className="w-4 h-4 text-accent" aria-hidden="true" /> Use your own domain
+            </h3>
+            <span className="px-2 py-0.5 rounded-full text-3xs font-bold uppercase tracking-wider bg-accent/15 text-accent border border-accent/20">
+              Enterprise
+            </span>
+          </div>
           <p className="text-xs text-ink-3 mt-1">
             Show your help center on an address like <span className="font-mono text-ink">{suggestion || 'help.yourcompany.com'}</span>. It takes two steps and
             HTTPS is set up for you.
           </p>
         </div>
+        {workspace.plan !== 'enterprise' && workspace.plan !== 'legacy' && (
+          <div className="rounded-xl border border-accent/25 bg-accent-soft/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-start sm:items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-accent/15 text-accent flex items-center justify-center shrink-0">
+                <Globe className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-ink">Custom Domains require the Enterprise Plan</h4>
+                <p className="text-2xs text-ink-3">Host your public help center on your own domain (e.g. help.yourcompany.com) with automatic SSL certificates.</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('zentry:open-upgrade-modal', { detail: { feature: 'custom_help_center_domain', targetPlan: 'enterprise' } }))}
+              className="btn btn-xs btn-primary shrink-0 self-start sm:self-center font-semibold text-2xs"
+            >
+              Upgrade to Enterprise
+            </button>
+          </div>
+        )}
         <form
           className="space-y-3"
           onSubmit={(e) => {
             e.preventDefault();
+            if (workspace.plan !== 'enterprise' && workspace.plan !== 'legacy') {
+              window.dispatchEvent(new CustomEvent('zentry:open-upgrade-modal', { detail: { feature: 'custom_help_center_domain', targetPlan: 'enterprise' } }));
+              return;
+            }
             if (input.trim()) void connect(input.trim());
           }}
         >

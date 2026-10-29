@@ -42,6 +42,8 @@ const UnansweredQuestionsView = dynamic(() => import('@/components/dashboard/Una
 const KeyboardShortcutsModal = dynamic(() => import('@/components/ui/KeyboardShortcutsModal').then((m) => m.KeyboardShortcutsModal));
 const TeamChat = dynamic(() => import('@/components/team-chat/TeamChat').then((m) => m.TeamChat), { loading: viewLoading });
 const MobileInstallModal = dynamic(() => import('@/components/pwa/MobileInstallModal').then((m) => m.MobileInstallModal));
+import { TrialBanner } from '@/components/dashboard/TrialBanner';
+import { UpgradeModal } from '@/components/dashboard/UpgradeModal';
 
 /**
  * Whether the AI assistant is the one replying on a thread. Mirrors the checks
@@ -66,6 +68,7 @@ export default function DashboardPage() {
   const [cannedResponses, setCannedResponses] = useState<CannedResponse[]>([]);
   const [showShortcutsModal, setShowShortcutsModal] = useState(false);
   const [showMobileInstallModal, setShowMobileInstallModal] = useState(false);
+  const [subscriptionInfo, setSubscriptionInfo] = useState<{ status: string; trialDaysRemaining: number | null; isTrialExpired: boolean } | null>(null);
   const [isDetailsSidebarOpen, setIsDetailsSidebarOpen] = useState(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth >= 1440;

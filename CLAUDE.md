@@ -2,7 +2,7 @@
 
 # Zentry: guide for working in this repo
 
-Zentry (also written "Zen-try"; older code, CSS classes and seed data say "Chatify") is a multi-workspace live chat support platform, similar to Intercom. It has five surfaces:
+Zentry (also written "Zen-try"; formerly known as Chatify) is a multi-workspace live chat support platform, similar to Intercom. It has five surfaces:
 
 | Surface | Route / artifact | Who uses it |
 |---|---|---|

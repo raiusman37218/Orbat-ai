@@ -93,13 +93,13 @@ describe('formatMarkdownToHtml (AUDIT H-7 Stored XSS Hardening)', () => {
     expect(html).toContain('<em>italic</em>');
     expect(html).toContain('<strong>bold2</strong>');
     expect(html).toContain('<em>italic2</em>');
-    expect(html).toContain('<code class="chatify-inline-code">inline code</code>');
+    expect(html).toContain('<code class="zentry-inline-code chatify-inline-code">inline code</code>');
 
     // Blockquote
     expect(html).toContain('<blockquote style="border-left:3px solid var(--w-brand);margin:6px 0;padding-left:8px;color:var(--w-ink-2);font-style:italic;">A quoted advice block</blockquote>');
 
     // Code block
-    expect(html).toContain('<pre class="chatify-code-block"><code>const answer = 42;</code></pre>');
+    expect(html).toContain('<pre class="zentry-code-block chatify-code-block"><code>const answer = 42;</code></pre>');
 
     // Unordered list
     expect(html).toContain('<ul style="margin:6px 0 8px 18px;padding:0;"><li style="margin-bottom:3px;">First bullet item</li><li style="margin-bottom:3px;">Second bullet item</li></ul>');
@@ -108,11 +108,11 @@ describe('formatMarkdownToHtml (AUDIT H-7 Stored XSS Hardening)', () => {
     expect(html).toContain('<ol style="margin:6px 0 8px 18px;padding:0;"><li style="margin-bottom:3px;">Step one</li><li style="margin-bottom:3px;">Step two</li></ol>');
 
     // Links (checking that target="_blank" was preserved and not mangled by italic regex)
-    expect(html).toContain('<a href="https://example.com/docs" target="_blank" rel="noopener noreferrer" class="chatify-art-link">our docs</a>');
-    expect(html).toContain('<a href="mailto:help@example.com" target="_blank" rel="noopener noreferrer" class="chatify-art-link">support</a>');
+    expect(html).toContain('<a href="https://example.com/docs" target="_blank" rel="noopener noreferrer" class="zentry-art-link chatify-art-link">our docs</a>');
+    expect(html).toContain('<a href="mailto:help@example.com" target="_blank" rel="noopener noreferrer" class="zentry-art-link chatify-art-link">support</a>');
 
     // Image
-    expect(html).toContain('<img src="https://example.com/assets/arch.png" alt="Architecture Diagram" class="chatify-art-img" style="max-width:100%;border-radius:6px;margin:6px 0;" />');
+    expect(html).toContain('<img src="https://example.com/assets/arch.png" alt="Architecture Diagram" class="zentry-art-img chatify-art-img" style="max-width:100%;border-radius:6px;margin:6px 0;" />');
   });
 
   it('renders complex image URLs with underscores, hyphens, and query params', () => {

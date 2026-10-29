@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Live demo — Zen-try</title>
-  <meta name="description" content="Try Zen-try live chat on a sample website. The chat in the corner is the real product." />
+  <title>Live Interactive Demo — Zentry</title>
+  <meta name="description" content="Experience Zentry live chat on a sample website. The chat in the corner is the live product." />
   <script>
-    // Public visitors get a clean demo. The internal simulator HUD and SDK
+    // Public visitors get a clean luxury demo. The internal simulator HUD and SDK
     // console only appear when a workspace is passed in (from the dashboard)
     // or with ?mode=qa.
     (function () {
@@ -17,23 +17,30 @@
   </script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --primary: #3b82f6;
-      --primary-hover: #2563eb;
-      --bg: #090d16;
-      --card-bg: #0f172a;
-      --border: #1e293b;
-      --text: #f8fafc;
-      --text-muted: #94a3b8;
+      --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      --font-serif: 'Instrument Serif', Georgia, serif;
+      --bg: #05060d;
+      --bg-surface: rgba(255, 255, 255, 0.04);
+      --bg-surface-hover: rgba(255, 255, 255, 0.08);
+      --border: rgba(255, 255, 255, 0.1);
+      --border-light: rgba(255, 255, 255, 0.16);
+      --text: #f5f5f7;
+      --text-muted: rgba(245, 245, 247, 0.65);
+      --text-dim: rgba(245, 245, 247, 0.4);
+      --accent-blue: #2E5BFF;
+      --accent-violet: #7C5CFF;
+      --accent-gold: #d9b46a;
+      --accent-gold-light: #f6e7c1;
     }
 
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
-      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-family: var(--font-sans);
     }
 
     body {
@@ -41,63 +48,130 @@
       color: var(--text);
       line-height: 1.6;
       overflow-x: hidden;
-      padding-top: 50px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+    }
+
+    /* Background luxury glow */
+    body::before {
+      content: "";
+      position: fixed;
+      top: -150px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 1000px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(46, 91, 255, 0.22) 0%, rgba(124, 92, 255, 0.12) 40%, transparent 70%);
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      bottom: -100px;
+      right: -100px;
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(217, 180, 106, 0.12) 0%, transparent 70%);
+      filter: blur(80px);
+      pointer-events: none;
+      z-index: 0;
     }
 
     /* Public demo hides internal QA tooling */
     .public-demo .qa-only { display: none !important; }
     .qa-mode .public-only { display: none !important; }
-    .public-demo body { padding-top: 0; }
 
-    /* Zen-try's own strip, in Zen-try's colours (the page below is the sample customer). */
+    /* Top luxury announcement banner for public users */
     .demo-banner {
-      background: #0b0b0f;
-      border-bottom: 1px solid rgba(255,255,255,.08);
-      color: rgba(255,255,255,.86);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(90deg, rgba(16, 21, 40, 0.95), rgba(20, 18, 35, 0.95));
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text);
       font-size: 13px;
-      padding: 10px 16px;
+      padding: 10px 20px;
       display: flex;
       align-items: center;
       justify-content: center;
-      gap: 12px;
+      gap: 16px;
       flex-wrap: wrap;
       text-align: center;
+      position: relative;
+      z-index: 50;
+      backdrop-filter: blur(16px);
     }
+
+    .demo-banner span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: rgba(255, 255, 255, 0.85);
+    }
+
+    .demo-banner-pill {
+      background: rgba(226, 192, 122, 0.15);
+      border: 1px solid rgba(226, 192, 122, 0.35);
+      color: var(--accent-gold-light);
+      padding: 2px 8px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+    }
+
     .demo-banner a {
       display: inline-flex;
       align-items: center;
-      min-height: 32px;
-      padding: 0 12px;
-      border-radius: 8px;
-      background: #2E5BFF;
-      color: #fff;
-      font-weight: 600;
+      gap: 6px;
+      min-height: 30px;
+      padding: 0 14px;
+      border-radius: 999px;
+      background: linear-gradient(135deg, #fbefd0, #d9b46a);
+      color: #120e06;
+      font-weight: 700;
       text-decoration: none;
-      font-size: 12.5px;
-    }
-    .demo-banner a.ghost {
-      background: rgba(255,255,255,.08);
-      border: 1px solid rgba(255,255,255,.14);
-      color: #fff;
+      font-size: 12px;
+      transition: transform 0.15s, box-shadow 0.15s;
+      box-shadow: 0 4px 15px rgba(217, 180, 106, 0.25);
     }
 
-    /* Simulator HUD Bar */
+    .demo-banner a:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(217, 180, 106, 0.4);
+    }
+
+    .demo-banner a.ghost {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      color: #ffffff;
+      box-shadow: none;
+    }
+
+    .demo-banner a.ghost:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    /* Simulator HUD Bar (Developer & QA mode) */
     .simulator-hud {
-      position: fixed;
+      position: sticky;
       top: 0;
       left: 0;
       right: 0;
-      height: 50px;
-      background: linear-gradient(90deg, #111827, #0f172a);
-      border-bottom: 1px solid #334155;
+      height: 52px;
+      background: rgba(11, 14, 25, 0.92);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.12);
       z-index: 99999;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 20px;
+      padding: 0 24px;
       font-size: 12px;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
     }
 
     .sim-left {
@@ -111,13 +185,13 @@
       border: 1px solid rgba(16, 185, 129, 0.4);
       color: #34d399;
       font-weight: 700;
-      padding: 3px 8px;
-      border-radius: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
       font-size: 11px;
       letter-spacing: 0.5px;
       display: flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
     }
 
     .sim-tag::before {
@@ -126,6 +200,7 @@
       height: 6px;
       border-radius: 50%;
       background: #34d399;
+      box-shadow: 0 0 10px #34d399;
       animation: pulse 1.5s infinite;
     }
 
@@ -136,62 +211,69 @@
 
     .sim-text {
       color: #cbd5e1;
+      font-size: 12px;
     }
 
     .sim-right {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 8px;
     }
 
     .sim-badge-ws {
-      background: #1e293b;
-      border: 1px solid #334155;
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       color: #93c5fd;
-      padding: 4px 10px;
-      border-radius: 8px;
-      font-weight: 600;
-      font-size: 11px;
-    }
-
-    .sim-action-btn {
-      background: #1e293b;
-      border: 1px solid #334155;
-      color: white;
       padding: 5px 12px;
       border-radius: 8px;
       font-weight: 600;
+      font-size: 11.5px;
+    }
+
+    .sim-action-btn {
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: white;
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-weight: 600;
       cursor: pointer;
-      font-size: 11px;
+      font-size: 11.5px;
       transition: all 0.2s;
       display: inline-flex;
       align-items: center;
-      gap: 5px;
+      gap: 6px;
       text-decoration: none;
     }
 
     .sim-action-btn:hover {
-      background: #334155;
-      border-color: #475569;
+      background: rgba(255, 255, 255, 0.15);
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-1px);
     }
 
     .sim-btn-dash {
-      background: linear-gradient(135deg, #2563eb, #1d4ed8);
+      background: linear-gradient(135deg, #2E5BFF, #7C5CFF);
       border: none;
+      box-shadow: 0 4px 14px rgba(46, 91, 255, 0.35);
     }
 
     .sim-btn-dash:hover {
-      background: linear-gradient(135deg, #3b82f6, #2563eb);
+      box-shadow: 0 6px 20px rgba(46, 91, 255, 0.5);
     }
 
     /* Navbar */
     header {
       border-bottom: 1px solid var(--border);
-      background: rgba(9, 13, 22, 0.85);
-      backdrop-filter: blur(12px);
+      background: rgba(5, 6, 13, 0.8);
+      backdrop-filter: blur(20px);
       position: sticky;
-      top: 50px;
-      z-index: 50;
+      top: 0;
+      z-index: 40;
+    }
+
+    .qa-mode header {
+      top: 52px;
     }
 
     .nav-container {
@@ -201,72 +283,87 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
+      position: relative;
+      z-index: 2;
     }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
       text-decoration: none;
       color: white;
-      font-weight: 800;
+      font-weight: 700;
       font-size: 18px;
-      letter-spacing: -0.5px;
+      letter-spacing: -0.02em;
     }
 
     .brand-logo {
-      width: 32px;
-      height: 32px;
-      border-radius: 8px;
-      background: linear-gradient(135deg, #3b82f6, #6366f1);
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #2E5BFF, #7C5CFF);
       display: flex;
       align-items: center;
       justify-content: center;
-      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+      box-shadow: 0 4px 16px rgba(46, 91, 255, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.2);
     }
 
     nav {
       display: flex;
       align-items: center;
-      gap: 24px;
+      gap: 8px;
     }
 
     nav a {
       color: var(--text-muted);
       text-decoration: none;
-      font-size: 14px;
+      font-size: 13.5px;
       font-weight: 500;
-      transition: color 0.2s;
+      padding: 6px 14px;
+      border-radius: 8px;
+      transition: all 0.2s;
       cursor: pointer;
     }
 
     nav a:hover, nav a.active {
       color: white;
+      background: rgba(255, 255, 255, 0.06);
     }
 
-    .btn-primary {
-      background: linear-gradient(135deg, var(--primary), var(--primary-hover));
-      color: white;
-      padding: 9px 18px;
-      border-radius: 10px;
-      text-decoration: none;
+    .btn-gold {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #fbefd0, #d9b46a 60%, #c9994a);
+      color: #1a1206;
+      padding: 9px 20px;
+      border-radius: 999px;
       font-size: 13px;
-      font-weight: 600;
+      font-weight: 700;
       border: none;
       cursor: pointer;
-      box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+      box-shadow: 0 6px 20px rgba(217, 180, 106, 0.25), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
       transition: transform 0.15s, box-shadow 0.15s;
     }
 
-    .btn-primary:hover {
+    .btn-gold:hover {
       transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.4);
+      box-shadow: 0 8px 24px rgba(217, 180, 106, 0.4), 0 1px 0 rgba(255, 255, 255, 0.6) inset;
+    }
+
+    /* Main Container */
+    main {
+      flex: 1;
+      position: relative;
+      z-index: 1;
     }
 
     /* Hero */
     .hero {
-      max-width: 900px;
-      margin: 60px auto 40px;
+      max-width: 980px;
+      margin: 70px auto 40px;
       text-align: center;
       padding: 0 24px;
     }
@@ -275,60 +372,252 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      padding: 6px 14px;
+      padding: 6px 16px;
       border-radius: 9999px;
-      background: rgba(59, 130, 246, 0.1);
-      border: 1px solid rgba(59, 130, 246, 0.25);
-      color: #60a5fa;
+      background: rgba(46, 91, 255, 0.12);
+      border: 1px solid rgba(46, 91, 255, 0.3);
+      color: #93b3ff;
       font-size: 12px;
       font-weight: 600;
-      margin-bottom: 24px;
+      margin-bottom: 28px;
+      backdrop-filter: blur(12px);
     }
 
     .badge-dot {
-      width: 6px;
-      height: 6px;
+      width: 7px;
+      height: 7px;
       border-radius: 50%;
-      background: #60a5fa;
-      animation: ping 1.5s infinite;
-    }
-
-    @keyframes ping {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.4; transform: scale(1.3); }
+      background: #10b981;
+      box-shadow: 0 0 8px #10b981;
+      animation: pulse 1.5s infinite;
     }
 
     h1 {
-      font-size: 44px;
-      font-weight: 800;
-      letter-spacing: -1.2px;
-      line-height: 1.15;
-      margin-bottom: 20px;
+      font-size: clamp(2.3rem, 5.5vw, 4.2rem);
+      font-weight: 700;
+      letter-spacing: -0.035em;
+      line-height: 1.08;
+      margin-bottom: 22px;
+      color: #ffffff;
+      text-wrap: balance;
     }
 
-    .gradient-text {
-      background: linear-gradient(135deg, #60a5fa, #a855f7);
+    .serif-italic {
+      font-family: var(--font-serif);
+      font-style: italic;
+      font-weight: 400;
+      letter-spacing: -0.01em;
+    }
+
+    .gradient-gold {
+      background: linear-gradient(100deg, #f6e7c1, #d9b46a 35%, #fff4d6 55%, #c99a4a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .gradient-blue {
+      background: linear-gradient(100deg, #9fb4ff, #6d8bff 30%, #b39dff 65%, #f1d79b 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
     }
 
     .subtitle {
-      font-size: 17px;
+      font-size: 18px;
       color: var(--text-muted);
       max-width: 680px;
-      margin: 0 auto 32px;
+      margin: 0 auto 36px;
       line-height: 1.6;
     }
 
-    /* Interactive Simulator Instructions Box */
-    .sim-guide-box {
+    /* Live Prompt Suggestions Banner */
+    .prompt-chips-wrapper {
+      margin: 0 auto 40px;
+      max-width: 760px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 18px;
+      padding: 16px 20px;
+      backdrop-filter: blur(16px);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+    }
+
+    .prompt-title {
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.15em;
+      color: var(--accent-gold);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .prompt-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+
+    .prompt-chip {
+      background: rgba(255, 255, 255, 0.06);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .prompt-chip:hover {
+      background: rgba(46, 91, 255, 0.18);
+      border-color: rgba(46, 91, 255, 0.5);
+      color: #ffffff;
+      transform: translateY(-1px);
+    }
+
+    .prompt-chip span.arrow {
+      color: var(--accent-gold);
+      font-weight: 700;
+    }
+
+    /* Page Navigation Simulator */
+    .page-nav-simulator {
+      margin: 28px auto 44px;
       max-width: 800px;
-      margin: 0 auto 50px;
-      padding: 20px;
+      padding: 18px 24px;
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 16px;
-      background: #0f172a;
-      border: 1px solid #1e293b;
+      text-align: center;
+      backdrop-filter: blur(12px);
+    }
+
+    .page-nav-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #cbd5e1;
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+
+    .page-nav-desc {
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 14px;
+    }
+
+    .page-chips {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .page-chip {
+      background: rgba(255, 255, 255, 0.06);
+      color: #94a3b8;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      padding: 7px 16px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-family: monospace;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .page-chip:hover, .page-chip.active {
+      background: linear-gradient(135deg, #2E5BFF, #6084ff);
+      color: white;
+      border-color: rgba(255, 255, 255, 0.3);
+      box-shadow: 0 4px 15px rgba(46, 91, 255, 0.35);
+    }
+
+    /* Feature Bento Grid */
+    .features {
+      max-width: 1160px;
+      margin: 20px auto 70px;
+      padding: 0 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 32px 28px;
+      transition: transform 0.25s, border-color 0.25s, box-shadow 0.25s;
+      backdrop-filter: blur(12px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card:hover {
+      transform: translateY(-4px);
+      border-color: var(--border-light);
+      box-shadow: 0 20px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+    }
+
+    .card-icon-wrap {
+      width: 48px;
+      height: 48px;
+      border-radius: 14px;
+      background: linear-gradient(135deg, rgba(46, 91, 255, 0.2), rgba(124, 92, 255, 0.2));
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 20px;
+      font-size: 22px;
+    }
+
+    .card h3 {
+      font-size: 19px;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: white;
+      letter-spacing: -0.01em;
+    }
+
+    .card p {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.6;
+    }
+
+    /* Testing Guide for the User (internal) */
+    .sim-guide-box {
+      max-width: 900px;
+      margin: 40px auto 50px;
+      padding: 24px;
+      border-radius: 20px;
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.12);
       text-align: left;
+      backdrop-filter: blur(16px);
     }
 
     .sim-guide-title {
@@ -349,162 +638,116 @@
     }
 
     .sim-step-card {
-      background: #1e293b;
-      padding: 14px;
-      border-radius: 10px;
-      border: 1px solid #334155;
+      background: rgba(255, 255, 255, 0.04);
+      padding: 16px;
+      border-radius: 14px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
     }
 
     .sim-step-num {
-      width: 22px;
-      height: 22px;
-      border-radius: 6px;
-      background: #3b82f6;
+      width: 24px;
+      height: 24px;
+      border-radius: 8px;
+      background: var(--accent-blue);
       color: white;
       font-weight: 800;
       font-size: 11px;
       display: flex;
       align-items: center;
       justify-content: center;
-      margin-bottom: 8px;
+      margin-bottom: 10px;
     }
 
     .sim-step-card h4 {
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 700;
       color: white;
       margin-bottom: 4px;
     }
 
     .sim-step-card p {
-      font-size: 11px;
+      font-size: 11.5px;
       color: var(--text-muted);
-      line-height: 1.4;
+      line-height: 1.5;
     }
 
-    /* Page Navigation Simulator */
-    .page-nav-simulator {
-      margin: 30px auto;
-      max-width: 800px;
-      padding: 16px;
-      background: rgba(15, 23, 42, 0.6);
-      border: 1px solid #1e293b;
-      border-radius: 14px;
-      text-align: center;
-    }
-
-    .page-chips {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 10px;
-    }
-
-    .page-chip {
-      background: #1e293b;
-      color: #94a3b8;
-      border: 1px solid #334155;
-      padding: 6px 14px;
-      border-radius: 8px;
-      font-size: 12px;
-      font-family: monospace;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-
-    .page-chip:hover, .page-chip.active {
-      background: #2563eb;
-      color: white;
-      border-color: #3b82f6;
-    }
-
-    /* Feature Grid */
-    .features {
-      max-width: 1100px;
-      margin: 40px auto 60px;
-      padding: 0 24px;
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-      gap: 24px;
-    }
-
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 28px;
-      transition: transform 0.2s, border-color 0.2s;
-    }
-
-    .card:hover {
-      transform: translateY(-4px);
-      border-color: #334155;
-    }
-
-    .card-icon {
-      font-size: 28px;
-      margin-bottom: 16px;
-    }
-
-    .card h3 {
-      font-size: 18px;
-      font-weight: 700;
-      margin-bottom: 10px;
-      color: white;
-    }
-
-    .card p {
-      font-size: 13px;
-      color: var(--text-muted);
-      line-height: 1.6;
-    }
-
-    /* CTA Banner */
+    /* Luxury CTA Banner */
     .chat-banner {
-      max-width: 1100px;
-      margin: 0 auto 80px;
-      padding: 40px;
-      background: linear-gradient(135deg, rgba(37, 99, 235, 0.1), rgba(99, 102, 241, 0.1));
-      border: 1px solid rgba(59, 130, 246, 0.3);
-      border-radius: 20px;
+      max-width: 1160px;
+      margin: 0 auto 90px;
+      padding: 56px 36px;
+      background: linear-gradient(135deg, rgba(16, 22, 45, 0.9), rgba(25, 20, 42, 0.9));
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 28px;
       text-align: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 30px 60px rgba(0, 0, 0, 0.4);
+    }
+
+    .chat-banner::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 50% 0%, rgba(46, 91, 255, 0.25), transparent 70%);
+      pointer-events: none;
     }
 
     .chat-banner h2 {
-      font-size: 24px;
-      font-weight: 800;
-      margin-bottom: 12px;
+      font-size: clamp(1.8rem, 3.5vw, 2.5rem);
+      font-weight: 700;
+      margin-bottom: 14px;
       color: white;
+      position: relative;
+      letter-spacing: -0.02em;
     }
 
     .chat-banner p {
-      font-size: 14px;
+      font-size: 15px;
       color: var(--text-muted);
       max-width: 600px;
-      margin: 0 auto 24px;
+      margin: 0 auto 28px;
+      position: relative;
     }
 
     footer {
       border-top: 1px solid var(--border);
-      padding: 24px;
+      padding: 30px 24px;
       text-align: center;
-      font-size: 12px;
-      color: #64748b;
+      font-size: 13px;
+      color: var(--text-dim);
+      background: rgba(5, 6, 13, 0.9);
+      position: relative;
+      z-index: 10;
+    }
+
+    footer a {
+      color: var(--accent-gold);
+      text-decoration: none;
+      font-weight: 600;
+    }
+
+    footer a:hover {
+      text-decoration: underline;
     }
   </style>
 </head>
 <body>
 
-  <!-- Public demo banner -->
+  <!-- Top luxury announcement banner for public users -->
   <div class="demo-banner public-only">
-    <span>You're on a sample website. The chat in the corner is the real Zen-try widget — say hello.</span>
+    <span>
+      <span class="demo-banner-pill">Live Demo Site</span>
+      The chat bubble in the bottom-right corner is the real, live Zen-try product.
+    </span>
+    <button onclick="openChatBubble()" style="background:transparent; border:none; cursor:pointer;" class="demo-banner-link">
+      <a href="javascript:void(0)" onclick="openChatBubble()">Open live widget →</a>
+    </button>
     <a href="/signup">Start free trial</a>
-    <a class="ghost" href="/">Back to Zen-try</a>
+    <a class="ghost" href="/">← Back to Zen-try</a>
   </div>
 
-  <!-- Top Simulator HUD Bar (internal) -->
+  <!-- Top Simulator HUD Bar (Internal QA & Admin mode) -->
   <aside class="simulator-hud qa-only">
     <div class="sim-left">
       <span class="sim-tag">CUSTOMER SIMULATOR</span>
@@ -527,26 +770,27 @@
     </div>
   </aside>
 
-  <!-- Navbar -->
+  <!-- Luxury Navbar -->
   <header>
     <div class="nav-container">
       <a href="#" class="brand" id="simBrandName">
-        <div class="brand-logo" id="simBrandLogo" style="display:flex;align-items:center;justify-content:center;padding:3px;">
-          <img src="/chat-icon.png" alt="Logo" style="width:24px;height:24px;object-fit:contain;" />
+        <div class="brand-logo" id="simBrandLogo">
+          <img src="/chat-icon.png" alt="Logo" style="width:22px;height:22px;object-fit:contain;" />
         </div>
-        <span id="simBrandTitle">Nova Cloud Platform</span>
+        <span id="simBrandTitle">Aurelia Global</span>
       </a>
 
       <nav>
         <a onclick="navigateTo('#overview')" class="active">Overview</a>
         <a onclick="navigateTo('#solutions')">Solutions</a>
-        <a onclick="navigateTo('#pricing')">Pricing</a>
+        <a onclick="navigateTo('#pricing')">Pricing &amp; Plans</a>
         <a onclick="navigateTo('#docs')">API Docs</a>
       </nav>
 
-      <div style="display:flex; align-items:center; gap:8px;">
-        <button class="btn-primary" onclick="openChatBubble()">
-          Talk to Support
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button class="btn-gold" onclick="openChatBubble()">
+          <span>Talk to Support</span>
+          <span style="font-size:14px;">💬</span>
         </button>
       </div>
     </div>
@@ -557,15 +801,58 @@
     <section class="hero">
       <div class="badge-pill">
         <div class="badge-dot"></div>
-        <span>Live Customer Support Active</span>
+        <span>Live Customer Support &amp; AI Autopilot Active</span>
       </div>
 
-      <h1 id="simHeroHeading">Enterprise Cloud Infrastructure Built for Realtime Scale</h1>
+      <h1 id="simHeroHeading">
+        Next-Generation Customer Support, <span class="serif-italic gradient-gold">Beautifully</span> <span class="serif-italic gradient-blue">Delivered.</span>
+      </h1>
       <p class="subtitle" id="simHeroSubtitle">
-        Deploy globally distributed compute and database primitives in under 60 seconds with zero configuration.
+        Experience AI autopilot and human collaboration with 24/7 proactive customer support. Test how fast Zentry answers by clicking the chat bubble or selecting any question below.
       </p>
 
-      <!-- Testing Guide for the User (internal) -->
+      <!-- Live Quick-Test Prompt Chips -->
+      <div class="prompt-chips-wrapper">
+        <div class="prompt-title">
+          <span>✨ Click any question below to test live in the chat:</span>
+        </div>
+        <div class="prompt-chips">
+          <button type="button" class="prompt-chip" onclick="askQuestionPrompt('What features are included in the Pro plan?')">
+            <span>Plans &amp; features</span>
+            <span class="arrow">→</span>
+          </button>
+          <button type="button" class="prompt-chip" onclick="askQuestionPrompt('How does the AI hand over to a human agent?')">
+            <span>AI handover workflow</span>
+            <span class="arrow">→</span>
+          </button>
+          <button type="button" class="prompt-chip" onclick="askQuestionPrompt('Can I connect WhatsApp and Instagram?')">
+            <span>Omnichannel channels</span>
+            <span class="arrow">→</span>
+          </button>
+          <button type="button" class="prompt-chip" onclick="askQuestionPrompt('Can I talk to a human agent please?')">
+            <span>Talk to a person</span>
+            <span class="arrow">→</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- Realtime Navigation Simulator -->
+      <div class="page-nav-simulator">
+        <div class="page-nav-title">
+          <span>📡 Realtime URL Tracking Simulation</span>
+        </div>
+        <p class="page-nav-desc">
+          Click the links below to simulate browsing different pages. Notice how your URL updates instantly on the Agent&apos;s Live Visitor Radar in the dashboard:
+        </p>
+        <div class="page-chips">
+          <span class="page-chip active" onclick="navigateTo('#overview')">/home</span>
+          <span class="page-chip" onclick="navigateTo('#pricing-pro')">/pricing/pro</span>
+          <span class="page-chip" onclick="navigateTo('#checkout')">/checkout?plan=pro</span>
+          <span class="page-chip" onclick="navigateTo('#api-docs')">/docs/integrations</span>
+        </div>
+      </div>
+
+      <!-- Testing Guide for the User (internal QA only) -->
       <div class="sim-guide-box qa-only">
         <div class="sim-guide-title">
           <span>🧪 How to Test Your Live Chat End-to-End:</span>
@@ -574,12 +861,12 @@
           <div class="sim-step-card">
             <div class="sim-step-num">1</div>
             <h4>Open the Chat Bubble</h4>
-            <p>Click the circular widget in the bottom right corner (or the blue button above).</p>
+            <p>Click the circular widget in the bottom-right corner (or the gold button above).</p>
           </div>
           <div class="sim-step-card">
             <div class="sim-step-num">2</div>
             <h4>Send a Test Message</h4>
-            <p>Enter your name and type: <em>&quot;Hello! I have a question about pricing.&quot;</em></p>
+            <p>Type: <em>&quot;Hello! I have a question about pricing and features.&quot;</em></p>
           </div>
           <div class="sim-step-card">
             <div class="sim-step-num">3</div>
@@ -589,47 +876,31 @@
         </div>
       </div>
 
-      <!-- Realtime Navigation Simulator -->
-      <div class="page-nav-simulator qa-only">
-        <div style="font-size:12px; font-weight:600; color:#cbd5e1; margin-bottom:4px;">
-          📡 Realtime URL Tracking Simulation
-        </div>
-        <p style="font-size:11px; color:#94a3b8;">
-          Click the links below to simulate browsing different pages. Notice how your URL updates instantly on the Agent&apos;s Live Visitor Radar:
-        </p>
-        <div class="page-chips">
-          <span class="page-chip active" onclick="navigateTo('#overview')">/home</span>
-          <span class="page-chip" onclick="navigateTo('#pricing-enterprise')">/pricing/enterprise</span>
-          <span class="page-chip" onclick="navigateTo('#checkout')">/checkout?plan=pro</span>
-          <span class="page-chip" onclick="navigateTo('#api-docs')">/docs/realtime-api</span>
-        </div>
-      </div>
-
-      <!-- Widget SDK & Help Center trigger console (internal) -->
+      <!-- Widget SDK & Help Center trigger console (internal QA only) -->
       <div class="sim-guide-box qa-only" style="margin-top: 24px; border-color: rgba(99, 102, 241, 0.4); background: rgba(99, 102, 241, 0.07);">
         <div class="sim-guide-title" style="color: #a5b4fc; margin-bottom: 8px;">
           <span>⚡ Widget SDK &amp; Help Center triggers</span>
         </div>
         <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 14px;">
-          Test the new <code style="color: #818cf8; background: #1e1b4b; padding: 2px 6px; border-radius: 4px;">window.Zentry</code> JavaScript SDK API and declarative <code style="color: #818cf8; background: #1e1b4b; padding: 2px 6px; border-radius: 4px;">data-zentry-*</code> HTML triggers:
+          Test the JavaScript SDK API and declarative HTML triggers:
         </p>
         <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-          <button data-zentry-help class="sim-action-btn" style="background: #312e81; border-color: #6366f1; color: #e0e7ff; font-weight: 600;">
+          <button data-zentry-help data-chatify-help class="sim-action-btn" style="background: #312e81; border-color: #6366f1; color: #e0e7ff; font-weight: 600;">
             📖 [data-zentry-help] Trigger
           </button>
-          <button class="sim-action-btn" onclick="window.Zentry &amp;&amp; window.Zentry.openHelp()" style="background: #1e293b; border-color: #475569;">
-            ⚙️ Zentry.openHelp()
+          <button class="sim-action-btn" onclick="(window.Zentry || window.Chatify) && (window.Zentry || window.Chatify).openHelp()" style="background: #1e293b; border-color: #475569;">
+            ⚙️ window.Chatify.openHelp()
           </button>
-          <button class="sim-action-btn" onclick="window.Zentry &amp;&amp; window.Zentry.openMessages()" style="background: #1e293b; border-color: #475569;">
-            💬 Zentry.openMessages()
+          <button class="sim-action-btn" onclick="(window.Zentry || window.Chatify) && (window.Zentry || window.Chatify).openMessages()" style="background: #1e293b; border-color: #475569;">
+            💬 window.Chatify.openMessages()
           </button>
-          <button class="sim-action-btn" onclick="window.Zentry &amp;&amp; window.Zentry.open('home')" style="background: #1e293b; border-color: #475569;">
+          <button class="sim-action-btn" onclick="(window.Zentry || window.Chatify) && (window.Zentry || window.Chatify).open && (window.Zentry || window.Chatify).open('home')" style="background: #1e293b; border-color: #475569;">
             🏠 Zentry.open(&apos;home&apos;)
           </button>
-          <button class="sim-action-btn" onclick="window.Zentry &amp;&amp; window.Zentry.search('getting')" style="background: #1e293b; border-color: #475569;">
-            🔍 Zentry.search(&apos;getting&apos;)
+          <button class="sim-action-btn" onclick="(window.Zentry || window.Chatify) && (window.Zentry || window.Chatify).search && (window.Zentry || window.Chatify).search('getting')" style="background: #1e293b; border-color: #475569;">
+            🔍 window.Chatify.search(&apos;getting&apos;)
           </button>
-          <button class="sim-action-btn" onclick="window.Zentry &amp;&amp; window.Zentry.showPopup('Hi, how can we help?', 'Trader Care Desk')" style="background: #4338ca; border-color: #6366f1; color: #ffffff; font-weight: 600;">
+          <button class="sim-action-btn" onclick="(window.Zentry || window.Chatify) && (window.Zentry || window.Chatify).showPopup && (window.Zentry || window.Chatify).showPopup('Hi, how can we help?', 'Private Client Desk')" style="background: #4338ca; border-color: #6366f1; color: #ffffff; font-weight: 600;">
             📩 Test Admin Message Popup
           </button>
           <button data-zentry-close class="sim-action-btn" style="background: rgba(239, 68, 68, 0.15); border-color: rgba(239, 68, 68, 0.4); color: #fca5a5;">
@@ -639,40 +910,45 @@
       </div>
     </section>
 
-    <!-- Feature Grid -->
+    <!-- Luxury Feature Grid -->
     <section class="features">
       <div class="card">
-        <div class="card-icon">⚡</div>
-        <h3>Global Edge Latency</h3>
-        <p>Ultra-low latency routing through 300+ edge locations worldwide for instant performance.</p>
+        <div class="card-icon-wrap">⚡</div>
+        <h3>Ultra-Low Latency Routing</h3>
+        <p>Changes synchronize over WebSocket connections in under 400ms with typing indicators and read receipts.</p>
       </div>
 
       <div class="card">
-        <div class="card-icon">🔒</div>
-        <h3>Zero-Trust Isolation</h3>
-        <p>Enterprise grade data privacy and isolated tenant databases with cryptographic assurance.</p>
+        <div class="card-icon-wrap">🧠</div>
+        <h3>Fact-Checked AI Agent</h3>
+        <p>Grounding checks cross-reference answers with your help center before sending, preventing hallucinations.</p>
       </div>
 
       <div class="card">
-        <div class="card-icon">💬</div>
-        <h3>24/7 Human Live Chat</h3>
-        <p>Get instant answers from on-duty customer engineers using our embedded Zen-try widget.</p>
+        <div class="card-icon-wrap">🛡️</div>
+        <h3>Zero-Trust Data Isolation</h3>
+        <p>Row-level security ensures complete workspace isolation, while Shadow DOM prevents CSS style bleeding.</p>
       </div>
     </section>
 
-    <!-- Live Chat Banner -->
+    <!-- Luxury Chat Call-to-action Banner -->
     <section class="chat-banner">
-      <h2>Have questions about integration?</h2>
-      <p>Ask anything — a real person on the Zen-try team answers right here, in real time.</p>
-      <button class="btn-primary" onclick="openChatBubble()">
-        Open Live Chat Window
+      <h2>Have questions about our platform?</h2>
+      <p>Ask anything right now — our live AI Assistant and on-duty customer engineers are ready to answer.</p>
+      <button class="btn-gold" onclick="openChatBubble()">
+        <span>Open Live Chat Window</span>
+        <span>→</span>
       </button>
     </section>
   </main>
 
   <footer>
-    <p class="public-only">Nova Cloud is a sample company. Live chat by <a href="/" style="color:#93c5fd;">Zen-try</a>.</p>
-    <p class="qa-only">Customer website simulator · Zen-try</p>
+    <p class="public-only">
+      Aurelia Global is an interactive simulation site. Customer support platform powered by <a href="/">Zentry</a>.
+    </p>
+    <p class="qa-only">
+      Customer website simulator · Connected with <a href="/">Zentry</a>
+    </p>
   </footer>
 
   <script>
@@ -700,7 +976,7 @@
 
       if (workspaceName) {
         const decoded = decodeURIComponent(workspaceName);
-        document.title = isQaMode ? `${decoded} (Customer Website Simulator)` : `${decoded} — Live demo`;
+        document.title = isQaMode ? `${decoded} (Website Simulator)` : `${decoded} — Live demo`;
         const brandTitle = document.getElementById('simBrandTitle');
         if (brandTitle) brandTitle.textContent = decoded;
       }
@@ -719,12 +995,33 @@
     function openChatBubble() {
       if (window.Zentry && typeof window.Zentry.toggle === 'function') {
         window.Zentry.toggle();
+      } else if (window.Chatify && typeof window.Chatify.toggle === 'function') {
+        window.Chatify.toggle();
       } else if (window.__ZentryInstance && typeof window.__ZentryInstance.toggleWindow === 'function') {
         window.__ZentryInstance.toggleWindow();
       }
     }
 
-    // 5. Reset visitor session to test from scratch
+    // 5. Ask question prompt
+    function askQuestionPrompt(text) {
+      openChatBubble();
+      // If widget composer input is accessible or via SDK
+      setTimeout(() => {
+        try {
+          const root = document.querySelector('zentry-widget') || document.querySelector('chatify-widget');
+          if (root && root.shadowRoot) {
+            const textarea = root.shadowRoot.querySelector('textarea');
+            if (textarea) {
+              textarea.value = text;
+              textarea.focus();
+              textarea.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+          }
+        } catch (e) {}
+      }, 300);
+    }
+
+    // 6. Reset visitor session to test from scratch
     function resetVisitorSession() {
       if (window.__ZentryInstance && typeof window.__ZentryInstance.resetSession === 'function') {
         window.__ZentryInstance.resetSession();
@@ -740,9 +1037,8 @@
       }
     }
 
-    // 6. Dynamically load the Zen-try widget (with cache busting)
+    // 7. Dynamically load the Zen-try widget (with cache busting for QA)
     const widgetScript = document.createElement('script');
-    // Cache-bust only for internal QA; public visitors get the cached build.
     widgetScript.src = isQaMode ? '/widget.js?v=' + Date.now() : '/widget.js';
     widgetScript.setAttribute('data-workspace-id', workspaceId);
     document.body.appendChild(widgetScript);

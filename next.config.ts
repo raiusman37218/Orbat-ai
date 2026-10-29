@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
         '*.zen-try.site',
         'zen-try.com',
         '*.zen-try.com',
+        'zentryhelp.com',
+        '*.zentryhelp.com',
         'chatifyhelp.com',
         '*.chatifyhelp.com',
         'localhost:3000',

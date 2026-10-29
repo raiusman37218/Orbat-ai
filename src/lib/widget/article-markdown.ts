@@ -22,22 +22,22 @@ export function formatMarkdownToHtml(markdown: string): string {
 
   // 2. Fenced code blocks ```lang\ncode\n```
   text = text.replace(/```(?:[a-zA-Z0-9_-]+)?\n([\s\S]*?)```/g, (_m, code) => {
-    return `<pre class="chatify-code-block"><code>${code.trim()}</code></pre>`;
+    return `<pre class="zentry-code-block chatify-code-block"><code>${code.trim()}</code></pre>`;
   });
 
   // 3. Inline code `code`
-  text = text.replace(/`([^`\n]+)`/g, '<code class="chatify-inline-code">$1</code>');
+  text = text.replace(/`([^`\n]+)`/g, '<code class="zentry-inline-code chatify-inline-code">$1</code>');
 
   // 4. Images ![alt](url) - only allow http/https, stopping at quotes, entities, and angle brackets
   text = text.replace(
     /!\[([^\]]*)\]\((https?:\/\/(?:(?!&(?:quot|#0?39|apos|lt|gt);)[^\s)"'<>])+)\)/g,
-    '<img src="$2" alt="$1" class="chatify-art-img" style="max-width:100%;border-radius:6px;margin:6px 0;" />'
+    '<img src="$2" alt="$1" class="zentry-art-img chatify-art-img" style="max-width:100%;border-radius:6px;margin:6px 0;" />'
   );
 
   // 5. Links [text](url) - only allow http/https/mailto, stopping at quotes, entities, and angle brackets
   text = text.replace(
     /\[([^\]]+)\]\((https?:\/\/(?:(?!&(?:quot|#0?39|apos|lt|gt);)[^\s)"'<>])+|mailto:(?:(?!&(?:quot|#0?39|apos|lt|gt);)[^\s)"'<>])+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer" class="chatify-art-link">$1</a>'
+    '<a href="$2" target="_blank" rel="noopener noreferrer" class="zentry-art-link chatify-art-link">$1</a>'
   );
 
   // 6. Headings (h1 - h4)

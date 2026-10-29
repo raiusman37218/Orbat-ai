@@ -2,16 +2,16 @@ import { Workspace, PublicWorkspace } from '@/types/database';
 
 /**
  * Platform base domain for zero-setup ready-made help center subdomains.
- * E.g. chatifyhelp.com -> <slug>.chatifyhelp.com
+ * E.g. zentryhelp.com -> <slug>.zentryhelp.com
  */
 export const HELP_BASE_DOMAIN =
   process.env.NEXT_PUBLIC_HELP_BASE_DOMAIN ||
   process.env.HELP_BASE_DOMAIN ||
-  'chatifyhelp.com';
+  'zentryhelp.com';
 
 /**
  * Checks whether a hostname is a subdomain on HELP_BASE_DOMAIN.
- * E.g.: "apex-shoes.chatifyhelp.com" -> { isSubdomain: true, slug: "apex-shoes" }
+ * E.g.: "apex-shoes.zentryhelp.com" -> { isSubdomain: true, slug: "apex-shoes" }
  */
 export function parseHelpBaseSubdomain(host: string): {
   isSubdomain: boolean;
@@ -49,7 +49,7 @@ export function isHelpBaseHost(host: string): boolean {
 /**
  * Where customers point their CNAME.
  *
- * This used to be hardcoded to `cname.chatify.dev` — a host this project does
+ * This used to be hardcoded to `cname.zentry.dev` — a host this project does
  * not own. It resolves to an unrelated server, so every customer who followed
  * our instructions pointed their subdomain at a stranger and got
  * ERR_CERT_COMMON_NAME_INVALID, because that server naturally has no

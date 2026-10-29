@@ -12,7 +12,7 @@ export function LandingNav() {
   return (
     // data-zentry-no-nav: this nav already links the Help Center and FAQ, so
     // the embedded widget must not add its own link here.
-    <header className="sticky top-0 z-50 border-b border-line bg-surface" data-zentry-no-nav="">
+    <header className="sticky top-0 z-50 border-b border-line/70 bg-surface/80 backdrop-blur-xl" data-zentry-no-nav="">
       <div className="u-container h-16 flex items-center justify-between gap-4 sm:gap-6 flex-nowrap">
         <Link href="/" className="flex items-center min-h-11 shrink-0 whitespace-nowrap">
           <Logo size={34} />

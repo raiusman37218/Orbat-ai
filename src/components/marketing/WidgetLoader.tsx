@@ -16,7 +16,8 @@ declare global {
 }
 
 function findLauncher(): Element | null {
-  return document.getElementById('zentry-widget-root')?.shadowRoot?.getElementById('chatifyLauncherBtn') ?? null;
+  const root = document.getElementById('zentry-widget-root') || document.getElementById('chatify-widget-root');
+  return root?.shadowRoot?.getElementById('zentryLauncherBtn') ?? root?.shadowRoot?.getElementById('chatifyLauncherBtn') ?? null;
 }
 
 /**

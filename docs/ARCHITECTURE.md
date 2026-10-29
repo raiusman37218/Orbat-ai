@@ -363,12 +363,12 @@ The retrieval logic is implemented in `src/lib/ai/retrieval.ts` and `src/lib/ai/
 |---|---|---|
 | `http://localhost:3000` | `src/lib/domain.ts:153`<br/>`src/app/login/page.tsx:79`<br/>`src/app/signup/page.tsx:77`<br/>`src/app/onboarding/page.tsx:121`<br/>`src/components/dashboard/InstallationGuide.tsx:42`<br/>`src/lib/ai/anthropic.ts:364`<br/>`src/app/api/notifications/dispatch/route.ts:22`<br/>`src/app/api/cron/unread-notifications/route.ts:24` | Default fallback when `NEXT_PUBLIC_APP_URL` or `window.location.origin` is missing. |
 | `https://your-app.vercel.app/widget.js` | `src/app/page.tsx:464` | Example embed code snippet in landing page HTML instructions. |
-| `notifications@chatify.dev` | `src/app/api/notifications/dispatch/route.ts:228` | Default `from` email address in Resend / notification dispatch. |
-| `cname.chatify.dev` | `src/lib/domain.ts:6`<br/>`src/app/actions/domain.ts:202` | Referenced in comments as deprecated CNAME host. |
+| `notifications@zentry.dev` | `src/app/api/notifications/dispatch/route.ts:228` | Default `from` email address in Resend / notification dispatch. |
+| `cname.zentry.dev` | `src/lib/domain.ts:6`<br/>`src/app/actions/domain.ts:202` | Referenced in comments as deprecated CNAME host. |
 | `cname.vercel-dns.com` | `src/lib/domain.ts:16` | Default CNAME target for customer subdomains. |
 | `76.76.21.21` | `src/lib/domain.ts:26`<br/>`src/app/actions/domain.ts:265` | Default Vercel Anycast A-Record for apex domain configuration. |
-| `agent@chatify.io` | `src/app/login/page.tsx:113` | Demo email used by "Use demo credentials" button. |
-| `app.chatify.io/inbox` | `src/components/marketing/ProductShowcase.tsx:117` | Mock URL bar display in marketing product showcase. |
+| `agent@zentry.io` | `src/app/login/page.tsx:113` | Demo email used by "Use demo credentials" button. |
+| `app.zentry.io/inbox` | `src/components/marketing/ProductShowcase.tsx:117` | Mock URL bar display in marketing product showcase. |
 | `https://vfjsaynnubxywdbevxtx.supabase.co` | 25 files across `src/` and `widget/src/` | Hardcoded default Supabase URL when `NEXT_PUBLIC_SUPABASE_URL` is omitted. |
 | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...` | 24 files across `src/` and `widget/src/` | Hardcoded default Supabase Anon Public Key. |
 
@@ -378,12 +378,12 @@ The retrieval logic is implemented in `src/lib/ai/retrieval.ts` and `src/lib/ai/
 | Value / Identifier | Locations | Description |
 |---|---|---|
 | `a0000000-0000-0000-0000-000000000001` | `src/app/page.tsx:594`<br/>`src/app/help/page.tsx:17`<br/>`src/app/admin/page.tsx:29`<br/>`src/app/api/analytics/route.ts:14`<br/>`supabase/migrations/20260906140000_phase1_security_and_multitenancy.sql:83` | Default seed/fallback workspace UUID. Used on the landing page widget embed and as API fallback. |
-| `ChatifyDemo2026!` | `src/app/login/page.tsx:114` | Password filled by "Use demo credentials" on `/login`. |
+| `ZentryDemo2026!` | `src/app/login/page.tsx:114` | Password filled by "Use demo credentials" on `/login`. |
 | `public/demo.html` & `demo-site/index.html` | Root `/public` & `/demo-site` | Standalone customer website simulator testing widget injection, SPA navigation, and session resets. |
 | `Northwind` / `alex@northwind.com` / `northwind.com` | `src/app/page.tsx:45-49`<br/>`src/app/onboarding/page.tsx:209, 228`<br/>`src/components/marketing/ProductShowcase.tsx:132-135` | Sample business name and email in landing page & onboarding placeholders. |
 | `Acme Corp` / `TechWave Labs` / `https://acmecorp.com` | `src/components/admin/CompaniesAdminDashboard.tsx:741, 752` | Form placeholder text in Platform Admin company creation modal. |
 | `sarah@example.com` / `test@example.com` | `src/components/widget/ChatWidget.tsx:1214`<br/>`src/components/admin/SMTPSettingsSection.tsx:493` | Placeholder email inputs. |
-| `chatify-verify-token` | `src/lib/domain.ts:259` | Fallback verification token when workspace lacks a generated token. |
+| `zentry-verify-token` | `src/lib/domain.ts:259` | Fallback verification token when workspace lacks a generated token. |
 
 ---
 

@@ -208,6 +208,29 @@ export function Sidebar({
               </div>
               <div className="text-2xs text-ink-3 truncate flex items-center gap-1 mt-0.5">
                 <span className="truncate">{workspace?.website_url ? workspace.website_url.replace(/^https?:\/\//, '').replace(/\/+$/, '') : 'Workspace'}</span>
+                <span className="text-line-2">·</span>
+                {workspace?.plan === 'free' ? (
+                  <button
+                    type="button"
+                    onClick={() => window.dispatchEvent(new CustomEvent('zentry:open-upgrade-modal', { detail: { targetPlan: 'pro' } }))}
+                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold uppercase tracking-wider bg-warn/15 text-warn hover:bg-warn/25 transition-colors cursor-pointer"
+                    title="You are on the Free tier. Click to upgrade."
+                  >
+                    Free · Upgrade
+                  </button>
+                ) : workspace?.plan === 'pro' ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold uppercase tracking-wider bg-accent/15 text-accent border border-accent/20">
+                    Pro
+                  </span>
+                ) : workspace?.plan === 'enterprise' ? (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold uppercase tracking-wider bg-success/15 text-success border border-success/20">
+                    Enterprise
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-3xs font-bold uppercase tracking-wider bg-surface-3 text-ink-2">
+                    {workspace?.plan || 'Starter'}
+                  </span>
+                )}
               </div>
             </div>
           </div>

@@ -252,14 +252,14 @@ class ZentryWidget {
     } catch {}
     this.conversationId =
       localStorage.getItem(`zentry_conversation_id${storageKeySuffix}`) ||
-      localStorage.getItem(`chatify_conversation_id${storageKeySuffix}`);
+      localStorage.getItem(`zentry_conversation_id${storageKeySuffix}`) || localStorage.getItem(`chatify_conversation_id${storageKeySuffix}`);
     this.visitorName =
       localStorage.getItem(`zentry_visitor_name${storageKeySuffix}`) ||
-      localStorage.getItem(`chatify_visitor_name${storageKeySuffix}`) ||
+      localStorage.getItem(`zentry_visitor_name${storageKeySuffix}`) || localStorage.getItem(`chatify_visitor_name${storageKeySuffix}`) ||
       '';
     this.visitorEmail =
       localStorage.getItem(`zentry_visitor_email${storageKeySuffix}`) ||
-      localStorage.getItem(`chatify_visitor_email${storageKeySuffix}`) ||
+      localStorage.getItem(`zentry_visitor_email${storageKeySuffix}`) || localStorage.getItem(`chatify_visitor_email${storageKeySuffix}`) ||
       '';
     let prechatDone = false;
     try {
@@ -272,7 +272,7 @@ class ZentryWidget {
     this.initDOM();
     this.fetchWorkspaceSettingsAndApply().then(async (isActive) => {
       // Branding is applied now — swap the shimmer for the real launcher.
-      this.shadow?.getElementById('chatifyLauncherBtn')?.classList.remove('is-loading');
+      (this.shadow?.getElementById('zentryLauncherBtn') || this.shadow?.getElementById('chatifyLauncherBtn'))?.classList.remove('is-loading');
       if (isActive === false) return;
       this.bindGlobalTriggers();
       // The session first: it creates the visitor and says which conversation
@@ -288,6 +288,7 @@ class ZentryWidget {
           this.conversationId = conv.id;
           this.conversationStatus = conv.status || 'open';
           try {
+            localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, conv.id);
             localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, conv.id);
             localStorage.setItem(`chatify_conversation_id${storageKeySuffix}`, conv.id);
           } catch {}
@@ -308,6 +309,7 @@ class ZentryWidget {
             this.conversationId = existingConv.id;
             this.conversationStatus = existingConv.status || 'open';
             localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, existingConv.id);
+            localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, existingConv.id);
             localStorage.setItem(`chatify_conversation_id${storageKeySuffix}`, existingConv.id);
           }
         } catch {}
@@ -327,9 +329,9 @@ class ZentryWidget {
       try {
         const savedOpen =
           sessionStorage.getItem(`zentry_widget_open${storageKeySuffix}`) ||
-          sessionStorage.getItem(`chatify_widget_open${storageKeySuffix}`);
+          sessionStorage.getItem(`zentry_widget_open${storageKeySuffix}`) || sessionStorage.getItem(`chatify_widget_open${storageKeySuffix}`);
         const savedTab = (sessionStorage.getItem(`zentry_widget_tab${storageKeySuffix}`) ||
-          sessionStorage.getItem(`chatify_widget_tab${storageKeySuffix}`)) as 'home' | 'messages' | 'help' | null;
+          sessionStorage.getItem(`zentry_widget_tab${storageKeySuffix}`) || sessionStorage.getItem(`chatify_widget_tab${storageKeySuffix}`)) as 'home' | 'messages' | 'help' | null;
         if (savedOpen === '1') {
           this.open(savedTab || 'messages');
           this.scrollToBottom(false);
@@ -417,9 +419,13 @@ class ZentryWidget {
     localStorage.removeItem(`zentry_conversation_id${storageKeySuffix}`);
     localStorage.removeItem(`zentry_visitor_name${storageKeySuffix}`);
     localStorage.removeItem(`zentry_visitor_email${storageKeySuffix}`);
+    localStorage.removeItem(`zentry_visitor_id${storageKeySuffix}`);
     localStorage.removeItem(`chatify_visitor_id${storageKeySuffix}`);
+    localStorage.removeItem(`zentry_conversation_id${storageKeySuffix}`);
     localStorage.removeItem(`chatify_conversation_id${storageKeySuffix}`);
+    localStorage.removeItem(`zentry_visitor_name${storageKeySuffix}`);
     localStorage.removeItem(`chatify_visitor_name${storageKeySuffix}`);
+    localStorage.removeItem(`zentry_visitor_email${storageKeySuffix}`);
     localStorage.removeItem(`chatify_visitor_email${storageKeySuffix}`);
     window.location.reload();
   }
@@ -440,6 +446,10 @@ class ZentryWidget {
         return false;
       }
         if (data.name) this.config.businessName = data.name;
+        if (data.plan === 'enterprise' || data.plan === 'legacy') {
+          const badge = this.shadow?.getElementById('zentryBrandingBadge');
+          if (badge) badge.style.display = 'none';
+        }
         if (data.brand_color) this.config.primaryColor = data.brand_color;
         if (data.greeting_title) this.config.title = data.greeting_title;
         if (data.greeting_message) {
@@ -689,7 +699,7 @@ class ZentryWidget {
   private formatChatMarkdown(markdown: string): string {
     const inline = (raw: string) => {
       let s = this.escapeHTML(raw);
-      s = s.replace(/`([^`]+)`/g, '<code class="chatify-inline-code">$1</code>');
+      s = s.replace(/`([^`]+)`/g, '<code class="zentry-inline-code chatify-inline-code">$1</code>');
       s = s.replace(
         /\[([^\]]+)\]\((https?:\/\/[^\s)"'<>]+|mailto:[^\s)"'<>]+)\)/g,
         '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
@@ -775,7 +785,7 @@ class ZentryWidget {
     const articleUrl = this.safeUrl(rawArticleUrl);
 
     return `
-      <div class="chatify-faq-item" data-idx="${idx}" data-id="${this.escapeHTML(faq.id || '')}" data-slug="${this.escapeHTML(faq.slug || '')}">
+      <div class="zentry-faq-item chatify-faq-item" data-idx="${idx}" data-id="${this.escapeHTML(faq.id || '')}" data-slug="${this.escapeHTML(faq.slug || '')}">
         ${
           showCategory && faq.category
             ? `
@@ -786,19 +796,19 @@ class ZentryWidget {
         `
             : ''
         }
-        <div class="chatify-faq-q">
+        <div class="zentry-faq-q chatify-faq-q">
           <span>${this.escapeHTML(faq.q)}</span>
-          <span class="chatify-faq-arrow">›</span>
+          <span class="zentry-faq-arrow chatify-faq-arrow">›</span>
         </div>
-        <div class="chatify-faq-a">
+        <div class="zentry-faq-a chatify-faq-a">
           ${faq.summary ? `<p style="font-size:12px; font-weight:600; color:var(--w-ink); margin-bottom:6px; line-height:1.4;">${this.escapeHTML(faq.summary)}</p>` : ''}
-          <div class="chatify-faq-markdown">${this.formatMarkdownToHtml(faq.a)}</div>
+          <div class="zentry-faq-markdown chatify-faq-markdown">${this.formatMarkdownToHtml(faq.a)}</div>
           
           <div style="margin-top:12px; padding-top:8px; border-top:1px solid var(--w-line); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
             ${
               articleUrl
                 ? `
-              <a href="${articleUrl}" target="_blank" rel="noopener noreferrer" class="chatify-article-ext-link" title="Open full article in dedicated Help Center">
+              <a href="${articleUrl}" target="_blank" rel="noopener noreferrer" class="zentry-article-ext-link chatify-article-ext-link" title="Open full article in dedicated Help Center">
                 <span>Open in full Help Center</span> ↗
               </a>
             `
@@ -808,10 +818,10 @@ class ZentryWidget {
             ${
               faq.id
                 ? `
-              <div class="chatify-vote-group" style="display:flex; align-items:center; gap:6px;">
+              <div class="zentry-vote-group chatify-vote-group" style="display:flex; align-items:center; gap:6px;">
                 <span style="font-size:11px; color:var(--w-ink-3);">Helpful?</span>
-                <button class="chatify-vote-btn" data-art-id="${this.escapeHTML(faq.id)}" data-helpful="true" style="padding:4px 10px; border-radius:var(--w-r-sm); border:1px solid var(--w-line-2); background:var(--w-surface); font-size:12px; font-weight:600; cursor:pointer; color:var(--w-ink);">Yes</button>
-                <button class="chatify-vote-btn" data-art-id="${this.escapeHTML(faq.id)}" data-helpful="false" style="padding:4px 10px; border-radius:var(--w-r-sm); border:1px solid var(--w-line-2); background:var(--w-surface); font-size:12px; font-weight:600; cursor:pointer; color:var(--w-ink);">No</button>
+                <button class="zentry-vote-btn chatify-vote-btn" data-art-id="${this.escapeHTML(faq.id)}" data-helpful="true" style="padding:4px 10px; border-radius:var(--w-r-sm); border:1px solid var(--w-line-2); background:var(--w-surface); font-size:12px; font-weight:600; cursor:pointer; color:var(--w-ink);">Yes</button>
+                <button class="zentry-vote-btn chatify-vote-btn" data-art-id="${this.escapeHTML(faq.id)}" data-helpful="false" style="padding:4px 10px; border-radius:var(--w-r-sm); border:1px solid var(--w-line-2); background:var(--w-surface); font-size:12px; font-weight:600; cursor:pointer; color:var(--w-ink);">No</button>
               </div>
             `
                 : ''
@@ -862,7 +872,7 @@ class ZentryWidget {
         <div style="font-size: 11.5px; font-weight: 600; color: var(--w-ink-3); margin-bottom: 10px; padding-left: 2px;">
           ${filteredFaqs.length} article${filteredFaqs.length === 1 ? '' : 's'} found
         </div>
-        <div class="chatify-faq-list">
+        <div class="zentry-faq-list chatify-faq-list">
           ${filteredFaqs.map((faq, idx) => this.renderArticleItem(faq, idx, true)).join('')}
         </div>
       `;
@@ -874,7 +884,7 @@ class ZentryWidget {
     if (!this.activeSectionId) {
       if (this.sections.length === 0) {
         listEl.innerHTML = `
-          <div class="chatify-faq-list">
+          <div class="zentry-faq-list chatify-faq-list">
             ${this.faqs.map((faq, idx) => this.renderArticleItem(faq, idx, true)).join('')}
           </div>
         `;
@@ -883,15 +893,15 @@ class ZentryWidget {
       }
 
       listEl.innerHTML = `
-        <div class="chatify-section-list">
+        <div class="zentry-section-list chatify-section-list">
           ${this.sections
             .map(
               (section) => `
-            <div class="chatify-section-card" data-section-id="${this.escapeHTML(section.id)}">
-              <div class="chatify-section-card-icon">${this.escapeHTML(section.icon || '📚')}</div>
-              <div class="chatify-section-card-info">
-                <h4 class="chatify-section-card-title">${this.escapeHTML(section.name)}</h4>
-                <p class="chatify-section-card-desc">
+            <div class="zentry-section-card chatify-section-card" data-section-id="${this.escapeHTML(section.id)}">
+              <div class="zentry-section-card chatify-section-card-icon">${this.escapeHTML(section.icon || '📚')}</div>
+              <div class="zentry-section-card chatify-section-card-info">
+                <h4 class="zentry-section-card chatify-section-card-title">${this.escapeHTML(section.name)}</h4>
+                <p class="zentry-section-card chatify-section-card-desc">
                   ${
                     section.description
                       ? this.escapeHTML(section.description)
@@ -899,7 +909,7 @@ class ZentryWidget {
                   }
                 </p>
               </div>
-              <span class="chatify-section-card-arrow">›</span>
+              <span class="zentry-section-card chatify-section-card-arrow">›</span>
             </div>
           `
             )
@@ -926,17 +936,17 @@ class ZentryWidget {
     );
 
     listEl.innerHTML = `
-      <div class="chatify-section-view">
-        <button class="chatify-section-back-btn" id="faqBackToSections" title="Back to collections">
+      <div class="zentry-section-view chatify-section-view">
+        <button class="zentry-section-back-btn chatify-section-back-btn" id="faqBackToSections" title="Back to collections">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <polyline points="15 18 9 12 15 6"></polyline>
           </svg>
           <span>All Collections</span>
         </button>
 
-        <div class="chatify-section-view-header">
-          <span class="chatify-section-view-icon">${this.escapeHTML(currentSection.icon || '📚')}</span>
-          <div class="chatify-section-view-text">
+        <div class="zentry-section-view chatify-section-view-header">
+          <span class="zentry-section-view chatify-section-view-icon">${this.escapeHTML(currentSection.icon || '📚')}</span>
+          <div class="zentry-section-view chatify-section-view-text">
             <h3>${this.escapeHTML(currentSection.name)}</h3>
             ${
               currentSection.description
@@ -946,7 +956,7 @@ class ZentryWidget {
           </div>
         </div>
 
-        <div class="chatify-faq-list">
+        <div class="zentry-faq-list chatify-faq-list">
           ${
             sectionArticles.length === 0
               ? `
@@ -974,7 +984,7 @@ class ZentryWidget {
     }
 
     // Section cards
-    this.shadow?.querySelectorAll('.chatify-section-card').forEach((card) => {
+    this.shadow?.querySelectorAll<HTMLElement>('.zentry-section-card, .chatify-section-card').forEach((card) => {
       (card as HTMLElement).onclick = () => {
         const secId = card.getAttribute('data-section-id');
         if (secId) {
@@ -985,22 +995,22 @@ class ZentryWidget {
     });
 
     // FAQ items accordion
-    this.shadow?.querySelectorAll('.chatify-faq-item').forEach((item) => {
+    this.shadow?.querySelectorAll<HTMLElement>('.zentry-faq-item, .chatify-faq-item').forEach((item) => {
       (item as HTMLElement).onclick = (e: MouseEvent) => {
-        if ((e.target as HTMLElement).closest('.chatify-vote-btn')) return;
-        if ((e.target as HTMLElement).closest('.chatify-article-ext-link')) return;
+        if ((e.target as HTMLElement).closest('.zentry-vote-btn, .chatify-vote-btn')) return;
+        if ((e.target as HTMLElement).closest('.zentry-article-ext-link, .chatify-article-ext-link')) return;
         item.classList.toggle('open');
       };
     });
 
     // Helpful voting
-    this.shadow?.querySelectorAll('.chatify-vote-btn').forEach((btn) => {
+    this.shadow?.querySelectorAll<HTMLElement>('.zentry-vote-btn, .chatify-vote-btn').forEach((btn) => {
       (btn as HTMLElement).onclick = async (e) => {
         e.stopPropagation();
         const target = e.currentTarget as HTMLElement;
         const artId = target.getAttribute('data-art-id');
         const helpful = target.getAttribute('data-helpful') === 'true';
-        const group = target.closest('.chatify-vote-group');
+        const group = target.closest('.zentry-vote-group, .chatify-vote-group');
 
         if (group) {
           group.innerHTML = '<span style="font-size:11px; color:var(--w-brand); font-weight:600;">✓ Feedback sent</span>';
@@ -2428,7 +2438,8 @@ class ZentryWidget {
     const launcher = document.createElement('button');
     // Shimmers until workspace branding arrives, so the default colour never flashes.
     launcher.className = this.config.workspaceId ? 'chatify-launcher is-loading' : 'chatify-launcher';
-    launcher.id = 'chatifyLauncherBtn';
+    launcher.id = 'zentryLauncherBtn';
+    launcher.setAttribute('data-chatify-launcher', '1');
     launcher.setAttribute('aria-label', 'Open chat');
     launcher.innerHTML = `
       <div class="chatify-badge" id="chatifyBadge">0</div>
@@ -2721,7 +2732,7 @@ class ZentryWidget {
             <input type="text" id="helpSearchInput" placeholder="Search answers..." />
           </div>
 
-          <div class="chatify-faq-list" id="faqList"></div>
+          <div class="zentry-faq-list chatify-faq-list" id="faqList"></div>
         </div>
       </div>
 
@@ -5551,13 +5562,13 @@ class ZentryWidget {
         box-shadow: 0 0 0 3px var(--w-brand-a16);
       }
 
-      .chatify-section-list {
+      .zentry-section-list, .chatify-section-list {
         display: flex;
         flex-direction: column;
         gap: 9px;
       }
 
-      .chatify-section-card {
+      .zentry-section-card, .chatify-section-card {
         display: flex;
         align-items: center;
         gap: 12px;
@@ -5569,13 +5580,13 @@ class ZentryWidget {
         transition: border-color .16s var(--w-ease), box-shadow .16s var(--w-ease), transform .16s var(--w-ease);
       }
 
-      .chatify-section-card:hover {
+      .zentry-section-card, .chatify-section-card:hover {
         border-color: var(--w-line-2);
         box-shadow: var(--w-shadow-sm);
         transform: translateY(-1px);
       }
 
-      .chatify-section-card-icon {
+      .zentry-section-card, .zentry-section-card-icon, .chatify-section-card-icon {
         width: 36px;
         height: 36px;
         border-radius: 9px;
@@ -5587,12 +5598,12 @@ class ZentryWidget {
         flex-shrink: 0;
       }
 
-      .chatify-section-card-info {
+      .zentry-section-card, .zentry-section-card-info, .chatify-section-card-info {
         flex: 1;
         min-width: 0;
       }
 
-      .chatify-section-card-title {
+      .zentry-section-card, .zentry-section-card-title, .chatify-section-card-title {
         margin: 0;
         font-size: 13.5px;
         font-weight: 600;
@@ -5600,7 +5611,7 @@ class ZentryWidget {
         line-height: 1.35;
       }
 
-      .chatify-section-card-desc {
+      .zentry-section-card, .zentry-section-card-desc, .chatify-section-card-desc {
         margin: 3px 0 0;
         font-size: 12px;
         color: var(--w-ink-3);
@@ -5610,7 +5621,7 @@ class ZentryWidget {
         text-overflow: ellipsis;
       }
 
-      .chatify-section-card-arrow {
+      .zentry-section-card, .zentry-section-card-arrow, .chatify-section-card-arrow {
         color: var(--w-ink-3);
         font-size: 18px;
         line-height: 1;
@@ -5618,12 +5629,12 @@ class ZentryWidget {
         transition: transform .18s var(--w-ease), color .18s var(--w-ease);
       }
 
-      .chatify-section-card:hover .chatify-section-card-arrow {
+      .zentry-section-card, .chatify-section-card:hover .zentry-section-card, .zentry-section-card-arrow, .chatify-section-card-arrow {
         color: var(--w-brand);
         transform: translateX(2px);
       }
 
-      .chatify-section-back-btn {
+      .zentry-section-back-btn, .chatify-section-back-btn {
         display: inline-flex;
         align-items: center;
         gap: 5px;
@@ -5637,11 +5648,11 @@ class ZentryWidget {
         transition: opacity .16s var(--w-ease);
       }
 
-      .chatify-section-back-btn:hover {
+      .zentry-section-back-btn, .chatify-section-back-btn:hover {
         opacity: 0.8;
       }
 
-      .chatify-section-view-header {
+      .zentry-section-view, .zentry-section-view-header, .chatify-section-view-header {
         display: flex;
         align-items: center;
         gap: 10px;
@@ -5650,27 +5661,27 @@ class ZentryWidget {
         border-bottom: 1px solid var(--w-line);
       }
 
-      .chatify-section-view-icon {
+      .zentry-section-view, .zentry-section-view-icon, .chatify-section-view-icon {
         font-size: 24px;
         flex-shrink: 0;
       }
 
-      .chatify-section-view-text h3 {
+      .zentry-section-view, .zentry-section-view-text, .chatify-section-view-text h3 {
         margin: 0;
         font-size: 15px;
         font-weight: 700;
         color: var(--w-ink);
       }
 
-      .chatify-section-view-text p {
+      .zentry-section-view, .zentry-section-view-text, .chatify-section-view-text p {
         margin: 2px 0 0;
         font-size: 12px;
         color: var(--w-ink-3);
       }
 
-      .chatify-faq-list { display: flex; flex-direction: column; gap: 8px; }
+      .zentry-faq-list, .chatify-faq-list { display: flex; flex-direction: column; gap: 8px; }
 
-      .chatify-faq-item {
+      .zentry-faq-item, .chatify-faq-item {
         background: var(--w-surface);
         border: 1px solid var(--w-line);
         border-radius: var(--w-r-md);
@@ -5679,10 +5690,10 @@ class ZentryWidget {
         transition: border-color .16s var(--w-ease), box-shadow .16s var(--w-ease);
       }
 
-      .chatify-faq-item:hover { border-color: var(--w-line-2); box-shadow: var(--w-shadow-sm); }
-      .chatify-faq-item.open { border-color: var(--w-brand); }
+      .zentry-faq-item, .chatify-faq-item:hover { border-color: var(--w-line-2); box-shadow: var(--w-shadow-sm); }
+      .zentry-faq-item, .chatify-faq-item.open { border-color: var(--w-brand); }
 
-      .chatify-faq-q {
+      .zentry-faq-q, .chatify-faq-q {
         display: flex;
         align-items: center;
         justify-content: space-between;
@@ -5693,7 +5704,7 @@ class ZentryWidget {
         color: var(--w-ink);
       }
 
-      .chatify-faq-arrow {
+      .zentry-faq-arrow, .chatify-faq-arrow {
         color: var(--w-ink-3);
         font-size: 17px;
         line-height: 1;
@@ -5701,12 +5712,12 @@ class ZentryWidget {
         transition: transform .22s var(--w-ease), color .16s var(--w-ease);
       }
 
-      .chatify-faq-item.open .chatify-faq-arrow {
+      .zentry-faq-item, .chatify-faq-item.open .zentry-faq-arrow, .chatify-faq-arrow {
         transform: rotate(90deg);
         color: var(--w-brand);
       }
 
-      .chatify-faq-a {
+      .zentry-faq-a, .chatify-faq-a {
         max-height: 0;
         overflow: hidden;
         opacity: 0;
@@ -5717,7 +5728,7 @@ class ZentryWidget {
           margin-top .28s var(--w-ease);
       }
 
-      .chatify-faq-item.open .chatify-faq-a {
+      .zentry-faq-item, .chatify-faq-item.open .zentry-faq-a, .chatify-faq-a {
         max-height: 480px;
         overflow-y: auto;
         opacity: 1;
@@ -5725,14 +5736,14 @@ class ZentryWidget {
         padding-right: 4px;
       }
 
-      .chatify-faq-markdown {
+      .zentry-faq-markdown, .chatify-faq-markdown {
         font-size: 12.5px;
         line-height: 1.6;
         color: var(--w-ink-2);
       }
-      .chatify-faq-markdown p { margin: 0 0 8px 0; }
-      .chatify-faq-markdown p:last-child { margin-bottom: 0; }
-      .chatify-faq-markdown pre {
+      .zentry-faq-markdown, .chatify-faq-markdown p { margin: 0 0 8px 0; }
+      .zentry-faq-markdown, .chatify-faq-markdown p:last-child { margin-bottom: 0; }
+      .zentry-faq-markdown, .chatify-faq-markdown pre {
         background: var(--w-surface-2, #f1f5f9);
         border: 1px solid var(--w-line);
         border-radius: 6px;
@@ -5742,30 +5753,30 @@ class ZentryWidget {
         font-size: 11.5px;
         margin: 8px 0;
       }
-      .chatify-faq-markdown code {
+      .zentry-faq-markdown, .chatify-faq-markdown code {
         background: var(--w-surface-2, #f1f5f9);
         border-radius: 4px;
         padding: 2px 4px;
         font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
         font-size: 11.5px;
       }
-      .chatify-faq-markdown a {
+      .zentry-faq-markdown, .chatify-faq-markdown a {
         color: var(--w-brand);
         text-decoration: underline;
       }
-      .chatify-faq-markdown ul, .chatify-faq-markdown ol {
+      .zentry-faq-markdown, .chatify-faq-markdown ul, .zentry-faq-markdown, .chatify-faq-markdown ol {
         margin: 6px 0 8px 18px;
         padding: 0;
       }
-      .chatify-faq-markdown li { margin-bottom: 3px; }
-      .chatify-faq-markdown blockquote {
+      .zentry-faq-markdown, .chatify-faq-markdown li { margin-bottom: 3px; }
+      .zentry-faq-markdown, .chatify-faq-markdown blockquote {
         border-left: 3px solid var(--w-brand);
         margin: 8px 0;
         padding-left: 8px;
         color: var(--w-ink-3);
         font-style: italic;
       }
-      .chatify-article-ext-link {
+      .zentry-article-ext-link, .chatify-article-ext-link {
         font-size: 11.5px;
         color: var(--w-brand);
         text-decoration: none;
@@ -5775,7 +5786,7 @@ class ZentryWidget {
         gap: 4px;
         transition: opacity .15s;
       }
-      .chatify-article-ext-link:hover {
+      .zentry-article-ext-link, .chatify-article-ext-link:hover {
         opacity: 0.8;
         text-decoration: underline;
       }
@@ -5970,7 +5981,7 @@ class ZentryWidget {
 
       .chatify-handover-avatar,
       .chatify-handover-face,
-      .chatify-agent-joined-avatar {
+      .zentry-agent-joined, .zentry-agent-joined-avatar, .chatify-agent-joined-avatar {
         width: 36px;
         height: 36px;
         border-radius: 50%;
@@ -5990,7 +6001,7 @@ class ZentryWidget {
 
       .chatify-handover-avatar img,
       .chatify-handover-face img,
-      .chatify-agent-joined-avatar img {
+      .zentry-agent-joined, .zentry-agent-joined-avatar, .chatify-agent-joined-avatar img {
         width: 100%;
         height: 100%;
         object-fit: cover;
@@ -6148,7 +6159,7 @@ class ZentryWidget {
       }
 
       /* "Sara joined the conversation": a centred divider above the first reply. */
-      .chatify-agent-joined {
+      .zentry-agent-joined, .chatify-agent-joined {
         display: flex;
         align-items: center;
         gap: 10px;
@@ -6157,14 +6168,14 @@ class ZentryWidget {
         color: var(--w-ink-2);
         animation: w-rise .3s var(--w-ease) both;
       }
-      .chatify-agent-joined::before,
-      .chatify-agent-joined::after {
+      .zentry-agent-joined, .chatify-agent-joined::before,
+      .zentry-agent-joined, .chatify-agent-joined::after {
         content: '';
         flex: 1;
         height: 1px;
         background: var(--w-line);
       }
-      .chatify-agent-joined-avatar {
+      .zentry-agent-joined, .zentry-agent-joined-avatar, .chatify-agent-joined-avatar {
         width: 22px;
         height: 22px;
         margin-left: 0;
@@ -6172,10 +6183,10 @@ class ZentryWidget {
         font-size: 9px;
         overflow: visible;
       }
-      .chatify-agent-joined-avatar img {
+      .zentry-agent-joined, .zentry-agent-joined-avatar, .chatify-agent-joined-avatar img {
         border-radius: 50%;
       }
-      .chatify-agent-joined-dot {
+      .zentry-agent-joined, .zentry-agent-joined-dot, .chatify-agent-joined-dot {
         position: absolute;
         right: -2px;
         bottom: -2px;
@@ -6185,17 +6196,17 @@ class ZentryWidget {
         background: #10b981;
         border: 1.5px solid var(--w-surface);
       }
-      .chatify-agent-joined-text {
+      .zentry-agent-joined, .zentry-agent-joined-text, .chatify-agent-joined-text {
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
         max-width: 70%;
       }
-      .chatify-agent-joined-text strong {
+      .zentry-agent-joined, .zentry-agent-joined-text, .chatify-agent-joined-text strong {
         color: var(--w-ink);
         font-weight: 650;
       }
-      .chatify-agent-joined-time {
+      .zentry-agent-joined, .zentry-agent-joined-time, .chatify-agent-joined-time {
         color: var(--w-ink-3, var(--w-ink-2));
       }
 
@@ -6602,10 +6613,10 @@ class ZentryWidget {
     const stage = document.createElement('div');
 
     const defaultStarterChips: Array<{ label: string; value: string }> = [
-      { label: '💰 Pricing & Plans', value: 'What are the challenge prices and account sizes?' },
-      { label: '📋 Trading Rules', value: 'What are the trading rules and drawdown limits?' },
-      { label: '💸 Payouts', value: 'How and when can I request a payout?' },
-      { label: '🔐 Account & KYC', value: 'What documents are required for KYC verification?' },
+      { label: '💰 Pricing & Plans', value: 'What are your pricing plans and features?' },
+      { label: '⚡ How it works', value: 'How does the AI assistant and live chat work?' },
+      { label: '🚀 Getting Started', value: 'How can I set up the chat widget on my website?' },
+      { label: '🔐 Security & Privacy', value: 'How do you handle data privacy and security?' },
       { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
     ];
 
@@ -7064,7 +7075,7 @@ class ZentryWidget {
     const openIcon = this.shadow?.getElementById('chatifyIconOpen');
     const closeIcon = this.shadow?.getElementById('chatifyIconClose');
 
-    const launcher = this.shadow?.getElementById('chatifyLauncherBtn');
+    const launcher = (this.shadow?.getElementById('zentryLauncherBtn') || this.shadow?.getElementById('chatifyLauncherBtn'));
     if (launcher) {
       launcher.classList.toggle('widget-is-open', this.isOpen);
     }
@@ -7111,7 +7122,7 @@ class ZentryWidget {
     const homePill = this.shadow?.getElementById('homeCardUnreadPill');
     const homeCtaBadge = this.shadow?.getElementById('homeCardCtaBadge');
     const homeTitle = this.shadow?.getElementById('homeCardTitle');
-    const launcher = this.shadow?.getElementById('chatifyLauncherBtn');
+    const launcher = (this.shadow?.getElementById('zentryLauncherBtn') || this.shadow?.getElementById('chatifyLauncherBtn'));
 
     // The halo ring only runs while something is actually waiting.
     launcher?.classList.toggle('has-unread', this.unreadCount > 0);
@@ -7589,8 +7600,8 @@ class ZentryWidget {
       ? `<strong>${this.escapeHTML(agent.name)}</strong> joined the conversation`
       : 'A support agent joined the conversation';
     line.innerHTML =
-      `<span class="chatify-agent-joined-avatar">${this.agentAvatarHtml(agent)}<span class="chatify-agent-joined-dot"></span></span>` +
-      `<span class="chatify-agent-joined-text">${who}<span class="chatify-agent-joined-time"> · ${time}</span></span>`;
+      `<span class="zentry-agent-joined chatify-agent-joined-avatar">${this.agentAvatarHtml(agent)}<span class="zentry-agent-joined chatify-agent-joined-dot"></span></span>` +
+      `<span class="zentry-agent-joined chatify-agent-joined-text">${who}<span class="zentry-agent-joined chatify-agent-joined-time"> · ${time}</span></span>`;
     return line;
   }
 
@@ -7666,10 +7677,12 @@ class ZentryWidget {
     if (this.currentPopupMsgId) {
       try {
         sessionStorage.setItem(`zentry_popup_dismissed_${this.currentPopupMsgId}`, '1');
+        sessionStorage.setItem(`zentry_popup_dismissed_${this.currentPopupMsgId}`, '1');
         sessionStorage.setItem(`chatify_popup_dismissed_${this.currentPopupMsgId}`, '1');
       } catch {}
     }
     try {
+      sessionStorage.setItem('zentry_proactive_welcome_dismissed', '1');
       sessionStorage.setItem('zentry_proactive_welcome_dismissed', '1');
       sessionStorage.setItem('chatify_proactive_welcome_dismissed', '1');
     } catch {}
@@ -7727,6 +7740,7 @@ class ZentryWidget {
             this.conversationId = conv.id;
             this.conversationStatus = conv.status || 'open';
             localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, conv.id);
+            localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, conv.id);
             localStorage.setItem(`chatify_conversation_id${storageKeySuffix}`, conv.id);
             await this.loadMessageHistory();
             this.subscribeToRealtime();
@@ -7767,7 +7781,7 @@ class ZentryWidget {
       this.renderFaqList();
 
       setTimeout(() => {
-        const items = this.shadow?.querySelectorAll<HTMLElement>('.chatify-faq-item');
+        const items = this.shadow?.querySelectorAll<HTMLElement>('.zentry-faq-item, .chatify-faq-item');
         let targetItem: HTMLElement | null = null;
 
         if (items) {

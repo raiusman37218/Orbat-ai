@@ -13,7 +13,7 @@ if (!fs.existsSync(MASTER_PATH)) {
 const masterBuf = fs.readFileSync(MASTER_PATH);
 const master = PNG.sync.read(masterBuf);
 
-console.log(`Processing Chatify 2026 Brand Design System (${master.width}x${master.height})...`);
+console.log(`Processing Zentry 2026 Brand Design System (${master.width}x${master.height})...`);
 
 function crop(src, minX, minY, width, height) {
   const dst = new PNG({ width, height });

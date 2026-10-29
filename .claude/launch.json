@@ -2,13 +2,13 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "chatify",
+      "name": "zentry",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
       "port": 3000
     },
     {
-      "name": "chatify-mock",
+      "name": "zentry-mock",
       "runtimeExecutable": "node",
       "runtimeArgs": ["scripts/design/dev-with-mock.mjs"],
       "port": 3001
