@@ -23,6 +23,7 @@ export type PlanFeatureKey =
   | 'channel_tiktok'
   | 'channel_threads'
   | 'ai_bot'
+  | 'copilot'
   | 'sla'
   | 'macros'
   | 'automations'
@@ -37,6 +38,7 @@ export type PlanLimitKey =
   | 'max_agents'
   | 'max_tickets_per_month'
   | 'max_ai_bot_replies_per_month'
+  | 'max_copilot_requests_per_month'
   | 'max_channels_connected'
   | 'max_articles'
   | 'max_automations'
@@ -135,8 +137,15 @@ export const PLAN_FEATURES: PlanFeatureDefinition[] = [
   // AI & Automations
   {
     id: 'ai_bot',
-    name: 'Autonomous AI Bot & Copilot',
+    name: 'Autonomous AI Bot',
     description: 'Multi-provider AI auto-replies, help-article citations, sentiment, and handover.',
+    category: 'ai_automation',
+    highlight: true,
+  },
+  {
+    id: 'copilot',
+    name: 'Agent AI Copilot',
+    description: 'AI assistant for human agents: summaries, suggested replies, private Q&A, rewrites, and next-step triage.',
     category: 'ai_automation',
     highlight: true,
   },
@@ -230,6 +239,13 @@ export const PLAN_LIMITS: PlanLimitDefinition[] = [
     isMeteredPeriod: true,
   },
   {
+    id: 'max_copilot_requests_per_month',
+    name: 'AI Copilot Actions / Month',
+    description: 'Agent AI Copilot summaries, reply drafts, Q&A, rewrites, and next-step analyses each month.',
+    unit: 'actions/mo',
+    isMeteredPeriod: true,
+  },
+  {
     id: 'max_channels_connected',
     name: 'Connected Channels',
     description: 'Simultaneous active omnichannel connections.',
@@ -299,6 +315,7 @@ export const FREE_FEATURES: Record<PlanFeatureKey, boolean> = {
   channel_tiktok: false,
   channel_threads: false,
   ai_bot: true,
+  copilot: true,
   sla: false,
   macros: true,
   automations: false,
@@ -314,6 +331,7 @@ export const FREE_LIMITS: Record<PlanLimitKey, number> = {
   max_agents: 1,
   max_tickets_per_month: 100,
   max_ai_bot_replies_per_month: 25,
+  max_copilot_requests_per_month: 50,
   max_channels_connected: 1,
   max_articles: 10,
   max_automations: 0,
@@ -330,6 +348,7 @@ export const STARTER_FEATURES: Record<PlanFeatureKey, boolean> = {
   channel_tiktok: false,
   channel_threads: false,
   ai_bot: true,
+  copilot: true,
   sla: false,
   macros: true,
   automations: false,
@@ -350,6 +369,7 @@ export const PRO_FEATURES: Record<PlanFeatureKey, boolean> = {
   channel_tiktok: false,
   channel_threads: true,
   ai_bot: true,
+  copilot: true,
   sla: true,
   macros: true,
   automations: true,
@@ -370,6 +390,7 @@ export const ENTERPRISE_FEATURES: Record<PlanFeatureKey, boolean> = {
   channel_tiktok: true,
   channel_threads: true,
   ai_bot: true,
+  copilot: true,
   sla: true,
   macros: true,
   automations: true,
@@ -390,6 +411,7 @@ export const LEGACY_FEATURES: Record<PlanFeatureKey, boolean> = {
   channel_tiktok: true,
   channel_threads: true,
   ai_bot: true,
+  copilot: true,
   sla: true,
   macros: true,
   automations: true,

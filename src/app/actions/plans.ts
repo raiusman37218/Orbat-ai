@@ -99,6 +99,7 @@ export async function getPublicPlansAction(): Promise<PlatformPlan[]> {
       max_agents: 3,
       max_tickets_per_month: 500,
       max_ai_bot_replies_per_month: 200,
+      max_copilot_requests_per_month: 300,
       max_channels_connected: 2,
       max_articles: 25,
       max_automations: 5,
@@ -106,6 +107,8 @@ export async function getPublicPlansAction(): Promise<PlatformPlan[]> {
       max_api_requests_per_month: 1000,
       ai_enabled: true,
       ai_monthly_reply_limit: 200,
+      copilot_enabled: true,
+      copilot_monthly_limit: 300,
       features: STARTER_FEATURES,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -129,6 +132,7 @@ export async function getPublicPlansAction(): Promise<PlatformPlan[]> {
       max_agents: 10,
       max_tickets_per_month: 2500,
       max_ai_bot_replies_per_month: 1000,
+      max_copilot_requests_per_month: 2000,
       max_channels_connected: 10,
       max_articles: 100,
       max_automations: 25,
@@ -136,6 +140,8 @@ export async function getPublicPlansAction(): Promise<PlatformPlan[]> {
       max_api_requests_per_month: 10000,
       ai_enabled: true,
       ai_monthly_reply_limit: 1000,
+      copilot_enabled: true,
+      copilot_monthly_limit: 2000,
       features: PRO_FEATURES,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -159,6 +165,7 @@ export async function getPublicPlansAction(): Promise<PlatformPlan[]> {
       max_agents: null,
       max_tickets_per_month: null,
       max_ai_bot_replies_per_month: null,
+      max_copilot_requests_per_month: null,
       max_channels_connected: null,
       max_articles: null,
       max_automations: null,
@@ -166,6 +173,8 @@ export async function getPublicPlansAction(): Promise<PlatformPlan[]> {
       max_api_requests_per_month: null,
       ai_enabled: true,
       ai_monthly_reply_limit: null,
+      copilot_enabled: true,
+      copilot_monthly_limit: null,
       features: ENTERPRISE_FEATURES,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
@@ -202,6 +211,9 @@ export async function savePlanAction(input: {
   max_api_requests_per_month: number | null;
   ai_enabled?: boolean;
   ai_monthly_reply_limit?: number | null;
+  max_copilot_requests_per_month?: number | null;
+  copilot_enabled?: boolean;
+  copilot_monthly_limit?: number | null;
   features: Record<PlanFeatureKey, boolean>;
 }): Promise<{ success: boolean; plan?: PlatformPlan; error?: string }> {
   const { agent } = await assertPlatformOwner();
@@ -273,6 +285,19 @@ export async function savePlanAction(input: {
         max_api_requests_per_month: input.max_api_requests_per_month,
         ai_enabled: input.ai_enabled ?? existing.ai_enabled ?? true,
         ai_monthly_reply_limit: resolvedAiLimit,
+        max_copilot_requests_per_month:
+          input.copilot_monthly_limit !== undefined
+            ? input.copilot_monthly_limit
+            : input.max_copilot_requests_per_month !== undefined
+            ? input.max_copilot_requests_per_month
+            : existing.max_copilot_requests_per_month ?? null,
+        copilot_enabled: input.copilot_enabled ?? existing.copilot_enabled ?? true,
+        copilot_monthly_limit:
+          input.copilot_monthly_limit !== undefined
+            ? input.copilot_monthly_limit
+            : input.max_copilot_requests_per_month !== undefined
+            ? input.max_copilot_requests_per_month
+            : existing.copilot_monthly_limit ?? null,
         features: input.features,
         updated_at: new Date().toISOString(),
       };
@@ -352,6 +377,15 @@ export async function savePlanAction(input: {
         max_api_requests_per_month: input.max_api_requests_per_month,
         ai_enabled: input.ai_enabled ?? true,
         ai_monthly_reply_limit: resolvedCreateAiLimit,
+        max_copilot_requests_per_month:
+          input.copilot_monthly_limit !== undefined
+            ? input.copilot_monthly_limit
+            : input.max_copilot_requests_per_month ?? null,
+        copilot_enabled: input.copilot_enabled ?? true,
+        copilot_monthly_limit:
+          input.copilot_monthly_limit !== undefined
+            ? input.copilot_monthly_limit
+            : input.max_copilot_requests_per_month ?? null,
         features: input.features,
       };
 

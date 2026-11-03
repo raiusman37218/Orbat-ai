@@ -337,6 +337,7 @@ describe('Plans & Platform Pricing System', () => {
       channel_tiktok: false,
       channel_threads: false,
       ai_bot: true,
+      copilot: true,
       sla: false,
       macros: true,
       automations: false,

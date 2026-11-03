@@ -176,6 +176,8 @@ export interface Conversation {
   merged_into?: string | null;
   summary?: string | null;
   sentiment?: 'positive' | 'neutral' | 'negative' | null;
+  copilot_summary?: CopilotSummary | null;
+  copilot_next_steps?: CopilotNextSteps | null;
   /** Where the conversation's next message goes. */
   current_ticket_id?: string | null;
   /** When the customer last wrote on an outside channel (WhatsApp's 24-hour window starts here). */
@@ -362,6 +364,8 @@ export interface AISettingsConfig {
    * sends that topic to the team; instructions are added to its brief.
    */
   sub_agents?: Record<string, { enabled?: boolean; instructions?: string | null }>;
+  /** Workspace-level switch for Agent AI Copilot (when plan allows Copilot). */
+  copilot_enabled?: boolean;
 }
 
 export interface HelpSection {
@@ -1040,4 +1044,79 @@ export interface TeamInboxRow {
   last_message: { content: string; sender_id: string; created_at: string; deleted: boolean } | null;
   unread: number;
   mentions_me: number;
+}
+
+
+/* ── Agent AI Copilot (migration 20261123090000_copilot_feature.sql) ────── */
+
+export type CopilotActionType = 'summary' | 'suggest_reply' | 'ask' | 'rewrite' | 'next_steps';
+
+export type CopilotRewriteMode =
+  | 'shorter'
+  | 'professional'
+  | 'friendly'
+  | 'grammar'
+  | 'translate_en'
+  | 'translate_ur'
+  | 'translate_roman_ur';
+
+export interface CopilotSource {
+  id: string;
+  title: string;
+  slug: string | null;
+  url: string | null;
+  section?: string | null;
+  kind: 'article' | 'knowledge' | 'note';
+}
+
+export interface CopilotSummary {
+  issue: string;
+  tried: string;
+  status: string;
+  pending_action: string;
+  generated_at: string;
+  message_count: number;
+  is_outdated?: boolean;
+  event_id?: string | null;
+}
+
+export interface CopilotNextSteps {
+  issue_type: string;
+  sentiment: 'positive' | 'neutral' | 'frustrated' | 'urgent';
+  next_steps: string[];
+  specialist_needed: boolean;
+  specialist_reason: string | null;
+  generated_at: string;
+  event_id?: string | null;
+}
+
+export interface CopilotEvent {
+  id: string;
+  workspace_id: string;
+  user_id: string | null;
+  conversation_id: string | null;
+  action_type: CopilotActionType;
+  model: string | null;
+  tokens_in: number;
+  tokens_out: number;
+  latency_ms: number;
+  status: 'success' | 'failure';
+  error_code: string | null;
+  feedback: 'up' | 'down' | null;
+  draft_disposition: 'used' | 'edited' | 'discarded' | null;
+  missing_knowledge: boolean;
+  created_at: string;
+}
+
+export interface CopilotMessage {
+  id: string;
+  workspace_id: string;
+  conversation_id: string;
+  agent_id: string;
+  role: 'agent' | 'copilot';
+  content: string;
+  sources: CopilotSource[];
+  event_id: string | null;
+  feedback: 'up' | 'down' | null;
+  created_at: string;
 }

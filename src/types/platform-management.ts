@@ -156,6 +156,7 @@ export interface PlatformAiSettings {
   model: string | null;
   api_key: string | null;
   is_enabled: boolean;
+  copilot_enabled?: boolean;
   updated_at: string;
   updated_by: string | null;
 }
@@ -165,6 +166,7 @@ export interface PlatformAiSettingsDTO {
   base_url: string | null;
   model: string | null;
   is_enabled: boolean;
+  copilot_enabled?: boolean;
   has_key: boolean;
   key_last4: string | null;
   updated_at: string;

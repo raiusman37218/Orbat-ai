@@ -74,6 +74,7 @@ export const FALLBACK_FREE_PLAN: PlatformPlan = {
   max_agents: 1,
   max_tickets_per_month: 100,
   max_ai_bot_replies_per_month: 25,
+  max_copilot_requests_per_month: 50,
   max_channels_connected: 1,
   max_articles: 10,
   max_automations: 0,
@@ -81,6 +82,8 @@ export const FALLBACK_FREE_PLAN: PlatformPlan = {
   max_api_requests_per_month: 100,
   ai_enabled: true,
   ai_monthly_reply_limit: 25,
+  copilot_enabled: true,
+  copilot_monthly_limit: 50,
   features: FREE_FEATURES,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
@@ -105,6 +108,7 @@ const FALLBACK_LEGACY_PLAN: PlatformPlan = {
   max_agents: null,
   max_tickets_per_month: null,
   max_ai_bot_replies_per_month: null,
+  max_copilot_requests_per_month: null,
   max_channels_connected: null,
   max_articles: null,
   max_automations: null,
@@ -112,6 +116,8 @@ const FALLBACK_LEGACY_PLAN: PlatformPlan = {
   max_api_requests_per_month: null,
   ai_enabled: true,
   ai_monthly_reply_limit: null,
+  copilot_enabled: true,
+  copilot_monthly_limit: null,
   features: LEGACY_FEATURES,
   created_at: new Date().toISOString(),
   updated_at: new Date().toISOString(),
@@ -174,6 +180,12 @@ export async function getWorkspaceEffectivePlan(workspaceId: string): Promise<Wo
         : plan.ai_monthly_reply_limit !== undefined
         ? plan.ai_monthly_reply_limit
         : plan.max_ai_bot_replies_per_month,
+    max_copilot_requests_per_month:
+      customLimits.max_copilot_requests_per_month !== undefined
+        ? customLimits.max_copilot_requests_per_month
+        : plan.copilot_monthly_limit !== undefined
+        ? plan.copilot_monthly_limit
+        : plan.max_copilot_requests_per_month ?? null,
     max_channels_connected: customLimits.max_channels_connected !== undefined ? customLimits.max_channels_connected : plan.max_channels_connected,
     max_articles: customLimits.max_articles !== undefined ? customLimits.max_articles : plan.max_articles,
     max_automations: customLimits.max_automations !== undefined ? customLimits.max_automations : plan.max_automations,
@@ -188,6 +200,11 @@ export async function getWorkspaceEffectivePlan(workspaceId: string): Promise<Wo
 
   if (plan.ai_enabled !== undefined) {
     effectiveFeatures.ai_bot = Boolean(plan.ai_enabled);
+  }
+  if (plan.copilot_enabled !== undefined) {
+    effectiveFeatures.copilot = Boolean(plan.copilot_enabled);
+  } else if (effectiveFeatures.copilot === undefined) {
+    effectiveFeatures.copilot = true;
   }
 
   for (const [k, v] of Object.entries(customFeatures)) {
@@ -329,6 +346,32 @@ export async function getWorkspaceCurrentUsage(
         .in('conversation_id', convIds)
         .eq('sender_type', 'ai')
         .gte('created_at', thirtyDaysAgo);
+      return count || 0;
+    }
+
+    case 'max_copilot_requests_per_month': {
+      const now = new Date();
+      const currentPeriodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
+        .toISOString()
+        .split('T')[0];
+
+      const { data: aiUsage } = await adminClient
+        .from('workspace_ai_usage')
+        .select('copilot_requests_used')
+        .eq('workspace_id', workspaceId)
+        .eq('period_start', currentPeriodStart)
+        .maybeSingle();
+
+      if (aiUsage && typeof (aiUsage as { copilot_requests_used?: number }).copilot_requests_used === 'number') {
+        return (aiUsage as { copilot_requests_used: number }).copilot_requests_used;
+      }
+
+      const { count } = await adminClient
+        .from('copilot_events')
+        .select('id', { count: 'exact', head: true })
+        .eq('workspace_id', workspaceId)
+        .eq('status', 'success')
+        .gte('created_at', `${currentPeriodStart}T00:00:00.000Z`);
       return count || 0;
     }
 

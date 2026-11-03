@@ -19,6 +19,12 @@ export interface WorkspaceAiUsageItem {
   monthlyLimit: number | null; // null = unlimited
   percentage: number;
   status: 'normal' | 'near_limit' | 'limit_reached' | 'disabled';
+  copilotEnabled?: boolean;
+  copilotRequestsUsed?: number;
+  copilotTokensIn?: number;
+  copilotTokensOut?: number;
+  copilotMonthlyLimit?: number | null;
+  copilotPercentage?: number;
 }
 
 export interface PlatformAiUsageOverview {
@@ -29,6 +35,9 @@ export interface PlatformAiUsageOverview {
   platformAverageTokensPerReply: number;
   workspacesWithAi: number;
   workspacesNearOrAtLimit: number;
+  platformTotalCopilotRequests?: number;
+  platformTotalCopilotTokensIn?: number;
+  platformTotalCopilotTokensOut?: number;
   workspaceBreakdown: WorkspaceAiUsageItem[];
 }
 
@@ -45,7 +54,7 @@ export async function getPlatformAiSettingsAction(): Promise<{
 
   const { data, error } = await adminClient
     .from('platform_ai_settings')
-    .select('provider, base_url, model, api_key, is_enabled, updated_at')
+    .select('*')
     .eq('id', true)
     .maybeSingle();
 
@@ -63,6 +72,7 @@ export async function getPlatformAiSettingsAction(): Promise<{
       base_url: data?.base_url || null,
       model: data?.model || null,
       is_enabled: Boolean(data?.is_enabled),
+      copilot_enabled: data?.copilot_enabled !== false,
       has_key: Boolean(rawKey),
       key_last4: keyLast4,
       updated_at: data?.updated_at || new Date().toISOString(),
@@ -80,6 +90,7 @@ export async function savePlatformAiSettingsAction(input: {
   model?: string | null;
   api_key?: string | null;
   is_enabled: boolean;
+  copilot_enabled?: boolean;
 }): Promise<{
   success: boolean;
   settings?: PlatformAiSettingsDTO;
@@ -104,6 +115,7 @@ export async function savePlatformAiSettingsAction(input: {
       model: input.model?.trim() || null,
       api_key: finalApiKey,
       is_enabled: Boolean(input.is_enabled),
+      ...(input.copilot_enabled !== undefined ? { copilot_enabled: Boolean(input.copilot_enabled) } : {}),
       updated_at: new Date().toISOString(),
       updated_by: user.id,
     };
@@ -136,6 +148,7 @@ export async function savePlatformAiSettingsAction(input: {
         base_url: updated.base_url,
         model: updated.model,
         is_enabled: updated.is_enabled,
+        copilot_enabled: updated.copilot_enabled !== false,
         has_key: Boolean(finalApiKey),
         key_last4: keyLast4,
         updated_at: updated.updated_at,
@@ -218,7 +231,7 @@ export async function getPlatformAiUsageAction(): Promise<{
   const [{ data: workspaces }, { data: plans }, { data: subscriptions }, { data: usageRows }] =
     await Promise.all([
       adminClient.from('workspaces').select('id, name, is_suspended').order('name', { ascending: true }),
-      adminClient.from('platform_plans').select('id, slug, name, ai_enabled, ai_monthly_reply_limit'),
+      adminClient.from('platform_plans').select('id, slug, name, ai_enabled, ai_monthly_reply_limit, copilot_enabled, copilot_monthly_limit, max_copilot_requests_per_month'),
       adminClient.from('workspace_subscriptions').select('workspace_id, plan_id, status'),
       adminClient.from('workspace_ai_usage').select('*').eq('period_start', periodStart),
     ]);
@@ -232,6 +245,9 @@ export async function getPlatformAiUsageAction(): Promise<{
   let platformTotalTokensOut = 0;
   let workspacesWithAi = 0;
   let workspacesNearOrAtLimit = 0;
+  let platformTotalCopilotRequests = 0;
+  let platformTotalCopilotTokensIn = 0;
+  let platformTotalCopilotTokensOut = 0;
 
   const workspaceBreakdown: WorkspaceAiUsageItem[] = (workspaces || []).map((ws) => {
     const sub = subMap.get(ws.id);
@@ -241,6 +257,18 @@ export async function getPlatformAiUsageAction(): Promise<{
     const repliesUsed = usage?.replies_used || 0;
     const tokensIn = usage?.tokens_in || 0;
     const tokensOut = usage?.tokens_out || 0;
+    const copilotRequestsUsed = usage?.copilot_requests_used || 0;
+    const copilotTokensIn = usage?.copilot_tokens_in || 0;
+    const copilotTokensOut = usage?.copilot_tokens_out || 0;
+    platformTotalCopilotRequests += copilotRequestsUsed;
+    platformTotalCopilotTokensIn += copilotTokensIn;
+    platformTotalCopilotTokensOut += copilotTokensOut;
+    const copilotEnabled = plan?.copilot_enabled ?? true;
+    const copilotMonthlyLimit = plan?.copilot_monthly_limit ?? plan?.max_copilot_requests_per_month ?? null;
+    const copilotPercentage =
+      copilotMonthlyLimit !== null && copilotMonthlyLimit > 0
+        ? Math.min(100, Math.round((copilotRequestsUsed / copilotMonthlyLimit) * 100))
+        : 0;
     const totalTokens = tokensIn + tokensOut;
     const avgTokensPerReply = repliesUsed > 0 ? Math.round(totalTokens / repliesUsed) : 0;
 
@@ -282,6 +310,12 @@ export async function getPlatformAiUsageAction(): Promise<{
       monthlyLimit,
       percentage,
       status,
+      copilotEnabled,
+      copilotRequestsUsed,
+      copilotTokensIn,
+      copilotTokensOut,
+      copilotMonthlyLimit,
+      copilotPercentage,
     };
   });
 
@@ -300,6 +334,9 @@ export async function getPlatformAiUsageAction(): Promise<{
       platformAverageTokensPerReply,
       workspacesWithAi,
       workspacesNearOrAtLimit,
+      platformTotalCopilotRequests,
+      platformTotalCopilotTokensIn,
+      platformTotalCopilotTokensOut,
       workspaceBreakdown,
     },
   };

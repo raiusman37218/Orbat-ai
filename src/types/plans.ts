@@ -25,6 +25,7 @@ export interface PlatformPlan {
   max_agents: number | null;
   max_tickets_per_month: number | null;
   max_ai_bot_replies_per_month: number | null;
+  max_copilot_requests_per_month?: number | null;
   max_channels_connected: number | null;
   max_articles: number | null;
   max_automations: number | null;
@@ -33,6 +34,8 @@ export interface PlatformPlan {
 
   ai_enabled: boolean;
   ai_monthly_reply_limit: number | null;
+  copilot_enabled?: boolean;
+  copilot_monthly_limit?: number | null;
 
   features: Record<PlanFeatureKey, boolean>;
 
@@ -50,6 +53,7 @@ export interface PlatformPlanVersion {
   max_agents: number | null;
   max_tickets_per_month: number | null;
   max_ai_bot_replies_per_month: number | null;
+  max_copilot_requests_per_month?: number | null;
   max_channels_connected: number | null;
   max_articles: number | null;
   max_automations: number | null;
@@ -57,6 +61,8 @@ export interface PlatformPlanVersion {
   max_api_requests_per_month: number | null;
   ai_enabled: boolean;
   ai_monthly_reply_limit: number | null;
+  copilot_enabled?: boolean;
+  copilot_monthly_limit?: number | null;
   features: Record<PlanFeatureKey, boolean>;
   created_at: string;
 }
@@ -68,6 +74,9 @@ export interface WorkspaceAiUsage {
   replies_used: number;
   tokens_in: number;
   tokens_out: number;
+  copilot_requests_used?: number;
+  copilot_tokens_in?: number;
+  copilot_tokens_out?: number;
   created_at: string;
   updated_at: string;
 }
