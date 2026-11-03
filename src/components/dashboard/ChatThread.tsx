@@ -254,6 +254,23 @@ export function ChatThread({
   const [inlineRewriting, setInlineRewriting] = useState(false);
   const [showInlineRewriteMenu, setShowInlineRewriteMenu] = useState(false);
   const [copilotErrorToast, setCopilotErrorToast] = useState<string | null>(null);
+
+  const handleToggleCopilot = () => {
+    setIsCopilotOpen((prev) => {
+      const next = !prev;
+      if (next && isDetailsSidebarOpen && typeof window !== 'undefined' && window.innerWidth < 1440) {
+        onToggleDetailsSidebar?.();
+      }
+      return next;
+    });
+  };
+
+  const handleToggleDetails = () => {
+    if (!isDetailsSidebarOpen && isCopilotOpen && typeof window !== 'undefined' && window.innerWidth < 1440) {
+      setIsCopilotOpen(false);
+    }
+    onToggleDetailsSidebar?.();
+  };
   const [collisionAgents, setCollisionAgents] = useState<
     { id: string; name: string; avatar_url?: string }[]
   >([]);
@@ -2638,7 +2655,7 @@ export function ChatThread({
           {/* Copilot Panel Toggle */}
           <button
             type="button"
-            onClick={() => setIsCopilotOpen((prev) => !prev)}
+            onClick={handleToggleCopilot}
             title={isCopilotOpen ? "Hide AI Copilot" : "Open AI Copilot"}
             aria-label={isCopilotOpen ? "Hide AI Copilot" : "Open AI Copilot"}
             aria-pressed={isCopilotOpen}
@@ -2650,13 +2667,13 @@ export function ChatThread({
             )}
           >
             <Sparkles className="w-3.5 h-3.5 text-accent" />
-            <span className="hidden sm:inline">Copilot</span>
+            <span className="hidden md:inline">Copilot</span>
           </button>
 
           {/* Details Sidebar Toggle */}
           <button
             type="button"
-            onClick={onToggleDetailsSidebar}
+            onClick={handleToggleDetails}
             title={isDetailsSidebarOpen ? "Hide customer details" : "Show customer details"}
             aria-label={isDetailsSidebarOpen ? "Hide customer details" : "Show customer details"}
             aria-pressed={!!isDetailsSidebarOpen}
@@ -2745,7 +2762,11 @@ export function ChatThread({
         </div>
       )}
 
-      {/* ── Messages ── */}
+      {/* ── Thread Body (Chat Column + Docked Copilot Sidecar) ── */}
+      <div className="flex-1 min-h-0 flex flex-row overflow-hidden relative">
+        {/* Main Conversation Column */}
+        <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
+          {/* ── Messages ── */}
       <div className="relative flex-1 min-h-0 flex flex-col">
         <div
           ref={messagesContainerRef}
@@ -3446,7 +3467,7 @@ export function ChatThread({
           {/* Composer Footer Action Bar */}
           <div className="@container px-3 py-2 bg-surface-2/40 border-t border-line/40 flex items-center justify-between text-2xs text-ink-3 rounded-b-2xl min-h-[42px] gap-2">
             {/* Left Action Tools */}
-            <div className="flex items-center gap-1 min-w-0 flex-nowrap">
+            <div className="flex items-center gap-1 min-w-0 flex-1 overflow-x-auto no-scrollbar py-0.5">
               {/* Attachment Buttons */}
               <button
                 type="button"
@@ -3497,7 +3518,7 @@ export function ChatThread({
                 title="Saved canned responses (/)"
               >
                 <Zap className="w-3.5 h-3.5 text-warn shrink-0" />
-                <span className="hidden @min-[520px]:inline">Replies</span>
+                <span className="hidden @min-[600px]:inline">Replies</span>
               </button>
 
               {/* AI Copilot */}
@@ -3509,7 +3530,7 @@ export function ChatThread({
                 title="Ask AI Copilot to draft a response"
               >
                 <Sparkles className={cn('w-3.5 h-3.5 shrink-0', aiDrafting && 'animate-spin')} />
-        <span className="hidden @min-[520px]:inline">{aiDrafting ? 'Drafting…' : 'Suggest reply'}</span>
+        <span className="hidden @min-[660px]:inline">{aiDrafting ? 'Drafting…' : 'Suggest'}</span>
               </button>
 
               {/* Composer Rewrite Menu */}
@@ -3527,7 +3548,7 @@ export function ChatThread({
                   title="Rewrite or translate composer draft with AI Copilot"
                 >
                   <Wand2 className={cn('w-3.5 h-3.5 text-accent shrink-0', inlineRewriting && 'animate-spin')} />
-                  <span className="hidden @min-[520px]:inline">{inlineRewriting ? 'Rewriting…' : 'Rewrite'}</span>
+                  <span className="hidden @min-[720px]:inline">{inlineRewriting ? 'Rewriting…' : 'Rewrite'}</span>
                 </button>
                 {showInlineRewriteMenu && (
                   <div className="absolute left-0 bottom-full mb-2 z-50 w-52 bg-surface rounded-xl border border-line shadow-lg p-1.5 space-y-0.5 animate-pop">
@@ -3702,7 +3723,7 @@ export function ChatThread({
             </div>
 
             {/* Right Action Tools: Shortcut Hint & Send Button */}
-            <div className="flex items-center gap-2 shrink-0">
+            <div className="flex items-center gap-2 shrink-0 ml-auto">
               <button
                 type="button"
                 onClick={() => {
@@ -3714,7 +3735,7 @@ export function ChatThread({
                     return next;
                   });
                 }}
-                className="hidden @min-[640px]:inline-flex items-center gap-1 text-2xs text-ink-3 hover:text-ink transition-colors cursor-pointer group"
+                className="hidden @min-[800px]:inline-flex items-center gap-1 text-2xs text-ink-3 hover:text-ink transition-colors cursor-pointer group"
                 title={
                   sendOnEnter
                     ? "Pressing Enter sends. Click to switch to Ctrl+Enter."
@@ -3780,6 +3801,38 @@ export function ChatThread({
             </div>
           </div>
         </div>
+      </div>
+
+        </div>
+
+        {/* ── AI Copilot Panel (Docked sidecar on desktop, mobile slide-over drawer on small screens) ── */}
+        {isCopilotOpen && (workspace || conversation.workspace_id) && (
+          <div className="fixed inset-0 z-50 md:static md:z-auto md:flex md:h-full shrink-0">
+            <div
+              className="fixed inset-0 bg-overlay/40 md:hidden animate-fade"
+              onClick={() => setIsCopilotOpen(false)}
+            />
+            <div className="relative z-10 flex h-full shadow-2xl md:shadow-none w-full sm:w-[340px] 2xl:w-[370px] bg-surface ml-auto">
+              <CopilotPanel
+                conversation={conversation}
+                messages={messages}
+                workspace={workspace || ({ id: conversation.workspace_id, name: 'Workspace' } as Workspace)}
+                composerText={inputText}
+                onUseDraft={(text: string, eventId: string | null) => {
+                  setInputText(text);
+                  setActiveCopilotDraft({ eventId, originalText: text });
+                  textareaRef.current?.focus();
+                }}
+                onAcceptRewrite={(text: string) => {
+                  setInputText(text);
+                  textareaRef.current?.focus();
+                }}
+                onClose={() => setIsCopilotOpen(false)}
+                onOpenMissingKnowledge={onOpenMissingKnowledge}
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Snooze Modal ── */}
@@ -4055,35 +4108,6 @@ export function ChatThread({
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ink text-surface shadow-xl text-xs font-medium border border-line animate-in fade-in slide-in-from-bottom-2">
           <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
           <span>{saveAnswerSuccessToast}</span>
-        </div>
-      )}
-
-      {/* ── AI Copilot Panel (Non-intrusive docked panel / mobile drawer) ── */}
-      {isCopilotOpen && (workspace || conversation.workspace_id) && (
-        <div className="fixed inset-0 z-50 md:absolute md:inset-y-0 md:top-[49px] md:left-auto md:right-0 md:z-30 flex justify-end">
-          <div
-            className="fixed inset-0 bg-overlay/40 md:hidden animate-fade"
-            onClick={() => setIsCopilotOpen(false)}
-          />
-          <div className="relative z-10 flex h-full shadow-lg">
-            <CopilotPanel
-              conversation={conversation}
-              messages={messages}
-              workspace={workspace || ({ id: conversation.workspace_id, name: 'Workspace' } as Workspace)}
-              composerText={inputText}
-              onUseDraft={(text: string, eventId: string | null) => {
-                setInputText(text);
-                setActiveCopilotDraft({ eventId, originalText: text });
-                textareaRef.current?.focus();
-              }}
-              onAcceptRewrite={(text: string) => {
-                setInputText(text);
-                textareaRef.current?.focus();
-              }}
-              onClose={() => setIsCopilotOpen(false)}
-              onOpenMissingKnowledge={onOpenMissingKnowledge}
-            />
-          </div>
         </div>
       )}
 

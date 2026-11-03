@@ -473,7 +473,7 @@ export function CopilotPanel({
   return (
     <aside
       aria-label="AI Copilot"
-      className="flex w-full sm:w-[340px] 2xl:w-[370px] shrink-0 h-full border-l border-line bg-surface flex-col overflow-hidden relative z-20"
+      className="flex w-full h-full border-l border-line bg-surface flex-col overflow-hidden relative z-20"
     >
       {/* ── Panel Header ── */}
       <div className="shrink-0 px-4 py-3 border-b border-line flex items-center justify-between gap-2 bg-surface">
