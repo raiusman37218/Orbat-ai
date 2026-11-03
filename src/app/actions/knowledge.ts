@@ -176,6 +176,12 @@ export interface WorkspaceAiPlanAndUsage {
   percentage: number;
   percentUsed: number;
   periodStart: string;
+  copilotEnabled?: boolean;
+  copilotRequestsUsed?: number;
+  copilotMonthlyLimit?: number | null;
+  isCopilotLimitReached?: boolean;
+  copilotPercentage?: number;
+  platformCopilotEnabled?: boolean;
 }
 
 /**
@@ -196,12 +202,34 @@ export async function getWorkspaceAiPlanAndUsageAction(
   const adminClient = serviceClient();
   const { data: usageRow } = await adminClient
     .from('workspace_ai_usage')
-    .select('replies_used')
+    .select('replies_used, copilot_requests_used')
     .eq('workspace_id', workspaceId)
     .eq('period_start', periodStart)
     .maybeSingle();
 
   const repliesUsed = usageRow?.replies_used ?? 0;
+  const copilotRequestsUsed = (usageRow as any)?.copilot_requests_used ?? 0;
+  const { data: platformSettings } = await adminClient
+    .from('platform_ai_settings')
+    .select('copilot_enabled')
+    .eq('id', true)
+    .maybeSingle();
+  const platformCopilotEnabled = platformSettings?.copilot_enabled !== false;
+  const copilotEnabled =
+    platformCopilotEnabled &&
+    Boolean(effective?.effectiveFeatures?.copilot ?? effective?.plan?.copilot_enabled ?? true);
+  const copilotMonthlyLimit =
+    effective?.effectiveLimits?.max_copilot_requests_per_month !== undefined
+      ? effective.effectiveLimits.max_copilot_requests_per_month
+      : effective?.plan?.copilot_monthly_limit ??
+        effective?.plan?.max_copilot_requests_per_month ??
+        null;
+  const isCopilotLimitReached =
+    copilotMonthlyLimit !== null && copilotRequestsUsed >= copilotMonthlyLimit;
+  const copilotPercentage =
+    copilotMonthlyLimit !== null && copilotMonthlyLimit > 0
+      ? Math.min(100, Math.round((copilotRequestsUsed / copilotMonthlyLimit) * 100))
+      : 0;
   const aiEnabled = effective?.plan?.ai_enabled ?? true;
   const monthlyLimit = effective?.plan?.ai_monthly_reply_limit ?? null;
   const isLimitReached = monthlyLimit !== null && repliesUsed >= monthlyLimit;
@@ -219,5 +247,11 @@ export async function getWorkspaceAiPlanAndUsageAction(
     percentage,
     percentUsed: percentage,
     periodStart,
+    copilotEnabled,
+    copilotRequestsUsed,
+    copilotMonthlyLimit,
+    isCopilotLimitReached,
+    copilotPercentage,
+    platformCopilotEnabled,
   };
 }

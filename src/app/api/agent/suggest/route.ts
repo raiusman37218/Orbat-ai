@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardConversation } from '@/lib/team/route-guard';
-import { generateLangGraphDraft } from '@/lib/agent/langgraph';
-import { serviceClient } from '@/lib/supabase/service';
+import { generateCopilotSuggestedReply } from '@/lib/ai/copilot/service';
+import { CopilotReplyLanguage } from '@/lib/ai/copilot/prompts';
 
 export async function POST(req: NextRequest) {
   try {
@@ -9,10 +9,7 @@ export async function POST(req: NextRequest) {
     const {
       conversation_id,
       workspace_id,
-      incoming_message,
-      visitor,
-      channel = 'web',
-      recent_messages,
+      language = 'auto',
     } = body;
 
     if (!conversation_id || !workspace_id) {
@@ -21,38 +18,39 @@ export async function POST(req: NextRequest) {
 
     const guard = await guardConversation(conversation_id, 'reply');
     if (!guard.ok) return guard.response;
-    if (guard.workspaceId !== workspace_id) return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    if (guard.workspaceId !== workspace_id) {
+      return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+    }
 
-    const supabase = serviceClient();
-
-    // Fetch recent thread: up to last 15 messages (including agent replies and internal notes)
-    const { data: dbMessages } = await supabase
-      .from('messages')
-      .select('id, sender_type, content, is_internal, created_at')
-      .eq('conversation_id', conversation_id)
-      .order('created_at', { ascending: false })
-      .limit(15);
-
-    const threadMessages =
-      dbMessages && dbMessages.length > 0
-        ? [...dbMessages].reverse()
-        : (recent_messages || []);
-
-    const draft = await generateLangGraphDraft({
-      conversationId: conversation_id,
+    const res = await generateCopilotSuggestedReply({
       workspaceId: workspace_id,
-      incomingMessage: incoming_message || '',
-      recentMessages: threadMessages,
-      sender: {
-        name: visitor?.name || 'Customer',
-        email: visitor?.email || null,
-        channel,
-      },
+      userId: guard.access.user.id,
+      conversationId: conversation_id,
+      language: language as CopilotReplyLanguage,
     });
 
-    return NextResponse.json({ draft: draft || 'Hello! How can I help you today?' });
-  } catch (err: any) {
-    console.error('Error generating AI suggestion:', err);
-    return NextResponse.json({ draft: 'Thank you for reaching out! How can we assist you today?' });
+    if (!res.ok) {
+      return NextResponse.json(
+        {
+          error: res.error || 'Could not generate suggestion',
+          retryable: res.retryable,
+          availability: res.availability,
+        },
+        { status: res.availability && !res.availability.available ? 403 : 502 }
+      );
+    }
+
+    return NextResponse.json({
+      draft: res.draft,
+      sources: res.sources || [],
+      knowledgeFound: res.knowledgeFound,
+      noteForAgent: res.noteForAgent,
+      missingKnowledgeRecorded: res.missingKnowledgeRecorded,
+      resolvedLanguage: res.resolvedLanguage,
+      eventId: res.eventId,
+    });
+  } catch (err: unknown) {
+    console.error('[Copilot Suggest Route Error]:', err instanceof Error ? err.message : String(err));
+    return NextResponse.json({ error: 'Failed to generate AI suggestion' }, { status: 500 });
   }
 }
