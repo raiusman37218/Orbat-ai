@@ -220,3 +220,4 @@ CREATE POLICY copilot_messages_member_delete
   FOR DELETE
   TO authenticated
   USING (workspace_id IN (SELECT public.current_user_workspace_ids()));
+

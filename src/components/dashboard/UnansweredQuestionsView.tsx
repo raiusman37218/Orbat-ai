@@ -322,8 +322,8 @@ export function UnansweredQuestionsView({
               {searchQuery
                 ? 'No questions matched your search term.'
                 : activeTab === 'open'
-                ? 'All visitor inquiries have been answered or resolved. Great job!'
-                : `No questions in the ${activeTab} tab.`}
+                  ? 'All visitor inquiries have been answered or resolved. Great job!'
+                  : `No questions in the ${activeTab} tab.`}
             </p>
           </div>
         ) : (
