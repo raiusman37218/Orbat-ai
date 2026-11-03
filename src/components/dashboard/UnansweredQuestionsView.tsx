@@ -247,7 +247,7 @@ export function UnansweredQuestionsView({
                   Unanswered Questions
                 </h1>
                 <p className="text-xs text-ink-3">
-                  Questions your AI bot could not answer from knowledge. Train the bot by writing answers or linking articles.
+                  Questions your AI Bot or Agent Copilot could not answer from knowledge. Write an answer or link an article so both Copilot and the Bot can use it immediately.
                 </p>
               </div>
             </div>
@@ -358,6 +358,14 @@ export function UnansweredQuestionsView({
                         )}
                       >
                         {item.status.replace('_', ' ')}
+                      </span>
+                      <span
+                        className={cn(
+                          item.reason !== 'copilot_missing_knowledge' && 'hidden',
+                          'px-2 py-0.5 rounded-full text-2xs font-semibold bg-accent-soft text-accent border border-accent-line'
+                        )}
+                      >
+                        Agent Copilot
                       </span>
                     </div>
 

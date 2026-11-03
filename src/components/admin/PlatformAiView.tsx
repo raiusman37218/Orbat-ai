@@ -50,6 +50,7 @@ export function PlatformAiView() {
   const [model, setModel] = useState('');
   const [apiKeyInput, setApiKeyInput] = useState('');
   const [isEnabled, setIsEnabled] = useState(false);
+  const [copilotEnabled, setCopilotEnabled] = useState(true);
 
   // Connection Test Result
   const [testResult, setTestResult] = useState<{
@@ -63,6 +64,8 @@ export function PlatformAiView() {
   const [editingPlan, setEditingPlan] = useState<PlatformPlan | null>(null);
   const [planAiEnabled, setPlanAiEnabled] = useState(true);
   const [planReplyLimit, setPlanReplyLimit] = useState<string>('');
+  const [planCopilotEnabled, setPlanCopilotEnabled] = useState(true);
+  const [planCopilotLimit, setPlanCopilotLimit] = useState<string>('');
   const [savingPlan, setSavingPlan] = useState(false);
 
   // Usage Overview State
@@ -86,6 +89,7 @@ export function PlatformAiView() {
         setBaseUrl(settingsRes.settings.base_url || '');
         setModel(settingsRes.settings.model || '');
         setIsEnabled(settingsRes.settings.is_enabled);
+        setCopilotEnabled(settingsRes.settings.copilot_enabled !== false);
         setApiKeyInput(''); // Write-only: blank on load
       }
 
@@ -121,6 +125,8 @@ export function PlatformAiView() {
           setBaseUrl(settingsRes.settings.base_url || '');
           setModel(settingsRes.settings.model || '');
           setIsEnabled(settingsRes.settings.is_enabled);
+          setCopilotEnabled(settingsRes.settings.copilot_enabled !== false);
+        setCopilotEnabled(settingsRes.settings.copilot_enabled !== false);
           setApiKeyInput('');
         }
 
@@ -157,6 +163,7 @@ export function PlatformAiView() {
         model: model || null,
         api_key: apiKeyInput ? apiKeyInput.trim() : null,
         is_enabled: isEnabled,
+        copilot_enabled: copilotEnabled,
       });
 
       if (res.success && res.settings) {
@@ -204,6 +211,9 @@ export function PlatformAiView() {
   const handleOpenPlanEdit = (plan: PlatformPlan) => {
     setEditingPlan(plan);
     setPlanAiEnabled(plan.ai_enabled ?? true);
+    setPlanCopilotEnabled(plan.copilot_enabled ?? plan.features?.copilot ?? true);
+    const copLimit = plan.copilot_monthly_limit ?? plan.max_copilot_requests_per_month;
+    setPlanCopilotLimit(copLimit !== null && copLimit !== undefined ? String(copLimit) : '');
     setPlanReplyLimit(plan.ai_monthly_reply_limit !== null && plan.ai_monthly_reply_limit !== undefined ? String(plan.ai_monthly_reply_limit) : '');
   };
 
@@ -213,6 +223,12 @@ export function PlatformAiView() {
 
     try {
       const parsedLimit = planReplyLimit.trim() === '' ? null : Number(planReplyLimit);
+      const parsedCopilotLimit = planCopilotLimit.trim() === '' ? null : Number(planCopilotLimit);
+      if (parsedCopilotLimit !== null && (isNaN(parsedCopilotLimit) || parsedCopilotLimit < 0)) {
+        toast.error('Monthly Copilot limit must be a positive integer or empty for unlimited.');
+        setSavingPlan(false);
+        return;
+      }
       if (parsedLimit !== null && (isNaN(parsedLimit) || parsedLimit < 0)) {
         toast.error('Monthly reply limit must be a positive integer or empty for unlimited.');
         setSavingPlan(false);
@@ -224,6 +240,13 @@ export function PlatformAiView() {
         ai_enabled: planAiEnabled,
         ai_monthly_reply_limit: parsedLimit,
         max_ai_bot_replies_per_month: parsedLimit,
+        copilot_enabled: planCopilotEnabled,
+        copilot_monthly_limit: parsedCopilotLimit,
+        max_copilot_requests_per_month: parsedCopilotLimit,
+        features: {
+          ...editingPlan.features,
+          copilot: planCopilotEnabled,
+        },
       });
 
       if (res.success) {
@@ -324,7 +347,20 @@ export function PlatformAiView() {
             </p>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <span className="text-xs font-semibold text-ink">Enable Agent Copilot</span>
+              <input
+                type="checkbox"
+                checked={copilotEnabled}
+                onChange={(e) => setCopilotEnabled(e.target.checked)}
+                className="rounded border-line text-accent focus:ring-accent w-4 h-4 cursor-pointer"
+              />
+            </label>
+            <Badge tone={copilotEnabled ? 'accent' : 'neutral'} className="text-2xs">
+              {copilotEnabled ? 'Copilot On' : 'Copilot Off'}
+            </Badge>
+            <span className="w-px h-4 bg-line hidden sm:inline-block" />
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <span className="text-xs font-semibold text-ink">Enable Platform AI</span>
               <input
@@ -520,6 +556,16 @@ export function PlatformAiView() {
 
                   <div className="mt-3 pt-3 border-t border-line space-y-1.5">
                     <div className="text-2xs text-ink-3 flex items-center justify-between">
+                      <span>Monthly Copilot Limit:</span>
+                      <strong className="text-ink font-semibold">
+                        {(p.copilot_enabled ?? p.features?.copilot ?? true) === false
+                          ? 'Disabled'
+                          : (p.copilot_monthly_limit ?? p.max_copilot_requests_per_month ?? null) === null
+                          ? 'Unlimited'
+                          : `${(p.copilot_monthly_limit ?? p.max_copilot_requests_per_month ?? 0).toLocaleString()} reqs`}
+                      </strong>
+                    </div>
+                    <div className="text-2xs text-ink-3 flex items-center justify-between">
                       <span>Monthly Reply Limit:</span>
                       <strong className="text-ink font-semibold">
                         {replyLimit === null ? 'Unlimited' : `${replyLimit.toLocaleString()} replies`}
@@ -626,6 +672,7 @@ export function PlatformAiView() {
                 <th className="px-4 py-3">Workspace</th>
                 <th className="px-4 py-3">Plan</th>
                 <th className="px-4 py-3">Replies Used / Limit</th>
+                <th className="px-4 py-3">Copilot Used / Limit</th>
                 <th className="px-4 py-3">Avg / Total Tokens</th>
                 <th className="px-4 py-3">Utilization</th>
                 <th className="px-4 py-3 text-right">Status</th>
@@ -649,6 +696,15 @@ export function PlatformAiView() {
                     </td>
                     <td className="px-4 py-3 font-mono">
                       {row.repliesUsed.toLocaleString()} / {row.monthlyLimit === null ? '∞' : row.monthlyLimit.toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 font-mono text-ink-2">
+                      {(row.copilotRequestsUsed ?? 0).toLocaleString()} /{' '}
+                      {row.copilotMonthlyLimit === null || row.copilotMonthlyLimit === undefined
+                        ? '∞'
+                        : row.copilotMonthlyLimit.toLocaleString()}
+                      <span className="block text-2xs text-ink-3">
+                        {((row.copilotTokensIn ?? 0) + (row.copilotTokensOut ?? 0)).toLocaleString()} tokens
+                      </span>
                     </td>
                     <td className="px-4 py-3 font-mono text-ink-2">
                       <div className="flex flex-col">
@@ -735,6 +791,35 @@ export function PlatformAiView() {
                   onChange={(e) => setPlanAiEnabled(e.target.checked)}
                   className="rounded border-line text-accent focus:ring-accent w-4 h-4 cursor-pointer"
                 />
+              </div>
+
+              {/* Agent Copilot Enabled Toggle */}
+              <div className="flex items-center justify-between p-3.5 bg-surface-2 border border-line rounded-xl">
+                <div>
+                  <span className="text-xs font-semibold text-ink">Agent Copilot Access</span>
+                  <p className="text-2xs text-ink-3">Allow human support agents on this plan to use AI Copilot in the inbox.</p>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={planCopilotEnabled}
+                  onChange={(e) => setPlanCopilotEnabled(e.target.checked)}
+                  className="rounded border-line text-accent focus:ring-accent w-4 h-4 cursor-pointer"
+                />
+              </div>
+
+              {/* Monthly Copilot Limit */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-ink-2">Monthly Copilot Request Limit</label>
+                <input
+                  type="number"
+                  value={planCopilotLimit}
+                  onChange={(e) => setPlanCopilotLimit(e.target.value)}
+                  placeholder="Leave blank for Unlimited"
+                  className="input input-sm w-full font-mono text-xs"
+                />
+                <p className="text-2xs text-ink-3">
+                  Maximum Copilot actions (summaries, drafts, rewrites, questions) per month. Empty means unlimited.
+                </p>
               </div>
 
               {/* Monthly Reply Limit */}

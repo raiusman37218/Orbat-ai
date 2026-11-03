@@ -42,16 +42,25 @@ import {
   ThumbsUp,
   ThumbsDown,
   MessagesSquare,
+  Wand2,
 } from 'lucide-react';
 import { isSubAgentId, SUB_AGENT_BY_ID } from '@/lib/ai/sub-agents';
 import { isWaitingForPerson, parseHandoverNote } from '@/lib/inbox/handovers';
 import { rateBotReplyAction, saveQuickQaAnswerAction } from '@/app/actions/unanswered';
+import {
+  recordCopilotDraftDispositionAction,
+  recordCopilotFeedbackAction,
+  rewriteCopilotTextAction,
+} from '@/app/actions/copilot';
+import { CopilotPanel } from '@/components/dashboard/CopilotPanel';
 import {
   Agent,
   CannedResponse,
   Conversation,
   ConversationPriority,
   ConversationStatus,
+  CopilotRewriteMode,
+  CopilotSource,
   Message,
   Workspace,
 } from '@/types/database';
@@ -122,6 +131,7 @@ interface ChatThreadProps {
   onAskTeam?: () => void;
   /** Opens this chat's ticket in the Tickets view. */
   onOpenTicket?: (ticketId: string) => void;
+  onOpenMissingKnowledge?: () => void;
 }
 
 interface CannedItem {
@@ -197,6 +207,7 @@ export function ChatThread({
   workspace,
   onAskTeam,
   onOpenTicket,
+  onOpenMissingKnowledge,
 }: ChatThreadProps) {
   const [inputText, setInputText] = useState('');
   const composerRef = useRef<HTMLDivElement>(null);
@@ -218,7 +229,31 @@ export function ChatThread({
   const tagMenuRef = useRef<HTMLDivElement>(null);
   const [customTagInput, setCustomTagInput] = useState('');
   const [aiDrafting, setAiDrafting] = useState(false);
-  const [suggestedReplies, setSuggestedReplies] = useState<{ title: string; text: string }[]>([]);
+  const [suggestedReplies, setSuggestedReplies] = useState<
+    {
+      title: string;
+      text: string;
+      sources?: CopilotSource[];
+      knowledgeFound?: boolean;
+      eventId?: string;
+      feedback?: -1 | 1 | null;
+    }[]
+  >([]);
+  const [isCopilotOpen, setIsCopilotOpen] = useState(false);
+  const [activeCopilotDraft, setActiveCopilotDraft] = useState<{
+    eventId: string | null;
+    originalText: string;
+  } | null>(null);
+  const [inlineRewritePreview, setInlineRewritePreview] = useState<{
+    mode: CopilotRewriteMode;
+    label: string;
+    text: string;
+    eventId?: string;
+    feedback?: -1 | 1 | null;
+  } | null>(null);
+  const [inlineRewriting, setInlineRewriting] = useState(false);
+  const [showInlineRewriteMenu, setShowInlineRewriteMenu] = useState(false);
+  const [copilotErrorToast, setCopilotErrorToast] = useState<string | null>(null);
   const [collisionAgents, setCollisionAgents] = useState<
     { id: string; name: string; avatar_url?: string }[]
   >([]);
@@ -1240,6 +1275,16 @@ export function ChatThread({
         translationMetadata
       );
       setReplyTo(null);
+      if (activeCopilotDraft?.eventId && conversation.workspace_id) {
+        const disposition =
+          text.trim() === activeCopilotDraft.originalText.trim() ? 'used' : 'edited';
+        void recordCopilotDraftDispositionAction(
+          conversation.workspace_id,
+          activeCopilotDraft.eventId,
+          disposition
+        );
+        setActiveCopilotDraft(null);
+      }
       // The conversation's language is kept by the server as visitor messages
       // are translated. Writing channel_metadata from here would overwrite it
       // with this component's stale copy — including the last_human_reply_at
@@ -1314,12 +1359,59 @@ export function ChatThread({
       // into it: the agent may already be typing, and a draft must be read
       // and chosen (Use) before it can be sent.
       if (data.draft) {
-        setSuggestedReplies([{ title: 'AI draft', text: data.draft }]);
+        setSuggestedReplies([
+          {
+            title:
+              data.knowledgeFound === false
+                ? 'Clarifying / Escalation Draft (Knowledge not found)'
+                : 'AI Suggested Reply',
+            text: data.draft,
+            sources: data.sources || [],
+            knowledgeFound: data.knowledgeFound !== false,
+            eventId: data.eventId,
+            feedback: null,
+          },
+        ]);
+      } else if (data.error) {
+        setCopilotErrorToast(data.error);
+        setTimeout(() => setCopilotErrorToast(null), 5000);
       }
     } catch (err) {
       console.error('Failed to get AI draft:', err);
     } finally {
       setAiDrafting(false);
+    }
+  };
+
+  const handleInlineRewrite = async (mode: CopilotRewriteMode, label: string) => {
+    const wsId = workspace?.id || conversation.workspace_id;
+    if (!wsId || !inputText.trim() || inlineRewriting) return;
+    setShowInlineRewriteMenu(false);
+    setInlineRewriting(true);
+    try {
+      const res = await rewriteCopilotTextAction(
+        wsId,
+        inputText,
+        mode,
+        conversation.id
+      );
+      if (res.ok && res.rewritten) {
+        setInlineRewritePreview({
+          mode,
+          label,
+          text: res.rewritten,
+          eventId: res.eventId ?? undefined,
+          feedback: null,
+        });
+      } else {
+        setCopilotErrorToast(res.error || 'Could not rewrite text.');
+        setTimeout(() => setCopilotErrorToast(null), 5000);
+      }
+    } catch (err) {
+      setCopilotErrorToast(errorMessage(err, 'Could not rewrite text.'));
+      setTimeout(() => setCopilotErrorToast(null), 5000);
+    } finally {
+      setInlineRewriting(false);
     }
   };
 
@@ -2284,7 +2376,7 @@ export function ChatThread({
     : null;
 
   return (
-    <div className="@container/thread flex-1 min-w-0 h-[var(--app-vvh,100dvh)] flex flex-col bg-canvas overflow-x-hidden">
+    <div className="@container/thread flex-1 min-w-0 h-[var(--app-vvh,100dvh)] flex flex-col bg-canvas overflow-x-hidden relative">
       {/* ── Header ── */}
       <header className="shrink-0 px-3 sm:px-4 py-1.5 min-h-[48px] flex items-center justify-between gap-2 sm:gap-3 border-b border-line bg-surface max-w-full overflow-hidden">
         {/* Left: Customer Profile — Guaranteed minimum width & never squashed */}
@@ -2542,6 +2634,24 @@ export function ChatThread({
               </span>
             )}
           />
+
+          {/* Copilot Panel Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsCopilotOpen((prev) => !prev)}
+            title={isCopilotOpen ? "Hide AI Copilot" : "Open AI Copilot"}
+            aria-label={isCopilotOpen ? "Hide AI Copilot" : "Open AI Copilot"}
+            aria-pressed={isCopilotOpen}
+            className={cn(
+              "h-8 px-2 sm:px-2.5 rounded-lg border text-xs font-semibold inline-flex items-center gap-1.5 transition-all shadow-2xs shrink-0 cursor-pointer",
+              isCopilotOpen
+                ? "text-accent bg-accent-soft border-accent-line"
+                : "text-ink-3 hover:text-ink border-line/70 hover:bg-surface-3"
+            )}
+          >
+            <Sparkles className="w-3.5 h-3.5 text-accent" />
+            <span className="hidden sm:inline">Copilot</span>
+          </button>
 
           {/* Details Sidebar Toggle */}
           <button
@@ -2804,13 +2914,83 @@ export function ChatThread({
             <ul className="flex flex-col gap-2 max-h-56 overflow-y-auto">
               {suggestedReplies.map((sr, idx) => (
                 <li key={idx} className="rounded-md bg-surface border border-line p-2.5">
-                  <p className="text-2xs font-semibold text-ink-2 mb-0.5">{sr.title}</p>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <p className="text-2xs font-semibold text-ink-2">{sr.title}</p>
+                    {sr.eventId && (
+                      <div className="inline-flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!conversation.workspace_id || !sr.eventId) return;
+                            setSuggestedReplies((prev) =>
+                              prev.map((item, i) => (i === idx ? { ...item, feedback: 1 } : item))
+                            );
+                            void recordCopilotFeedbackAction(
+                              conversation.workspace_id,
+                              sr.eventId,
+                              'up'
+                            );
+                          }}
+                          className={cn(
+                            'w-6 h-6 rounded-md inline-flex items-center justify-center transition-colors cursor-pointer',
+                            sr.feedback === 1 ? 'bg-success-soft text-success' : 'text-ink-3 hover:text-ink hover:bg-surface-2'
+                          )}
+                          title="Helpful suggestion"
+                        >
+                          <ThumbsUp className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (!conversation.workspace_id || !sr.eventId) return;
+                            setSuggestedReplies((prev) =>
+                              prev.map((item, i) => (i === idx ? { ...item, feedback: -1 } : item))
+                            );
+                            void recordCopilotFeedbackAction(
+                              conversation.workspace_id,
+                              sr.eventId,
+                              'down'
+                            );
+                          }}
+                          className={cn(
+                            'w-6 h-6 rounded-md inline-flex items-center justify-center transition-colors cursor-pointer',
+                            sr.feedback === -1 ? 'bg-danger-soft text-danger' : 'text-ink-3 hover:text-ink hover:bg-surface-2'
+                          )}
+                          title="Not helpful"
+                        >
+                          <ThumbsDown className="w-3 h-3" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  {sr.knowledgeFound === false && (
+                    <p className="text-2xs text-warn mb-1.5">
+                      No matching workspace knowledge found — logged to Missing Knowledge.
+                    </p>
+                  )}
                   <p className="text-sm leading-snug text-ink line-clamp-3 whitespace-pre-wrap">{sr.text}</p>
+                  {sr.sources && sr.sources.length > 0 && (
+                    <div className="mt-1.5 flex flex-wrap gap-1">
+                      {sr.sources.map((src) => (
+                        <span
+                          key={src.id}
+                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-surface-2 border border-line text-2xs text-ink-2"
+                        >
+                          <BookOpen className="w-2.5 h-2.5 text-accent shrink-0" />
+                          <span className="truncate max-w-[160px]">{src.title}</span>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                   <div className="mt-2 flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={() => {
                         setInputText(sr.text);
+                        setActiveCopilotDraft({
+                          eventId: sr.eventId || null,
+                          originalText: sr.text,
+                        });
                         setSuggestedReplies([]);
                         if (textareaRef.current) {
                           textareaRef.current.style.height = 'auto';
@@ -2823,7 +3003,16 @@ export function ChatThread({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSuggestedReplies((prev) => prev.filter((_, i) => i !== idx))}
+                      onClick={() => {
+                        if (sr.eventId && conversation.workspace_id) {
+                          void recordCopilotDraftDispositionAction(
+                            conversation.workspace_id,
+                            sr.eventId,
+                            'discarded'
+                          );
+                        }
+                        setSuggestedReplies((prev) => prev.filter((_, i) => i !== idx));
+                      }}
                       className="btn btn-ghost btn-xs"
                     >
                       Dismiss
@@ -2832,6 +3021,127 @@ export function ChatThread({
                 </li>
               ))}
             </ul>
+          </section>
+        )}
+
+        {/* Copilot Error Toast */}
+        {copilotErrorToast && (
+          <div
+            role="alert"
+            className="mb-3 p-2.5 rounded-lg bg-danger-soft border border-danger-line flex items-center justify-between gap-2 text-xs text-danger animate-fade"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">{copilotErrorToast}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setCopilotErrorToast(null)}
+              className="text-ink-3 hover:text-ink shrink-0 cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Inline Rewrite Preview Banner */}
+        {inlineRewritePreview && (
+          <section
+            aria-label="Rewrite preview"
+            className="mb-3 p-3 rounded-lg bg-accent-soft border border-accent-line flex flex-col gap-2 animate-fade"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-1.5 text-2xs font-semibold text-accent">
+                <Wand2 className="w-3.5 h-3.5" aria-hidden="true" />
+                Rewrite preview ({inlineRewritePreview.label})
+              </span>
+              {inlineRewritePreview.eventId && (
+                <div className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!conversation.workspace_id || !inlineRewritePreview.eventId) return;
+                      setInlineRewritePreview((prev) => (prev ? { ...prev, feedback: 1 } : null));
+                      void recordCopilotFeedbackAction(
+                        conversation.workspace_id,
+                        inlineRewritePreview.eventId,
+                        'up'
+                      );
+                    }}
+                    className={cn(
+                      'w-6 h-6 rounded-md inline-flex items-center justify-center transition-colors cursor-pointer',
+                      inlineRewritePreview.feedback === 1
+                        ? 'bg-success-soft text-success'
+                        : 'text-ink-3 hover:text-ink hover:bg-surface'
+                    )}
+                    title="Helpful rewrite"
+                  >
+                    <ThumbsUp className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!conversation.workspace_id || !inlineRewritePreview.eventId) return;
+                      setInlineRewritePreview((prev) => (prev ? { ...prev, feedback: -1 } : null));
+                      void recordCopilotFeedbackAction(
+                        conversation.workspace_id,
+                        inlineRewritePreview.eventId,
+                        'down'
+                      );
+                    }}
+                    className={cn(
+                      'w-6 h-6 rounded-md inline-flex items-center justify-center transition-colors cursor-pointer',
+                      inlineRewritePreview.feedback === -1
+                        ? 'bg-danger-soft text-danger'
+                        : 'text-ink-3 hover:text-ink hover:bg-surface'
+                    )}
+                    title="Not helpful"
+                  >
+                    <ThumbsDown className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="rounded-md bg-surface border border-line p-2.5 text-sm text-ink whitespace-pre-wrap">
+              {inlineRewritePreview.text}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setInputText(inlineRewritePreview.text);
+                  if (inlineRewritePreview.eventId && conversation.workspace_id) {
+                    void recordCopilotDraftDispositionAction(
+                      conversation.workspace_id,
+                      inlineRewritePreview.eventId,
+                      'used'
+                    );
+                  }
+                  setInlineRewritePreview(null);
+                  textareaRef.current?.focus();
+                }}
+                className="btn btn-primary btn-xs"
+              >
+                <Check className="w-3 h-3" />
+                Accept &amp; replace
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (inlineRewritePreview.eventId && conversation.workspace_id) {
+                    void recordCopilotDraftDispositionAction(
+                      conversation.workspace_id,
+                      inlineRewritePreview.eventId,
+                      'discarded'
+                    );
+                  }
+                  setInlineRewritePreview(null);
+                }}
+                className="btn btn-ghost btn-xs"
+              >
+                Discard
+              </button>
+            </div>
           </section>
         )}
 
@@ -3199,8 +3509,54 @@ export function ChatThread({
                 title="Ask AI Copilot to draft a response"
               >
                 <Sparkles className={cn('w-3.5 h-3.5 shrink-0', aiDrafting && 'animate-spin')} />
-                <span className="hidden @min-[520px]:inline">{aiDrafting ? 'Drafting…' : 'AI Copilot'}</span>
+        <span className="hidden @min-[520px]:inline">{aiDrafting ? 'Drafting…' : 'Suggest reply'}</span>
               </button>
+
+              {/* Composer Rewrite Menu */}
+              <div className="relative shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setShowInlineRewriteMenu((prev) => !prev)}
+                  disabled={!inputText.trim() || inlineRewriting}
+                  className={cn(
+                    'h-7 px-2 rounded-lg text-2xs font-medium transition-colors inline-flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap',
+                    inputText.trim()
+                      ? 'text-ink-2 hover:text-ink hover:bg-surface-3'
+                      : 'text-ink-3 opacity-50 cursor-not-allowed'
+                  )}
+                  title="Rewrite or translate composer draft with AI Copilot"
+                >
+                  <Wand2 className={cn('w-3.5 h-3.5 text-accent shrink-0', inlineRewriting && 'animate-spin')} />
+                  <span className="hidden @min-[520px]:inline">{inlineRewriting ? 'Rewriting…' : 'Rewrite'}</span>
+                </button>
+                {showInlineRewriteMenu && (
+                  <div className="absolute left-0 bottom-full mb-2 z-50 w-52 bg-surface rounded-xl border border-line shadow-lg p-1.5 space-y-0.5 animate-pop">
+                    <p className="px-2 py-1 text-2xs font-semibold uppercase tracking-wider text-ink-3">
+                      Rewrite composer text
+                    </p>
+                    {(
+                      [
+                        ['shorter', 'Shorter'],
+                        ['professional', 'More professional'],
+                        ['friendly', 'Friendlier'],
+                        ['grammar', 'Fix grammar'],
+                        ['translate_en', 'Translate to English'],
+                        ['translate_ur', 'Translate to Urdu'],
+                        ['translate_roman_ur', 'Translate to Roman Urdu'],
+                      ] as [CopilotRewriteMode, string][]
+                    ).map(([mode, label]) => (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => void handleInlineRewrite(mode, label)}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg text-xs text-ink hover:bg-surface-2 transition-colors cursor-pointer"
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {/* ── Translation Controls (Unified & Sleek) ── */}
               {composerMode === 'reply' && (
@@ -3699,6 +4055,35 @@ export function ChatThread({
         <div className="fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-ink text-surface shadow-xl text-xs font-medium border border-line animate-in fade-in slide-in-from-bottom-2">
           <CheckCircle2 className="w-4 h-4 text-success shrink-0" />
           <span>{saveAnswerSuccessToast}</span>
+        </div>
+      )}
+
+      {/* ── AI Copilot Panel (Non-intrusive docked panel / mobile drawer) ── */}
+      {isCopilotOpen && (workspace || conversation.workspace_id) && (
+        <div className="fixed inset-0 z-50 md:absolute md:inset-y-0 md:top-[49px] md:left-auto md:right-0 md:z-30 flex justify-end">
+          <div
+            className="fixed inset-0 bg-overlay/40 md:hidden animate-fade"
+            onClick={() => setIsCopilotOpen(false)}
+          />
+          <div className="relative z-10 flex h-full shadow-lg">
+            <CopilotPanel
+              conversation={conversation}
+              messages={messages}
+              workspace={workspace || ({ id: conversation.workspace_id, name: 'Workspace' } as Workspace)}
+              composerText={inputText}
+              onUseDraft={(text: string, eventId: string | null) => {
+                setInputText(text);
+                setActiveCopilotDraft({ eventId, originalText: text });
+                textareaRef.current?.focus();
+              }}
+              onAcceptRewrite={(text: string) => {
+                setInputText(text);
+                textareaRef.current?.focus();
+              }}
+              onClose={() => setIsCopilotOpen(false)}
+              onOpenMissingKnowledge={onOpenMissingKnowledge}
+            />
+          </div>
         </div>
       )}
 

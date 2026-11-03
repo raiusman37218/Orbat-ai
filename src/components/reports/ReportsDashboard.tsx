@@ -28,6 +28,7 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { listUnansweredQuestionsAction, type UnansweredQuestionRecord } from '@/app/actions/unanswered';
+import { getCopilotAnalyticsReportAction, type CopilotAnalyticsReport } from '@/app/actions/copilot';
 import {
   ResponsiveContainer,
   AreaChart,
@@ -98,10 +99,14 @@ export function ReportsDashboard({
   // Top unanswered questions for Bot tab
   const [topUnanswered, setTopUnanswered] = useState<UnansweredQuestionRecord[]>([]);
   const [loadingUnanswered, setLoadingUnanswered] = useState(false);
+  const [copilotReport, setCopilotReport] = useState<CopilotAnalyticsReport | null>(null);
 
   useEffect(() => {
     if (activeTab === 'bot' && workspace?.id) {
       setLoadingUnanswered(true);
+      void getCopilotAnalyticsReportAction(workspace.id)
+        .then((rep) => setCopilotReport(rep))
+        .catch((err) => console.warn('Failed to load copilot report:', err));
       listUnansweredQuestionsAction(workspace.id, 'open')
         .then((res) => setTopUnanswered(res.slice(0, 5)))
         .catch((err) => console.warn('Failed to load top unanswered:', err))
@@ -1071,6 +1076,82 @@ export function ReportsDashboard({
                         </div>
                       </div>
                     )}
+                  </div>
+
+                  {/* Agent Copilot Performance & Usage */}
+                  <div className="card p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-accent" />
+                          Agent Copilot Usage &amp; Draft Acceptance
+                        </h2>
+                        <p className="text-xs text-ink-3">
+                          Last 30 days of human agent Copilot actions, draft acceptance rate, and agent feedback.
+                        </p>
+                      </div>
+                      <span className="text-2xs text-ink-3 font-mono font-semibold uppercase">Agent Copilot</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                      <div className="p-4 rounded-xl bg-surface-2 border border-line/60">
+                        <span className="text-2xs uppercase tracking-wider font-semibold text-ink-3">Total Copilot Requests</span>
+                        <div className="text-3xl font-bold text-ink mt-1 tabular-nums">
+                          {(copilotReport?.totalRequests ?? 0).toLocaleString()}
+                        </div>
+                        <p className="text-2xs text-ink-2 mt-1">
+                          {((copilotReport?.totalTokensIn ?? 0) + (copilotReport?.totalTokensOut ?? 0)).toLocaleString()} total tokens · {copilotReport?.avgLatencyMs ?? 0}ms avg
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-surface-2 border border-line/60">
+                        <span className="text-2xs uppercase tracking-wider font-semibold text-ink-3">Draft Acceptance Rate</span>
+                        <div className="text-3xl font-bold text-success mt-1 tabular-nums">
+                          {copilotReport?.draftAcceptanceRatePercent !== null && copilotReport?.draftAcceptanceRatePercent !== undefined
+                            ? `${copilotReport.draftAcceptanceRatePercent}%`
+                            : '—'}
+                        </div>
+                        <p className="text-2xs text-ink-2 mt-1">
+                          {copilotReport?.draftsUsed ?? 0} used · {copilotReport?.draftsEdited ?? 0} edited · {copilotReport?.draftsDiscarded ?? 0} discarded
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-surface-2 border border-line/60">
+                        <span className="text-2xs uppercase tracking-wider font-semibold text-ink-3">Positive Feedback</span>
+                        <div className="text-3xl font-bold text-accent mt-1 tabular-nums">
+                          {copilotReport?.positiveFeedbackPercent !== null && copilotReport?.positiveFeedbackPercent !== undefined
+                            ? `${copilotReport.positiveFeedbackPercent}%`
+                            : '—'}
+                        </div>
+                        <p className="text-2xs text-ink-2 mt-1">
+                          {copilotReport?.thumbsUp ?? 0} thumbs up · {copilotReport?.thumbsDown ?? 0} thumbs down
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-surface-2 border border-line/60">
+                        <span className="text-2xs uppercase tracking-wider font-semibold text-ink-3">Actions Breakdown</span>
+                        <div className="mt-1.5 space-y-1 text-2xs text-ink-2">
+                          <div className="flex justify-between">
+                            <span>Suggested replies</span>
+                            <strong className="text-ink tabular-nums">{copilotReport?.byAction.suggest_reply ?? 0}</strong>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Summaries</span>
+                            <strong className="text-ink tabular-nums">{copilotReport?.byAction.summary ?? 0}</strong>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Ask Copilot</span>
+                            <strong className="text-ink tabular-nums">{copilotReport?.byAction.ask ?? 0}</strong>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Rewrites &amp; Next steps</span>
+                            <strong className="text-ink tabular-nums">
+                              {(copilotReport?.byAction.rewrite ?? 0) + (copilotReport?.byAction.next_steps ?? 0)}
+                            </strong>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
 
                   {/* Top unanswered questions */}

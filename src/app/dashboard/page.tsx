@@ -1951,6 +1951,7 @@ export default function DashboardPage() {
                 onBack={handleMobileBack}
                 isDetailsSidebarOpen={isDetailsSidebarOpen}
                 onToggleDetailsSidebar={() => setIsDetailsSidebarOpen((prev) => !prev)}
+                onOpenMissingKnowledge={() => setActiveView('unanswered')}
                 onMerged={async () => {
                   await refreshConversations();
                   if (selectedConversationId) {

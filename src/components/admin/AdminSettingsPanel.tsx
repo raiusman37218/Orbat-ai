@@ -795,6 +795,7 @@ export function AdminSettingsPanel({
     auto_response_enabled: true,
     auto_response_delay_seconds: 20,
     auto_pilot: false,
+    copilot_enabled: true,
     suggested_replies_enabled: true,
     auto_tagging_enabled: true,
     summary_enabled: true,
@@ -837,6 +838,7 @@ export function AdminSettingsPanel({
       auto_response_enabled: true,
       auto_response_delay_seconds: 20,
       auto_pilot: false,
+    copilot_enabled: true,
       suggested_replies_enabled: true,
       auto_tagging_enabled: true,
       summary_enabled: true,
@@ -3036,6 +3038,38 @@ export function AdminSettingsPanel({
               </div>
 
               {/* Agent Copilot Enhancements */}
+              <div className="p-4 rounded-xl border border-line bg-surface flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center shrink-0">
+                    <Sparkles className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-ui font-semibold text-ink">Agent Copilot</h4>
+                    <p className="text-xs text-ink-3">
+                      {aiPlanUsage && aiPlanUsage.copilotEnabled === false
+                        ? 'Agent Copilot is disabled on your current plan or by platform administration.'
+                        : 'Assists human support agents in the inbox with summaries, knowledge-grounded reply drafts, private Q&A, rewrites, and next steps.'}
+                    </p>
+                  </div>
+                </div>
+                {(!aiPlanUsage || aiPlanUsage.copilotEnabled !== false) ? (
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={aiSettings.copilot_enabled !== false}
+                      onChange={(e) =>
+                        setAiSettings({ ...aiSettings, copilot_enabled: e.target.checked })
+                      }
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-surface-3 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-line-2 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-accent"></div>
+                  </label>
+                ) : (
+                  <span className="px-2 py-0.5 rounded bg-surface-2 border border-line text-2xs font-semibold text-ink-3 shrink-0">
+                    Plan locked
+                  </span>
+                )}
+              </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-1">
                 {/* Suggested Replies */}
                 <div className="p-4 rounded-xl border border-line bg-surface space-y-2">
@@ -3211,6 +3245,44 @@ export function AdminSettingsPanel({
                                   : `${Math.max(0, aiPlanUsage.monthlyLimit - aiPlanUsage.repliesUsed).toLocaleString()} replies remaining this month`}
                               </span>
                               <span>Period resets monthly</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Monthly Agent Copilot Requests Usage */}
+                        <div className="space-y-2 pt-3 border-t border-line">
+                          <div className="flex items-center justify-between text-xs">
+                            <span className="font-medium text-ink">Monthly Agent Copilot requests</span>
+                            <span className="text-ink-2 font-mono">
+                              {(aiPlanUsage.copilotRequestsUsed ?? 0).toLocaleString()} /{' '}
+                              {aiPlanUsage.copilotMonthlyLimit === null || aiPlanUsage.copilotMonthlyLimit === undefined
+                                ? '∞ Unlimited'
+                                : aiPlanUsage.copilotMonthlyLimit.toLocaleString()}
+                            </span>
+                          </div>
+                          {aiPlanUsage.copilotMonthlyLimit !== null && aiPlanUsage.copilotMonthlyLimit !== undefined ? (
+                            <div className="w-full h-2.5 bg-surface-2 rounded-full overflow-hidden border border-line">
+                              <div
+                                className={cn(
+                                  'h-full transition-all duration-300 rounded-full',
+                                  (aiPlanUsage.copilotPercentage ?? 0) >= 100
+                                    ? 'bg-danger'
+                                    : (aiPlanUsage.copilotPercentage ?? 0) >= 80
+                                    ? 'bg-warn'
+                                    : 'bg-accent'
+                                )}
+                                style={{ width: `${Math.min(100, Math.max(2, aiPlanUsage.copilotPercentage ?? 0))}%` }}
+                              />
+                            </div>
+                          ) : (
+                            <div className="text-2xs text-ink-3 flex items-center gap-1.5">
+                              <CheckCircle2 className="w-3.5 h-3.5 text-success" />
+                              <span>Unlimited Agent Copilot actions included in your plan.</span>
+                            </div>
+                          )}
+                          {aiPlanUsage.isCopilotLimitReached && (
+                            <div className="p-3 rounded-xl border border-warn-line bg-warn-soft text-xs text-warn">
+                              Monthly Agent Copilot quota reached. Normal inbox messaging remains unaffected.
                             </div>
                           )}
                         </div>
