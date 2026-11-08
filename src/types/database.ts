@@ -1,6 +1,7 @@
 export type AgentStatus = 'online' | 'away' | 'offline';
 export type AgentRole = 'owner' | 'admin' | 'agent' | 'light_agent';
 export type ConversationStatus = 'open' | 'closed' | 'snoozed' | 'pending';
+export type HandoffStatus = 'bot_active' | 'handoff_offered' | 'waiting_for_agent' | 'agent_active' | 'offline_queued' | 'resolved';
 export type ConversationPriority = 'low' | 'normal' | 'high' | 'urgent';
 export type SenderType = 'visitor' | 'agent' | 'system' | 'ai';
 export type ChannelType = 'web' | 'whatsapp' | 'facebook' | 'instagram' | 'threads' | 'linkedin';
@@ -182,6 +183,25 @@ export interface Conversation {
   current_ticket_id?: string | null;
   /** When the customer last wrote on an outside channel (WhatsApp's 24-hour window starts here). */
   channel_last_inbound_at?: string | null;
+  // Handoff system fields
+  handoff_status?: HandoffStatus;
+  ai_enabled?: boolean;
+  ai_assist?: boolean;
+  ringing_agent_id?: string | null;
+  ring_started_at?: string | null;
+  ring_broadcast?: boolean;
+  skipped_agent_ids?: string[];
+  handoff_reason?: string | null;
+  handoff_summary?: string | null;
+  handoff_offered_at?: string | null;
+  handoff_requested_at?: string | null;
+  handoff_offer_count?: number;
+  handoff_last_offer_msg_count?: number;
+  first_agent_reply_at?: string | null;
+  customer_last_seen_at?: string | null;
+  customer_email?: string | null;
+  previous_agent_id?: string | null;
+  unanswered_alert_sent_at?: string | null;
 }
 
 export type ConversationInsert = Partial<Conversation>;
@@ -628,6 +648,7 @@ export interface Workspace {
   is_outbound_blocked?: boolean | null;
   scheduled_deletion_at?: string | null;
   deletion_requested_by?: string | null;
+  handoff_settings?: WorkspaceHandoffSettings;
   created_at: string;
 }
 
@@ -650,6 +671,119 @@ export interface CsatSettingsConfig {
   survey_prompt?: string;
 }
 
+
+// ── AI -> Human Handoff System ──────────────────────────────────────────────
+
+export interface HandoffRoutingSettings {
+  strategy: 'round_robin' | 'broadcast';
+  ring_timeout_seconds: number;
+  max_concurrent_chats_per_agent: number;
+}
+
+export interface HandoffOfficeHoursScheduleDay {
+  enabled: boolean;
+  start: string;
+  end: string;
+}
+
+export interface HandoffOfficeHoursSettings {
+  enabled: boolean;
+  timezone: string;
+  schedule: {
+    monday: HandoffOfficeHoursScheduleDay;
+    tuesday: HandoffOfficeHoursScheduleDay;
+    wednesday: HandoffOfficeHoursScheduleDay;
+    thursday: HandoffOfficeHoursScheduleDay;
+    friday: HandoffOfficeHoursScheduleDay;
+    saturday: HandoffOfficeHoursScheduleDay;
+    sunday: HandoffOfficeHoursScheduleDay;
+  };
+  holidays: string[];
+}
+
+export interface HandoffAISettings {
+  confidence_threshold: number;
+  loop_detection_limit: number;
+  cooldown_message_count: number;
+  require_confirmation: boolean;
+  keywords: string[];
+}
+
+export interface HandoffFallbackSettings {
+  offline_queue_enabled: boolean;
+  offline_expected_reply_text: string;
+  ai_assist_offer_enabled: boolean;
+  unanswered_timeout_minutes: number;
+}
+
+export interface WorkspaceHandoffSettings {
+  routing: HandoffRoutingSettings;
+  office_hours: HandoffOfficeHoursSettings;
+  ai: HandoffAISettings;
+  fallback: HandoffFallbackSettings;
+}
+
+export interface AgentStatusRecord {
+  agent_id: string;
+  workspace_id: string;
+  manual_status: AgentStatus;
+  last_seen_at: string;
+  is_online: boolean;
+  updated_at: string;
+}
+
+export interface PushSubscriptionRecord {
+  id: string;
+  agent_id: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  user_agent?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export type ConversationEventType =
+  | 'offer_handoff'
+  | 'request_handoff'
+  | 'ring_agent'
+  | 'ring_broadcast'
+  | 'agent_skip'
+  | 'agent_claim'
+  | 'agent_first_reply'
+  | 'return_to_ai'
+  | 'customer_set_ai_assist'
+  | 'requeue_stale'
+  | 'mark_resolved'
+  | 'reopened_by_customer';
+
+export interface ConversationEventRecord {
+  id: number;
+  conversation_id: string;
+  workspace_id: string;
+  event_type: ConversationEventType;
+  actor_type: 'bot' | 'customer' | 'agent' | 'system';
+  actor_id?: string | null;
+  payload?: Record<string, any>;
+  created_at: string;
+}
+
+export interface AgentNotificationPreferencesRecord {
+  id: string;
+  agent_id: string;
+  workspace_id: string;
+  email: Record<string, boolean>;
+  in_app: Record<string, boolean>;
+  sound_enabled: boolean;
+  sound_name: string;
+  push_enabled: boolean;
+  email_missed: boolean;
+  email_queue_summary: boolean;
+  telegram_chat_id?: string | null;
+  telegram_enabled: boolean;
+  created_at?: string;
+  updated_at: string;
+}
 
 export interface WorkspaceIntegration {
   id: string;
@@ -765,6 +899,24 @@ export interface Database {
         Row: ArticleChunk;
         Insert: Partial<ArticleChunk>;
         Update: Partial<ArticleChunk>;
+        Relationships: [];
+      };
+      agent_status: {
+        Row: AgentStatusRecord;
+        Insert: Partial<AgentStatusRecord>;
+        Update: Partial<AgentStatusRecord>;
+        Relationships: [];
+      };
+      push_subscriptions: {
+        Row: PushSubscriptionRecord;
+        Insert: Partial<PushSubscriptionRecord>;
+        Update: Partial<PushSubscriptionRecord>;
+        Relationships: [];
+      };
+      conversation_events: {
+        Row: ConversationEventRecord;
+        Insert: Partial<ConversationEventRecord>;
+        Update: Partial<ConversationEventRecord>;
         Relationships: [];
       };
       [key: string]: {
