@@ -728,7 +728,7 @@ export default function DashboardPage() {
       // older, so it is fetched on its own and put at the top.
       const { data } = await supabase
         .from('conversations')
-        .select('*, visitor:visitors(*), agent:agents(*)')
+        .select('*, visitor:visitors(*), agent:agents!conversations_agent_id_fkey(*)')
         .eq('id', id)
         .maybeSingle();
       if (data) {
@@ -830,7 +830,7 @@ export default function DashboardPage() {
           .select(`
             *,
             visitor:visitors(*),
-            agent:agents(*)
+            agent:agents!conversations_agent_id_fkey(*)
           `)
           .order('updated_at', { ascending: false })
           .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
@@ -1294,7 +1294,7 @@ export default function DashboardPage() {
           // 2. Fetch conversation details outside state updater to guarantee visitor details and instant appearance
           supabase
             .from('conversations')
-            .select('*, visitor:visitors(*), agent:agents(*)')
+            .select('*, visitor:visitors(*), agent:agents!conversations_agent_id_fkey(*)')
             .eq('id', newMsg.conversation_id)
             .single()
             .then(({ data: fetchedConv }: any) => {
@@ -1398,7 +1398,7 @@ export default function DashboardPage() {
             // Fetch enriched conversation details (visitor, agent) and prepend smoothly
             supabase
               .from('conversations')
-              .select('*, visitor:visitors(*), agent:agents(*)')
+              .select('*, visitor:visitors(*), agent:agents!conversations_agent_id_fkey(*)')
               .eq('id', newConv.id)
               .single()
               .then(({ data }: any) => {
