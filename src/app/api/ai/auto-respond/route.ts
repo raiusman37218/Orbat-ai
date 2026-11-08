@@ -48,6 +48,35 @@ import { evaluateHandoffTrigger } from '@/lib/ai/handoff-detect';
 
 export const maxDuration = 60;
 
+/** The parts of workspaces.handoff_settings this route reads. */
+interface HandoffSettingsView {
+  handoff_mode?: string;
+  ai?: {
+    require_confirmation?: boolean;
+    confidence_threshold?: number;
+    cooldown_message_count?: number;
+    keywords?: string[];
+  };
+}
+
+/** Handoff columns on conversations (20261124090000_handoff_foundation). */
+interface HandoffConversationView {
+  handoff_status?: HandoffStatus | null;
+  ai_assist?: boolean | null;
+  ai_enabled?: boolean | null;
+  handoff_reason?: string | null;
+  handoff_offer_count?: number | null;
+  handoff_last_offer_msg_count?: number | null;
+}
+
+/** What offer_handoff / request_handoff return. */
+interface HandoffRpcResult {
+  ok?: boolean;
+  offered?: boolean;
+  status?: string;
+  reason?: string;
+}
+
 const GENERATION_BUDGET_MS = 35_000;
 
 /** The trailing citation formatCitation() adds, in any of its languages. */
@@ -189,7 +218,7 @@ export async function POST(req: NextRequest) {
     const [{ data: workspace }, { data: conv }, { data: recentMessages }] = await Promise.all([
       supabase
         .from('workspaces')
-        .select('name, greeting_title, greeting_message, ai_settings, slug, custom_domain, custom_domain_status, business_hours, is_suspended, deleted_at')
+        .select('name, greeting_title, greeting_message, ai_settings, handoff_settings, slug, custom_domain, custom_domain_status, business_hours, is_suspended, deleted_at')
         .eq('id', workspace_id)
         .single(),
       supabase
@@ -552,60 +581,76 @@ export async function POST(req: NextRequest) {
       isAskingForHuman,
     });
 
-    const currentHandoffStatus = ((conv as any)?.handoff_status || 'bot_active') as HandoffStatus;
-    const isAiAssist = Boolean((conv as any)?.ai_assist);
-    const isAiEnabled = (conv as any)?.ai_enabled !== false;
-
-    if (!canAiRespond(currentHandoffStatus, { aiEnabled: isAiEnabled, aiAssist: isAiAssist })) {
+    // The handoff state machine (migration 20261124090000). The bot is silent
+    // while a person has the conversation or the visitor is queued for one,
+    // except in the offline queue after the visitor asked for AI help. A
+    // silenced message still goes through the branch below, which logs why,
+    // keeps the visitor informed in the queue and tells the team.
+    const handoffSettings: HandoffSettingsView = (workspace as { handoff_settings?: HandoffSettingsView | null }).handoff_settings || {};
+    const handoffModeOn = handoffSettings.handoff_mode !== 'off';
+    const handoffRow = conv as HandoffConversationView;
+    const currentHandoffStatus: HandoffStatus = handoffRow.handoff_status || 'bot_active';
+    const isAiAssist = Boolean(handoffRow.ai_assist);
+    const isAiEnabled = handoffRow.ai_enabled !== false;
+    const silencedByHandoff = !canAiRespond(currentHandoffStatus, { aiEnabled: isAiEnabled, aiAssist: isAiAssist });
+    if (silencedByHandoff) {
       console.log(`[Auto-Respond] Silenced by handoff state: ${currentHandoffStatus} (aiAssist: ${isAiAssist})`);
-      return NextResponse.json({ skipped: true, reason: `silenced_by_handoff_state_${currentHandoffStatus}` });
     }
 
-    // Check if customer is accepting an offered handoff
-    if (currentHandoffStatus === 'handoff_offered' && visitorMsg) {
-      const content = visitorMsg.content.trim().toLowerCase();
+    // The visitor answered the bot's "connect you with our team?" offer in
+    // words: "1" / "agent" is the text fallback the offer gives on channels
+    // without buttons. The confirmation goes out first, while the bot may still
+    // speak (request_handoff switches it off), so it reaches WhatsApp and the
+    // other channels too.
+    if (!silencedByHandoff && handoffModeOn && currentHandoffStatus === 'handoff_offered') {
+      const content = String(visitorMsg.content || '').trim().toLowerCase();
       const isAffirmative =
-        /^(1|agent|yes|yep|sure|please|connect|human|help|ha|haan|jee|baat karni hai)$/i.test(content) ||
-        content.includes('agent') ||
-        content.includes('human') ||
-        content.includes('person');
+        /^(1|yes|yep|yeah|sure|ok|okay|please|connect|agent|human|ha|haan|han|jee|ji|g)[.!]*$/i.test(content) ||
+        isAskingForHuman;
 
       if (isAffirmative) {
-        console.log(`[Auto-Respond] Customer accepted handoff offer on conversation ${conversation_id} via "${visitorMsg.content}"`);
-        const { data: handoffRes, error: handoffErr } = await supabase.rpc('request_handoff', {
-          p_conversation_id: conversation_id,
+        console.log(`[Auto-Respond] Visitor accepted the handoff offer on conversation ${conversation_id}`);
+        const confirmLang = replyLanguageOf(visitorMsg.content);
+        const confirmation = await deliverAiReply(supabase, {
+          conversationId: conversation_id,
+          visitorMessageId: targetVisitorMsgId,
+          expectedVersion: controlVersion,
+          content: localized(confirmLang, {
+            en: "Thanks! I'm connecting you with our team now. If nobody is free right away, we'll reply here as soon as someone is back.",
+            roman_ur: 'Shukriya! Main aapko abhi hamari team se connect kar raha hoon. Agar foran koi available na ho to jaise hi koi wapas aayega, yahin jawab milega.',
+            ur: 'شکریہ! میں آپ کو ابھی ہماری ٹیم سے منسلک کر رہا ہوں۔ اگر فوراً کوئی دستیاب نہ ہو تو جیسے ہی کوئی واپس آئے گا، یہیں جواب ملے گا۔',
+          }),
+          metadata: { answered_message_id: targetVisitorMsgId, bot_engine: 'built_in', handoff_confirmed: true },
         });
+        if (confirmation && !confirmation.delivered) {
+          console.log('[Auto-Respond] Handoff confirmation not delivered:', confirmation.reason);
+        }
+        const { data: handoffData, error: handoffErr } = await supabase.rpc('request_handoff', {
+          p_conversation_id: conversation_id,
+          p_reason: handoffRow.handoff_reason || 'explicit',
+        });
+        const handoffRes = handoffData as HandoffRpcResult | null;
         if (handoffErr) {
-          console.error('[Auto-Respond] Failed to call request_handoff RPC:', handoffErr.message);
+          console.error('[Auto-Respond] request_handoff failed:', handoffErr.message);
         } else {
-          // If non-web channel or text-based channel, reply with queue confirmation
-          if (conv.channel && conv.channel !== 'web') {
-            const isOffline = (handoffRes as any)?.status === 'offline_queued';
-            const confirmationText = isOffline
-              ? "Our team is currently offline. Your request has been added to our priority queue and we'll reply as soon as office hours begin."
-              : "Connecting you with our support team now. A human agent will be with you shortly.";
-
-            await supabase.from('messages').insert({
-              conversation_id,
-              sender_type: 'system',
-              content: confirmationText,
-              is_internal: false,
-              metadata: {
-                system_event: 'handoff_confirmed',
-                handoff_status: (handoffRes as any)?.status,
-              },
-            });
-          }
-          return NextResponse.json({
-            replied: true,
+          await logAiEvent(supabase, {
+            workspaceId: workspace_id,
+            conversationId: conversation_id,
+            visitorMessageId: currentVisitorMsgId,
+            event: 'handover',
+            reason: 'handoff_accepted',
+            detail: { status: handoffRes?.status ?? null },
+          });
+          return json({
+            replied: Boolean(confirmation?.delivered),
             handoff_accepted: true,
-            status: (handoffRes as any)?.status || 'waiting_for_agent',
+            status: handoffRes?.status || 'waiting_for_agent',
           });
         }
       }
     }
 
-    if (legacyHumanOwned || keepWithHumanAgent || waitingInHumanQueue || !botMayReply(conv)) {
+    if (silencedByHandoff || legacyHumanOwned || keepWithHumanAgent || waitingInHumanQueue || !botMayReply(conv)) {
       // If the visitor is waiting in the human handover queue (no human agent has replied yet)
       // and sends follow-up messages (details, "hi", "why is no one responding?", "connect to team"),
       // do not leave them in dead silence: capture any account/email details for the agent and
@@ -684,9 +729,13 @@ export async function POST(req: NextRequest) {
               is_queue_update: true,
               is_details_ack: hasRefs ? true : undefined,
               bot_engine: 'built_in',
-              quick_replies: [
-                { label: '🤖 Ask AI Assistant meanwhile', value: 'Resume AI assistant' },
-              ],
+              // In the handoff queues the database keeps the bot off (the
+              // widget's own "Ask AI while you wait" sets ai_assist), so the
+              // typed "Resume AI assistant" would go nowhere there.
+              quick_replies:
+                currentHandoffStatus === 'waiting_for_agent' || currentHandoffStatus === 'offline_queued'
+                  ? undefined
+                  : [{ label: '🤖 Ask AI Assistant meanwhile', value: 'Resume AI assistant' }],
             },
           });
 
@@ -835,6 +884,11 @@ export async function POST(req: NextRequest) {
     // minute timed most replies out. 35 s still leaves room inside
     // maxDuration for translation and the insert.
     let result: Awaited<ReturnType<typeof generateHelpDeskResponseWithHandover>>;
+    // Whether the answer pipeline itself handed over (it could not answer, or
+    // the visitor asked for a person), as opposed to a Spec C trigger below
+    // flagging a message the pipeline did answer.
+    let pipelineHandover = false;
+    let handoffExplicit = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -892,21 +946,33 @@ export async function POST(req: NextRequest) {
       };
 
       result = await Promise.race([generate(), timeoutPromise]);
+      pipelineHandover = Boolean(result.shouldHandover);
 
-      const handoffSettings = (workspace as any)?.handoff_settings || {};
-      const handoffEval = evaluateHandoffTrigger({
-        incomingMessage: visitorText,
-        turns: recentTurns,
-        confidenceThreshold: handoffSettings?.ai?.confidence_threshold ?? 0.65,
-        cooldownMessageCount: handoffSettings?.ai?.cooldown_message_count ?? 5,
-        customKeywords: handoffSettings?.ai?.keywords,
-      });
-
-      if (handoffEval.needsHandoff) {
-        result.shouldHandover = true;
-        result.handoverReason = handoffEval.triggerReason || 'needs_human';
-        if (handoffEval.summary) {
-          result.internalNote = handoffEval.summary;
+      // Spec C triggers the pipeline does not look for (keywords, repeated
+      // questions, anger, refunds and other sensitive topics). They only ever
+      // lead to an offer the visitor can decline, never a forced handover, so
+      // they run only with the handoff system on, and respect the cooldown
+      // after an ignored offer unless the visitor asked in words.
+      if (handoffModeOn && !pipelineHandover && (currentHandoffStatus === 'bot_active' || currentHandoffStatus === 'handoff_offered')) {
+        const handoffEval = evaluateHandoffTrigger({
+          incomingMessage: visitorText,
+          turns: recentTurns,
+          confidenceThreshold: handoffSettings?.ai?.confidence_threshold ?? 0.65,
+          cooldownMessageCount: handoffSettings?.ai?.cooldown_message_count ?? 5,
+          customKeywords: handoffSettings?.ai?.keywords,
+        });
+        const cooldown = Number(handoffSettings?.ai?.cooldown_message_count ?? 5);
+        const visitorLines = msgs.filter(isVisitorLine).length;
+        const inCooldown =
+          Number(handoffRow.handoff_offer_count || 0) > 0 &&
+          visitorLines - Number(handoffRow.handoff_last_offer_msg_count || 0) < cooldown;
+        if (handoffEval.needsHandoff && (handoffEval.isExplicit || !inCooldown)) {
+          result.shouldHandover = true;
+          result.handoverReason = handoffEval.triggerReason || 'needs_human';
+          handoffExplicit = handoffEval.isExplicit;
+          if (!result.internalNote && handoffEval.summary) {
+            result.internalNote = handoffEval.summary;
+          }
         }
       }
     } catch (timeoutErr: any) {
@@ -1045,8 +1111,63 @@ export async function POST(req: NextRequest) {
         console.warn('[Auto-Respond] English copy of the reply failed:', err);
       }
     }
+    // What follows this reply when someone should take over:
+    //   offer   - the bot asks, the visitor confirms with [Connect to agent]
+    //             (or "1" / "agent" on channels without buttons);
+    //   request - the visitor already asked for a person, or the workspace
+    //             turned confirmation off: queue them now (request_handoff);
+    //   queued  - already in the offline queue, talking to AI assist: nothing
+    //             more to do, the team has it;
+    //   legacy  - the handoff system is off: the older direct handover.
+    const requireConfirmation = handoffSettings?.ai?.require_confirmation !== false;
+    const handoffAction: 'none' | 'offer' | 'request' | 'queued' | 'legacy' = !result.shouldHandover
+      ? 'none'
+      : !handoffModeOn
+      ? 'legacy'
+      : currentHandoffStatus === 'offline_queued'
+      ? 'queued'
+      : currentHandoffStatus !== 'bot_active' && currentHandoffStatus !== 'handoff_offered'
+      ? 'legacy'
+      : result.intent === 'wants_human' || !requireConfirmation
+      ? 'request'
+      : 'offer';
+
+    let effectiveCitation = citationLine;
+    if (handoffAction === 'offer') {
+      const offerLang = replyLanguageOf(visitorMsg.content);
+      const onChannel = Boolean(conv.channel && conv.channel !== 'web');
+      const channelHint = onChannel
+        ? localized(offerLang, {
+            en: "\n\nReply '1' or 'AGENT' to speak with our team.",
+            roman_ur: "\n\nHamari team se baat karne ke liye '1' ya 'AGENT' likhein.",
+            ur: "\n\nہماری ٹیم سے بات کرنے کے لیے '1' یا 'AGENT' لکھیں۔",
+          })
+        : '';
+      if (pipelineHandover) {
+        // The pipeline's text announces a handover that has not happened
+        // yet; the visitor decides, so ask instead.
+        const offerText = localized(offerLang, {
+          en: "I couldn't find a reliable answer to that in our help center. Would you like me to connect you with our team?",
+          roman_ur: 'Mujhe iska pakka jawab hamare help center mein nahi mila. Kya main aapko hamari team se connect kar doon?',
+          ur: 'مجھے اس کا پکا جواب ہمارے ہیلپ سینٹر میں نہیں ملا۔ کیا میں آپ کو ہماری ٹیم سے منسلک کر دوں؟',
+        });
+        replyBody = `${offerText}${channelHint}`;
+        englishBody = "I couldn't find a reliable answer to that in our help center. Would you like me to connect you with our team?";
+        effectiveCitation = '';
+      } else {
+        // The bot answered; the offer rides along with the answer.
+        const offerLine = localized(offerLang, {
+          en: "\n\nIf you'd rather talk to a person, I can connect you with our team.",
+          roman_ur: '\n\nAgar aap kisi insaan se baat karna chahein to main aapko hamari team se connect kar sakta hoon.',
+          ur: '\n\nاگر آپ کسی انسان سے بات کرنا چاہیں تو میں آپ کو ہماری ٹیم سے منسلک کر سکتا ہوں۔',
+        });
+        replyBody = `${replyBody}${offerLine}${channelHint}`;
+        englishBody = `${englishBody}\n\nIf you'd rather talk to a person, I can connect you with our team.`;
+      }
+    }
+
     let preassignedAgent: { id: string; name: string | null; avatar_url: string | null } | null = null;
-    if (result.shouldHandover) {
+    if (handoffAction === 'legacy') {
       try {
         if (conv.assigned_agent_id) {
           const { data: a } = await supabase.from('agents').select('id, name, avatar_url').eq('id', conv.assigned_agent_id).maybeSingle();
@@ -1068,13 +1189,6 @@ export async function POST(req: NextRequest) {
 
         // If visitor asked for human and an agent name is available, append professional connecting notice
         // only for non-web channels (WhatsApp, email, social) where rich widget handover cards do not render.
-        const isConfirmReq = ((workspace as any)?.handoff_settings)?.ai?.require_confirmation !== false;
-        if (result.shouldHandover && isConfirmReq && conv.channel && conv.channel !== 'web') {
-          const fallbackNotice = "\n\nReply '1' or 'AGENT' to speak with our team.";
-          if (!replyBody.includes('AGENT')) {
-            replyBody = `${replyBody}${fallbackNotice}`;
-          }
-        }
         if (preassignedAgent?.name && result.intent === 'wants_human' && conv.channel && conv.channel !== 'web') {
           const agentName = preassignedAgent.name;
           const connectingNotice =
@@ -1092,8 +1206,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    aiResponseText = `${replyBody}${citationLine}`;
-    const aiEnglishTranslation = `${englishBody}${citationLine}`;
+    aiResponseText = `${replyBody}${effectiveCitation}`;
+    const aiEnglishTranslation = `${englishBody}${effectiveCitation}`;
     const detected = { code: visitorLang.code, name: getLanguageInfo(visitorLang.code).name };
     const citedArticleIds = result.usedArticleIds || (result.citation?.id ? [result.citation.id] : []);
     const citedArticles = result.citedArticles || (result.citation ? [{ id: result.citation.id, title: result.citation.title }] : []);
@@ -1202,43 +1316,16 @@ export async function POST(req: NextRequest) {
       created_at: insertedMsg?.created_at,
     });
 
-    // 4b. If Help Desk cannot answer or customer requested a real agent, offer or execute handoff!
+    // 4b. Someone should take over: offer, queue, or the older direct handover
+    // (see handoffAction above).
     if (result.shouldHandover) {
-      const handoffSettings = (workspace as any)?.handoff_settings || {};
-      const requireConfirmation = handoffSettings?.ai?.require_confirmation !== false;
-
-      if (requireConfirmation && (currentHandoffStatus === 'bot_active' || currentHandoffStatus === 'handoff_offered')) {
-        console.log(`[Auto-Respond] Offering handoff for conversation ${conversation_id}. Reason: ${result.handoverReason}`);
-        const { error: offerErr } = await supabase.rpc('offer_handoff', {
-          p_conversation_id: conversation_id,
-          p_reason: result.handoverReason || 'needs_human',
-          p_summary: result.internalNote || null,
-        });
-        if (offerErr) console.error('Error calling offer_handoff RPC:', offerErr.message);
-
-        if (insertedMsg?.id) {
-          try {
-            await supabase
-              .from('messages')
-              .update({
-                metadata: {
-                  ...replyMetadata,
-                  handoff_offered: true,
-                  offer_handoff: true,
-                  handoff_reason: result.handoverReason,
-                  handoff_summary: result.internalNote,
-                },
-              })
-              .eq('id', insertedMsg.id);
-          } catch (updateErr) {
-            console.warn('[Auto-Respond] Failed to attach handoff offer metadata to message:', updateErr);
-          }
-        }
-      } else {
+      // Narrowed here; closures lose the narrowing.
+      const handoffConversationId: string = conversation_id;
+      const runLegacyHandover = async () => {
         console.log(`[Auto-Respond] Handing over conversation ${conversation_id} directly to real agent. Reason: ${result.handoverReason}`);
         const handoverResult = await executeHandoverToHuman({
           supabase,
-          conversationId: conversation_id,
+          conversationId: handoffConversationId,
           workspaceId: workspace_id,
           visitorMessageId: targetVisitorMsgId,
           reason: result.handoverReason || 'Inquiry not covered in Help Desk documentation.',
@@ -1253,29 +1340,79 @@ export async function POST(req: NextRequest) {
 
         const finalAgent = (handoverResult as any)?.assignedAgent || preassignedAgent;
         if (insertedMsg?.id && finalAgent) {
-          try {
-            await supabase
-              .from('messages')
-              .update({
-                metadata: {
-                  ...replyMetadata,
-                  handover: true,
-                  assigned_agent_id: finalAgent.id,
-                  assigned_agent_name: finalAgent.name,
-                  assigned_agent_avatar: finalAgent.avatar_url,
-                  system_event: {
-                    type: 'handover',
-                    agent_id: finalAgent.id,
-                    agent_name: finalAgent.name,
-                    agent_avatar: finalAgent.avatar_url,
-                  },
+          const { error: metaErr } = await supabase
+            .from('messages')
+            .update({
+              metadata: {
+                ...replyMetadata,
+                handover: true,
+                assigned_agent_id: finalAgent.id,
+                assigned_agent_name: finalAgent.name,
+                assigned_agent_avatar: finalAgent.avatar_url,
+                system_event: {
+                  type: 'handover',
+                  agent_id: finalAgent.id,
+                  agent_name: finalAgent.name,
+                  agent_avatar: finalAgent.avatar_url,
                 },
-              })
-              .eq('id', insertedMsg.id);
-          } catch (updateErr) {
-            console.warn('[Auto-Respond] Failed to attach final agent metadata to message:', updateErr);
-          }
+              },
+            })
+            .eq('id', insertedMsg.id);
+          if (metaErr) console.warn('[Auto-Respond] Failed to attach final agent metadata to message:', metaErr.message);
         }
+      };
+
+      let handoffOutcome: string = handoffAction;
+      if (handoffAction === 'offer') {
+        console.log(`[Auto-Respond] Offering handoff for conversation ${conversation_id}. Reason: ${result.handoverReason}`);
+        const { data: offerData, error: offerErr } = await supabase.rpc('offer_handoff', {
+          p_conversation_id: conversation_id,
+          p_reason: result.handoverReason || 'needs_human',
+          p_summary: result.internalNote || null,
+          // A pipeline handover (no answer) is offered even inside the
+          // cooldown; only the extra triggers wait (checked above).
+          p_explicit: pipelineHandover || handoffExplicit,
+        });
+        const offerRes = offerData as HandoffRpcResult | null;
+        if (offerErr) {
+          // The handoff functions are missing (migration not run) or failed:
+          // the visitor was promised help, so fall back to the direct path.
+          console.error('[Auto-Respond] offer_handoff failed, using the direct handover:', offerErr.message);
+          handoffOutcome = 'legacy_fallback';
+          await runLegacyHandover();
+        } else if (offerRes?.offered && insertedMsg?.id) {
+          const { error: metaErr } = await supabase
+            .from('messages')
+            .update({
+              metadata: {
+                ...replyMetadata,
+                handoff_offered: true,
+                offer_handoff: true,
+                handoff_reason: result.handoverReason,
+              },
+            })
+            .eq('id', insertedMsg.id);
+          if (metaErr) console.warn('[Auto-Respond] Failed to mark the reply as a handoff offer:', metaErr.message);
+        } else if (!offerRes?.offered) {
+          handoffOutcome = `offer_${offerRes?.reason || 'refused'}`;
+        }
+      } else if (handoffAction === 'request') {
+        console.log(`[Auto-Respond] Queueing conversation ${conversation_id} for a person. Reason: ${result.handoverReason}`);
+        const { data: requestData, error: requestErr } = await supabase.rpc('request_handoff', {
+          p_conversation_id: conversation_id,
+          p_reason: result.intent === 'wants_human' ? 'explicit_request' : result.handoverReason || 'needs_human',
+          p_summary: result.internalNote || null,
+        });
+        const requestRes = requestData as HandoffRpcResult | null;
+        if (requestErr) {
+          console.error('[Auto-Respond] request_handoff failed, using the direct handover:', requestErr.message);
+          handoffOutcome = 'legacy_fallback';
+          await runLegacyHandover();
+        } else {
+          handoffOutcome = `request_${requestRes?.status || requestRes?.reason || 'unknown'}`;
+        }
+      } else if (handoffAction === 'legacy') {
+        await runLegacyHandover();
       }
       await logAiEvent(supabase, {
         workspaceId: workspace_id,
@@ -1290,6 +1427,7 @@ export async function POST(req: NextRequest) {
           priority: result.priority || 'high',
           intent: result.intent ?? null,
           sub_agent: result.subAgent ?? null,
+          handoff: handoffOutcome,
         },
       });
     }

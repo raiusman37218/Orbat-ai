@@ -16,6 +16,10 @@ const db = vi.hoisted(() => ({
   deliverVerdict: null as null | { delivered: false; reason: string },
   deliverMissing: false,
   clock: Date.parse('2026-10-11T10:00:00Z'),
+  /** Every rpc() other than fn_deliver_ai_reply, in order. */
+  rpcCalls: [] as { fn: string; args: Record<string, any> }[],
+  /** Canned results for those rpc() calls; missing = { data: null, error: null }. */
+  rpcResults: {} as Record<string, { data: any; error: any }>,
 }));
 
 /* ── A small Supabase stand-in ────────────────────────────────────────── */
@@ -131,7 +135,11 @@ function deliver(args: Row) {
 
 const fakeSupabase = {
   from: (table: string) => query(table),
-  rpc: async (fn: string, args: Row) => (fn === 'fn_deliver_ai_reply' ? deliver(args) : { data: null, error: null }),
+  rpc: async (fn: string, args: Row) => {
+    if (fn === 'fn_deliver_ai_reply') return deliver(args);
+    db.rpcCalls.push({ fn, args });
+    return db.rpcResults[fn] ?? { data: null, error: null };
+  },
 };
 
 /* ── Everything outside the route is faked ────────────────────────────── */
@@ -189,6 +197,8 @@ function reset() {
   db.clock = Date.parse('2026-10-11T10:00:00Z');
   db.deliverVerdict = null;
   db.deliverMissing = false;
+  db.rpcCalls = [];
+  db.rpcResults = {};
   plan.feature = true;
   plan.limit = true;
   db.tables = {
@@ -304,7 +314,8 @@ describe('the bot answers', () => {
     expect(conv().ai_mode).toBe('autopilot');
   });
 
-  it('and hands over when the pipeline says so, saying why the bot stepped aside', async () => {
+  it('and hands over directly when the handoff system is off, saying why the bot stepped aside', async () => {
+    ws().handoff_settings = { handoff_mode: 'off' };
     generate.mockResolvedValueOnce({
       replyText: "I've passed this to our support team.",
       shouldHandover: true,
@@ -318,6 +329,132 @@ describe('the bot answers', () => {
     expect(handover).toHaveBeenCalledWith(
       expect.objectContaining({ disableAi: true, pausedReason: 'human_requested', visitorMessageId: msg, announce: false })
     );
+    expect(db.rpcCalls.map((c) => c.fn)).not.toContain('request_handoff');
+  });
+});
+
+describe('the handoff to a person (migration 20261124090000)', () => {
+  const wantsHuman = {
+    replyText: "I've passed this to our support team.",
+    shouldHandover: true,
+    canAnswerFromDocs: false,
+    intent: 'wants_human' as const,
+    disableAi: true,
+    priority: 'high' as const,
+  };
+  const rpcNames = () => db.rpcCalls.map((c) => c.fn);
+
+  it('queues the visitor at once when they ask for a person: asking is the confirmation', async () => {
+    generate.mockResolvedValueOnce(wantsHuman);
+    db.rpcResults.request_handoff = { data: { ok: true, status: 'waiting_for_agent' }, error: null };
+    const msg = visitorSays('I want to talk to a person');
+    await respond(msg);
+    expect(db.rpcCalls.find((c) => c.fn === 'request_handoff')?.args).toMatchObject({
+      p_conversation_id: CONV,
+      p_reason: 'explicit_request',
+    });
+    expect(rpcNames()).not.toContain('offer_handoff');
+    expect(handover).not.toHaveBeenCalled();
+  });
+
+  it('offers instead of announcing a handover when the bot could not answer', async () => {
+    generate.mockResolvedValueOnce({
+      replyText: "I've passed your question to our team.",
+      shouldHandover: true,
+      canAnswerFromDocs: false,
+      intent: 'help_center_question',
+      handoverReason: 'low_confidence',
+    });
+    db.rpcResults.offer_handoff = { data: { offered: true }, error: null };
+    const msg = visitorSays('What is the swap fee on exotic pairs?');
+    await respond(msg);
+    const offer = db.rpcCalls.find((c) => c.fn === 'offer_handoff');
+    expect(offer?.args).toMatchObject({ p_conversation_id: CONV, p_explicit: true });
+    const reply = publicBotReplies()[0];
+    expect(reply.content).toMatch(/Would you like me to connect you with our team\?/);
+    expect(reply.content).not.toMatch(/passed your question/);
+    expect(reply.metadata).toMatchObject({ handoff_offered: true, offer_handoff: true });
+    expect(rpcNames()).not.toContain('request_handoff');
+    expect(handover).not.toHaveBeenCalled();
+  });
+
+  it('keeps a good answer and adds the offer when a sensitive topic comes up', async () => {
+    generate.mockResolvedValueOnce({ replyText: 'Refunds are issued within 5 business days.', shouldHandover: false, canAnswerFromDocs: true });
+    db.rpcResults.offer_handoff = { data: { offered: true }, error: null };
+    const msg = visitorSays('I want a chargeback on my last payment');
+    await respond(msg);
+    const reply = publicBotReplies()[0];
+    expect(reply.content).toMatch(/^Refunds are issued within 5 business days\./);
+    expect(reply.content).toMatch(/connect you with our team/);
+    expect(rpcNames()).toContain('offer_handoff');
+  });
+
+  it('does not repeat an ignored offer within the cooldown', async () => {
+    Object.assign(conv(), { handoff_offer_count: 1, handoff_last_offer_msg_count: 1 });
+    visitorSays('Hello');
+    generate.mockResolvedValueOnce({ replyText: 'Refunds are issued within 5 business days.', shouldHandover: false, canAnswerFromDocs: true });
+    const msg = visitorSays('I want a chargeback on my last payment');
+    await respond(msg);
+    expect(rpcNames()).not.toContain('offer_handoff');
+    expect(publicBotReplies()[0].content).toBe('Refunds are issued within 5 business days.');
+  });
+
+  it('falls back to the direct handover when the handoff functions are missing', async () => {
+    generate.mockResolvedValueOnce(wantsHuman);
+    db.rpcResults.request_handoff = { data: null, error: { code: 'PGRST202', message: 'function not found' } };
+    const msg = visitorSays('I want to talk to a person');
+    await respond(msg);
+    expect(handover).toHaveBeenCalledWith(expect.objectContaining({ visitorMessageId: msg }));
+  });
+
+  it('confirms and queues when the visitor answers an offer with "1"', async () => {
+    Object.assign(conv(), { handoff_status: 'handoff_offered', handoff_reason: 'low_confidence', channel: 'whatsapp' });
+    db.rpcResults.request_handoff = { data: { ok: true, status: 'offline_queued' }, error: null };
+    const msg = visitorSays('1');
+    const { body } = await respond(msg);
+    expect(body).toMatchObject({ handoff_accepted: true, status: 'offline_queued' });
+    expect(generate).not.toHaveBeenCalled();
+    expect(publicBotReplies()[0]).toMatchObject({ reply_to_message_id: msg });
+    expect(publicBotReplies()[0].content).toMatch(/connecting you with our team/);
+    expect(db.rpcCalls.find((c) => c.fn === 'request_handoff')?.args).toMatchObject({ p_reason: 'low_confidence' });
+  });
+
+  it('does not answer while the visitor waits for a person, only a queue update without "ask AI"', async () => {
+    Object.assign(conv(), {
+      handoff_status: 'waiting_for_agent',
+      ai_enabled: false,
+      ai_mode: 'disabled',
+      ai_paused_reason: 'human_requested',
+    });
+    const msg = visitorSays('Hello? Anyone there?');
+    const { body } = await respond(msg);
+    expect(generate).not.toHaveBeenCalled();
+    expect(body.queue_update).toBe(true);
+    const notice = publicBotReplies()[0];
+    expect(notice.metadata.is_queue_update).toBe(true);
+    expect(notice.metadata.quick_replies).toBeUndefined();
+  });
+
+  it('logs why it stayed quiet once a person has the conversation', async () => {
+    Object.assign(conv(), {
+      handoff_status: 'agent_active',
+      ai_enabled: false,
+      ai_mode: 'disabled',
+      ai_paused_reason: 'human_reply',
+    });
+    agentSays('Hi, I am looking into it.');
+    const msg = visitorSays('Thanks');
+    const { body } = await respond(msg);
+    expect(body.replied).toBe(false);
+    expect(generate).not.toHaveBeenCalled();
+    expect(suppressedReasons().length).toBeGreaterThan(0);
+  });
+
+  it('answers in the offline queue once the visitor asked for AI help', async () => {
+    Object.assign(conv(), { handoff_status: 'offline_queued', ai_assist: true, ai_enabled: true, ai_mode: 'autopilot' });
+    const msg = visitorSays('How do I reset my password?');
+    expect((await respond(msg)).body.replied).toBe(true);
+    expect(publicBotReplies()).toHaveLength(1);
   });
 });
 

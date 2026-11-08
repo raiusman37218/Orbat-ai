@@ -129,7 +129,28 @@ export function normalizeHandoffSettings(raw: unknown): WorkspaceHandoffSettings
         : base.fallback.unanswered_timeout_minutes,
   };
 
-  return { routing, office_hours, ai, fallback };
+  // The database reads flat keys (see WorkspaceHandoffSettings). Derive the
+  // routing ones from what the admin chose, and keep the others as stored, so
+  // saving Settings no longer wipes them (round-robin position included).
+  const stored = src as unknown as Record<string, unknown>;
+  const handoffMode = stored.handoff_mode === 'off' || stored.handoff_mode === 'email_only' ? stored.handoff_mode : 'on';
+  const positiveInt = (v: unknown, fallback: number) =>
+    typeof v === 'number' && Number.isFinite(v) && v > 0 ? Math.round(v) : fallback;
+
+  return {
+    routing,
+    office_hours,
+    ai,
+    fallback,
+    handoff_mode: handoffMode,
+    routing_mode: routing.strategy === 'broadcast' ? 'broadcast' : 'round_robin',
+    broadcast_enabled: typeof stored.broadcast_enabled === 'boolean' ? stored.broadcast_enabled : true,
+    ring_timeout_seconds: routing.ring_timeout_seconds,
+    queue_timeout_seconds: positiveInt(stored.queue_timeout_seconds, fallback.unanswered_timeout_minutes * 60),
+    first_reply_timeout_seconds: positiveInt(stored.first_reply_timeout_seconds, 180),
+    unanswered_alert_to: stored.unanswered_alert_to === 'supervisors' ? 'supervisors' : 'owner',
+    rr_last_agent_id: typeof stored.rr_last_agent_id === 'string' ? stored.rr_last_agent_id : null,
+  };
 }
 
 /**

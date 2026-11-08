@@ -64,7 +64,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 interface MessageItem {
   id: string;
-  sender_type: 'visitor' | 'agent' | 'ai';
+  sender_type: 'visitor' | 'agent' | 'ai' | 'system';
   content: string;
   attachment_url?: string | null;
   created_at: string;
@@ -167,6 +167,8 @@ class ZentryWidget {
   private assignedAgentId: string | null = null;
   private assignedAgentName: string | null = null;
   private expectedWaitText: string | null = null;
+  /** "tomorrow at 9:00 AM (Asia/Karachi)": when the offline queue is answered. */
+  private nextOpenLabel: string | null = null;
   private aiAssistEnabled: boolean = false;
   private handoffConnecting: boolean = false;
 
@@ -1599,6 +1601,7 @@ class ZentryWidget {
       if ((conv as any).handoff_status) this.handoffStatus = (conv as any).handoff_status;
       if ((conv as any).ai_assist !== undefined) this.aiAssistEnabled = Boolean((conv as any).ai_assist);
       if ((conv as any).assigned_agent_id !== undefined) this.assignedAgentId = (conv as any).assigned_agent_id;
+      this.applyHandoffDetails(conv);
       this.updateConversationStatus(conv.status);
     } else if (!this.conversationId && !this.forceNewConversation && conv.status !== 'closed') {
       // The team started a conversation with this visitor.
@@ -1711,6 +1714,7 @@ class ZentryWidget {
     if (res?.conversation?.handoff_reason) this.handoffReason = res.conversation.handoff_reason;
     if (res?.conversation?.ai_assist !== undefined) this.aiAssistEnabled = Boolean(res.conversation.ai_assist);
     if (res?.conversation?.assigned_agent_id) this.assignedAgentId = res.conversation.assigned_agent_id;
+    this.applyHandoffDetails(res?.conversation);
     this.updateConversationStatus(res?.conversation?.status);
   }
 
@@ -1740,6 +1744,7 @@ class ZentryWidget {
         if ((res?.conversation as any)?.handoff_reason) this.handoffReason = (res!.conversation as any).handoff_reason;
         if ((res?.conversation as any)?.ai_assist !== undefined) this.aiAssistEnabled = Boolean((res!.conversation as any).ai_assist);
         if ((res?.conversation as any)?.assigned_agent_id) this.assignedAgentId = (res!.conversation as any).assigned_agent_id;
+        this.applyHandoffDetails(res?.conversation);
         if (res?.conversation?.csat_rating != null) this.csatRated = true;
       } catch (e) {
         if (/conversation_not_found/.test(ZentryWidget.errorText(e))) {
@@ -6794,6 +6799,26 @@ class ZentryWidget {
         stage.appendChild(line);
         return;
       }
+      // Lines the database writes itself: "<Name> joined the conversation"
+      // (claim_conversation), "... returned the conversation to the AI
+      // assistant" (return_to_ai). Shown as a centred line, never a bubble.
+      if (msg.sender_type === 'system') {
+        const meta = ((msg as any).metadata || {}) as Record<string, any>;
+        if (meta.system_event === 'agent_joined') {
+          const name = (meta.assigned_agent_name as string | undefined) || null;
+          stage.appendChild(this.renderAgentJoinedLine({ name, avatar: (meta.assigned_agent_avatar as string | undefined) || null }, msg.created_at));
+          announcedAgent = name || '';
+          return;
+        }
+        if (msg.content) {
+          const line = document.createElement('div');
+          line.className = 'chatify-system-line';
+          line.textContent = msg.content;
+          stage.appendChild(line);
+        }
+        return;
+      }
+
       // System event: returned to AI
       const sysEvent = (msg as any).metadata?.system_event;
       if (sysEvent === 'returned_to_ai' || sysEvent === 'return_to_ai') {
@@ -7617,18 +7642,20 @@ class ZentryWidget {
     try {
       const res = await this.widgetRpc<{
         ok: boolean;
-        status: string;
-        agent_name?: string;
-        expected_wait?: string;
-        message?: string;
+        status?: string;
+        reason?: string;
+        next_open?: { label?: string | null } | null;
       }>('fn_widget_request_handoff', {
         p_conversation_id: this.conversationId,
       });
 
       if (res && res.ok) {
         this.handoffStatus = res.status || 'waiting_for_agent';
-        if (res.agent_name) this.assignedAgentName = res.agent_name;
-        if (res.expected_wait) this.expectedWaitText = res.expected_wait;
+        if (res.next_open?.label) this.nextOpenLabel = res.next_open.label;
+      } else if (btn) {
+        // Handoff is off or the team has nobody: say so instead of a dead button.
+        btn.disabled = true;
+        btn.textContent = 'Our team is not available right now';
       }
     } catch (e) {
       console.error('[Zen-try] Error requesting handoff:', e);
@@ -7638,14 +7665,36 @@ class ZentryWidget {
     }
   }
 
+  /**
+   * Handoff details from fn_widget_conversation_json: the estimated wait
+   * (only sent once there are enough recent handoffs to be honest about it),
+   * when the offline queue will be answered, and an email already on file.
+   */
+  private applyHandoffDetails(conv: unknown) {
+    const c = (conv && typeof conv === 'object' ? conv : {}) as Record<string, unknown>;
+    if ('estimated_wait_minutes' in c) {
+      const minutes = Number(c.estimated_wait_minutes);
+      this.expectedWaitText = Number.isFinite(minutes) && minutes > 0 ? '~' + minutes + (minutes === 1 ? ' minute' : ' minutes') : null;
+    }
+    if ('next_open_label' in c) this.nextOpenLabel = typeof c.next_open_label === 'string' ? c.next_open_label : null;
+    if (typeof c.assigned_agent_name === 'string' && c.assigned_agent_name) this.assignedAgentName = c.assigned_agent_name;
+    if (!this.visitorEmail && typeof c.customer_email === 'string' && c.customer_email) this.visitorEmail = c.customer_email;
+  }
+
   private async toggleAiAssist(enable: boolean) {
     if (!this.conversationId) return;
     try {
-      await this.widgetRpc('fn_widget_set_ai_assist', {
-        p_conversation_id: this.conversationId,
-        p_ai_assist: enable,
-      });
-      this.aiAssistEnabled = enable;
+      const res = await this.widgetRpc<{ ok: boolean; ai_assist?: boolean; conversation?: Record<string, unknown> }>(
+        'fn_widget_set_ai_assist',
+        {
+          p_conversation_id: this.conversationId,
+          p_enabled: enable,
+        }
+      );
+      if (res?.ok) {
+        this.aiAssistEnabled = Boolean(res.ai_assist);
+        this.applyHandoffDetails(res.conversation);
+      }
       this.renderMessages();
     } catch (e) {
       console.error('[Zen-try] Error toggling AI assist:', e);
@@ -7739,7 +7788,11 @@ class ZentryWidget {
 
     if (isOfflineQueued) {
       const offlineTitle = 'Our team is offline right now';
-      const offlineWaitText = "We\'ve saved your place in line. We\'ll reply as soon as an agent is back online.";
+      // When the team is next in, in the workspace's own timezone
+      // (fn_next_office_hours_open), e.g. "tomorrow at 9:00 AM (Asia/Karachi)".
+      const offlineWaitText = this.nextOpenLabel
+        ? "We\'ve saved your place in line. We\'ll reply " + this.escapeHTML(this.nextOpenLabel) + '.'
+        : "We\'ve saved your place in line. We\'ll reply as soon as an agent is back online.";
 
       const aiAssistActionHtml = this.aiAssistEnabled
         ? '<div class="chatify-handover-ai-badge"><span>✨ AI Assist active</span><button type="button" class="chatify-handover-btn-link" id="chatifyPauseAiBtn">Pause</button></div>'

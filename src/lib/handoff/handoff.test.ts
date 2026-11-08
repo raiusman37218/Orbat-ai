@@ -8,6 +8,7 @@ import {
   isValidHandoffTransition,
   isWithinOfficeHours,
   matchHandoffKeywords,
+  normalizeHandoffSettings,
   VALID_HANDOFF_TRANSITIONS,
 } from './state-machine';
 import {
@@ -318,5 +319,32 @@ describe('AI -> Human Agent Handoff State Machine', () => {
       expect(res.needsHandoff).toBe(true);
       expect(res.triggerReason).toBe('low_confidence');
     });
+  });
+});
+
+describe('normalizeHandoffSettings', () => {
+  it('writes the flat keys the database reads, derived from what the admin chose', () => {
+    const out = normalizeHandoffSettings({
+      routing: { strategy: 'broadcast', ring_timeout_seconds: 30, max_concurrent_chats_per_agent: 3 },
+    });
+    expect(out).toMatchObject({ routing_mode: 'broadcast', ring_timeout_seconds: 30, handoff_mode: 'on' });
+  });
+
+  it('keeps stored database keys when the admin saves another section', () => {
+    const out = normalizeHandoffSettings({
+      handoff_mode: 'email_only',
+      queue_timeout_seconds: 600,
+      rr_last_agent_id: 'agent-7',
+      unanswered_alert_to: 'supervisors',
+      office_hours: { enabled: true, timezone: 'Asia/Karachi', schedule: {} as never, holidays: ['2026-12-25'] },
+    });
+    expect(out).toMatchObject({
+      handoff_mode: 'email_only',
+      queue_timeout_seconds: 600,
+      rr_last_agent_id: 'agent-7',
+      unanswered_alert_to: 'supervisors',
+      routing_mode: 'round_robin',
+    });
+    expect(out.office_hours.holidays).toEqual(['2026-12-25']);
   });
 });

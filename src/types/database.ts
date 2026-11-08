@@ -721,6 +721,19 @@ export interface WorkspaceHandoffSettings {
   office_hours: HandoffOfficeHoursSettings;
   ai: HandoffAISettings;
   fallback: HandoffFallbackSettings;
+  /*
+   * Flat keys the database functions read (request_handoff, requeue_stale,
+   * fn_pick_next_handoff_agent). normalizeHandoffSettings derives the routing
+   * ones from `routing` and keeps the rest as stored.
+   */
+  handoff_mode?: 'on' | 'off' | 'email_only';
+  routing_mode?: 'round_robin' | 'least_busy' | 'broadcast';
+  broadcast_enabled?: boolean;
+  ring_timeout_seconds?: number;
+  queue_timeout_seconds?: number;
+  first_reply_timeout_seconds?: number;
+  unanswered_alert_to?: 'owner' | 'supervisors';
+  rr_last_agent_id?: string | null;
 }
 
 export interface AgentStatusRecord {

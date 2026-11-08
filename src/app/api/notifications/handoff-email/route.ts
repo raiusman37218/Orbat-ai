@@ -6,7 +6,6 @@ import {
   missedChatEmail,
   unansweredQueueAlertEmail,
   queueSummaryEmail,
-  teamAlertEmail,
 } from '@/lib/email/team-emails';
 import { getRequestOrigin } from '@/lib/request-origin';
 
@@ -47,16 +46,19 @@ interface HandoffEmailPayload {
 
 export async function POST(req: NextRequest) {
   try {
+    // Called only by the database (fn_dispatch_handoff_email_alert, through
+    // pg_net) with the cron secret. It sends mail through the workspace's SMTP
+    // to addresses it looks up, so it must never run for anyone else, in any
+    // environment: it used to accept any "Bearer ..." header.
     const authHeader = req.headers.get('authorization') || '';
     const cronSecret = process.env.CRON_SECRET;
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
     const isAuthorized =
-      (cronSecret && authHeader === `Bearer ${cronSecret}`) ||
-      (serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`) ||
-      authHeader.includes('Bearer ');
+      Boolean(cronSecret && authHeader === `Bearer ${cronSecret}`) ||
+      Boolean(serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`);
 
-    if (!isAuthorized && process.env.NODE_ENV === 'production') {
+    if (!isAuthorized) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -327,77 +329,10 @@ export async function POST(req: NextRequest) {
     // 4. OFFLINE CUSTOMER REPLY (Customer sent message in offline_queued chat)
     // ──────────────────────────────────────────────────────────────────────────
     if (type === 'offline_customer_reply') {
-      if (!conversation_id) {
-        return NextResponse.json({ error: 'Missing conversation_id for customer_reply' }, { status: 400 });
-      }
-
-      const { data: conv } = await supabase
-        .from('conversations')
-        .select('id, assigned_agent_id, visitor:visitors(name, email)')
-        .eq('id', conversation_id)
-        .maybeSingle();
-
-      const visitor = (Array.isArray(conv?.visitor) ? conv?.visitor[0] : conv?.visitor) as { name?: string | null; email?: string | null } | null;
-      const visitorName = visitor?.name?.trim() || visitor?.email?.trim() || 'A customer';
-      const conversationUrl = `${appBaseUrl}/dashboard?conversation=${conversation_id}`;
-
-      // Notify assigned agent, or fallback to workspace agents
-      let targetAgents: { id: string; email: string }[] = [];
-      if (conv?.assigned_agent_id) {
-        const { data: ag } = await supabase
-          .from('agents')
-          .select('id, email, is_active')
-          .eq('id', conv.assigned_agent_id)
-          .maybeSingle();
-        if (ag && ag.is_active !== false && ag.email) {
-          targetAgents.push({ id: ag.id, email: ag.email });
-        }
-      }
-
-      if (!targetAgents.length) {
-        const { data: agents } = await supabase
-          .from('agents')
-          .select('id, email, is_active')
-          .eq('workspace_id', workspace_id);
-        targetAgents = (agents || [])
-          .filter((a) => a.is_active !== false && a.email)
-          .map((a) => ({ id: a.id, email: a.email as string }));
-      }
-
-      const email = teamAlertEmail({
-        event: 'customer_reply',
-        workspaceName,
-        brandColor,
-        visitorName,
-        preview: message_preview || 'Customer sent a new message while in queue.',
-        conversationUrl,
-        onShift: false,
-      });
-
-      let sentCount = 0;
-      for (const target of targetAgents) {
-        const res = await sendSmtpEmail(smtp, {
-          to: target.email,
-          subject: email.subject,
-          html: email.html,
-          text: email.text,
-          headers: { 'Auto-Submitted': 'auto-generated' },
-        });
-
-        await supabase.from('team_email_log').insert({
-          workspace_id,
-          conversation_id,
-          agent_id: target.id,
-          email: target.email,
-          event: 'customer_reply',
-          status: res.success ? 'sent' : 'failed',
-          error: res.success ? null : (res.error || 'Failed').slice(0, 500),
-        });
-
-        if (res.success) sentCount++;
-      }
-
-      return NextResponse.json({ ok: true, type, sent: sentCount });
+      // Agent replies a customer has not read are emailed to the customer by
+      // /api/cron/unread-notifications (claimed per message, so never twice).
+      // This branch used to email the agents instead, about their own reply.
+      return NextResponse.json({ ok: true, type, sent: 0, handled_by: 'unread-notifications' });
     }
 
     return NextResponse.json({ error: `Unknown event type: ${type}` }, { status: 400 });

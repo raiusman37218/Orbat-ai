@@ -142,21 +142,39 @@ export default function DashboardPage() {
 
   const handleUpdateAgentStatusRef = useRef<(status: AgentStatus) => Promise<void>>(async () => {});
 
-  // 30s Heartbeat for Availability (Phase 2)
+  // Availability heartbeat. The database counts an agent as available only
+  // while this arrives every 30 s (90 s grace) and reports recent input, so it
+  // says whether the mouse or keyboard was used since the last beat; the
+  // server's own 15-minute auto-away reads that flag.
+  const activitySinceBeatRef = useRef(true);
   useEffect(() => {
     if (!currentWorkspace?.id || !currentAgent?.id) return;
+    const markActive = () => {
+      activitySinceBeatRef.current = true;
+    };
+    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
+    events.forEach((e) => window.addEventListener(e, markActive, { passive: true }));
+
     const sendHeartbeat = async () => {
-      try {
-        await supabase.rpc('agent_heartbeat', { p_workspace_id: currentWorkspace.id });
-      } catch {
-        // ignore
+      const active = activitySinceBeatRef.current;
+      activitySinceBeatRef.current = false;
+      const { data, error } = await supabase.rpc('agent_heartbeat', { p_active_input: active });
+      if (error) {
+        console.warn('[Heartbeat]:', error.message);
+        return;
+      }
+      if ((data as { auto_away?: boolean } | null)?.auto_away) {
+        setCurrentAgent((prev) => (prev ? { ...prev, status: 'away' } : prev));
       }
     };
     void sendHeartbeat();
     const interval = setInterval(() => {
       void sendHeartbeat();
     }, 30000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      events.forEach((e) => window.removeEventListener(e, markActive));
+    };
   }, [currentWorkspace?.id, currentAgent?.id]);
 
   // 15-minute inactivity auto-Away (Phase 2)
@@ -217,67 +235,103 @@ export default function DashboardPage() {
     };
   }, [currentWorkspace?.id, currentAgent?.id, currentAgent?.status]);
 
-  // Listen for Handoff Ring Signals (Phase 3)
+  // Ring signals. fn_dispatch_handoff_ring_signal sends every handoff event on
+  // queue:<workspace> (and a targeted ring on agent:<id>) carrying ids only,
+  // because these channels are public; the customer's name, question and the
+  // AI summary are read here through RLS.
   useEffect(() => {
     if (!currentWorkspace?.id || !currentAgent?.id) return;
+    // Light agents can view but not take chats, so they are never rung.
+    if (currentAgent.role === 'light_agent') return;
+    const me = currentAgent.id;
+    let disposed = false;
 
-    // 1. Dedicated agent channel for targeted ringing
-    const agentChan = supabase.channel(`agent:${currentAgent.id}`);
-    agentChan
-      .on('broadcast', { event: 'handoff_ring' }, (msg: any) => {
-        const d = msg?.payload || {};
-        if (d.conversation_id) {
-          setRingingPayload({
-            conversationId: d.conversation_id,
-            visitorName: d.visitor_name || 'Customer',
-            visitorEmail: d.visitor_email,
-            question: d.question,
-            summary: d.summary,
-            reason: d.reason,
-            timeoutSeconds: d.timeout_seconds || 45,
-            broadcast: false,
-          });
-        }
-      })
-      .on('broadcast', { event: 'handoff_ring_signal' }, (msg: any) => {
-        const d = msg?.payload || {};
-        if (d.signal === 'claimed' || d.signal === 'cancelled' || d.signal === 'resolved') {
-          setRingingPayload((prev) => (prev?.conversationId === d.conversation_id ? null : prev));
-        }
-      })
-      .subscribe();
+    interface RingSignal {
+      conversation_id?: string;
+      handoff_status?: string;
+      ringing_agent_id?: string | null;
+      ring_broadcast?: boolean;
+      ring_timeout_seconds?: number;
+    }
 
-    // 2. Workspace queue channel for broadcast ringing
+    const dismiss = (conversationId?: string) => {
+      if (!conversationId) return;
+      setRingingPayload((prev) => (prev?.conversationId === conversationId ? null : prev));
+    };
+
+    const ring = async (signal: RingSignal) => {
+      const conversationId = signal.conversation_id;
+      if (!conversationId || signal.handoff_status !== 'waiting_for_agent') return;
+      const forMe = signal.ringing_agent_id === me || (Boolean(signal.ring_broadcast) && !signal.ringing_agent_id);
+      if (!forMe) {
+        // The ring moved on to someone else.
+        dismiss(conversationId);
+        return;
+      }
+      const [{ data: conv, error: convErr }, { data: lastMsg }] = await Promise.all([
+        supabase
+          .from('conversations')
+          .select('id, handoff_status, handoff_reason, handoff_summary, skipped_agent_ids, visitor:visitors(name, email)')
+          .eq('id', conversationId)
+          .maybeSingle(),
+        supabase
+          .from('messages')
+          .select('content')
+          .eq('conversation_id', conversationId)
+          .eq('sender_type', 'visitor')
+          .or('is_internal.is.null,is_internal.eq.false')
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+      if (convErr) {
+        console.warn('[Handoff Ring]:', convErr.message);
+        return;
+      }
+      if (disposed || !conv || conv.handoff_status !== 'waiting_for_agent') return;
+      // Already skipped by me during a broadcast.
+      if (Array.isArray(conv.skipped_agent_ids) && conv.skipped_agent_ids.includes(me) && signal.ring_broadcast) return;
+      const visitor = (Array.isArray(conv.visitor) ? conv.visitor[0] : conv.visitor) as
+        | { name?: string | null; email?: string | null }
+        | null;
+      setRingingPayload({
+        conversationId,
+        visitorName: visitor?.name?.trim() || visitor?.email?.trim() || 'Customer',
+        visitorEmail: visitor?.email ?? null,
+        question: (lastMsg as { content?: string } | null)?.content ?? null,
+        summary: conv.handoff_summary,
+        reason: conv.handoff_reason,
+        timeoutSeconds: signal.ring_timeout_seconds || 45,
+        broadcast: Boolean(signal.ring_broadcast),
+      });
+    };
+
     const queueChan = supabase.channel(`queue:${currentWorkspace.id}`);
     queueChan
-      .on('broadcast', { event: 'handoff_ring' }, (msg: any) => {
-        const d = msg?.payload || {};
-        if (d.conversation_id) {
-          setRingingPayload({
-            conversationId: d.conversation_id,
-            visitorName: d.visitor_name || 'Customer',
-            visitorEmail: d.visitor_email,
-            question: d.question,
-            summary: d.summary,
-            reason: d.reason,
-            timeoutSeconds: d.timeout_seconds || 45,
-            broadcast: true,
-          });
-        }
-      })
-      .on('broadcast', { event: 'handoff_ring_signal' }, (msg: any) => {
-        const d = msg?.payload || {};
-        if (d.signal === 'claimed' || d.signal === 'cancelled' || d.signal === 'resolved') {
-          setRingingPayload((prev) => (prev?.conversationId === d.conversation_id ? null : prev));
-        }
+      .on('broadcast', { event: 'ring' }, (msg: { payload?: RingSignal }) => void ring(msg?.payload || {}))
+      .on('broadcast', { event: 'broadcast' }, (msg: { payload?: RingSignal }) => void ring(msg?.payload || {}))
+      .on('broadcast', { event: 'claimed' }, (msg: { payload?: RingSignal }) => dismiss(msg?.payload?.conversation_id))
+      .on('broadcast', { event: 'resolved' }, (msg: { payload?: RingSignal }) => dismiss(msg?.payload?.conversation_id))
+      .on('broadcast', { event: 'offline_queued' }, (msg: { payload?: RingSignal }) =>
+        dismiss(msg?.payload?.conversation_id)
+      )
+      .subscribe();
+
+    // The server's auto-away (15 minutes without input) is announced here.
+    const agentChan = supabase.channel(`agent:${me}`);
+    agentChan
+      .on('broadcast', { event: 'auto_away' }, () => {
+        setCurrentAgent((prev) => (prev ? { ...prev, status: 'away' } : prev));
+        toast.show('You were set to Away after 15 minutes without activity', 'info');
       })
       .subscribe();
 
     return () => {
-      agentChan.unsubscribe();
+      disposed = true;
       queueChan.unsubscribe();
+      agentChan.unsubscribe();
     };
-  }, [currentWorkspace?.id, currentAgent?.id]);
+  }, [currentWorkspace?.id, currentAgent?.id, currentAgent?.role]);
 
   const isOfficeHoursActive = useMemo(() => {
     if (!currentWorkspace) return false;
@@ -1899,19 +1953,13 @@ export default function DashboardPage() {
   };
 
   const handleUpdateAgentStatus = async (status: AgentStatus) => {
-    handleUpdateAgentStatusRef.current = handleUpdateAgentStatus;
     if (!currentAgent) return;
 
-    if (currentWorkspace?.id) {
-      try {
-        await supabase.rpc('set_agent_status', {
-          p_workspace_id: currentWorkspace.id,
-          p_status: status,
-        });
-      } catch (err: unknown) {
-        console.warn('Error calling set_agent_status RPC:', err);
-      }
-    }
+    // Handoff availability (agent_status) only knows online and away.
+    const { error: availabilityErr } = await supabase.rpc('set_agent_status', {
+      p_status: status === 'online' ? 'online' : 'away',
+    });
+    if (availabilityErr) console.warn('[Agent Status]: set_agent_status failed:', availabilityErr.message);
 
     const { error } = await supabase
       .from('agents')
@@ -1950,6 +1998,8 @@ export default function DashboardPage() {
       }
     }
   };
+  // The inactivity timer above calls the latest version of this.
+  handleUpdateAgentStatusRef.current = handleUpdateAgentStatus;
 
   const handleOpenConversationForVisitor = async (visitorId: string) => {
     let existing = conversations.find((c) => c.visitor_id === visitorId);
@@ -1978,13 +2028,8 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     if (currentAgent) {
-      if (currentWorkspace?.id) {
-        try {
-          await supabase.rpc('set_agent_status', { p_workspace_id: currentWorkspace.id, p_status: 'offline' });
-        } catch {
-          // ignore
-        }
-      }
+      const { error: availabilityErr } = await supabase.rpc('set_agent_status', { p_status: 'away' });
+      if (availabilityErr) console.warn('[Agent Status]: set_agent_status failed:', availabilityErr.message);
       await supabase.from('agents').update({ status: 'offline' }).eq('id', currentAgent.id);
     }
     await supabase.auth.signOut();

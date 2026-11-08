@@ -267,15 +267,20 @@ export function ChatThread({
     }
     setIsReturningToAi(true);
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase.rpc('return_to_ai', {
-        p_conversation_id: conversation.id,
-      });
-      if (error) throw error;
-      toast.show('Returned conversation to AI', 'success');
+      // return_to_ai() is for the agent who has the chat (it also tells the
+      // customer). Anyone else, or a chat not in agent_active, goes through
+      // the normal AI switch, which the database treats the same way.
+      if (conversation.handoff_status === 'agent_active' && conversation.assigned_agent_id === currentAgent?.id) {
+        const supabase = createClient();
+        const { error } = await supabase.rpc('return_to_ai', {
+          p_conversation_id: conversation.id,
+        });
+        if (error) throw error;
+      }
       if (onToggleAiMode) {
         await onToggleAiMode('autopilot');
       }
+      toast.show('Returned conversation to AI', 'success');
     } catch (err) {
       console.error('Failed to return to AI:', err);
       toast.show(errorMessage(err, 'Failed to return to AI'), 'error');
@@ -292,10 +297,21 @@ export function ChatThread({
         p_conversation_id: conversation.id,
       });
       if (error) throw error;
-      toast.show('Conversation assigned to you', 'success');
+      const res = (data || {}) as { ok?: boolean; reason?: string; message?: string };
+      const inHandoffQueue =
+        conversation.handoff_status === 'waiting_for_agent' || conversation.handoff_status === 'offline_queued';
+      if (!res.ok && inHandoffQueue) {
+        // Someone else claimed it first; assigning it to us anyway would take
+        // the chat away from them.
+        toast.show(res.message || 'Another agent already took this chat', 'info');
+        return;
+      }
+      // Claimed, or a handover from before the handoff queue (nothing to
+      // claim): either way it is ours now.
       if (currentAgent) {
         await onAssignAgent(currentAgent.id);
       }
+      toast.show('Conversation assigned to you', 'success');
       textareaRef.current?.focus();
     } catch (err) {
       console.error('Failed to claim conversation:', err);
@@ -2620,7 +2636,7 @@ export function ChatThread({
           )}
 
           {/* Return to AI Quick Action */}
-          {conversation.status !== 'closed' && (conversation.handoff_status === 'agent_active' || Boolean(conversation.agent_id)) && (
+          {conversation.status !== 'closed' && !isLightAgent && (conversation.handoff_status === 'agent_active' || Boolean(conversation.assigned_agent_id)) && (
             <button
               type="button"
               onClick={handleReturnToAi}
