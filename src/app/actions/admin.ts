@@ -12,6 +12,7 @@ import {
   NavbarTriggerConfig,
   SMTPSettingsConfig,
   WidgetIconType,
+  WorkspaceHandoffSettings,
 } from '@/types/database';
 import { generateUniqueWorkspaceSlug } from '@/lib/slug';
 import { getIndustryPreset } from '@/lib/onboarding-presets';
@@ -19,6 +20,7 @@ import { getWorkspaceAccess } from '@/lib/team/access';
 import { assertSettingNotLocked } from '@/lib/settings/precedence';
 import { LAUNCHER_ICONS, isHexColor, isWidgetColorMode, isWidgetDesign } from '@/lib/widget/launcher-icons';
 import { normalizePrechat } from '@/lib/widget/prechat';
+import { normalizeHandoffSettings } from '@/lib/handoff/state-machine';
 import { userError } from '@/lib/errors/user-error';
 import { refreshHelpCenter } from '@/lib/help/refresh';
 import { cleanHelpTheme } from '@/lib/help/theme';
@@ -200,6 +202,44 @@ export async function updateBusinessHoursAction(
   // and the next ticket change or the SLA cron brings the timers in line.
   const { error: slaError } = await supabase.rpc('fn_sla_reapply_workspace', { p_workspace_id: workspaceId });
   if (slaError) console.error('[SLA Error]: could not re-time tickets after a business hours change:', slaError.message);
+
+  return { success: true, workspace: updated as Workspace };
+}
+
+/**
+/**
+ * SECTION 3: AI -> Human Agent Handoff Settings
+ */
+export async function updateHandoffSettingsAction(
+  workspaceId: string,
+  settings: Partial<WorkspaceHandoffSettings>
+) {
+  await assertAdminUser(workspaceId);
+  const supabase = await createClient();
+
+  const { data: current, error: fetchError } = await supabase
+    .from('workspaces')
+    .select('handoff_settings')
+    .eq('id', workspaceId)
+    .single();
+
+  if (fetchError) throw userError(fetchError.message);
+
+  const clean = normalizeHandoffSettings({
+    ...(current?.handoff_settings || {}),
+    ...settings,
+  });
+
+  const { data: updated, error } = await supabase
+    .from('workspaces')
+    .update({
+      handoff_settings: clean,
+    })
+    .eq('id', workspaceId)
+    .select()
+    .single();
+
+  if (error) throw userError(error.message);
 
   return { success: true, workspace: updated as Workspace };
 }

@@ -70,6 +70,7 @@ import {
 import {
   updateWidgetSettingsAction,
   updateBusinessHoursAction,
+  updateHandoffSettingsAction,
   updateAutoAssignmentRulesAction,
   updateAISettingsAction,
   updateHelpCenterBrandingAction,
@@ -601,6 +602,10 @@ export function AdminSettingsPanel({
   const [businessHours, setBusinessHours] = useState<BusinessHoursConfig>(
     workspace.business_hours || DEFAULT_SCHEDULE
   );
+  const [holidaysInput, setHolidaysInput] = useState<string>(() => {
+    const list = workspace.handoff_settings?.office_hours?.holidays || [];
+    return list.join(', ');
+  });
   const [tzSearch, setTzSearch] = useState('');
   const [tzDropdownOpen, setTzDropdownOpen] = useState(false);
 
@@ -616,12 +621,27 @@ export function AdminSettingsPanel({
 
   const isHoursDirty = useMemo(() => {
     const orig = workspace.business_hours || DEFAULT_SCHEDULE;
-    return JSON.stringify(businessHours) !== JSON.stringify(orig);
+    const origHolidays = (workspace.handoff_settings?.office_hours?.holidays || []).join(', ');
+    return JSON.stringify(businessHours) !== JSON.stringify(orig) || holidaysInput !== origHolidays;
   }, [businessHours, workspace.business_hours]);
 
   const handleSaveBusinessHours = async () => {
     setSaving(true);
     try {
+      const holidays = holidaysInput
+        .split(',')
+        .map((s) => s.trim())
+        .filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s));
+
+      await updateHandoffSettingsAction(workspace.id, {
+        office_hours: {
+          enabled: businessHours.enabled,
+          timezone: businessHours.timezone,
+          schedule: businessHours.schedule,
+          holidays,
+        },
+      });
+
       const res = await updateBusinessHoursAction(workspace.id, businessHours);
       if (res.workspace) {
         setWorkspace(res.workspace);
@@ -762,18 +782,38 @@ export function AdminSettingsPanel({
   // ──────────────────────────────────────────────────────────────────────────
   // SECTION 5: AUTO-ASSIGNMENT RULES STATE
   // ──────────────────────────────────────────────────────────────────────────
+  const [routingStrategy, setRoutingStrategy] = useState<'round_robin' | 'broadcast'>(
+    workspace.handoff_settings?.routing?.strategy || 'round_robin'
+  );
+  const [ringTimeoutSeconds, setRingTimeoutSeconds] = useState<number>(
+    workspace.handoff_settings?.routing?.ring_timeout_seconds || 45
+  );
   const [autoAssign, setAutoAssign] = useState<AutoAssignmentConfig>(
     workspace.auto_assignment || { enabled: true, max_conversations_per_agent: 5 }
   );
 
   const isAutoAssignDirty = useMemo(() => {
     const orig = workspace.auto_assignment || { enabled: true, max_conversations_per_agent: 5 };
-    return JSON.stringify(autoAssign) !== JSON.stringify(orig);
-  }, [autoAssign, workspace.auto_assignment]);
+    const origStrategy = workspace.handoff_settings?.routing?.strategy || 'round_robin';
+    const origRing = workspace.handoff_settings?.routing?.ring_timeout_seconds || 45;
+    return (
+      JSON.stringify(autoAssign) !== JSON.stringify(orig) ||
+      routingStrategy !== origStrategy ||
+      ringTimeoutSeconds !== origRing
+    );
+  }, [autoAssign, workspace.auto_assignment, routingStrategy, ringTimeoutSeconds, workspace.handoff_settings]);
 
   const handleSaveAutoAssign = async () => {
     setSaving(true);
     try {
+      await updateHandoffSettingsAction(workspace.id, {
+        routing: {
+          strategy: routingStrategy,
+          ring_timeout_seconds: ringTimeoutSeconds,
+          max_concurrent_chats_per_agent: autoAssign.max_conversations_per_agent,
+        },
+      });
+
       const res = await updateAutoAssignmentRulesAction(workspace.id, autoAssign);
       if (res.workspace) {
         setWorkspace(res.workspace);
@@ -2563,6 +2603,21 @@ export function AdminSettingsPanel({
                   );
                 })}
               </div>
+
+              {/* Holidays list (Phase 2) */}
+              <div className="space-y-2 border-t border-line pt-4">
+                <label className="field-label mb-0">Holidays & Off Days (YYYY-MM-DD)</label>
+                <p className="text-2xs text-ink-3">
+                  Comma-separated dates when support is closed all day regardless of weekday schedule (e.g. 2026-12-25, 2027-01-01).
+                </p>
+                <input
+                  type="text"
+                  placeholder="2026-12-25, 2027-01-01"
+                  value={holidaysInput}
+                  onChange={(e) => setHolidaysInput(e.target.value)}
+                  className="input max-w-lg text-xs font-mono"
+                />
+              </div>
             </div>
           </div>
         )}
@@ -2827,6 +2882,61 @@ export function AdminSettingsPanel({
                   />
                   <span className="text-xs text-ink-3">
                     Limits concurrent open chats to prevent agent overload. Additional tickets stay in the Unassigned queue.
+                  </span>
+                </div>
+              </div>
+
+              {/* Routing Strategy Toggle (Phase 2) */}
+              <div className="space-y-2 border-t border-line pt-4">
+                <label className="field-label mb-0">Handoff Ring Strategy</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-w-lg">
+                  <button
+                    type="button"
+                    onClick={() => setRoutingStrategy('round_robin')}
+                    className={cn(
+                      'p-3 rounded-xl border text-left transition-all cursor-pointer',
+                      routingStrategy === 'round_robin'
+                        ? 'border-accent bg-accent/5 ring-1 ring-accent'
+                        : 'border-line hover:border-line-2 bg-surface'
+                    )}
+                  >
+                    <div className="text-xs font-semibold text-ink">Round-Robin (Default)</div>
+                    <div className="text-2xs text-ink-3 mt-0.5">
+                      Rings one available agent at a time for {ringTimeoutSeconds}s in order.
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRoutingStrategy('broadcast')}
+                    className={cn(
+                      'p-3 rounded-xl border text-left transition-all cursor-pointer',
+                      routingStrategy === 'broadcast'
+                        ? 'border-accent bg-accent/5 ring-1 ring-accent'
+                        : 'border-line hover:border-line-2 bg-surface'
+                    )}
+                  >
+                    <div className="text-xs font-semibold text-ink">Broadcast</div>
+                    <div className="text-2xs text-ink-3 mt-0.5">
+                      Rings all available agents at once. First agent to accept gets the chat.
+                    </div>
+                  </button>
+                </div>
+              </div>
+
+              {/* Ring Timeout (Phase 2) */}
+              <div className="space-y-2">
+                <label className="field-label">Agent Ring Timeout (seconds)</label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={15}
+                    max={120}
+                    value={ringTimeoutSeconds}
+                    onChange={(e) => setRingTimeoutSeconds(Math.max(15, Math.min(120, parseInt(e.target.value) || 45)))}
+                    className="input w-32 text-sm font-semibold"
+                  />
+                  <span className="text-xs text-ink-3">
+                    Duration an agent has to accept before moving to the next agent or queue (15–120s).
                   </span>
                 </div>
               </div>

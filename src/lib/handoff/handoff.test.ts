@@ -4,6 +4,7 @@ import {
   getHandoffStateBadge,
   HANDOFF_STATES,
   isValidHandoffTransition,
+  isWithinOfficeHours,
   matchHandoffKeywords,
   VALID_HANDOFF_TRANSITIONS,
 } from './state-machine';
@@ -155,6 +156,56 @@ describe('AI -> Human Agent Handoff State Machine', () => {
       expect(getHandoffStateBadge('agent_active').label).toBe('Agent Active');
       expect(getHandoffStateBadge('offline_queued').label).toBe('Offline Queue');
       expect(getHandoffStateBadge('resolved').label).toBe('Resolved');
+    });
+  });
+
+  describe('isWithinOfficeHours', () => {
+    const baseSchedule = {
+      enabled: true,
+      timezone: 'UTC',
+      schedule: {
+        monday: { enabled: true, start: '09:00', end: '17:00' },
+        tuesday: { enabled: true, start: '09:00', end: '17:00' },
+        wednesday: { enabled: true, start: '09:00', end: '17:00' },
+        thursday: { enabled: true, start: '09:00', end: '17:00' },
+        friday: { enabled: true, start: '09:00', end: '17:00' },
+        saturday: { enabled: false, start: '09:00', end: '17:00' },
+        sunday: { enabled: false, start: '09:00', end: '17:00' },
+      },
+      holidays: ['2026-12-25'],
+    };
+
+    it('returns true if office hours enforcement is disabled', () => {
+      expect(isWithinOfficeHours({ ...baseSchedule, enabled: false })).toBe(true);
+      expect(isWithinOfficeHours(null)).toBe(true);
+    });
+
+    it('returns true on an enabled weekday during open hours', () => {
+      // 2026-11-23 is Monday at 12:00 UTC
+      const openTime = new Date('2026-11-23T12:00:00Z');
+      expect(isWithinOfficeHours(baseSchedule, openTime)).toBe(true);
+    });
+
+    it('returns false before opening or after closing', () => {
+      // Monday 08:30 UTC
+      const tooEarly = new Date('2026-11-23T08:30:00Z');
+      expect(isWithinOfficeHours(baseSchedule, tooEarly)).toBe(false);
+
+      // Monday 17:30 UTC
+      const tooLate = new Date('2026-11-23T17:30:00Z');
+      expect(isWithinOfficeHours(baseSchedule, tooLate)).toBe(false);
+    });
+
+    it('returns false on weekends when disabled', () => {
+      // 2026-11-28 is Saturday
+      const saturday = new Date('2026-11-28T12:00:00Z');
+      expect(isWithinOfficeHours(baseSchedule, saturday)).toBe(false);
+    });
+
+    it('returns false on holidays', () => {
+      // 2026-12-25 is Friday (normally open, but in holidays list)
+      const holiday = new Date('2026-12-25T12:00:00Z');
+      expect(isWithinOfficeHours(baseSchedule, holiday)).toBe(false);
     });
   });
 });

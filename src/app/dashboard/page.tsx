@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
@@ -19,6 +19,7 @@ import { updateFaviconBadge } from '@/lib/favicon';
 import { SetupChecklist } from '@/components/dashboard/SetupChecklist';
 import { isVisitorOnline } from '@/lib/tracking/visitor-tracking';
 import { isWaitingForPerson } from '@/lib/inbox/handovers';
+import { isWithinOfficeHours } from '@/lib/handoff/state-machine';
 import type { SectionId } from '@/components/dashboard/SettingsHub';
 import { BarChart2, BookOpen, Inbox, MessagesSquare, Radio, Settings, Smartphone, ShieldAlert, LogOut, Sparkles, Ticket, HelpCircle, Hand } from 'lucide-react';
 import { exitSuperAdminWorkspaceViewAction } from '@/app/actions/platform';
@@ -86,6 +87,9 @@ export default function DashboardPage() {
   const [ticketsRequest, setTicketsRequest] = useState<{ viewId?: string; ticketId?: string; nonce: number } | null>(null);
 
   const [checkoutBannerMsg, setCheckoutBannerMsg] = useState<string | null>(null);
+  const [dismissedOfficeHoursBanner, setDismissedOfficeHoursBanner] = useState(false);
+  const autoAwayTriggeredRef = useRef(false);
+  const presenceChanRef = useRef<any>(null);
 
   useEffect(() => {
     if (currentWorkspace?.id) {
@@ -105,6 +109,88 @@ export default function DashboardPage() {
         .catch(() => {});
     }
   }, [currentWorkspace?.id]);
+
+  const handleUpdateAgentStatusRef = useRef<(status: AgentStatus) => Promise<void>>(async () => {});
+
+  // 30s Heartbeat for Availability (Phase 2)
+  useEffect(() => {
+    if (!currentWorkspace?.id || !currentAgent?.id) return;
+    const sendHeartbeat = () => {
+      supabase
+        .rpc('agent_heartbeat', { p_workspace_id: currentWorkspace.id })
+        .catch(() => {});
+    };
+    sendHeartbeat();
+    const interval = setInterval(sendHeartbeat, 30000);
+    return () => clearInterval(interval);
+  }, [currentWorkspace?.id, currentAgent?.id]);
+
+  // 15-minute inactivity auto-Away (Phase 2)
+  useEffect(() => {
+    if (!currentWorkspace?.id || !currentAgent?.id) return;
+    const INACTIVITY_MS = 15 * 60 * 1000;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const resetTimer = () => {
+      if (autoAwayTriggeredRef.current && currentAgent.status === 'away') {
+        autoAwayTriggeredRef.current = false;
+        handleUpdateAgentStatusRef.current('online');
+      }
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (currentAgent.status === 'online') {
+          autoAwayTriggeredRef.current = true;
+          handleUpdateAgentStatusRef.current('away');
+        }
+      }, INACTIVITY_MS);
+    };
+
+    const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
+    events.forEach((e) => window.addEventListener(e, resetTimer, { passive: true }));
+    resetTimer();
+
+    return () => {
+      clearTimeout(timer);
+      events.forEach((e) => window.removeEventListener(e, resetTimer));
+    };
+  }, [currentWorkspace?.id, currentAgent?.id, currentAgent?.status]);
+
+  // Supabase Realtime Presence for workspace agents (Phase 2)
+  useEffect(() => {
+    if (!currentWorkspace?.id || !currentAgent?.id) return;
+    const channelName = `presence:workspace_${currentWorkspace.id}`;
+    const chan = supabase.channel(channelName, {
+      config: { presence: { key: currentAgent.id } },
+    });
+    presenceChanRef.current = chan;
+
+    chan.subscribe(async (status: string) => {
+      if (status === 'SUBSCRIBED') {
+        await chan
+          .track({
+            agent_id: currentAgent.id,
+            name: currentAgent.name,
+            status: currentAgent.status,
+            online_at: new Date().toISOString(),
+          })
+          .catch(() => {});
+      }
+    });
+
+    return () => {
+      chan.unsubscribe();
+      presenceChanRef.current = null;
+    };
+  }, [currentWorkspace?.id, currentAgent?.id, currentAgent?.status]);
+
+  const isOfficeHoursActive = useMemo(() => {
+    if (!currentWorkspace) return false;
+    const config = currentWorkspace.handoff_settings?.office_hours || currentWorkspace.business_hours;
+    return isWithinOfficeHours(config);
+  }, [currentWorkspace]);
+
+  const showOfficeHoursAwayBanner =
+    isOfficeHoursActive && currentAgent?.status === 'away' && !dismissedOfficeHoursBanner;
 
   // Five destinations: the inbox, the visitor radar, reports, help desk,
   // and the Settings hub.
@@ -1717,7 +1803,17 @@ export default function DashboardPage() {
   };
 
   const handleUpdateAgentStatus = async (status: AgentStatus) => {
+    handleUpdateAgentStatusRef.current = handleUpdateAgentStatus;
     if (!currentAgent) return;
+
+    if (currentWorkspace?.id) {
+      await supabase
+        .rpc('set_agent_status', {
+          p_workspace_id: currentWorkspace.id,
+          p_status: status,
+        })
+        .catch((err: unknown) => console.error('Error calling set_agent_status RPC:', err));
+    }
 
     const { error } = await supabase
       .from('agents')
@@ -1729,6 +1825,17 @@ export default function DashboardPage() {
       return;
     }
     setCurrentAgent((prev) => (prev ? { ...prev, status } : null));
+
+    if (presenceChanRef.current) {
+      presenceChanRef.current
+        .track({
+          agent_id: currentAgent.id,
+          name: currentAgent.name,
+          status,
+          online_at: new Date().toISOString(),
+        })
+        .catch(() => {});
+    }
   };
 
   const handleOpenConversationForVisitor = async (visitorId: string) => {
@@ -1758,6 +1865,11 @@ export default function DashboardPage() {
 
   const handleLogout = async () => {
     if (currentAgent) {
+      if (currentWorkspace?.id) {
+        await supabase
+          .rpc('set_agent_status', { p_workspace_id: currentWorkspace.id, p_status: 'offline' })
+          .catch(() => {});
+      }
       await supabase.from('agents').update({ status: 'offline' }).eq('id', currentAgent.id);
     }
     await supabase.auth.signOut();
@@ -1851,6 +1963,33 @@ export default function DashboardPage() {
         isTrialExpired={subscriptionInfo?.isTrialExpired}
         onUpgradeClick={() => handleOpenSettingsSection('billing')}
       />
+
+      {/* Office Hours Started Reminder Banner (Phase 2) */}
+      {showOfficeHoursAwayBanner && (
+        <div className="bg-amber-500/15 border-b border-amber-500/30 text-ink px-4 py-2 text-xs flex items-center justify-between z-40 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            <span>Office hours have started and customers may request human support.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => handleUpdateAgentStatus('online')}
+              className="px-2.5 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded font-medium text-xs transition-colors cursor-pointer"
+            >
+              Go Online
+            </button>
+            <button
+              type="button"
+              onClick={() => setDismissedOfficeHoursBanner(true)}
+              className="text-ink-3 hover:text-ink text-xs p-1 cursor-pointer"
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="flex flex-1 overflow-hidden relative">
       {/* 1. Left Sidebar Navigation (Desktop) */}
