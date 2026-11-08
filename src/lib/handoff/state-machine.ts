@@ -311,3 +311,36 @@ export function isWithinOfficeHours(
 
   return currentHhMm >= start && currentHhMm <= end;
 }
+
+/**
+ * SPEC Section B: Customer wait time estimate.
+ * Only shown if >= 10 handoffs occurred in the past 7 days to avoid noisy estimates.
+ */
+export function calculateWaitTimeEstimate(
+  recentWaitSeconds: number[],
+  minSamples: number = 10
+): { minutes: number; formatted: string } | null {
+  if (!recentWaitSeconds || recentWaitSeconds.length < minSamples) {
+    return null;
+  }
+  const sum = recentWaitSeconds.reduce((acc, s) => acc + Math.max(0, s), 0);
+  const avgSec = Math.round(sum / recentWaitSeconds.length);
+  const avgMin = Math.max(1, Math.round(avgSec / 60));
+  const formatted =
+    avgMin <= 1 ? 'typically ~1 minute' : `typically ~${avgMin} minutes`;
+  return { minutes: avgMin, formatted };
+}
+
+/**
+ * Checks if a chat waiting in queue exceeds the unanswered threshold (default 300 seconds = 5 min).
+ */
+export function isQueueStale(
+  requestedAt: Date | string | null | undefined,
+  timeoutSeconds: number = 300,
+  now: Date = new Date()
+): boolean {
+  if (!requestedAt) return false;
+  const reqTime = typeof requestedAt === 'string' ? new Date(requestedAt).getTime() : requestedAt.getTime();
+  if (isNaN(reqTime)) return false;
+  return now.getTime() - reqTime >= timeoutSeconds * 1000;
+}

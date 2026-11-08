@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+  calculateWaitTimeEstimate,
   canAiRespond,
   getHandoffStateBadge,
   HANDOFF_STATES,
+  isQueueStale,
   isValidHandoffTransition,
   isWithinOfficeHours,
   matchHandoffKeywords,
@@ -206,6 +208,36 @@ describe('AI -> Human Agent Handoff State Machine', () => {
       // 2026-12-25 is Friday (normally open, but in holidays list)
       const holiday = new Date('2026-12-25T12:00:00Z');
       expect(isWithinOfficeHours(baseSchedule, holiday)).toBe(false);
+    });
+  });
+
+  describe('Wait time estimates and queue timeouts (Phase 4)', () => {
+    it('returns null if fewer than 10 samples are available', () => {
+      const fewSamples = [45, 60, 30, 90, 120];
+      expect(calculateWaitTimeEstimate(fewSamples)).toBeNull();
+    });
+
+    it('calculates average wait time when >= 10 samples are present', () => {
+      const tenSamples = [60, 60, 60, 60, 60, 60, 60, 60, 60, 60]; // 60s avg = 1 min
+      const res = calculateWaitTimeEstimate(tenSamples);
+      expect(res).not.toBeNull();
+      expect(res?.minutes).toBe(1);
+      expect(res?.formatted).toBe('typically ~1 minute');
+
+      const longerWait = [180, 240, 200, 300, 150, 190, 220, 210, 240, 170]; // ~210s = 3.5m -> 4m
+      const res2 = calculateWaitTimeEstimate(longerWait);
+      expect(res2?.minutes).toBeGreaterThanOrEqual(3);
+      expect(res2?.formatted).toMatch(/typically ~\d+ minutes/);
+    });
+
+    it('detects stale queue entries over 300s (5 min)', () => {
+      const now = new Date('2026-11-23T12:10:00Z');
+      const freshReq = new Date('2026-11-23T12:08:00Z'); // 2 min ago
+      const staleReq = new Date('2026-11-23T12:04:00Z'); // 6 min ago
+
+      expect(isQueueStale(freshReq, 300, now)).toBe(false);
+      expect(isQueueStale(staleReq, 300, now)).toBe(true);
+      expect(isQueueStale(null, 300, now)).toBe(false);
     });
   });
 });
