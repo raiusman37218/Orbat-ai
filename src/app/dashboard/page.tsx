@@ -20,6 +20,8 @@ import { SetupChecklist } from '@/components/dashboard/SetupChecklist';
 import { isVisitorOnline } from '@/lib/tracking/visitor-tracking';
 import { isWaitingForPerson } from '@/lib/inbox/handovers';
 import { isWithinOfficeHours } from '@/lib/handoff/state-machine';
+import { RingingHandoffModal, type RingingHandoffPayload } from '@/components/dashboard/RingingHandoffModal';
+import { useToast } from '@/components/ui/Toast';
 import type { SectionId } from '@/components/dashboard/SettingsHub';
 import { BarChart2, BookOpen, Inbox, MessagesSquare, Radio, Settings, Smartphone, ShieldAlert, LogOut, Sparkles, Ticket, HelpCircle, Hand } from 'lucide-react';
 import { exitSuperAdminWorkspaceViewAction } from '@/app/actions/platform';
@@ -62,6 +64,7 @@ function isAiAnswering(conv: Conversation, ws: Workspace | null): boolean {
 export default function DashboardPage() {
   const router = useRouter();
   const supabase = createClient();
+  const toast = useToast();
 
   const [loading, setLoading] = useState(true);
   const [currentAgent, setCurrentAgent] = useState<Agent | null>(null);
@@ -88,8 +91,35 @@ export default function DashboardPage() {
 
   const [checkoutBannerMsg, setCheckoutBannerMsg] = useState<string | null>(null);
   const [dismissedOfficeHoursBanner, setDismissedOfficeHoursBanner] = useState(false);
+  const [audioNotificationAlertDismissed, setAudioNotificationAlertDismissed] = useState(false);
+  const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
   const autoAwayTriggeredRef = useRef(false);
+  const [ringingPayload, setRingingPayload] = useState<RingingHandoffPayload | null>(null);
   const presenceChanRef = useRef<any>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    try {
+      const notifPending = 'Notification' in window && Notification.permission === 'default';
+      setNeedsAudioUnlock(notifPending);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleEnableAudioNotifications = async () => {
+    sound.prime();
+    await sound.unlockAudio();
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      try {
+        await Notification.requestPermission();
+      } catch {
+        // ignore
+      }
+    }
+    setNeedsAudioUnlock(false);
+    toast.success('Audio & notifications enabled');
+  };
 
   useEffect(() => {
     if (currentWorkspace?.id) {
@@ -182,6 +212,68 @@ export default function DashboardPage() {
       presenceChanRef.current = null;
     };
   }, [currentWorkspace?.id, currentAgent?.id, currentAgent?.status]);
+
+  // Listen for Handoff Ring Signals (Phase 3)
+  useEffect(() => {
+    if (!currentWorkspace?.id || !currentAgent?.id) return;
+
+    // 1. Dedicated agent channel for targeted ringing
+    const agentChan = supabase.channel(`agent:${currentAgent.id}`);
+    agentChan
+      .on('broadcast', { event: 'handoff_ring' }, (msg: any) => {
+        const d = msg?.payload || {};
+        if (d.conversation_id) {
+          setRingingPayload({
+            conversationId: d.conversation_id,
+            visitorName: d.visitor_name || 'Customer',
+            visitorEmail: d.visitor_email,
+            question: d.question,
+            summary: d.summary,
+            reason: d.reason,
+            timeoutSeconds: d.timeout_seconds || 45,
+            broadcast: false,
+          });
+        }
+      })
+      .on('broadcast', { event: 'handoff_ring_signal' }, (msg: any) => {
+        const d = msg?.payload || {};
+        if (d.signal === 'claimed' || d.signal === 'cancelled' || d.signal === 'resolved') {
+          setRingingPayload((prev) => (prev?.conversationId === d.conversation_id ? null : prev));
+        }
+      })
+      .subscribe();
+
+    // 2. Workspace queue channel for broadcast ringing
+    const queueChan = supabase.channel(`queue:${currentWorkspace.id}`);
+    queueChan
+      .on('broadcast', { event: 'handoff_ring' }, (msg: any) => {
+        const d = msg?.payload || {};
+        if (d.conversation_id) {
+          setRingingPayload({
+            conversationId: d.conversation_id,
+            visitorName: d.visitor_name || 'Customer',
+            visitorEmail: d.visitor_email,
+            question: d.question,
+            summary: d.summary,
+            reason: d.reason,
+            timeoutSeconds: d.timeout_seconds || 45,
+            broadcast: true,
+          });
+        }
+      })
+      .on('broadcast', { event: 'handoff_ring_signal' }, (msg: any) => {
+        const d = msg?.payload || {};
+        if (d.signal === 'claimed' || d.signal === 'cancelled' || d.signal === 'resolved') {
+          setRingingPayload((prev) => (prev?.conversationId === d.conversation_id ? null : prev));
+        }
+      })
+      .subscribe();
+
+    return () => {
+      agentChan.unsubscribe();
+      queueChan.unsubscribe();
+    };
+  }, [currentWorkspace?.id, currentAgent?.id]);
 
   const isOfficeHoursActive = useMemo(() => {
     if (!currentWorkspace) return false;
@@ -1836,6 +1928,21 @@ export default function DashboardPage() {
         })
         .catch(() => {});
     }
+
+    if (status === 'online' && currentWorkspace?.id) {
+      try {
+        const { count } = await supabase
+          .from('conversations')
+          .select('id', { count: 'exact', head: true })
+          .eq('workspace_id', currentWorkspace.id)
+          .in('handoff_status', ['waiting_for_agent', 'offline_queued']);
+        if (count && count > 0) {
+          toast.show(`${count} chat${count > 1 ? 's are' : ' is'} waiting in the queue`, 'info');
+        }
+      } catch {
+        // ignore
+      }
+    }
   };
 
   const handleOpenConversationForVisitor = async (visitorId: string) => {
@@ -1982,6 +2089,33 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setDismissedOfficeHoursBanner(true)}
+              className="text-ink-3 hover:text-ink text-xs p-1 cursor-pointer"
+              title="Dismiss"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Enable Sound & Notifications Banner (Phase 3) */}
+      {needsAudioUnlock && !audioNotificationAlertDismissed && (
+        <div className="bg-sky-500/15 border-b border-sky-500/30 text-ink px-4 py-2 text-xs flex items-center justify-between z-40 shrink-0">
+          <div className="flex items-center gap-2">
+            <span className="text-base leading-none">🔔</span>
+            <span>Enable sound and notifications to receive incoming chat alerts.</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={handleEnableAudioNotifications}
+              className="px-2.5 py-1 bg-sky-600 hover:bg-sky-700 text-white rounded font-medium text-xs transition-colors cursor-pointer"
+            >
+              Enable
+            </button>
+            <button
+              type="button"
+              onClick={() => setAudioNotificationAlertDismissed(true)}
               className="text-ink-3 hover:text-ink text-xs p-1 cursor-pointer"
               title="Dismiss"
             >
@@ -2414,6 +2548,19 @@ export default function DashboardPage() {
       <UpgradeModal
         workspaceId={currentWorkspace?.id}
         onNavigateToBilling={() => handleOpenSettingsSection('billing')}
+      />
+
+      {/* 7. AI -> Human Handoff Ringing Modal (Phase 3) */}
+      <RingingHandoffModal
+        payload={ringingPayload}
+        onClose={() => setRingingPayload(null)}
+        onAccepted={(conversationId) => {
+          setSelectedConversationId(conversationId);
+          setActiveView('inbox');
+        }}
+      />
+      {/* close modal */}
+      <span className="hidden"
       />
       </div>
     </div>

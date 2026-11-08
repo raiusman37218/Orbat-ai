@@ -50,7 +50,7 @@ export async function getNotificationPrefsAction(workspaceId: string) {
   const { supabase, user } = await getWorkspaceAccess(workspaceId, 'view');
   const { data, error } = await supabase
     .from('agent_notification_preferences')
-    .select('email, in_app')
+    .select('*')
     .eq('workspace_id', workspaceId)
     .eq('agent_id', user.id)
     .maybeSingle();
@@ -70,6 +70,13 @@ export async function saveNotificationPrefsAction(workspaceId: string, prefs: No
       workspace_id: workspaceId,
       email: clean.email,
       in_app: clean.in_app,
+      sound_enabled: clean.sound_enabled,
+      sound_name: clean.sound_name,
+      push_enabled: clean.push_enabled,
+      email_missed: clean.email_missed,
+      email_queue_summary: clean.email_queue_summary,
+      telegram_chat_id: clean.telegram_chat_id,
+      telegram_enabled: clean.telegram_enabled,
       updated_at: new Date().toISOString(),
     },
     { onConflict: 'agent_id,workspace_id' }

@@ -79,11 +79,25 @@ export type ChannelPrefs = Record<NotificationEventId, boolean>;
 export interface NotificationPrefs {
   email: ChannelPrefs;
   in_app: ChannelPrefs;
+  sound_enabled: boolean;
+  sound_name: string;
+  push_enabled: boolean;
+  email_missed: boolean;
+  email_queue_summary: boolean;
+  telegram_chat_id: string | null;
+  telegram_enabled: boolean;
 }
 
 export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
   email: { handover: true, assigned: true, mentioned: true, customer_reply: true, new_conversation: false },
   in_app: { handover: true, assigned: true, mentioned: true, customer_reply: true, new_conversation: true },
+  sound_enabled: true,
+  sound_name: 'chime',
+  push_enabled: false,
+  email_missed: true,
+  email_queue_summary: true,
+  telegram_chat_id: null,
+  telegram_enabled: false,
 };
 
 /**
@@ -91,7 +105,7 @@ export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = {
  * older or newer version of the app never breaks the screen or the save.
  */
 export function normalizeNotificationPrefs(raw: unknown): NotificationPrefs {
-  const src = (raw && typeof raw === 'object' ? raw : {}) as Partial<Record<NotificationChannel, unknown>>;
+  const src = (raw && typeof raw === 'object' ? raw : {}) as Record<string, any>;
   const channel = (name: NotificationChannel): ChannelPrefs => {
     const given = (src[name] && typeof src[name] === 'object' ? src[name] : {}) as Record<string, unknown>;
     const out = { ...DEFAULT_NOTIFICATION_PREFS[name] };
@@ -100,11 +114,31 @@ export function normalizeNotificationPrefs(raw: unknown): NotificationPrefs {
     }
     return out;
   };
-  return { email: channel('email'), in_app: channel('in_app') };
+  return {
+    email: channel('email'),
+    in_app: channel('in_app'),
+    sound_enabled: typeof src.sound_enabled === 'boolean' ? src.sound_enabled : DEFAULT_NOTIFICATION_PREFS.sound_enabled,
+    sound_name: typeof src.sound_name === 'string' && src.sound_name ? src.sound_name : DEFAULT_NOTIFICATION_PREFS.sound_name,
+    push_enabled: typeof src.push_enabled === 'boolean' ? src.push_enabled : DEFAULT_NOTIFICATION_PREFS.push_enabled,
+    email_missed: typeof src.email_missed === 'boolean' ? src.email_missed : DEFAULT_NOTIFICATION_PREFS.email_missed,
+    email_queue_summary: typeof src.email_queue_summary === 'boolean' ? src.email_queue_summary : DEFAULT_NOTIFICATION_PREFS.email_queue_summary,
+    telegram_chat_id: typeof src.telegram_chat_id === 'string' ? src.telegram_chat_id.trim() || null : null,
+    telegram_enabled: typeof src.telegram_enabled === 'boolean' ? src.telegram_enabled : DEFAULT_NOTIFICATION_PREFS.telegram_enabled,
+  };
 }
 
 export function sameNotificationPrefs(a: NotificationPrefs, b: NotificationPrefs): boolean {
-  return NOTIFICATION_EVENTS.every((e) => a.email[e.id] === b.email[e.id] && a.in_app[e.id] === b.in_app[e.id]);
+  const baseEqual = NOTIFICATION_EVENTS.every((e) => a.email[e.id] === b.email[e.id] && a.in_app[e.id] === b.in_app[e.id]);
+  return (
+    baseEqual &&
+    a.sound_enabled === b.sound_enabled &&
+    a.sound_name === b.sound_name &&
+    a.push_enabled === b.push_enabled &&
+    a.email_missed === b.email_missed &&
+    a.email_queue_summary === b.email_queue_summary &&
+    (a.telegram_chat_id || null) === (b.telegram_chat_id || null) &&
+    a.telegram_enabled === b.telegram_enabled
+  );
 }
 
 // ---------------------------------------------------------------------------

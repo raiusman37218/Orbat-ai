@@ -116,3 +116,28 @@ export function updateFaviconBadge(unreadCount: number) {
     };
   }
 }
+
+
+let alertInterval: ReturnType<typeof setInterval> | null = null;
+
+export function startTabAlert(alertMessage: string = '🔔 New customer chat!') {
+  if (typeof document === 'undefined') return;
+  stopTabAlert();
+  const baseTitle = getOriginalTitle();
+  let toggle = false;
+  document.title = alertMessage;
+  alertInterval = setInterval(() => {
+    toggle = !toggle;
+    document.title = toggle ? alertMessage : baseTitle;
+  }, 1000);
+}
+
+export function stopTabAlert() {
+  if (alertInterval) {
+    clearInterval(alertInterval);
+    alertInterval = null;
+  }
+  if (typeof document !== 'undefined') {
+    document.title = getOriginalTitle();
+  }
+}

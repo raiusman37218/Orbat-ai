@@ -196,6 +196,41 @@ class SoundManager {
       osc.stop(startTime + 0.35);
     });
   }
+
+  private ringInterval: ReturnType<typeof setInterval> | null = null;
+
+  public startRinging(soundName: string = 'chime') {
+    if (!this.soundEnabled) return;
+    this.stopRinging();
+    this.playIncomingMessage();
+    this.ringInterval = setInterval(() => {
+      this.playIncomingMessage();
+    }, 2500);
+  }
+
+  public stopRinging() {
+    if (this.ringInterval) {
+      clearInterval(this.ringInterval);
+      this.ringInterval = null;
+    }
+  }
+
+  public async unlockAudio(): Promise<boolean> {
+    const ctx = this.getContext();
+    if (ctx && ctx.state === 'suspended') {
+      try {
+        await ctx.resume();
+      } catch {
+        // ignore
+      }
+    }
+    return !ctx || ctx.state === 'running';
+  }
+
+  public previewSound(soundName: string = 'chime') {
+    if (!this.soundEnabled) return;
+    this.playIncomingMessage();
+  }
 }
 
 export const sound = new SoundManager();
