@@ -92,6 +92,7 @@ import {
   normalizeDetectedLanguage,
 } from '@/lib/ai/translator';
 import { errorMessage } from '@/lib/errors/user-error';
+import { useToast } from '@/components/ui/Toast';
 
 interface ChatThreadProps {
   conversation: Conversation;
@@ -145,6 +146,52 @@ type ThreadAction = "" | "snooze" | "merge" | "auto-assign" | "ai";
 const PRESET_TAGS = ['VIP', 'Billing', 'Bug', 'Sales lead', 'Feature request', 'Urgent'];
 
 /** Why the AI is off on a thread, from conversations.ai_paused_reason. */
+
+function parseHandoffSummaryBullets(summary?: string | null): string[] {
+  if (!summary) return [];
+  return summary
+    .split(/\r?\n/)
+    .map((s) => s.replace(/^[-*•]\s*/, '').trim())
+    .filter(Boolean);
+}
+
+function formatHandoffReasonLabel(reason?: string | null, pausedReason?: string | null): string {
+  const raw = reason || pausedReason || '';
+  const lower = raw.toLowerCase();
+  if (lower.includes('customer') || lower.includes('human') || lower.includes('requested') || lower.includes('insaan') || lower.includes('banda')) {
+    return 'Customer requested agent';
+  }
+  if (lower.includes('confidence')) return 'Low AI confidence';
+  if (lower.includes('loop') || lower.includes('repeat')) return 'Loop detected';
+  if (lower.includes('frustrat') || lower.includes('anger') || lower.includes('upset')) return 'Customer frustrated';
+  if (lower.includes('sensitive') || lower.includes('refund') || lower.includes('legal') || lower.includes('chargeback')) {
+    return 'Sensitive topic';
+  }
+  if (raw) return raw;
+  return 'Inquiry Escalation';
+}
+
+function getHandoffWaitDuration(
+  requestedAt?: string | null,
+  firstReplyAt?: string | null
+): { label: string; isOngoing: boolean } | null {
+  if (!requestedAt) return null;
+  const start = new Date(requestedAt).getTime();
+  if (Number.isNaN(start)) return null;
+
+  const end = firstReplyAt ? new Date(firstReplyAt).getTime() : Date.now();
+  const diffSec = Math.max(0, Math.floor((end - start) / 1000));
+
+  const minutes = Math.floor(diffSec / 60);
+  const seconds = diffSec % 60;
+  const timeStr = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+
+  if (firstReplyAt) {
+    return { label: `Waited ${timeStr}`, isOngoing: false };
+  }
+  return { label: `Waiting ${timeStr}`, isOngoing: true };
+}
+
 const AI_PAUSED_LABEL: Record<string, string> = {
   human_reply: 'Off because a teammate replied',
   agent_paused: 'Turned off by a teammate',
@@ -210,6 +257,53 @@ export function ChatThread({
   onOpenMissingKnowledge,
 }: ChatThreadProps) {
   const [inputText, setInputText] = useState('');
+  const toast = useToast();
+  const [isReturningToAi, setIsReturningToAi] = useState(false);
+  const [isClaimingHandoff, setIsClaimingHandoff] = useState(false);
+
+  const handleReturnToAi = async () => {
+    if (!window.confirm('Return this conversation to AI? The AI assistant will resume answering customer messages.')) {
+      return;
+    }
+    setIsReturningToAi(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc('return_to_ai', {
+        p_conversation_id: conversation.id,
+      });
+      if (error) throw error;
+      toast.show('Returned conversation to AI', 'success');
+      if (onToggleAiMode) {
+        await onToggleAiMode('autopilot');
+      }
+    } catch (err) {
+      console.error('Failed to return to AI:', err);
+      toast.show(errorMessage(err, 'Failed to return to AI'), 'error');
+    } finally {
+      setIsReturningToAi(false);
+    }
+  };
+
+  const handleClaimHandoff = async () => {
+    setIsClaimingHandoff(true);
+    try {
+      const supabase = createClient();
+      const { data, error } = await supabase.rpc('claim_conversation', {
+        p_conversation_id: conversation.id,
+      });
+      if (error) throw error;
+      toast.show('Conversation assigned to you', 'success');
+      if (currentAgent) {
+        await onAssignAgent(currentAgent.id);
+      }
+      textareaRef.current?.focus();
+    } catch (err) {
+      console.error('Failed to claim conversation:', err);
+      toast.show(errorMessage(err, 'Failed to claim conversation'), 'error');
+    } finally {
+      setIsClaimingHandoff(false);
+    }
+  };
   const composerRef = useRef<HTMLDivElement>(null);
   /** The message the agent is replying to, or null for a plain message. */
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -2525,6 +2619,21 @@ export function ChatThread({
             </button>
           )}
 
+          {/* Return to AI Quick Action */}
+          {conversation.status !== 'closed' && (conversation.handoff_status === 'agent_active' || Boolean(conversation.agent_id)) && (
+            <button
+              type="button"
+              onClick={handleReturnToAi}
+              disabled={isReturningToAi}
+              className="btn btn-sm btn-secondary shadow-xs shrink-0 px-2 sm:px-2.5 flex items-center gap-1.5 cursor-pointer text-ink hover:text-ink disabled:opacity-50"
+              title="Return conversation to AI assistant"
+              aria-label="Return to AI"
+            >
+              <Bot className="w-3.5 h-3.5 text-accent" />
+              <span className="text-xs font-semibold">Return to AI</span>
+            </button>
+          )}
+
           {/* Assignee Menu — visible on 2xl or in details/more */}
           <div className="hidden 2xl:inline-flex items-center shrink-0">
             <Menu<string>
@@ -2707,57 +2816,127 @@ export function ChatThread({
         </div>
       )}
 
-      {/* ── Handover Escalation Banner ── */}
-      {isHandoverPending && (
-        <div className="bg-gradient-to-r from-amber-500/15 via-amber-500/8 to-surface border-b border-amber-500/25 px-5 py-2.5 flex items-center justify-between text-xs animate-in fade-in slide-in-from-top-1 duration-200">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <span className="w-7 h-7 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0 shadow-2xs">
-              <Sparkles className="w-4 h-4 fill-amber-500/20 text-amber-500 animate-pulse" />
-            </span>
-            <div className="min-w-0">
+      {/* ── Pinned Handoff Summary Card ── */}
+      {(isHandoverPending ||
+        conversation.handoff_status === 'waiting_for_agent' ||
+        conversation.handoff_status === 'offline_queued' ||
+        (conversation.handoff_status === 'agent_active' && Boolean(conversation.handoff_summary || conversation.handoff_reason))) && (
+        <div className="bg-surface border-b border-line px-5 py-3 animate-in fade-in slide-in-from-top-1 duration-200">
+          <div className="rounded-xl border border-line-2 bg-surface-2 p-3.5 space-y-2.5 shadow-2xs">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-ink">AI Handover Active</span>
-                <span className="text-2xs px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-700 dark:text-amber-300 font-medium border border-amber-500/30">
-                  {conversation.ai_paused_reason === 'human_requested' ? 'Customer asked for human' : 'Needs Agent Response'}
+                <span className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center justify-center shrink-0">
+                  <Sparkles className="w-3.5 h-3.5 fill-amber-500/20 text-amber-500 animate-pulse" />
                 </span>
-                {assignedAgent && (
-                  <span className="text-2xs text-ink-3">
-                    · Assigned to {assignedAgent.name || 'Agent'}
+                <span className="text-xs font-semibold text-ink">AI Handoff</span>
+                <span className="text-2xs px-2 py-0.5 rounded-full font-medium bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                  {formatHandoffReasonLabel(conversation.handoff_reason, conversation.ai_paused_reason)}
+                </span>
+                {conversation.handoff_status && (
+                  <span className={cn(
+                    "text-2xs px-2 py-0.5 rounded-full font-medium border",
+                    conversation.handoff_status === 'waiting_for_agent'
+                      ? "bg-amber-500/10 text-amber-600 border-amber-500/20"
+                      : conversation.handoff_status === 'offline_queued'
+                      ? "bg-slate-500/10 text-slate-600 dark:text-slate-300 border-slate-500/20"
+                      : "bg-emerald-500/10 text-emerald-600 border-emerald-500/20"
+                  )}>
+                    {conversation.handoff_status === 'waiting_for_agent'
+                      ? 'In Queue'
+                      : conversation.handoff_status === 'offline_queued'
+                      ? 'Offline Queue'
+                      : 'Agent Active'}
                   </span>
                 )}
               </div>
-              <p className="text-2xs text-ink-2 truncate">
-                {conversation.ai_paused_reason === 'human_requested'
-                  ? `${displayName} requested to speak with a human agent. Please reply below to assist.`
-                  : 'The AI assistant could not resolve this inquiry and handed over this conversation to your team.'}
-              </p>
+
+              <div className="flex items-center gap-2 text-2xs text-ink-3">
+                {(() => {
+                  const wait = getHandoffWaitDuration(
+                    conversation.handoff_requested_at,
+                    conversation.first_agent_reply_at
+                  );
+                  if (!wait) return null;
+                  return (
+                    <span className={cn("inline-flex items-center gap-1 font-medium", wait.isOngoing ? "text-amber-600 dark:text-amber-400" : "text-ink-3")}>
+                      <Clock className="w-3 h-3" />
+                      {wait.label}
+                    </span>
+                  );
+                })()}
+                {conversation.handoff_requested_at && (
+                  <span>· Requested {formatTimeAgo(conversation.handoff_requested_at)}</span>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {(!conversation.agent_id || conversation.agent_id !== currentAgent?.id) && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (currentAgent) onAssignAgent(currentAgent.id);
-                  textareaRef.current?.focus();
-                }}
-                className="px-3 py-1 text-xs font-semibold rounded-md bg-brand text-on-brand hover:opacity-95 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
-              >
-                <UserCheck className="w-3.5 h-3.5" />
-                <span>Assign to me</span>
-              </button>
-            )}
-            {conversation.ai_mode === 'disabled' && onToggleAiMode && (
-              <button
-                type="button"
-                onClick={() => onToggleAiMode('autopilot')}
-                className="px-2.5 py-1 text-xs rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2 transition-all flex items-center gap-1 cursor-pointer"
-                title="Resume AI Auto-responder"
-              >
-                <Bot className="w-3.5 h-3.5" />
-                <span>Resume AI</span>
-              </button>
-            )}
+
+            {/* AI Summary Bullets */}
+            {(() => {
+              const bullets = parseHandoffSummaryBullets(conversation.handoff_summary);
+              if (bullets.length > 0) {
+                return (
+                  <ul className="text-xs text-ink-2 space-y-1 list-disc list-inside bg-surface/60 rounded-lg p-2.5 border border-line/60">
+                    {bullets.map((bullet, idx) => (
+                      <li key={idx} className="leading-relaxed">
+                        <span>{bullet}</span>
+                      </li>
+                    ))}
+                  </ul>
+                );
+              }
+              return (
+                <p className="text-xs text-ink-2 bg-surface/60 rounded-lg p-2.5 border border-line/60">
+                  {conversation.ai_paused_reason === 'human_requested'
+                    ? `${displayName} requested to speak with a human agent. Please reply below to assist.`
+                    : 'The AI assistant handed over this conversation for human agent assistance.'}
+                </p>
+              );
+            })()}
+
+            {/* Action Bar */}
+            <div className="flex items-center justify-between pt-1 text-xs">
+              <span className="text-2xs text-ink-3">
+                {assignedAgent ? `Assigned to ${assignedAgent.name || 'Agent'}` : 'Unassigned in queue'}
+              </span>
+              <div className="flex items-center gap-2">
+                {(conversation.handoff_status === 'waiting_for_agent' || conversation.handoff_status === 'offline_queued') ? (
+                  <button
+                    type="button"
+                    onClick={handleClaimHandoff}
+                    disabled={isClaimingHandoff}
+                    className="px-3 py-1 text-xs font-semibold rounded-md bg-brand text-on-brand hover:opacity-95 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>{isClaimingHandoff ? 'Claiming…' : 'Claim conversation'}</span>
+                  </button>
+                ) : (!conversation.agent_id || conversation.agent_id !== currentAgent?.id) ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (currentAgent) onAssignAgent(currentAgent.id);
+                      textareaRef.current?.focus();
+                    }}
+                    className="px-3 py-1 text-xs font-semibold rounded-md bg-brand text-on-brand hover:opacity-95 shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Assign to me</span>
+                  </button>
+                ) : null}
+
+                {conversation.status !== 'closed' && (conversation.handoff_status === 'agent_active' || conversation.agent_id) && (
+                  <button
+                    type="button"
+                    onClick={handleReturnToAi}
+                    disabled={isReturningToAi}
+                    className="px-2.5 py-1 text-xs font-semibold rounded-md border border-line bg-surface text-ink-2 hover:bg-surface-2 transition-all flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    title="Return conversation to AI assistant"
+                  >
+                    <Bot className="w-3.5 h-3.5 text-accent" />
+                    <span>{isReturningToAi ? 'Returning…' : 'Return to AI'}</span>
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       )}

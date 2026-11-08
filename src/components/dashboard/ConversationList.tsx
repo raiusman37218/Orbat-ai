@@ -464,7 +464,23 @@ const ConversationItem = memo(function ConversationItem({
           <div className="flex items-center justify-between gap-1.5 mt-1.5 min-w-0">
             <div className="flex items-center gap-1.5 min-w-0 flex-1 overflow-hidden">
               {/* 1. Primary Status Pill (Mutually exclusive & prioritized) */}
-              {isHandover ? (
+              {conv.handoff_status === 'offline_queued' ? (
+                <span
+                  className={cn(chip, 'bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30 font-semibold')}
+                  title="Offline Queue: Team is offline, customer waiting for reply"
+                >
+                  <Clock className="w-3 h-3 text-slate-500 shrink-0" />
+                  Offline Queue
+                </span>
+              ) : conv.handoff_status === 'waiting_for_agent' ? (
+                <span
+                  className={cn(chip, 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-semibold')}
+                  title="In Queue: Customer is waiting for a human agent to accept"
+                >
+                  <Sparkles className="w-3 h-3 text-amber-500 animate-pulse shrink-0" />
+                  In Queue
+                </span>
+              ) : isHandover ? (
                 <span
                   className={cn(chip, 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 font-semibold')}
                   title="AI Escalation: Customer is waiting for a live agent reply"

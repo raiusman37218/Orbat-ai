@@ -112,14 +112,22 @@ export function parseHandoverNote(content: string | null | undefined): ParsedHan
 type ConversationBits = Pick<
   Conversation,
   'status' | 'ai_paused_reason' | 'ai_needs_attention_at' | 'channel_metadata'
->;
+> & {
+  handoff_status?: Conversation['handoff_status'];
+};
 
 /** Whether the customer behind a handover made at `at` is still waiting for a person. */
 export function handoverState(conv: ConversationBits, at: string): HandoverState {
   const lastHuman = (conv.channel_metadata as Record<string, unknown> | null)?.last_human_reply_at;
   if (typeof lastHuman === 'string' && lastHuman >= at) return 'answered';
   if (conv.status === 'closed') return 'closed';
-  if (conv.ai_needs_attention_at || conv.ai_paused_reason === 'needs_attention' || conv.ai_paused_reason === 'human_requested') {
+  if (
+    conv.handoff_status === 'waiting_for_agent' ||
+    conv.handoff_status === 'offline_queued' ||
+    conv.ai_needs_attention_at ||
+    conv.ai_paused_reason === 'needs_attention' ||
+    conv.ai_paused_reason === 'human_requested'
+  ) {
     return 'waiting';
   }
   // A person took it over some other way (paused the bot, replied from a
@@ -131,7 +139,11 @@ export function handoverState(conv: ConversationBits, at: string): HandoverState
 export function isWaitingForPerson(conv: ConversationBits): boolean {
   if (conv.status === 'closed') return false;
   return Boolean(
-    conv.ai_needs_attention_at || conv.ai_paused_reason === 'needs_attention' || conv.ai_paused_reason === 'human_requested'
+    conv.handoff_status === 'waiting_for_agent' ||
+    conv.handoff_status === 'offline_queued' ||
+    conv.ai_needs_attention_at ||
+    conv.ai_paused_reason === 'needs_attention' ||
+    conv.ai_paused_reason === 'human_requested'
   );
 }
 
