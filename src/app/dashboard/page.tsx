@@ -145,13 +145,17 @@ export default function DashboardPage() {
   // 30s Heartbeat for Availability (Phase 2)
   useEffect(() => {
     if (!currentWorkspace?.id || !currentAgent?.id) return;
-    const sendHeartbeat = () => {
-      supabase
-        .rpc('agent_heartbeat', { p_workspace_id: currentWorkspace.id })
-        .catch(() => {});
+    const sendHeartbeat = async () => {
+      try {
+        await supabase.rpc('agent_heartbeat', { p_workspace_id: currentWorkspace.id });
+      } catch {
+        // ignore
+      }
     };
-    sendHeartbeat();
-    const interval = setInterval(sendHeartbeat, 30000);
+    void sendHeartbeat();
+    const interval = setInterval(() => {
+      void sendHeartbeat();
+    }, 30000);
     return () => clearInterval(interval);
   }, [currentWorkspace?.id, currentAgent?.id]);
 
@@ -1899,12 +1903,14 @@ export default function DashboardPage() {
     if (!currentAgent) return;
 
     if (currentWorkspace?.id) {
-      await supabase
-        .rpc('set_agent_status', {
+      try {
+        await supabase.rpc('set_agent_status', {
           p_workspace_id: currentWorkspace.id,
           p_status: status,
-        })
-        .catch((err: unknown) => console.error('Error calling set_agent_status RPC:', err));
+        });
+      } catch (err: unknown) {
+        console.warn('Error calling set_agent_status RPC:', err);
+      }
     }
 
     const { error } = await supabase
@@ -1973,9 +1979,11 @@ export default function DashboardPage() {
   const handleLogout = async () => {
     if (currentAgent) {
       if (currentWorkspace?.id) {
-        await supabase
-          .rpc('set_agent_status', { p_workspace_id: currentWorkspace.id, p_status: 'offline' })
-          .catch(() => {});
+        try {
+          await supabase.rpc('set_agent_status', { p_workspace_id: currentWorkspace.id, p_status: 'offline' });
+        } catch {
+          // ignore
+        }
       }
       await supabase.from('agents').update({ status: 'offline' }).eq('id', currentAgent.id);
     }
