@@ -42,6 +42,9 @@ import { translateVisitorMessage } from '@/lib/ai/inbound-translation';
 import { checkWorkspaceFeature, checkWorkspaceLimit, incrementWorkspaceUsage } from '@/lib/plans/enforce';
 import { recordPolicyOutcome } from '@/lib/ai/learning/policy';
 import { looksLikeImageUrl, messageWithImage, readScreenshot, type ImageReading } from '@/lib/ai/vision';
+import { canAiRespond } from '@/lib/handoff/state-machine';
+import type { HandoffStatus } from '@/types/database';
+import { evaluateHandoffTrigger } from '@/lib/ai/handoff-detect';
 
 export const maxDuration = 60;
 
@@ -547,6 +550,15 @@ export async function POST(req: NextRequest) {
       isAskingForHuman,
     });
 
+    const currentHandoffStatus = ((conv as any)?.handoff_status || 'bot_active') as HandoffStatus;
+    const isAiAssist = Boolean((conv as any)?.ai_assist);
+    const isAiEnabled = (conv as any)?.ai_enabled !== false;
+
+    if (!canAiRespond(currentHandoffStatus, { aiEnabled: isAiEnabled, aiAssist: isAiAssist })) {
+      console.log(`[Auto-Respond] Silenced by handoff state: ${currentHandoffStatus} (aiAssist: ${isAiAssist})`);
+      return NextResponse.json({ skipped: true, reason: `silenced_by_handoff_state_${currentHandoffStatus}` });
+    }
+
     if (legacyHumanOwned || keepWithHumanAgent || waitingInHumanQueue || !botMayReply(conv)) {
       // If the visitor is waiting in the human handover queue (no human agent has replied yet)
       // and sends follow-up messages (details, "hi", "why is no one responding?", "connect to team"),
@@ -834,6 +846,23 @@ export async function POST(req: NextRequest) {
       };
 
       result = await Promise.race([generate(), timeoutPromise]);
+
+      const handoffSettings = (workspace as any)?.handoff_settings || {};
+      const handoffEval = evaluateHandoffTrigger({
+        incomingMessage: visitorText,
+        turns: recentTurns,
+        confidenceThreshold: handoffSettings?.ai?.confidence_threshold ?? 0.65,
+        cooldownMessageCount: handoffSettings?.ai?.cooldown_message_count ?? 5,
+        customKeywords: handoffSettings?.ai?.keywords,
+      });
+
+      if (handoffEval.needsHandoff) {
+        result.shouldHandover = true;
+        result.handoverReason = handoffEval.triggerReason || 'needs_human';
+        if (handoffEval.summary) {
+          result.internalNote = handoffEval.summary;
+        }
+      }
     } catch (timeoutErr: any) {
       console.warn('[Auto-Respond] Timeout or error during AI generation:', timeoutErr?.message);
       // Seamless fail-safe handover to human: never show error to customer!
@@ -1120,47 +1149,79 @@ export async function POST(req: NextRequest) {
       created_at: insertedMsg?.created_at,
     });
 
-    // 4b. If Help Desk cannot answer or customer requested a real agent, execute handover!
+    // 4b. If Help Desk cannot answer or customer requested a real agent, offer or execute handoff!
     if (result.shouldHandover) {
-      console.log(`[Auto-Respond] Handing over conversation ${conversation_id} to real agent. Reason: ${result.handoverReason}`);
-      const handoverResult = await executeHandoverToHuman({
-        supabase,
-        conversationId: conversation_id,
-        workspaceId: workspace_id,
-        visitorMessageId: targetVisitorMsgId,
-        reason: result.handoverReason || 'Inquiry not covered in Help Desk documentation.',
-        channel: conv.channel || 'web',
-        disableAi: Boolean(result.disableAi),
-        pausedReason: result.intent === 'wants_human' ? 'human_requested' : 'needs_attention',
-        internalNote: result.internalNote,
-        priority: result.priority || 'high',
-        // The reply just delivered already tells the visitor what happens next.
-        announce: false,
-      });
+      const handoffSettings = (workspace as any)?.handoff_settings || {};
+      const requireConfirmation = handoffSettings?.ai?.require_confirmation !== false;
 
-      const finalAgent = (handoverResult as any)?.assignedAgent || preassignedAgent;
-      if (insertedMsg?.id && finalAgent) {
-        try {
-          await supabase
-            .from('messages')
-            .update({
-              metadata: {
-                ...replyMetadata,
-                handover: true,
-                assigned_agent_id: finalAgent.id,
-                assigned_agent_name: finalAgent.name,
-                assigned_agent_avatar: finalAgent.avatar_url,
-                system_event: {
-                  type: 'handover',
-                  agent_id: finalAgent.id,
-                  agent_name: finalAgent.name,
-                  agent_avatar: finalAgent.avatar_url,
+      if (requireConfirmation && (currentHandoffStatus === 'bot_active' || currentHandoffStatus === 'handoff_offered')) {
+        console.log(`[Auto-Respond] Offering handoff for conversation ${conversation_id}. Reason: ${result.handoverReason}`);
+        const { error: offerErr } = await supabase.rpc('offer_handoff', {
+          p_conversation_id: conversation_id,
+          p_reason: result.handoverReason || 'needs_human',
+          p_summary: result.internalNote || null,
+        });
+        if (offerErr) console.error('Error calling offer_handoff RPC:', offerErr.message);
+
+        if (insertedMsg?.id) {
+          try {
+            await supabase
+              .from('messages')
+              .update({
+                metadata: {
+                  ...replyMetadata,
+                  handoff_offered: true,
+                  offer_handoff: true,
+                  handoff_reason: result.handoverReason,
+                  handoff_summary: result.internalNote,
                 },
-              },
-            })
-            .eq('id', insertedMsg.id);
-        } catch (updateErr) {
-          console.warn('[Auto-Respond] Failed to attach final agent metadata to message:', updateErr);
+              })
+              .eq('id', insertedMsg.id);
+          } catch (updateErr) {
+            console.warn('[Auto-Respond] Failed to attach handoff offer metadata to message:', updateErr);
+          }
+        }
+      } else {
+        console.log(`[Auto-Respond] Handing over conversation ${conversation_id} directly to real agent. Reason: ${result.handoverReason}`);
+        const handoverResult = await executeHandoverToHuman({
+          supabase,
+          conversationId: conversation_id,
+          workspaceId: workspace_id,
+          visitorMessageId: targetVisitorMsgId,
+          reason: result.handoverReason || 'Inquiry not covered in Help Desk documentation.',
+          channel: conv.channel || 'web',
+          disableAi: Boolean(result.disableAi),
+          pausedReason: result.intent === 'wants_human' ? 'human_requested' : 'needs_attention',
+          internalNote: result.internalNote,
+          priority: result.priority || 'high',
+          // The reply just delivered already tells the visitor what happens next.
+          announce: false,
+        });
+
+        const finalAgent = (handoverResult as any)?.assignedAgent || preassignedAgent;
+        if (insertedMsg?.id && finalAgent) {
+          try {
+            await supabase
+              .from('messages')
+              .update({
+                metadata: {
+                  ...replyMetadata,
+                  handover: true,
+                  assigned_agent_id: finalAgent.id,
+                  assigned_agent_name: finalAgent.name,
+                  assigned_agent_avatar: finalAgent.avatar_url,
+                  system_event: {
+                    type: 'handover',
+                    agent_id: finalAgent.id,
+                    agent_name: finalAgent.name,
+                    agent_avatar: finalAgent.avatar_url,
+                  },
+                },
+              })
+              .eq('id', insertedMsg.id);
+          } catch (updateErr) {
+            console.warn('[Auto-Respond] Failed to attach final agent metadata to message:', updateErr);
+          }
         }
       }
       await logAiEvent(supabase, {

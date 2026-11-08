@@ -10,6 +10,12 @@ import {
   matchHandoffKeywords,
   VALID_HANDOFF_TRANSITIONS,
 } from './state-machine';
+import {
+  evaluateHandoffTrigger,
+  detectLoop,
+  detectFrustration,
+  detectSensitiveTopic,
+} from '@/lib/ai/handoff-detect';
 import type { HandoffStatus } from '@/types/database';
 
 describe('AI -> Human Agent Handoff State Machine', () => {
@@ -238,6 +244,79 @@ describe('AI -> Human Agent Handoff State Machine', () => {
       expect(isQueueStale(freshReq, 300, now)).toBe(false);
       expect(isQueueStale(staleReq, 300, now)).toBe(true);
       expect(isQueueStale(null, 300, now)).toBe(false);
+    });
+  });
+
+  describe('AI Handover Triggers & Decision Engine (Phase 6)', () => {
+    it('triggers immediately on explicit customer keywords, bypassing cooldown', () => {
+      const res = evaluateHandoffTrigger({
+        incomingMessage: 'Can I talk to a real person please?',
+        lastHandoffOfferedAtTurn: 2,
+        currentTurnIndex: 3, // only 1 turn since last offer
+      });
+      expect(res.needsHandoff).toBe(true);
+      expect(res.isExplicit).toBe(true);
+      expect(res.triggerReason).toBe('explicit_request');
+    });
+
+    it('detects frustration and anger', () => {
+      expect(detectFrustration('This is the worst and most useless bot ever!')).toBe(true);
+      expect(detectFrustration('Hello how do I configure my settings?')).toBe(false);
+
+      const res = evaluateHandoffTrigger({
+        incomingMessage: 'This is terrible service, stop wasting my time!',
+      });
+      expect(res.needsHandoff).toBe(true);
+      expect(res.triggerReason).toBe('frustration');
+    });
+
+    it('detects sensitive transactional/legal topics', () => {
+      expect(detectSensitiveTopic('I want a refund for my unauthorized transaction')).toBe(true);
+      expect(detectSensitiveTopic('I am going to talk to my lawyer')).toBe(true);
+      expect(detectSensitiveTopic('How do I update my profile picture?')).toBe(false);
+
+      const res = evaluateHandoffTrigger({
+        incomingMessage: 'I need a chargeback for an unauthorized transaction',
+      });
+      expect(res.needsHandoff).toBe(true);
+      expect(res.triggerReason).toBe('sensitive_topic');
+    });
+
+    it('detects loops when user repeats questions', () => {
+      const turns = [
+        { role: 'user', content: 'Where is my order?' },
+        { role: 'assistant', content: 'You can check your email for tracking.' },
+        { role: 'user', content: 'Where is my order?' },
+        { role: 'assistant', content: 'Please check your inbox.' },
+      ];
+      expect(detectLoop(turns, 'Where is my order?')).toBe(true);
+
+      const res = evaluateHandoffTrigger({
+        incomingMessage: 'Where is my order?',
+        turns,
+      });
+      expect(res.needsHandoff).toBe(true);
+      expect(res.triggerReason).toBe('loop_detected');
+    });
+
+    it('respects cooldown for non-explicit triggers', () => {
+      const res = evaluateHandoffTrigger({
+        incomingMessage: 'This is terrible service',
+        lastHandoffOfferedAtTurn: 5,
+        currentTurnIndex: 7, // 2 turns < 5 cooldown
+        cooldownMessageCount: 5,
+      });
+      expect(res.needsHandoff).toBe(false); // Cooldown respected
+    });
+
+    it('triggers on low confidence when below threshold', () => {
+      const res = evaluateHandoffTrigger({
+        incomingMessage: 'My widgets are fluctuating exponentially in subsector 9',
+        aiConfidence: 0.42,
+        confidenceThreshold: 0.65,
+      });
+      expect(res.needsHandoff).toBe(true);
+      expect(res.triggerReason).toBe('low_confidence');
     });
   });
 });
