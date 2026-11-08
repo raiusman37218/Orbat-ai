@@ -161,6 +161,14 @@ class ZentryWidget {
   private conversationStatus: string = 'open';
   private visitorName: string = '';
   private visitorEmail: string = '';
+  private handoffStatus: string = 'bot_active';
+  private handoffSummary: string | null = null;
+  private handoffReason: string | null = null;
+  private assignedAgentId: string | null = null;
+  private assignedAgentName: string | null = null;
+  private expectedWaitText: string | null = null;
+  private aiAssistEnabled: boolean = false;
+  private handoffConnecting: boolean = false;
 
   // UI state
   private isOpen: boolean = false;
@@ -1588,6 +1596,9 @@ class ZentryWidget {
     const conv = payload?.conversation;
     if (!conv?.id) return;
     if (conv.id === this.conversationId) {
+      if ((conv as any).handoff_status) this.handoffStatus = (conv as any).handoff_status;
+      if ((conv as any).ai_assist !== undefined) this.aiAssistEnabled = Boolean((conv as any).ai_assist);
+      if ((conv as any).assigned_agent_id !== undefined) this.assignedAgentId = (conv as any).assigned_agent_id;
       this.updateConversationStatus(conv.status);
     } else if (!this.conversationId && !this.forceNewConversation && conv.status !== 'closed') {
       // The team started a conversation with this visitor.
@@ -1660,7 +1671,17 @@ class ZentryWidget {
   private async syncMessages() {
     const convId = this.conversationId;
     if (!convId || this.legacyData) return;
-    let res: { conversation?: { status?: string }; messages?: MessageItem[] };
+    let res: {
+      conversation?: {
+        status?: string;
+        handoff_status?: string;
+        handoff_summary?: string | null;
+        handoff_reason?: string | null;
+        ai_assist?: boolean;
+        assigned_agent_id?: string | null;
+      };
+      messages?: MessageItem[];
+    };
     try {
       res = await this.widgetRpc('fn_widget_messages', { p_conversation_id: convId });
     } catch (e) {
@@ -1685,6 +1706,11 @@ class ZentryWidget {
       if (!known) this.receiveMessage(m);
       else if (!this.sameMessage(known, { ...known, ...m })) this.updateMessage(m);
     }
+    if (res?.conversation?.handoff_status) this.handoffStatus = res.conversation.handoff_status;
+    if (res?.conversation?.handoff_summary) this.handoffSummary = res.conversation.handoff_summary;
+    if (res?.conversation?.handoff_reason) this.handoffReason = res.conversation.handoff_reason;
+    if (res?.conversation?.ai_assist !== undefined) this.aiAssistEnabled = Boolean(res.conversation.ai_assist);
+    if (res?.conversation?.assigned_agent_id) this.assignedAgentId = res.conversation.assigned_agent_id;
     this.updateConversationStatus(res?.conversation?.status);
   }
 
@@ -1709,6 +1735,11 @@ class ZentryWidget {
         }>('fn_widget_messages', { p_conversation_id: this.conversationId });
         data = Array.isArray(res?.messages) ? res.messages : [];
         if (res?.conversation?.status) this.conversationStatus = res.conversation.status;
+        if ((res?.conversation as any)?.handoff_status) this.handoffStatus = (res!.conversation as any).handoff_status;
+        if ((res?.conversation as any)?.handoff_summary) this.handoffSummary = (res!.conversation as any).handoff_summary;
+        if ((res?.conversation as any)?.handoff_reason) this.handoffReason = (res!.conversation as any).handoff_reason;
+        if ((res?.conversation as any)?.ai_assist !== undefined) this.aiAssistEnabled = Boolean((res!.conversation as any).ai_assist);
+        if ((res?.conversation as any)?.assigned_agent_id) this.assignedAgentId = (res!.conversation as any).assigned_agent_id;
         if (res?.conversation?.csat_rating != null) this.csatRated = true;
       } catch (e) {
         if (/conversation_not_found/.test(ZentryWidget.errorText(e))) {
@@ -6058,6 +6089,78 @@ class ZentryWidget {
         color: #2563eb;
         white-space: nowrap;
       }
+      .chatify-handover-status-pill.waiting {
+        background: rgba(245, 158, 11, 0.1);
+        color: #d97706;
+      }
+      .chatify-handover-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 10px;
+        flex-wrap: wrap;
+      }
+      .chatify-handover-btn-secondary {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        padding: 5px 10px;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 6px;
+        border: 1px solid var(--w-line-2, var(--w-line));
+        background: var(--w-surface);
+        color: var(--w-ink);
+        cursor: pointer;
+        transition: background .15s ease;
+      }
+      .chatify-handover-btn-secondary:hover {
+        background: var(--w-surface-2, rgba(0,0,0,0.04));
+      }
+      .chatify-handover-ai-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 8px;
+        font-size: 11px;
+        font-weight: 600;
+        border-radius: 6px;
+        background: rgba(16, 185, 129, 0.1);
+        color: #059669;
+      }
+      .chatify-handover-btn-link {
+        border: none;
+        background: none;
+        color: var(--w-ink-2);
+        font-size: 10.5px;
+        text-decoration: underline;
+        cursor: pointer;
+        padding: 0;
+      }
+      .chatify-handoff-action-btn {
+        margin-top: 8px;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 7px 12px;
+        font-size: 12px;
+        font-weight: 600;
+        border-radius: 8px;
+        border: none;
+        background: var(--w-brand);
+        color: var(--w-on-brand);
+        cursor: pointer;
+        transition: opacity .15s ease, transform .15s ease;
+      }
+      .chatify-handoff-action-btn:hover {
+        opacity: 0.9;
+        transform: translateY(-1px);
+      }
+      .chatify-handoff-action-btn:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        transform: none;
+      }
       .chatify-handover-status-pill.connected {
         background: rgba(16, 185, 129, 0.1);
         color: #059669;
@@ -6691,6 +6794,15 @@ class ZentryWidget {
         stage.appendChild(line);
         return;
       }
+      // System event: returned to AI
+      const sysEvent = (msg as any).metadata?.system_event;
+      if (sysEvent === 'returned_to_ai' || sysEvent === 'return_to_ai') {
+        const line = document.createElement('div');
+        line.className = 'chatify-system-line';
+        line.textContent = 'Returned to AI assistant';
+        stage.appendChild(line);
+        return;
+      }
 
       const isVisitor = msg.sender_type === 'visitor';
       const timeStr = new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -6785,6 +6897,22 @@ class ZentryWidget {
       // carries them (or starter chips on the welcome message), and only until
       // the visitor has replied (they disappear automatically once the user sends anything).
       if (!isVisitor) {
+        const isOffer = Boolean(
+          (msg.metadata as any)?.handoff_offered ||
+          (msg.metadata as any)?.offer_handoff ||
+          (msg.metadata as any)?.action === 'offer_handoff'
+        );
+        if (isOffer && (this.handoffStatus === 'bot_active' || this.handoffStatus === 'handoff_offered')) {
+          const offerBtn = document.createElement('button');
+          offerBtn.type = 'button';
+          offerBtn.className = 'chatify-handoff-action-btn';
+          offerBtn.innerHTML = '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg><span>Connect to agent</span>';
+          offerBtn.addEventListener('click', () => {
+            this.requestHandoff(offerBtn);
+          });
+          bubble.appendChild(offerBtn);
+        }
+
         const explicitQuickReplies = (msg.metadata?.quick_replies as Array<{ label: string; value?: string }> | null | undefined);
         const quickReplies =
           explicitQuickReplies && explicitQuickReplies.length > 0
@@ -6822,6 +6950,12 @@ class ZentryWidget {
         }
       }
     });
+
+    
+    const hasHandoverCardInMessages = this.messages.some((m) => !m.is_internal && this.isHandoverMessage(m));
+    if (!hasHandoverCardInMessages && (this.handoffStatus === 'waiting_for_agent' || this.handoffStatus === 'offline_queued')) {
+      stage.appendChild(this.renderHandoverCard());
+    }
 
     const isClosed = this.conversationStatus === 'closed';
     if (isClosed) {
@@ -7473,100 +7607,208 @@ class ZentryWidget {
    * "Transferred to our team" record; the person themself is announced by
    * the joined line above their first reply.
    */
-  private renderHandoverCard(msg: MessageItem): HTMLElement {
+  private async requestHandoff(btn?: HTMLButtonElement) {
+    if (this.handoffConnecting || !this.conversationId) return;
+    this.handoffConnecting = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Connecting...';
+    }
+    try {
+      const res = await this.widgetRpc<{
+        ok: boolean;
+        status: string;
+        agent_name?: string;
+        expected_wait?: string;
+        message?: string;
+      }>('fn_widget_request_handoff', {
+        p_conversation_id: this.conversationId,
+      });
+
+      if (res && res.ok) {
+        this.handoffStatus = res.status || 'waiting_for_agent';
+        if (res.agent_name) this.assignedAgentName = res.agent_name;
+        if (res.expected_wait) this.expectedWaitText = res.expected_wait;
+      }
+    } catch (e) {
+      console.error('[Zen-try] Error requesting handoff:', e);
+    } finally {
+      this.handoffConnecting = false;
+      this.renderMessages();
+    }
+  }
+
+  private async toggleAiAssist(enable: boolean) {
+    if (!this.conversationId) return;
+    try {
+      await this.widgetRpc('fn_widget_set_ai_assist', {
+        p_conversation_id: this.conversationId,
+        p_ai_assist: enable,
+      });
+      this.aiAssistEnabled = enable;
+      this.renderMessages();
+    } catch (e) {
+      console.error('[Zen-try] Error toggling AI assist:', e);
+    }
+  }
+
+  private async markIssueResolved() {
+    if (!this.conversationId) return;
+    try {
+      await this.widgetRpc('fn_widget_mark_resolved', {
+        p_conversation_id: this.conversationId,
+      });
+      this.conversationStatus = 'closed';
+      this.handoffStatus = 'resolved';
+      this.renderMessages();
+    } catch (e) {
+      console.error('[Zen-try] Error resolving conversation:', e);
+    }
+  }
+
+  private renderHandoverCard(msg?: MessageItem): HTMLElement {
     const card = document.createElement('div');
-    card.setAttribute('data-handover-msg-id', msg.id);
+    if (msg) card.setAttribute('data-handover-msg-id', msg.id);
     card.setAttribute('role', 'status');
 
-    const joined = this.messages.some((m) => this.isHumanReply(m) && m.created_at > msg.created_at);
+    const joined = this.messages.some((m) => this.isHumanReply(m) && (!msg || m.created_at > msg.created_at));
     const email = (this.visitorEmail || '').trim();
 
-    const meta = (msg.metadata || {}) as Record<string, any>;
-    const assignedName = (meta.assigned_agent_name || meta.system_event?.agent_name || null) as string | null;
+    const meta = ((msg?.metadata || {}) as Record<string, any>);
+    const assignedName = (meta.assigned_agent_name || meta.system_event?.agent_name || this.assignedAgentName || null) as string | null;
     const assignedAvatar = (meta.assigned_agent_avatar || meta.system_event?.agent_avatar || null) as string | null;
 
-    if (joined) {
-      const humanMsg = this.messages.find((m) => this.isHumanReply(m) && m.created_at > msg.created_at);
+    if (joined || this.handoffStatus === 'agent_active') {
+      const humanMsg = this.messages.find((m) => this.isHumanReply(m) && (!msg || m.created_at > msg.created_at));
       const responder = humanMsg ? this.humanSenderOf(humanMsg) : null;
       const responderName = responder?.name || assignedName || 'our support team';
       card.className = 'chatify-handover-card connected';
       card.innerHTML =
-        `<div class="chatify-handover-accent-bar connected"></div>` +
-        `<div class="chatify-handover-inner">` +
-        `<div class="chatify-handover-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>` +
-        `<div class="chatify-handover-body">` +
-        `<div class="chatify-handover-header-row"><span class="chatify-handover-heading">Connected with ${this.escapeHTML(responderName)}</span><span class="chatify-handover-status-pill connected"><span>Active</span></span></div>` +
-        `<p class="chatify-handover-desc">You are now chatting live with a real team member.</p>` +
-        `</div>` +
-        `</div>`;
+        '<div class="chatify-handover-accent-bar connected"></div>' +
+        '<div class="chatify-handover-inner">' +
+        '<div class="chatify-handover-check" aria-hidden="true"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg></div>' +
+        '<div class="chatify-handover-body">' +
+        '<div class="chatify-handover-header-row"><span class="chatify-handover-heading">Connected with ' + this.escapeHTML(responderName) + '</span><span class="chatify-handover-status-pill connected"><span>Active</span></span></div>' +
+        '<p class="chatify-handover-desc">You are now chatting live with a real team member.</p>' +
+        '</div>' +
+        '</div>';
       return card;
     }
 
-    if (this.conversationStatus === 'closed') {
+    if (this.conversationStatus === 'closed' || this.handoffStatus === 'resolved') {
       card.className = 'chatify-handover-card waiting';
       card.innerHTML =
-        `<div class="chatify-handover-accent-bar waiting"></div>` +
-        `<div class="chatify-handover-inner">` +
-        `<div class="chatify-handover-body">` +
-        `<div class="chatify-handover-header-row"><span class="chatify-handover-heading">Handed over to support</span></div>` +
-        `<p class="chatify-handover-desc">We've saved your request. Our team will follow up.${email ? ` Updates will be sent to <strong>${this.escapeHTML(email)}</strong>.` : ''}</p>` +
-        `</div>` +
-        `</div>`;
+        '<div class="chatify-handover-accent-bar waiting"></div>' +
+        '<div class="chatify-handover-inner">' +
+        '<div class="chatify-handover-body">' +
+        '<div class="chatify-handover-header-row"><span class="chatify-handover-heading">Handed over to support</span></div>' +
+        '<p class="chatify-handover-desc">We\'ve saved your request. Our team will follow up.' + (email ? ' Updates will be sent to <strong>' + this.escapeHTML(email) + '</strong>.' : '') + '</p>' +
+        '</div>' +
+        '</div>';
       return card;
     }
 
+    const isOfflineQueued = this.handoffStatus === 'offline_queued';
     const isOnline = this.checkIsOnline();
     const activeAgent = assignedName
       ? { name: assignedName, avatar_url: assignedAvatar, status: 'online' }
       : this.workspaceAgents.find((a) => a.status === 'online') || this.workspaceAgents[0] || null;
 
     const displayName = assignedName || activeAgent?.name || null;
-    const title = displayName
-      ? `Connecting with ${this.escapeHTML(displayName)}`
-      : 'Connecting with support';
 
     let avatarHtml = '';
     if (activeAgent) {
       const avatarSrc = this.safeUrl(activeAgent.avatar_url, true);
       const initials = this.escapeHTML(this.getSenderInitials(activeAgent.name || 'Support'));
       avatarHtml = avatarSrc
-        ? `<div class="chatify-handover-avatar"><img src="${avatarSrc}" alt="" /></div>`
-        : `<div class="chatify-handover-avatar">${initials}</div>`;
+        ? '<div class="chatify-handover-avatar"><img src="' + avatarSrc + '" alt="" /></div>'
+        : '<div class="chatify-handover-avatar">' + initials + '</div>';
     } else {
-      avatarHtml = `<div class="chatify-handover-avatar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>`;
+      avatarHtml = '<div class="chatify-handover-avatar"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg></div>';
     }
 
-    const waitText = isOnline
-      ? `You're next in line. ${this.escapeHTML(this.getReplyTimeText())}.`
-      : `Our team is currently away. We'll reply here as soon as an agent is back online.`;
-
     const emailNoticeHtml = email
-      ? `<div class="chatify-handover-email-notice"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg><span>Updates also sent to <strong>${this.escapeHTML(email)}</strong></span></div>`
-      : `<form class="chatify-handover-email-form">` +
-        `<span class="chatify-handover-email-prompt">Want an email if you step away?</span>` +
-        `<div class="chatify-handover-email-row">` +
-        `<input type="email" class="chatify-handover-email-input" placeholder="Enter your email" required />` +
-        `<button type="submit" class="chatify-handover-email-btn">Notify me</button>` +
-        `</div>` +
-        `</form>`;
+      ? '<div class="chatify-handover-email-notice"><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg><span>Updates also sent to <strong>' + this.escapeHTML(email) + '</strong></span></div>'
+      : '<form class="chatify-handover-email-form">' +
+        '<span class="chatify-handover-email-prompt">Want an email if you step away?</span>' +
+        '<div class="chatify-handover-email-row">' +
+        '<input type="email" class="chatify-handover-email-input" placeholder="Enter your email" required />' +
+        '<button type="submit" class="chatify-handover-email-btn">Notify me</button>' +
+        '</div>' +
+        '</form>';
 
-    card.className = 'chatify-handover-card connecting';
-    card.innerHTML =
-      `<div class="chatify-handover-accent-bar"></div>` +
-      `<div class="chatify-handover-inner">` +
-      `<div class="chatify-handover-avatar-wrap">` +
-      avatarHtml +
-      `<span class="chatify-handover-avatar-dot ${isOnline ? 'online' : 'away'}"></span>` +
-      `</div>` +
-      `<div class="chatify-handover-body">` +
-      `<div class="chatify-handover-header-row">` +
-      `<span class="chatify-handover-heading">${title}</span>` +
-      `<span class="chatify-handover-status-pill"><span class="chatify-status-pulse"></span><span>In queue</span></span>` +
-      `</div>` +
-      `<p class="chatify-handover-desc">${waitText}</p>` +
-      emailNoticeHtml +
-      `</div>` +
-      `</div>`;
+    if (isOfflineQueued) {
+      const offlineTitle = 'Our team is offline right now';
+      const offlineWaitText = "We\'ve saved your place in line. We\'ll reply as soon as an agent is back online.";
+
+      const aiAssistActionHtml = this.aiAssistEnabled
+        ? '<div class="chatify-handover-ai-badge"><span>✨ AI Assist active</span><button type="button" class="chatify-handover-btn-link" id="chatifyPauseAiBtn">Pause</button></div>'
+        : '<button type="button" class="chatify-handover-btn-secondary" id="chatifyAskAiBtn">✨ Ask AI while you wait</button>';
+
+      const actionsRowHtml =
+        '<div class="chatify-handover-actions">' +
+        aiAssistActionHtml +
+        '<button type="button" class="chatify-handover-btn-secondary" id="chatifyResolvedBtn">✓ My issue is solved</button>' +
+        '</div>';
+
+      card.className = 'chatify-handover-card waiting';
+      card.innerHTML =
+        '<div class="chatify-handover-accent-bar waiting"></div>' +
+        '<div class="chatify-handover-inner">' +
+        '<div class="chatify-handover-avatar-wrap">' +
+        avatarHtml +
+        '<span class="chatify-handover-avatar-dot away"></span>' +
+        '</div>' +
+        '<div class="chatify-handover-body">' +
+        '<div class="chatify-handover-header-row">' +
+        '<span class="chatify-handover-heading">' + offlineTitle + '</span>' +
+        '<span class="chatify-handover-status-pill waiting"><span>Offline queue</span></span>' +
+        '</div>' +
+        '<p class="chatify-handover-desc">' + offlineWaitText + '</p>' +
+        emailNoticeHtml +
+        actionsRowHtml +
+        '</div>' +
+        '</div>';
+
+      setTimeout(() => {
+        const askAiBtn = card.querySelector('#chatifyAskAiBtn');
+        if (askAiBtn) askAiBtn.addEventListener('click', () => this.toggleAiAssist(true));
+
+        const pauseAiBtn = card.querySelector('#chatifyPauseAiBtn');
+        if (pauseAiBtn) pauseAiBtn.addEventListener('click', () => this.toggleAiAssist(false));
+
+        const resolvedBtn = card.querySelector('#chatifyResolvedBtn');
+        if (resolvedBtn) resolvedBtn.addEventListener('click', () => this.markIssueResolved());
+      }, 0);
+    } else {
+      const title = displayName
+        ? 'Connecting with ' + this.escapeHTML(displayName)
+        : 'Connecting with support';
+
+      const waitText = this.expectedWaitText
+        ? 'Estimated wait: ' + this.escapeHTML(this.expectedWaitText) + '. You\'re in line for the next available agent.'
+        : isOnline
+        ? 'You\'re next in line. An agent will join shortly.'
+        : 'Connecting you with our support team...';
+
+      card.className = 'chatify-handover-card connecting';
+      card.innerHTML =
+        '<div class="chatify-handover-accent-bar"></div>' +
+        '<div class="chatify-handover-inner">' +
+        '<div class="chatify-handover-avatar-wrap">' +
+        avatarHtml +
+        '<span class="chatify-handover-avatar-dot ' + (isOnline ? 'online' : 'away') + '"></span>' +
+        '</div>' +
+        '<div class="chatify-handover-body">' +
+        '<div class="chatify-handover-header-row">' +
+        '<span class="chatify-handover-heading">' + title + '</span>' +
+        '<span class="chatify-handover-status-pill"><span class="chatify-status-pulse"></span><span>In queue</span></span>' +
+        '</div>' +
+        '<p class="chatify-handover-desc">' + waitText + '</p>' +
+        emailNoticeHtml +
+        '</div>' +
+        '</div>';
+    }
 
     if (!email) {
       const form = card.querySelector('.chatify-handover-email-form') as HTMLFormElement | null;
@@ -7575,12 +7817,12 @@ class ZentryWidget {
         form.addEventListener('submit', (e) => {
           e.preventDefault();
           const val = input.value.trim();
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return;
+          if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(val)) return;
           this.visitorEmail = val;
-          const suffix = this.config.workspaceId ? `_${this.config.workspaceId.slice(0, 8)}` : '';
+          const suffix = this.config.workspaceId ? '_' + this.config.workspaceId.slice(0, 8) : '';
           try {
-            localStorage.setItem(`zentry_visitor_email${suffix}`, val);
-            localStorage.setItem(`chatify_visitor_email${suffix}`, val);
+            localStorage.setItem('zentry_visitor_email' + suffix, val);
+            localStorage.setItem('chatify_visitor_email' + suffix, val);
           } catch {}
           this.saveVisitorDetails(null).catch(() => {});
           this.renderMessages();
@@ -7590,7 +7832,6 @@ class ZentryWidget {
     return card;
   }
 
-  /** "Sara joined the conversation", above that person's first reply. */
   private renderAgentJoinedLine(agent: { name: string | null; avatar: string | null }, at: string): HTMLElement {
     const line = document.createElement('div');
     line.className = 'chatify-agent-joined';
