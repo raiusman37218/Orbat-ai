@@ -84,9 +84,35 @@ describe.skipIf(!hasDatabase)('AI to human handoff (database)', () => {
     expect(row.handoff_requested_at).not.toBeNull();
   });
 
-  it('queues offline when nobody is available', async () => {
+  it('during office hours, rings every dashboard when nobody is individually available, instead of saying offline', async () => {
     const c = await chat();
-    expect(await requestHandoff(c)).toMatchObject({ ok: true, status: 'offline_queued', offline_reason: 'no_agents_available' });
+    expect(await requestHandoff(c)).toMatchObject({ ok: true, status: 'waiting_for_agent', ringing_agent_id: null });
+    expect(await conv(c)).toMatchObject({ handoff_status: 'waiting_for_agent', ring_broadcast: true });
+  });
+
+  it('queues offline only when the team is closed', async () => {
+    const c = await chat();
+    await available(db(), c.ws, c.ws.agentId);
+    // Every day switched off: closed now.
+    await db().q(
+      `UPDATE workspaces SET business_hours = '{"enabled": true, "timezone": "UTC", "schedule": {}}' WHERE id = $1`,
+      [c.ws.id]
+    );
+    expect(await requestHandoff(c)).toMatchObject({ ok: true, status: 'offline_queued', offline_reason: 'outside_office_hours' });
+  });
+
+  it('does not count ordinary answered conversations against an agent capacity', async () => {
+    const ws = await createWorkspace(db(), 'Busy');
+    for (let i = 0; i < 5; i++) {
+      const { conversationId } = await startChat(db(), ws, `Question ${i}`);
+      await agentSays(db(), conversationId, ws.agentId, 'On it.');
+    }
+    await available(db(), ws, ws.agentId);
+    const { conversationId } = await startChat(db(), ws, 'I need a person');
+    const [{ r }] = await db().as<{ r: Record<string, unknown> }>({ kind: 'service' }, 'SELECT request_handoff($1) AS r', [
+      conversationId,
+    ]);
+    expect(r).toMatchObject({ status: 'waiting_for_agent', ringing_agent_id: ws.agentId });
   });
 
   it('rings everyone at once with broadcast routing', async () => {
@@ -103,7 +129,7 @@ describe.skipIf(!hasDatabase)('AI to human handoff (database)', () => {
     await db().q('UPDATE conversations SET assigned_agent_id = $2 WHERE id = $1', [c.conversationId, c.ws.adminId]);
     await requestHandoff(c);
     const queued = await conv(c);
-    expect(queued).toMatchObject({ handoff_status: 'offline_queued', assigned_agent_id: null, previous_agent_id: c.ws.adminId });
+    expect(queued).toMatchObject({ handoff_status: 'waiting_for_agent', assigned_agent_id: null, previous_agent_id: c.ws.adminId });
 
     const [{ r: first }] = await db().as<{ r: Record<string, unknown> }>(
       { kind: 'user', id: c.ws.agentId },
@@ -153,6 +179,7 @@ describe.skipIf(!hasDatabase)('AI to human handoff (database)', () => {
 
   it('keeps the offline queue when the visitor turns on AI assist', async () => {
     const c = await chat();
+    await db().q(`UPDATE workspaces SET handoff_settings = handoff_settings || '{"handoff_mode": "email_only"}' WHERE id = $1`, [c.ws.id]);
     await requestHandoff(c);
     await db().q(`UPDATE conversations SET ai_assist = true, ai_mode = 'autopilot' WHERE id = $1`, [c.conversationId]);
     expect(await conv(c)).toMatchObject({ handoff_status: 'offline_queued', ai_enabled: true });

@@ -7780,7 +7780,6 @@ class ZentryWidget {
       ? { name: assignedName, avatar_url: assignedAvatar, status: 'online' }
       : this.workspaceAgents.find((a) => a.status === 'online') || this.workspaceAgents[0] || null;
 
-    const displayName = assignedName || activeAgent?.name || null;
 
     let avatarHtml = '';
     if (activeAgent) {
@@ -7804,12 +7803,18 @@ class ZentryWidget {
         '</form>';
 
     if (isOfflineQueued) {
-      const offlineTitle = 'Our team is offline right now';
-      // When the team is next in, in the workspace's own timezone
-      // (fn_next_office_hours_open), e.g. "tomorrow at 9:00 AM (Asia/Karachi)".
-      const offlineWaitText = this.nextOpenLabel
-        ? "We\'ve saved your place in line. We\'ll reply " + this.escapeHTML(this.nextOpenLabel) + '.'
-        : "We\'ve saved your place in line. We\'ll reply as soon as an agent is back online.";
+      // Like Intercom: say when the team is back (fn_next_office_hours_open,
+      // in the workspace's own timezone, e.g. "tomorrow at 9:00 AM
+      // (Asia/Karachi)"), and that the reply arrives here and by email.
+      // Office hours with nobody answering for 5 minutes also lands here, so
+      // "offline" is only said when there is a real opening time.
+      const hasOpening = Boolean(this.nextOpenLabel && !/^as soon as/i.test(this.nextOpenLabel));
+      const offlineTitle = hasOpening ? "We\'re away right now" : 'The team will get back to you';
+      const offlineWaitText =
+        (hasOpening
+          ? "We\'ll be back " + this.escapeHTML(this.nextOpenLabel || '') + '. '
+          : "Everyone is busy at the moment. ") +
+        (email ? "You\'ll get our reply here and by email." : "You\'ll get our reply right here.");
 
       const aiAssistActionHtml = this.aiAssistEnabled
         ? '<div class="chatify-handover-ai-badge"><span>✨ AI Assist active</span><button type="button" class="chatify-handover-btn-link" id="chatifyPauseAiBtn">Pause</button></div>'
@@ -7832,7 +7837,7 @@ class ZentryWidget {
         '<div class="chatify-handover-body">' +
         '<div class="chatify-handover-header-row">' +
         '<span class="chatify-handover-heading">' + offlineTitle + '</span>' +
-        '<span class="chatify-handover-status-pill waiting"><span>Offline queue</span></span>' +
+        '<span class="chatify-handover-status-pill waiting"><span>' + (hasOpening ? 'Away' : 'In queue') + '</span></span>' +
         '</div>' +
         '<p class="chatify-handover-desc">' + offlineWaitText + '</p>' +
         emailNoticeHtml +
@@ -7851,15 +7856,17 @@ class ZentryWidget {
         if (resolvedBtn) resolvedBtn.addEventListener('click', () => this.markIssueResolved());
       }, 0);
     } else {
-      const title = displayName
-        ? 'Connecting with ' + this.escapeHTML(displayName)
-        : 'Connecting with support';
+      // Name a person only once one actually has the chat; until then it is
+      // the team (Intercom's "You're through to the team").
+      const title = assignedName
+        ? 'Connecting you to ' + this.escapeHTML(assignedName)
+        : "You\'re through to our team";
 
       const waitText = this.expectedWaitText
-        ? 'Estimated wait: ' + this.escapeHTML(this.expectedWaitText) + '. You\'re in line for the next available agent.'
+        ? 'The team typically replies in ' + this.escapeHTML(this.expectedWaitText) + '. Stay here and someone will join this chat.'
         : isOnline
-        ? 'You\'re next in line. An agent will join shortly.'
-        : 'Connecting you with our support team...';
+        ? 'Someone from the team will join this chat in a moment.'
+        : "We\'ll reply right here as soon as someone is free.";
 
       card.className = 'chatify-handover-card connecting';
       card.innerHTML =
@@ -7887,7 +7894,7 @@ class ZentryWidget {
         form.addEventListener('submit', (e) => {
           e.preventDefault();
           const val = input.value.trim();
-          if (!/^[^s@]+@[^s@]+.[^s@]+$/.test(val)) return;
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) return;
           this.visitorEmail = val;
           const suffix = this.config.workspaceId ? '_' + this.config.workspaceId.slice(0, 8) : '';
           try {
