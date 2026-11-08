@@ -1112,10 +1112,12 @@ export async function POST(req: NextRequest) {
       }
     }
     // What follows this reply when someone should take over:
-    //   offer   - the bot asks, the visitor confirms with [Connect to agent]
-    //             (or "1" / "agent" on channels without buttons);
-    //   request - the visitor already asked for a person, or the workspace
-    //             turned confirmation off: queue them now (request_handoff);
+    //   offer   - the bot says it will connect them and shows [Connect to
+    //             agent] (or "1" / "agent" on channels without buttons); the
+    //             visitor's click is what queues them (Spec A.2), also when
+    //             they asked for a person in words;
+    //   request - the workspace turned confirmation off: queue them now
+    //             (request_handoff);
     //   queued  - already in the offline queue, talking to AI assist: nothing
     //             more to do, the team has it;
     //   legacy  - the handoff system is off: the older direct handover.
@@ -1128,9 +1130,10 @@ export async function POST(req: NextRequest) {
       ? 'queued'
       : currentHandoffStatus !== 'bot_active' && currentHandoffStatus !== 'handoff_offered'
       ? 'legacy'
-      : result.intent === 'wants_human' || !requireConfirmation
+      : !requireConfirmation
       ? 'request'
       : 'offer';
+    const askedForPerson = result.intent === 'wants_human';
 
     let effectiveCitation = citationLine;
     if (handoffAction === 'offer') {
@@ -1143,7 +1146,23 @@ export async function POST(req: NextRequest) {
             ur: "\n\nہماری ٹیم سے بات کرنے کے لیے '1' یا 'AGENT' لکھیں۔",
           })
         : '';
-      if (pipelineHandover) {
+      if (askedForPerson) {
+        // Spec C.7: "I'll connect you with our team" + [Connect to agent].
+        const offerText = onChannel
+          ? localized(offerLang, {
+              en: "Sure, I'll connect you with our team.",
+              roman_ur: 'Zaroor, main aapko hamari team se connect karta hoon.',
+              ur: 'ضرور، میں آپ کو ہماری ٹیم سے منسلک کرتا ہوں۔',
+            })
+          : localized(offerLang, {
+              en: "Sure, I'll connect you with our team. Tap **Connect to agent** below and the next available person will join.",
+              roman_ur: 'Zaroor, main aapko hamari team se connect karta hoon. Neeche **Connect to agent** dabayein, jo bhi available hoga woh join karega.',
+              ur: 'ضرور، میں آپ کو ہماری ٹیم سے منسلک کرتا ہوں۔ نیچے **Connect to agent** دبائیں، جو بھی دستیاب ہوگا وہ شامل ہوگا۔',
+            });
+        replyBody = `${offerText}${channelHint}`;
+        englishBody = "Sure, I'll connect you with our team.";
+        effectiveCitation = '';
+      } else if (pipelineHandover) {
         // The pipeline's text announces a handover that has not happened
         // yet; the visitor decides, so ask instead.
         const offerText = localized(offerLang, {
@@ -1367,11 +1386,11 @@ export async function POST(req: NextRequest) {
         console.log(`[Auto-Respond] Offering handoff for conversation ${conversation_id}. Reason: ${result.handoverReason}`);
         const { data: offerData, error: offerErr } = await supabase.rpc('offer_handoff', {
           p_conversation_id: conversation_id,
-          p_reason: result.handoverReason || 'needs_human',
+          p_reason: askedForPerson ? 'explicit_request' : result.handoverReason || 'needs_human',
           p_summary: result.internalNote || null,
           // A pipeline handover (no answer) is offered even inside the
           // cooldown; only the extra triggers wait (checked above).
-          p_explicit: pipelineHandover || handoffExplicit,
+          p_explicit: askedForPerson || pipelineHandover || handoffExplicit,
         });
         const offerRes = offerData as HandoffRpcResult | null;
         if (offerErr) {

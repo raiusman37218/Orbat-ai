@@ -1594,15 +1594,25 @@ class ZentryWidget {
     else this.receiveMessage(msg);
   }
 
+  /** Everything the handoff UI depends on, to tell whether it must be redrawn. */
+  private handoffSnapshot(): string {
+    return [this.handoffStatus, this.aiAssistEnabled, this.assignedAgentId, this.nextOpenLabel, this.expectedWaitText].join('|');
+  }
+
   private onLiveConversation(payload: LiveConversationPayload | null) {
     const conv = payload?.conversation;
     if (!conv?.id) return;
     if (conv.id === this.conversationId) {
+      const before = this.handoffSnapshot();
+      const statusBefore = this.conversationStatus;
       if ((conv as any).handoff_status) this.handoffStatus = (conv as any).handoff_status;
       if ((conv as any).ai_assist !== undefined) this.aiAssistEnabled = Boolean((conv as any).ai_assist);
       if ((conv as any).assigned_agent_id !== undefined) this.assignedAgentId = (conv as any).assigned_agent_id;
       this.applyHandoffDetails(conv);
       this.updateConversationStatus(conv.status);
+      // A handoff change (offer made, queued, agent joined) keeps the
+      // conversation open, so updateConversationStatus does not redraw it.
+      if (this.conversationStatus === statusBefore && this.handoffSnapshot() !== before) this.renderMessages();
     } else if (!this.conversationId && !this.forceNewConversation && conv.status !== 'closed') {
       // The team started a conversation with this visitor.
       this.adoptConversation(conv.id, conv.status);
@@ -1695,6 +1705,7 @@ class ZentryWidget {
       return;
     }
     if (convId !== this.conversationId) return;
+    const handoffBefore = this.handoffSnapshot();
     const server = Array.isArray(res?.messages) ? res.messages : [];
     const byId = new Map(server.map((m) => [m.id, m]));
     const oldest = server.length ? server[0].created_at : null;
@@ -1715,7 +1726,9 @@ class ZentryWidget {
     if (res?.conversation?.ai_assist !== undefined) this.aiAssistEnabled = Boolean(res.conversation.ai_assist);
     if (res?.conversation?.assigned_agent_id) this.assignedAgentId = res.conversation.assigned_agent_id;
     this.applyHandoffDetails(res?.conversation);
+    const statusBeforePoll = this.conversationStatus;
     this.updateConversationStatus(res?.conversation?.status);
+    if (this.conversationStatus === statusBeforePoll && this.handoffSnapshot() !== handoffBefore) this.renderMessages();
   }
 
   // 8. Message History (Filters out internal notes)
@@ -6760,6 +6773,8 @@ class ZentryWidget {
     // Intercom does it. Nothing here is timed: the old card said "Connected"
     // after 2.4 s whether or not anyone had picked the chat up.
     let announcedAgent: string | null = null;
+    const latestBotMessageId =
+      [...this.messages].reverse().find((m) => m.sender_type === 'ai' && !m.is_internal)?.id ?? null;
 
     this.messages.forEach((msg) => {
       // Security: never render internal notes to visitor!
@@ -6922,11 +6937,13 @@ class ZentryWidget {
       // carries them (or starter chips on the welcome message), and only until
       // the visitor has replied (they disappear automatically once the user sends anything).
       if (!isVisitor) {
-        const isOffer = Boolean(
-          (msg.metadata as any)?.handoff_offered ||
-          (msg.metadata as any)?.offer_handoff ||
-          (msg.metadata as any)?.action === 'offer_handoff'
-        );
+        const isOffer =
+          Boolean(
+            (msg.metadata as any)?.handoff_offered ||
+              (msg.metadata as any)?.offer_handoff ||
+              (msg.metadata as any)?.action === 'offer_handoff'
+          ) ||
+          (this.handoffStatus === 'handoff_offered' && msg.sender_type === 'ai' && msg.id === latestBotMessageId);
         if (isOffer && (this.handoffStatus === 'bot_active' || this.handoffStatus === 'handoff_offered')) {
           const offerBtn = document.createElement('button');
           offerBtn.type = 'button';

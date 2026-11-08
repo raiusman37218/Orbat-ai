@@ -155,6 +155,7 @@ export default function DashboardPage() {
     const events = ['mousemove', 'keydown', 'mousedown', 'touchstart', 'scroll'];
     events.forEach((e) => window.addEventListener(e, markActive, { passive: true }));
 
+    let firstBeat = true;
     const sendHeartbeat = async () => {
       const active = activitySinceBeatRef.current;
       activitySinceBeatRef.current = false;
@@ -163,9 +164,19 @@ export default function DashboardPage() {
         console.warn('[Heartbeat]:', error.message);
         return;
       }
-      if ((data as { auto_away?: boolean } | null)?.auto_away) {
+      const beat = data as { auto_away?: boolean; manual_status?: string } | null;
+      if (beat?.auto_away) {
         setCurrentAgent((prev) => (prev ? { ...prev, status: 'away' } : prev));
+        return;
       }
+      // The header shows agents.status, but ringing reads agent_status, which
+      // older code never wrote. An agent who shows Online when the dashboard
+      // opens is made available for handoff too, or nothing would ring.
+      if (firstBeat && currentAgent.status === 'online' && beat?.manual_status !== 'online') {
+        const { error: syncErr } = await supabase.rpc('set_agent_status', { p_status: 'online' });
+        if (syncErr) console.warn('[Heartbeat]: could not sync availability:', syncErr.message);
+      }
+      firstBeat = false;
     };
     void sendHeartbeat();
     const interval = setInterval(() => {
@@ -206,6 +217,24 @@ export default function DashboardPage() {
       events.forEach((e) => window.removeEventListener(e, resetTimer));
     };
   }, [currentWorkspace?.id, currentAgent?.id, currentAgent?.status]);
+
+  // Browsers keep audio silent until the page gets a click or key press, so
+  // a ring arriving later would make no sound. Unlock it on the first
+  // interaction anywhere on the dashboard (the banner button is optional).
+  useEffect(() => {
+    const unlock = () => {
+      sound.prime();
+      void sound.unlockAudio();
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
 
   // Supabase Realtime Presence for workspace agents (Phase 2)
   useEffect(() => {
@@ -251,8 +280,14 @@ export default function DashboardPage() {
       handoff_status?: string;
       ringing_agent_id?: string | null;
       ring_broadcast?: boolean;
+      ring_started_at?: string | null;
       ring_timeout_seconds?: number;
     }
+
+    // Each ring (conversation + when it started) pops up once, whether it
+    // arrives by broadcast or by the poll below, so a skipped or accepted
+    // ring does not come back on the next poll.
+    const shownRings = new Set<string>();
 
     const dismiss = (conversationId?: string) => {
       if (!conversationId) return;
@@ -289,6 +324,9 @@ export default function DashboardPage() {
         return;
       }
       if (disposed || !conv || conv.handoff_status !== 'waiting_for_agent') return;
+      const ringKey = `${conversationId}:${signal.ring_started_at ?? ''}`;
+      if (shownRings.has(ringKey)) return;
+      shownRings.add(ringKey);
       // Already skipped by me during a broadcast.
       if (Array.isArray(conv.skipped_agent_ids) && conv.skipped_agent_ids.includes(me) && signal.ring_broadcast) return;
       const visitor = (Array.isArray(conv.visitor) ? conv.visitor[0] : conv.visitor) as
@@ -317,6 +355,34 @@ export default function DashboardPage() {
       )
       .subscribe();
 
+    // Realtime broadcasts can be missed (socket asleep, tab in background,
+    // public broadcast switched off on the project), so the database is also
+    // asked every 10 s whether anything is ringing for this agent. RLS limits
+    // it to the agent's own workspace.
+    const pollRinging = async () => {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('id, handoff_status, ringing_agent_id, ring_broadcast, ring_started_at')
+        .eq('workspace_id', currentWorkspace.id)
+        .eq('handoff_status', 'waiting_for_agent')
+        .or(`ringing_agent_id.eq.${me},ring_broadcast.eq.true`)
+        .order('ring_started_at', { ascending: false })
+        .limit(5);
+      if (error) {
+        console.warn('[Handoff Ring] poll failed:', error.message);
+        return;
+      }
+      const timeout = Number(currentWorkspace.handoff_settings?.ring_timeout_seconds) || 45;
+      for (const row of data || []) {
+        const started = row.ring_started_at ? Date.parse(row.ring_started_at) : NaN;
+        // A ring that has already timed out is the server's to move on.
+        if (Number.isFinite(started) && Date.now() - started > timeout * 1000) continue;
+        void ring({ ...row, conversation_id: row.id, ring_timeout_seconds: timeout });
+      }
+    };
+    void pollRinging();
+    const ringPoll = setInterval(() => void pollRinging(), 10_000);
+
     // The server's auto-away (15 minutes without input) is announced here.
     const agentChan = supabase.channel(`agent:${me}`);
     agentChan
@@ -328,6 +394,7 @@ export default function DashboardPage() {
 
     return () => {
       disposed = true;
+      clearInterval(ringPoll);
       queueChan.unsubscribe();
       agentChan.unsubscribe();
     };

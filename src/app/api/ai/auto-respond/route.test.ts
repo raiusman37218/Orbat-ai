@@ -344,17 +344,42 @@ describe('the handoff to a person (migration 20261124090000)', () => {
   };
   const rpcNames = () => db.rpcCalls.map((c) => c.fn);
 
-  it('queues the visitor at once when they ask for a person: asking is the confirmation', async () => {
+  it('offers [Connect to agent] when the visitor asks for a person; their click queues them', async () => {
+    generate.mockResolvedValueOnce(wantsHuman);
+    db.rpcResults.offer_handoff = { data: { offered: true }, error: null };
+    const msg = visitorSays('I want to talk to a person');
+    await respond(msg);
+    expect(db.rpcCalls.find((c) => c.fn === 'offer_handoff')?.args).toMatchObject({
+      p_conversation_id: CONV,
+      p_reason: 'explicit_request',
+      p_explicit: true,
+    });
+    const reply = publicBotReplies()[0];
+    expect(reply.content).toMatch(/I'll connect you with our team/);
+    expect(reply.content).toMatch(/Connect to agent/);
+    expect(reply.metadata).toMatchObject({ handoff_offered: true });
+    expect(rpcNames()).not.toContain('request_handoff');
+    expect(handover).not.toHaveBeenCalled();
+  });
+
+  it('queues at once when the workspace turned confirmation off', async () => {
+    ws().handoff_settings = { ai: { require_confirmation: false } };
     generate.mockResolvedValueOnce(wantsHuman);
     db.rpcResults.request_handoff = { data: { ok: true, status: 'waiting_for_agent' }, error: null };
     const msg = visitorSays('I want to talk to a person');
     await respond(msg);
-    expect(db.rpcCalls.find((c) => c.fn === 'request_handoff')?.args).toMatchObject({
-      p_conversation_id: CONV,
-      p_reason: 'explicit_request',
-    });
+    expect(db.rpcCalls.find((c) => c.fn === 'request_handoff')?.args).toMatchObject({ p_reason: 'explicit_request' });
     expect(rpcNames()).not.toContain('offer_handoff');
-    expect(handover).not.toHaveBeenCalled();
+  });
+
+  it('tells channel visitors to reply 1 instead of tapping a button', async () => {
+    conv().channel = 'whatsapp';
+    generate.mockResolvedValueOnce(wantsHuman);
+    db.rpcResults.offer_handoff = { data: { offered: true }, error: null };
+    await respond(visitorSays('I want to talk to a person'));
+    const reply = publicBotReplies()[0].content as string;
+    expect(reply).toMatch(/Reply '1' or 'AGENT'/);
+    expect(reply).not.toMatch(/Tap/);
   });
 
   it('offers instead of announcing a handover when the bot could not answer', async () => {
@@ -401,7 +426,7 @@ describe('the handoff to a person (migration 20261124090000)', () => {
 
   it('falls back to the direct handover when the handoff functions are missing', async () => {
     generate.mockResolvedValueOnce(wantsHuman);
-    db.rpcResults.request_handoff = { data: null, error: { code: 'PGRST202', message: 'function not found' } };
+    db.rpcResults.offer_handoff = { data: null, error: { code: 'PGRST202', message: 'function not found' } };
     const msg = visitorSays('I want to talk to a person');
     await respond(msg);
     expect(handover).toHaveBeenCalledWith(expect.objectContaining({ visitorMessageId: msg }));
