@@ -153,6 +153,66 @@ export async function GET(req: NextRequest) {
       { groupId, agentId, channel }
     );
 
+    // Compute handoff metrics from conversation_events
+    let handoffMetrics = {
+      offered: 0,
+      requested: 0,
+      claimed: 0,
+      offline_queued: 0,
+      acceptance_rate_percent: 0,
+      avg_wait_seconds: 0,
+      reasons: [] as Array<{ reason: string; count: number }>,
+    };
+
+    try {
+      const { data: handoffEvents } = await supabase
+        .from('conversation_events')
+        .select('type, meta, created_at')
+        .eq('workspace_id', workspaceId)
+        .gte('created_at', startDate.toISOString())
+        .lte('created_at', endDate.toISOString());
+
+      let handoffOffered = 0;
+      let handoffRequested = 0;
+      let handoffClaimed = 0;
+      let handoffOffline = 0;
+      let totalWaitSeconds = 0;
+      let waitSamples = 0;
+      const reasonsMap: Record<string, number> = {};
+
+      for (const ev of handoffEvents || []) {
+        if (ev.type === 'offer_handoff') handoffOffered++;
+        if (ev.type === 'request_handoff') {
+          handoffRequested++;
+          const reason = (ev.meta as any)?.reason || 'Customer request';
+          reasonsMap[reason] = (reasonsMap[reason] || 0) + 1;
+        }
+        if (ev.type === 'offline_queue') handoffOffline++;
+        if (ev.type === 'agent_claim') {
+          handoffClaimed++;
+          const wait = Number((ev.meta as any)?.wait_time_seconds || (ev.meta as any)?.wait_seconds);
+          if (Number.isFinite(wait) && wait >= 0) {
+            totalWaitSeconds += wait;
+            waitSamples++;
+          }
+        }
+      }
+
+      handoffMetrics = {
+        offered: handoffOffered,
+        requested: handoffRequested,
+        claimed: handoffClaimed,
+        offline_queued: handoffOffline,
+        acceptance_rate_percent: handoffOffered > 0 ? Math.round((handoffRequested / handoffOffered) * 100) : 0,
+        avg_wait_seconds: waitSamples > 0 ? Math.round(totalWaitSeconds / waitSamples) : 0,
+        reasons: Object.entries(reasonsMap).map(([reason, count]) => ({ reason, count })),
+      };
+    } catch (handoffErr) {
+      console.warn('[Reports] Failed to query handoff events:', handoffErr);
+    }
+
+    dashboardData.handoff = handoffMetrics;
+
     return NextResponse.json({
       ...dashboardData,
       meta: {

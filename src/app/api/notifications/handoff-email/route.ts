@@ -12,6 +12,27 @@ import { getRequestOrigin } from '@/lib/request-origin';
 
 export const dynamic = 'force-dynamic';
 
+async function sendTelegramAlert(text: string, chatId?: string | null) {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  const targetId = chatId || process.env.TELEGRAM_CHAT_ID;
+  if (!token || !targetId) return;
+
+  try {
+    await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: targetId,
+        text,
+        parse_mode: 'Markdown',
+      }),
+    });
+  } catch (err) {
+    console.warn('[Telegram Alert Failed]:', err);
+  }
+}
+
+
 interface HandoffEmailPayload {
   type: 'missed_chat' | 'unanswered_alert' | 'queue_summary' | 'offline_customer_reply';
   workspace_id: string;

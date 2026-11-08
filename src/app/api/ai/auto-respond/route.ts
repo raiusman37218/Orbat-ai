@@ -340,6 +340,8 @@ export async function POST(req: NextRequest) {
       return skip('already_answered', `Already responded to message ${targetVisitorMsgId}`, currentVisitorMsgId);
     }
 
+
+
     const aiSettings = workspace?.ai_settings;
 
     // Only an explicit "off" counts. Settings shows a missing flag as on, and
@@ -557,6 +559,50 @@ export async function POST(req: NextRequest) {
     if (!canAiRespond(currentHandoffStatus, { aiEnabled: isAiEnabled, aiAssist: isAiAssist })) {
       console.log(`[Auto-Respond] Silenced by handoff state: ${currentHandoffStatus} (aiAssist: ${isAiAssist})`);
       return NextResponse.json({ skipped: true, reason: `silenced_by_handoff_state_${currentHandoffStatus}` });
+    }
+
+    // Check if customer is accepting an offered handoff
+    if (currentHandoffStatus === 'handoff_offered' && visitorMsg) {
+      const content = visitorMsg.content.trim().toLowerCase();
+      const isAffirmative =
+        /^(1|agent|yes|yep|sure|please|connect|human|help|ha|haan|jee|baat karni hai)$/i.test(content) ||
+        content.includes('agent') ||
+        content.includes('human') ||
+        content.includes('person');
+
+      if (isAffirmative) {
+        console.log(`[Auto-Respond] Customer accepted handoff offer on conversation ${conversation_id} via "${visitorMsg.content}"`);
+        const { data: handoffRes, error: handoffErr } = await supabase.rpc('request_handoff', {
+          p_conversation_id: conversation_id,
+        });
+        if (handoffErr) {
+          console.error('[Auto-Respond] Failed to call request_handoff RPC:', handoffErr.message);
+        } else {
+          // If non-web channel or text-based channel, reply with queue confirmation
+          if (conv.channel && conv.channel !== 'web') {
+            const isOffline = (handoffRes as any)?.status === 'offline_queued';
+            const confirmationText = isOffline
+              ? "Our team is currently offline. Your request has been added to our priority queue and we'll reply as soon as office hours begin."
+              : "Connecting you with our support team now. A human agent will be with you shortly.";
+
+            await supabase.from('messages').insert({
+              conversation_id,
+              sender_type: 'system',
+              content: confirmationText,
+              is_internal: false,
+              metadata: {
+                system_event: 'handoff_confirmed',
+                handoff_status: (handoffRes as any)?.status,
+              },
+            });
+          }
+          return NextResponse.json({
+            replied: true,
+            handoff_accepted: true,
+            status: (handoffRes as any)?.status || 'waiting_for_agent',
+          });
+        }
+      }
     }
 
     if (legacyHumanOwned || keepWithHumanAgent || waitingInHumanQueue || !botMayReply(conv)) {
@@ -1022,6 +1068,13 @@ export async function POST(req: NextRequest) {
 
         // If visitor asked for human and an agent name is available, append professional connecting notice
         // only for non-web channels (WhatsApp, email, social) where rich widget handover cards do not render.
+        const isConfirmReq = ((workspace as any)?.handoff_settings)?.ai?.require_confirmation !== false;
+        if (result.shouldHandover && isConfirmReq && conv.channel && conv.channel !== 'web') {
+          const fallbackNotice = "\n\nReply '1' or 'AGENT' to speak with our team.";
+          if (!replyBody.includes('AGENT')) {
+            replyBody = `${replyBody}${fallbackNotice}`;
+          }
+        }
         if (preassignedAgent?.name && result.intent === 'wants_human' && conv.channel && conv.channel !== 'web') {
           const agentName = preassignedAgent.name;
           const connectingNotice =

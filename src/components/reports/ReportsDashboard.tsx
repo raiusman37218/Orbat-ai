@@ -1078,6 +1078,82 @@ export function ReportsDashboard({
                     )}
                   </div>
 
+                  {/* AI -> Human Agent Handoff Analytics */}
+                  <div className="card p-5 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h2 className="text-sm font-semibold text-ink flex items-center gap-2">
+                          <Users className="w-4 h-4 text-accent" />
+                          AI → Human Agent Handoff Metrics
+                        </h2>
+                        <p className="text-xs text-ink-3">
+                          Handoff offer rate, acceptance rate, queue times, and common escalation triggers.
+                        </p>
+                      </div>
+                      <span className="text-2xs text-ink-3 font-mono font-semibold uppercase">Handoff Analytics</span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2">
+                      <div className="p-4 rounded-xl bg-surface-2 border border-line/60">
+                        <span className="text-2xs uppercase tracking-wider font-semibold text-ink-3">Handoffs Offered</span>
+                        <div className="text-3xl font-bold text-ink mt-1 tabular-nums">
+                          {data.handoff?.offered ?? 0}
+                        </div>
+                        <p className="text-2xs text-ink-2 mt-1">Suggested by AI assistant</p>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-surface-2 border border-line/60">
+                        <span className="text-2xs uppercase tracking-wider font-semibold text-ink-3">Acceptance Rate</span>
+                        <div className="text-3xl font-bold text-accent mt-1 tabular-nums">
+                          {data.handoff?.acceptance_rate_percent ?? 0}%
+                        </div>
+                        <p className="text-2xs text-ink-2 mt-1">
+                          {data.handoff?.requested ?? 0} confirmed by customer
+                        </p>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-surface-2 border border-line/60">
+                        <span className="text-2xs uppercase tracking-wider font-semibold text-ink-3">Avg Wait to Claim</span>
+                        <div className="text-3xl font-bold text-warn mt-1 tabular-nums">
+                          {data.handoff?.avg_wait_seconds
+                            ? data.handoff.avg_wait_seconds < 60
+                              ? `${data.handoff.avg_wait_seconds}s`
+                              : `${Math.round(data.handoff.avg_wait_seconds / 60)}m`
+                            : '0s'}
+                        </div>
+                        <p className="text-2xs text-ink-2 mt-1">Queue wait time before agent accepts</p>
+                      </div>
+
+                      <div className="p-4 rounded-xl bg-surface-2 border border-line/60">
+                        <span className="text-2xs uppercase tracking-wider font-semibold text-ink-3">Routed to Offline Queue</span>
+                        <div className="text-3xl font-bold text-ink mt-1 tabular-nums">
+                          {data.handoff?.offline_queued ?? 0}
+                        </div>
+                        <p className="text-2xs text-ink-2 mt-1">Received outside office hours</p>
+                      </div>
+                    </div>
+
+                    {/* Common Escalation Reasons */}
+                    {data.handoff?.reasons && data.handoff.reasons.length > 0 && (
+                      <div className="space-y-2 pt-2">
+                        <span className="text-xs font-semibold text-ink">Top Escalation Triggers</span>
+                        <div className="flex flex-wrap gap-2">
+                          {data.handoff.reasons.map((r, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs bg-surface-3 text-ink-2 border border-line/60"
+                            >
+                              <span className="font-medium capitalize">{r.reason.replace(/_/g, ' ')}</span>
+                              <span className="text-2xs bg-surface text-ink-3 px-1.5 py-0.5 rounded font-mono">
+                                {r.count}
+                              </span>
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
                   {/* Agent Copilot Performance & Usage */}
                   <div className="card p-5 space-y-4">
                     <div className="flex items-center justify-between">

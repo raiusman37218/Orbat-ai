@@ -115,6 +115,16 @@ export interface ReportsSummary {
   botResolutionRatePercent: number | null;
 }
 
+export interface HandoffReportMetrics {
+  offered: number;
+  requested: number;
+  claimed: number;
+  offline_queued: number;
+  acceptance_rate_percent: number;
+  avg_wait_seconds: number;
+  reasons: Array<{ reason: string; count: number }>;
+}
+
 export interface ReportsDashboardData {
   summary: ReportsSummary;
   createdVsSolved: CreatedVsSolvedPoint[];
@@ -126,6 +136,7 @@ export interface ReportsDashboardData {
   peakHour: { dayName: string; hour: number; label: string; count: number } | null;
   leaderboard: AgentLeaderboardRow[];
   recentFeedback: CsatFeedbackItem[];
+  handoff?: HandoffReportMetrics;
 }
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
