@@ -11,7 +11,6 @@ const ALLOWED_TYPES = new Set([
   'image/png',
   'image/webp',
   'image/gif',
-  'image/svg+xml',
   'image/bmp',
   'image/heic',
   'image/heif',

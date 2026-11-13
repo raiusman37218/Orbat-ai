@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { hasServiceRole } from '@/lib/supabase/service';
+import { hasServiceRole } from '@/lib/pg/service';
 import { pollDueConnections } from '@/lib/channels/poll';
 import { processOutboundQueue } from '@/lib/channels/outbound';
 
@@ -19,7 +19,7 @@ async function handle(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   if (!hasServiceRole()) {
-    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not set' }, { status: 500 });
+    return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 });
   }
   const summary = await pollDueConnections(process.env.NEXT_PUBLIC_APP_URL || new URL(request.url).origin);
   // New items may have woken the bot; send whatever it answered.

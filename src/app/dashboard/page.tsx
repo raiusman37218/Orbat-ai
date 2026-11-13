@@ -3,7 +3,22 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { createClient } from '@/lib/supabase/client';
+import {
+  agentHeartbeatAction,
+  bulkUpdateDashboardConversationsAction,
+  deleteDashboardMessageAction,
+  editDashboardMessageAction,
+  getDashboardConversationAction,
+  getHelpSectionsCountAction,
+  listDashboardConversationsAction,
+  listDashboardMessagesAction,
+  listDashboardVisitorsAction,
+  pollRingingHandoffsAction,
+  sendDashboardMessageAction,
+  startDashboardConversationAction,
+  updateAgentStatusAction,
+  updateDashboardConversationAction,
+} from '@/app/actions/inbox';
 import { Agent, Conversation, Message, Visitor, Workspace, AgentStatus, ConversationStatus, ConversationPriority, CannedResponse } from '@/types/database';
 import { Sidebar, type View } from '@/components/dashboard/Sidebar';
 import { ConversationList } from '@/components/dashboard/ConversationList';
@@ -96,7 +111,6 @@ function isAiAnswering(conv: Conversation, ws: Workspace | null): boolean {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const supabase = createClient();
   const toast = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -128,7 +142,6 @@ export default function DashboardPage() {
   const [needsAudioUnlock, setNeedsAudioUnlock] = useState(false);
   const autoAwayTriggeredRef = useRef(false);
   const [ringingPayload, setRingingPayload] = useState<RingingHandoffPayload | null>(null);
-  const presenceChanRef = useRef<any>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -192,24 +205,20 @@ export default function DashboardPage() {
     const sendHeartbeat = async () => {
       const active = activitySinceBeatRef.current;
       activitySinceBeatRef.current = false;
-      const { data, error } = await supabase.rpc('agent_heartbeat', { p_active_input: active });
-      if (error) {
-        console.warn('[Heartbeat]:', error.message);
-        return;
+      try {
+        const beat = await agentHeartbeatAction(
+          currentWorkspace.id,
+          active,
+          firstBeat && currentAgent.status === 'online'
+        );
+        if (beat?.auto_away) {
+          setCurrentAgent((prev) => (prev ? { ...prev, status: 'away' } : prev));
+          return;
+        }
+        firstBeat = false;
+      } catch (err: any) {
+        console.warn('[Heartbeat]:', err?.message || err);
       }
-      const beat = data as { auto_away?: boolean; manual_status?: string } | null;
-      if (beat?.auto_away) {
-        setCurrentAgent((prev) => (prev ? { ...prev, status: 'away' } : prev));
-        return;
-      }
-      // The header shows agents.status, but ringing reads agent_status, which
-      // older code never wrote. An agent who shows Online when the dashboard
-      // opens is made available for handoff too, or nothing would ring.
-      if (firstBeat && currentAgent.status === 'online' && beat?.manual_status !== 'online') {
-        const { error: syncErr } = await supabase.rpc('set_agent_status', { p_status: 'online' });
-        if (syncErr) console.warn('[Heartbeat]: could not sync availability:', syncErr.message);
-      }
-      firstBeat = false;
     };
     void sendHeartbeat();
     const interval = setInterval(() => {
@@ -269,169 +278,66 @@ export default function DashboardPage() {
     };
   }, []);
 
-  // Supabase Realtime Presence for workspace agents (Phase 2)
-  useEffect(() => {
-    if (!currentWorkspace?.id || !currentAgent?.id || isBackendAuthenticated()) return;
-    const channelName = `presence:workspace_${currentWorkspace.id}`;
-    const chan = supabase.channel(channelName, {
-      config: { presence: { key: currentAgent.id } },
-    });
-    presenceChanRef.current = chan;
-
-    chan.subscribe(async (status: string) => {
-      if (status === 'SUBSCRIBED') {
-        await chan
-          .track({
-            agent_id: currentAgent.id,
-            name: currentAgent.name,
-            status: currentAgent.status,
-            online_at: new Date().toISOString(),
-          })
-          .catch(() => {});
-      }
-    });
-
-    return () => {
-      chan.unsubscribe();
-      presenceChanRef.current = null;
-    };
-  }, [currentWorkspace?.id, currentAgent?.id, currentAgent?.status]);
-
-  // Ring signals. fn_dispatch_handoff_ring_signal sends every handoff event on
-  // queue:<workspace> (and a targeted ring on agent:<id>) carrying ids only,
-  // because these channels are public; the customer's name, question and the
-  // AI summary are read here through RLS.
+  // Poll workspace ringing handoffs via Server Action when NestJS realtime isn't primary.
   useEffect(() => {
     if (!currentWorkspace?.id || !currentAgent?.id || isBackendAuthenticated()) return;
     // Light agents can view but not take chats, so they are never rung.
     if (currentAgent.role === 'light_agent') return;
-    const me = currentAgent.id;
     let disposed = false;
 
-    interface RingSignal {
-      conversation_id?: string;
-      handoff_status?: string;
-      ringing_agent_id?: string | null;
-      ring_broadcast?: boolean;
-      ring_started_at?: string | null;
-      ring_timeout_seconds?: number;
-    }
-
-    // Each ring (conversation + when it started) pops up once, whether it
-    // arrives by broadcast or by the poll below, so a skipped or accepted
-    // ring does not come back on the next poll.
     const shownRings = new Set<string>();
 
-    const dismiss = (conversationId?: string) => {
-      if (!conversationId) return;
-      setRingingPayload((prev) => (prev?.conversationId === conversationId ? null : prev));
-    };
-
-    const ring = async (signal: RingSignal) => {
-      const conversationId = signal.conversation_id;
-      if (!conversationId || signal.handoff_status !== 'waiting_for_agent') return;
-      const forMe = signal.ringing_agent_id === me || (Boolean(signal.ring_broadcast) && !signal.ringing_agent_id);
-      if (!forMe) {
-        // The ring moved on to someone else.
-        dismiss(conversationId);
-        return;
-      }
-      const [{ data: conv, error: convErr }, { data: lastMsg }] = await Promise.all([
-        supabase
-          .from('conversations')
-          .select('id, handoff_status, handoff_reason, handoff_summary, skipped_agent_ids, visitor:visitors(name, email)')
-          .eq('id', conversationId)
-          .maybeSingle(),
-        supabase
-          .from('messages')
-          .select('content')
-          .eq('conversation_id', conversationId)
-          .eq('sender_type', 'visitor')
-          .or('is_internal.is.null,is_internal.eq.false')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle(),
-      ]);
-      if (convErr) {
-        console.warn('[Handoff Ring]:', convErr.message);
-        return;
-      }
-      if (disposed || !conv || conv.handoff_status !== 'waiting_for_agent') return;
-      const ringKey = `${conversationId}:${signal.ring_started_at ?? ''}`;
-      if (shownRings.has(ringKey)) return;
-      shownRings.add(ringKey);
-      // Already skipped by me during a broadcast.
-      if (Array.isArray(conv.skipped_agent_ids) && conv.skipped_agent_ids.includes(me) && signal.ring_broadcast) return;
-      const visitor = (Array.isArray(conv.visitor) ? conv.visitor[0] : conv.visitor) as
-        | { name?: string | null; email?: string | null }
-        | null;
-      setRingingPayload({
-        conversationId,
-        visitorName: visitor?.name?.trim() || visitor?.email?.trim() || 'Customer',
-        visitorEmail: visitor?.email ?? null,
-        question: (lastMsg as { content?: string } | null)?.content ?? null,
-        summary: conv.handoff_summary,
-        reason: conv.handoff_reason,
-        timeoutSeconds: signal.ring_timeout_seconds || 45,
-        broadcast: Boolean(signal.ring_broadcast),
-      });
-    };
-
-    const queueChan = supabase.channel(`queue:${currentWorkspace.id}`);
-    queueChan
-      .on('broadcast', { event: 'ring' }, (msg: { payload?: RingSignal }) => void ring(msg?.payload || {}))
-      .on('broadcast', { event: 'broadcast' }, (msg: { payload?: RingSignal }) => void ring(msg?.payload || {}))
-      .on('broadcast', { event: 'claimed' }, (msg: { payload?: RingSignal }) => dismiss(msg?.payload?.conversation_id))
-      .on('broadcast', { event: 'resolved' }, (msg: { payload?: RingSignal }) => dismiss(msg?.payload?.conversation_id))
-      .on('broadcast', { event: 'offline_queued' }, (msg: { payload?: RingSignal }) =>
-        dismiss(msg?.payload?.conversation_id)
-      )
-      .subscribe();
-
-    // Realtime broadcasts can be missed (socket asleep, tab in background,
-    // public broadcast switched off on the project), so the database is also
-    // asked every 10 s whether anything is ringing for this agent. RLS limits
-    // it to the agent's own workspace.
     const pollRinging = async () => {
-      const { data, error } = await supabase
-        .from('conversations')
-        .select('id, handoff_status, ringing_agent_id, ring_broadcast, ring_started_at')
-        .eq('workspace_id', currentWorkspace.id)
-        .eq('handoff_status', 'waiting_for_agent')
-        .or(`ringing_agent_id.eq.${me},ring_broadcast.eq.true`)
-        .order('ring_started_at', { ascending: false })
-        .limit(5);
-      if (error) {
-        console.warn('[Handoff Ring] poll failed:', error.message);
-        return;
-      }
-      const timeout = Number(currentWorkspace.handoff_settings?.ring_timeout_seconds) || 45;
-      for (const row of data || []) {
-        const started = row.ring_started_at ? Date.parse(row.ring_started_at) : NaN;
-        // A ring that has already timed out is the server's to move on.
-        if (Number.isFinite(started) && Date.now() - started > timeout * 1000) continue;
-        void ring({ ...row, conversation_id: row.id, ring_timeout_seconds: timeout });
+      if (document.visibilityState !== 'visible') return;
+      try {
+        const rows = await pollRingingHandoffsAction(currentWorkspace.id);
+        if (disposed) return;
+
+        const timeout = Number(currentWorkspace.handoff_settings?.ring_timeout_seconds) || 45;
+        const activeIds = new Set(rows.map((r) => r.conversationId));
+        setRingingPayload((prev) => (prev && !activeIds.has(prev.conversationId) ? null : prev));
+
+        for (const row of rows) {
+          const started = row.ringStartedAt ? Date.parse(row.ringStartedAt) : NaN;
+          if (Number.isFinite(started) && Date.now() - started > timeout * 1000) continue;
+          const ringKey = `${row.conversationId}:${row.ringStartedAt ?? ''}`;
+          if (shownRings.has(ringKey)) continue;
+          shownRings.add(ringKey);
+          setRingingPayload({
+            conversationId: row.conversationId,
+            visitorName: row.visitorName,
+            visitorEmail: row.visitorEmail,
+            question: row.question,
+            summary: row.summary,
+            reason: row.reason,
+            timeoutSeconds: timeout,
+            broadcast: row.ringBroadcast,
+          });
+          break;
+        }
+      } catch (err: any) {
+        console.warn('[Handoff Ring] poll failed:', err?.message || err);
       }
     };
-    void pollRinging();
-    const ringPoll = setInterval(() => void pollRinging(), 10_000);
 
-    // The server's auto-away (15 minutes without input) is announced here.
-    const agentChan = supabase.channel(`agent:${me}`);
-    agentChan
-      .on('broadcast', { event: 'auto_away' }, () => {
-        setCurrentAgent((prev) => (prev ? { ...prev, status: 'away' } : prev));
-        toast.show('You were set to Away after 15 minutes without activity', 'info');
-      })
-      .subscribe();
+    void pollRinging();
+    const ringPoll = setInterval(() => void pollRinging(), 8_000);
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') void pollRinging();
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     return () => {
       disposed = true;
       clearInterval(ringPoll);
-      queueChan.unsubscribe();
-      agentChan.unsubscribe();
+      document.removeEventListener('visibilitychange', onVisible);
     };
-  }, [currentWorkspace?.id, currentAgent?.id, currentAgent?.role]);
+  }, [
+    currentWorkspace?.id,
+    currentWorkspace?.handoff_settings?.ring_timeout_seconds,
+    currentAgent?.id,
+    currentAgent?.role,
+  ]);
 
   const isOfficeHoursActive = useMemo(() => {
     if (!currentWorkspace) return false;
@@ -559,15 +465,12 @@ export default function DashboardPage() {
       },
     });
   }, []);
-  const teamInbox = useTeamInbox(supabase, isBackendAuthenticated() ? null : currentWorkspace?.id, onTeamMessage);
+  const teamInbox = useTeamInbox(currentWorkspace?.id, onTeamMessage);
   const onTeamThreadChange = useCallback((threadId: string | null) => {
     openTeamThreadRef.current = threadId;
   }, []);
 
-  // Bumped to tear down and re-open the realtime channels after a dropped
-  // connection (laptop sleep, network change, server restart).
-  const [realtimeEpoch, setRealtimeEpoch] = useState(0);
-  const realtimeHealthyRef = useRef(true);
+  // Keep unread badge accurate across tabs.
 
   // Dynamically update favicon badge and title count when unread conversations change
   useEffect(() => {
@@ -719,7 +622,7 @@ export default function DashboardPage() {
       console.error('Error initializing dashboard:', err);
       setLoading(false);
     }
-  }, [supabase, router]);
+  }, [router]);
 
   useEffect(() => {
     initializeDashboard();
@@ -813,18 +716,18 @@ export default function DashboardPage() {
         }
         return;
       }
-      // The inbox loads the 30 most recent conversations; a linked one may be
-      // older, so it is fetched on its own and put at the top.
-      const { data } = await supabase
-        .from('conversations')
-        .select('*, visitor:visitors(*), agent:agents!conversations_agent_id_fkey(*)')
-        .eq('id', id)
-        .maybeSingle();
-      if (data) {
-        setConversations((prev) => (prev.some((c) => c.id === id) ? prev : [data as Conversation, ...prev]));
+      const wsId = currentWorkspaceIdRef.current;
+      if (!wsId) return;
+      try {
+        const data = await getDashboardConversationAction(wsId, id);
+        if (data) {
+          setConversations((prev) => (prev.some((c) => c.id === id) ? prev : [data, ...prev]));
+        }
+      } catch (e) {
+        console.warn('[Dashboard] openLinkedConversation failed:', e);
       }
     },
-    [supabase]
+    []
   );
   const linkedConversationOpened = useRef(false);
   useEffect(() => {
@@ -884,36 +787,28 @@ export default function DashboardPage() {
       return;
     }
 
-    // 2. Fetch fresh messages in the background
-    const { data, error } = await supabase
-      .from('messages')
-      .select('*, agent:agents(*)')
-      .eq('conversation_id', conversationId)
-      .order('created_at', { ascending: true });
+    // 2. Fetch fresh messages via Server Action
+    const wsId = currentWorkspaceIdRef.current;
+    if (!wsId) {
+      setIsMessagesLoading(false);
+      return;
+    }
 
-    if (error) {
+    let fetchedMessages: Message[] = [];
+    try {
+      fetchedMessages = await listDashboardMessagesAction(wsId, conversationId);
+    } catch (error) {
       console.error('Failed to load messages:', error);
       setIsMessagesLoading(false);
       return;
     }
 
-    const fetchedMessages = (data as Message[]) || [];
     messagesCacheRef.current[conversationId] = fetchedMessages;
 
     // Only update active state if the agent is still viewing this conversation
     if (selectedConversationIdRef.current === conversationId) {
       setMessages(fetchedMessages);
       setIsMessagesLoading(false);
-    }
-
-    // Opening the thread is the agent reading it.
-    try {
-      await supabase.rpc('fn_mark_messages_read', {
-        p_conversation_id: conversationId,
-        p_exclude_sender: 'agent',
-      });
-    } catch {
-      // ignored
     }
 
     // Immediately clear unread_count for the opened conversation in UI state
@@ -933,7 +828,7 @@ export default function DashboardPage() {
           : c
       )
     );
-  }, [supabase]);
+  }, []);
 
   // 3. Fetch/Refresh Conversations (Pages of 30, ordered by updated_at)
   const refreshConversations = useCallback(
@@ -966,157 +861,27 @@ export default function DashboardPage() {
         return;
       }
       try {
-        let query = supabase
-          .from('conversations')
-          .select(`
-            *,
-            visitor:visitors(*),
-            agent:agents!conversations_agent_id_fkey(*)
-          `)
-          .order('updated_at', { ascending: false })
-          .range(pageNum * PAGE_SIZE, (pageNum + 1) * PAGE_SIZE - 1);
-
-        if (targetWsId) {
-          query = query.eq('workspace_id', targetWsId);
-        }
-
-        const { data: convData, error } = await query;
-        if (error) {
-          console.error('Failed to fetch conversations:', error);
-          setConversationsError(error.message || 'Conversations could not be loaded.');
-          return;
-        }
+        if (!targetWsId) return;
+        const { conversations: rawConvs, hasMore: nextHasMore } =
+          await listDashboardConversationsAction(targetWsId, pageNum, PAGE_SIZE);
         setConversationsError(null);
+        setHasMore(nextHasMore);
 
-        const fetchedConvs = (convData as any[]) || [];
-        if (fetchedConvs.length < PAGE_SIZE) {
-          setHasMore(false);
-        } else {
-          setHasMore(true);
-        }
-
-        if (fetchedConvs.length === 0 && !isAppend) {
+        if (rawConvs.length === 0 && !isAppend) {
           setConversations([]);
           setLastSynced(new Date());
           return;
         }
 
-        const convIds = fetchedConvs.map((c: any) => c.id);
-
-        // In parallel: Batch fetch unread visitor messages and latest messages in 2 queries
-        let unreadCountMap: Record<string, number> = {};
-        let latestMessageMap: Record<string, Message> = {};
-
-        const visitorMsgCounts: Record<string, number> = {};
-        // One small row per conversation (fn_inbox_summaries). Until that
-        // migration is applied the call fails and the old way below runs,
-        // which downloads every message of the page's conversations.
-        const summaries =
-          convIds.length > 0 ? await supabase.rpc('fn_inbox_summaries', { p_conversation_ids: convIds }) : null;
-        if (summaries && !summaries.error && Array.isArray(summaries.data)) {
-          for (const row of summaries.data as {
-            conversation_id: string;
-            last_message: Message | null;
-            unread_count: number;
-            has_visitor_message: boolean;
-          }[]) {
-            if (row.unread_count) unreadCountMap[row.conversation_id] = row.unread_count;
-            if (row.last_message) latestMessageMap[row.conversation_id] = row.last_message;
-            if (row.has_visitor_message) visitorMsgCounts[row.conversation_id] = 1;
-          }
-        } else if (convIds.length > 0) {
-          const [unreadRes, recentMsgsRes] = await Promise.all([
-            supabase
-              .from('messages')
-              .select('conversation_id')
-              .in('conversation_id', convIds)
-              .eq('sender_type', 'visitor')
-              .is('read_at', null),
-            supabase
-              .from('messages')
-              .select('*')
-              .in('conversation_id', convIds)
-              .order('created_at', { ascending: false }),
-          ]);
-
-          if (unreadRes.data) {
-            for (const row of unreadRes.data) {
-              unreadCountMap[row.conversation_id] = (unreadCountMap[row.conversation_id] || 0) + 1;
-            }
-          }
-
-          if (recentMsgsRes.data) {
-            for (const msg of recentMsgsRes.data) {
-              if (msg.sender_type === 'visitor') {
-                visitorMsgCounts[msg.conversation_id] = (visitorMsgCounts[msg.conversation_id] || 0) + 1;
-              }
-              if (!latestMessageMap[msg.conversation_id]) {
-                latestMessageMap[msg.conversation_id] = msg as Message;
-              }
-            }
-          }
-        }
-
-        // Auto-close abandoned empty conversations (0 visitor messages after 10 minutes).
-        // The batch above is capped by the API (1,000 rows), so a busy page can
-        // be missing older conversations' messages entirely. Absence there is
-        // not proof: candidates are re-checked with a query of their own before
-        // anything is closed.
-        let abandonedIds: string[] = [];
-        const nowMs = Date.now();
-        const candidates = fetchedConvs
-          .filter((c: any) => {
-            if (c.status !== 'open' || visitorMsgCounts[c.id]) return false;
-            const ageMinutes = (nowMs - new Date(c.created_at || c.updated_at).getTime()) / (1000 * 60);
-            return ageMinutes >= 10;
-          })
-          .map((c: any) => c.id as string);
-
-        if (candidates.length > 0) {
-          const { data: withVisitorMsgs } = await supabase
-            .from('messages')
-            .select('conversation_id')
-            .in('conversation_id', candidates)
-            .eq('sender_type', 'visitor')
-            .limit(1000);
-          const spoken = new Set((withVisitorMsgs || []).map((r: any) => r.conversation_id));
-          abandonedIds = candidates.filter((id: string) => !spoken.has(id));
-        }
-
-        if (abandonedIds.length > 0) {
-          const closedAt = new Date().toISOString();
-          // Per conversation, so each keeps its own channel_metadata (language
-          // override, autopilot history) instead of all being replaced.
-          for (const c of fetchedConvs.filter((fc: any) => abandonedIds.includes(fc.id))) {
-            supabase
-              .from('conversations')
-              .update({
-                status: 'closed',
-                closed_at: closedAt,
-                channel_metadata: {
-                  ...((c.channel_metadata as Record<string, any>) || {}),
-                  auto_closed_reason: 'no_customer_message_10m',
-                },
-              })
-              .eq('id', c.id)
-              .eq('status', 'open')
-              .then();
-          }
-        }
-
         const knownLastMessage = new Map(
           conversationsRef.current.map((c) => [c.id, c.last_message] as const)
         );
-        const enrichedConversations: Conversation[] = fetchedConvs.map((c: any) => {
+        const enrichedConversations: Conversation[] = rawConvs.map((c) => {
           const isCurrentlySelected = selectedConversationIdRef.current === c.id;
-          const isAutoClosed = abandonedIds.includes(c.id);
           return {
             ...c,
-            status: isAutoClosed ? 'closed' : c.status,
-            closed_at: isAutoClosed ? (c.closed_at || new Date().toISOString()) : c.closed_at,
-            // Missing from the capped batch is not "no messages": keep what we had.
-            last_message: latestMessageMap[c.id] || knownLastMessage.get(c.id) || null,
-            unread_count: isCurrentlySelected ? 0 : (unreadCountMap[c.id] || 0),
+            last_message: c.last_message || knownLastMessage.get(c.id) || null,
+            unread_count: isCurrentlySelected ? 0 : (c.unread_count || 0),
           };
         });
 
@@ -1150,14 +915,15 @@ export default function DashboardPage() {
           }
         }
         setLastSynced(new Date());
-      } catch (err) {
+      } catch (err: any) {
         console.error('Failed to refresh conversations:', err);
+        setConversationsError(err?.message || 'Conversations could not be loaded.');
       } finally {
         setIsRefreshing(false);
         setLoadingMore(false);
       }
     },
-    [supabase, loadMessages]
+    [loadMessages]
   );
 
   // Infinite Scroll: Load Next Page of 30
@@ -1173,18 +939,18 @@ export default function DashboardPage() {
       const nowIso = new Date().toISOString();
       if (isBackendAuthenticated()) {
         await bulkUpdateBackendConversations({ ids, action: 'resolve' });
-      } else {
-        await supabase
-          .from('conversations')
-          .update({ status: 'closed', closed_at: nowIso, updated_at: nowIso })
-          .in('id', ids);
+      } else if (currentWorkspaceIdRef.current) {
+        await bulkUpdateDashboardConversationsAction(currentWorkspaceIdRef.current, {
+          ids,
+          action: 'resolve',
+        });
       }
 
       setConversations((prev) =>
         prev.map((c) => (ids.includes(c.id) ? { ...c, status: 'closed', closed_at: nowIso } : c))
       );
     },
-    [supabase]
+    []
   );
 
   // Bulk Action 2: Assign Selected Conversations to Agent
@@ -1195,15 +961,12 @@ export default function DashboardPage() {
       const assignedAgent = allAgents.find((a) => a.id === agentId) || null;
       if (isBackendAuthenticated()) {
         await bulkUpdateBackendConversations({ ids, action: 'assign', agentId });
-      } else {
-        await supabase
-          .from('conversations')
-          .update({
-            assigned_agent_id: agentId,
-            agent_id: agentId,
-            updated_at: nowIso,
-          })
-          .in('id', ids);
+      } else if (currentWorkspaceIdRef.current) {
+        await bulkUpdateDashboardConversationsAction(currentWorkspaceIdRef.current, {
+          ids,
+          action: 'assign',
+          agentId,
+        });
       }
 
       setConversations((prev) =>
@@ -1220,7 +983,7 @@ export default function DashboardPage() {
         )
       );
     },
-    [supabase, allAgents]
+    [allAgents]
   );
 
   // Bulk Action 3: Mark Selected Conversations as Spam
@@ -1230,21 +993,11 @@ export default function DashboardPage() {
       const nowIso = new Date().toISOString();
       if (isBackendAuthenticated()) {
         await bulkUpdateBackendConversations({ ids, action: 'spam' });
-      } else {
-        for (const id of ids) {
-          const conv = conversations.find((c) => c.id === id);
-          const curTags = conv?.tags || [];
-          const updatedTags = curTags.includes('Spam') ? curTags : [...curTags, 'Spam'];
-          await supabase
-            .from('conversations')
-            .update({
-              status: 'closed',
-              closed_at: nowIso,
-              tags: updatedTags,
-              updated_at: nowIso,
-            })
-            .eq('id', id);
-        }
+      } else if (currentWorkspaceIdRef.current) {
+        await bulkUpdateDashboardConversationsAction(currentWorkspaceIdRef.current, {
+          ids,
+          action: 'spam',
+        });
       }
 
       setConversations((prev) =>
@@ -1261,7 +1014,7 @@ export default function DashboardPage() {
         )
       );
     },
-    [supabase, conversations]
+    []
   );
 
   // 4. Refresh Visitors
@@ -1276,25 +1029,13 @@ export default function DashboardPage() {
       return;
     }
     const targetWsId = wsId || currentWorkspaceIdRef.current;
-    // The most recently seen visitors only: every site visit creates a row,
-    // so "all of them" grows without bound (and PostgREST stops at 1000 anyway).
-    // Realtime adds newcomers as they arrive.
-    let query = supabase
-      .from('visitors')
-      .select('*')
-      .order('last_seen', { ascending: false })
-      .limit(300);
-
-    if (targetWsId) {
-      query = query.eq('workspace_id', targetWsId);
-    }
-
-    const { data: vData, error } = await query;
-    if (error) {
+    if (!targetWsId) return;
+    try {
+      const vData = await listDashboardVisitorsAction(targetWsId);
+      setVisitors(vData);
+    } catch (error) {
       console.error('Failed to fetch visitors:', error);
-      return;
     }
-    setVisitors((vData as Visitor[]) || []);
   };
 
   useEffect(() => {
@@ -1320,16 +1061,49 @@ export default function DashboardPage() {
     if (isBackendAuthenticated()) {
       let cancelled = false;
       let isSocketConnected = false;
+      let socketUnavailable = false;
+      let pollInterval: ReturnType<typeof setInterval> | null = null;
+
+      const schedulePollInterval = (intervalMs: number) => {
+        if (pollInterval) clearInterval(pollInterval);
+        pollInterval = setInterval(async () => {
+          if (cancelled || document.visibilityState !== 'visible' || isSocketConnected) return;
+          try {
+            await refreshConversations();
+            if (selectedConversationIdRef.current) {
+              const freshMsgs = await getBackendMessages(selectedConversationIdRef.current);
+              setMessages((prev) => {
+                if (
+                  freshMsgs.length !== prev.length ||
+                  (freshMsgs.length > 0 && freshMsgs[freshMsgs.length - 1]?.id !== prev[prev.length - 1]?.id)
+                ) {
+                  return freshMsgs;
+                }
+                return prev;
+              });
+            }
+          } catch {}
+        }, intervalMs);
+      };
 
       const rt = createBackendRealtimeClient({
         onConnect: () => {
           isSocketConnected = true;
+          socketUnavailable = false;
+          schedulePollInterval(15000);
           if (selectedConversationIdRef.current) {
             rt?.joinConversation(selectedConversationIdRef.current);
           }
         },
         onDisconnect: () => {
           isSocketConnected = false;
+        },
+        onConnectError: () => {
+          isSocketConnected = false;
+          if (!socketUnavailable) {
+            socketUnavailable = true;
+            schedulePollInterval(5000);
+          }
         },
         onMessageNew: (rawMsg: any) => {
           if (cancelled || !rawMsg?.id) return;
@@ -1349,6 +1123,19 @@ export default function DashboardPage() {
             });
             if (newMsg.sender_type === 'visitor' && document.hasFocus()) {
               markBackendMessagesRead(convId).catch(() => {});
+            }
+          }
+
+          if (newMsg.sender_type === 'visitor' && !newMsg.is_internal) {
+            const isViewingFocused =
+              convId === selectedConversationIdRef.current && document.hasFocus();
+            if (!isViewingFocused) {
+              sound.playIncomingMessage();
+              sendBrowserNotification(
+                'New Customer Message',
+                newMsg.content || 'Sent an attachment',
+                { tag: `msg-${convId}` },
+              );
             }
           }
 
@@ -1410,8 +1197,15 @@ export default function DashboardPage() {
             );
           }
         },
-        onConversationCreated: () => {
-          if (!cancelled) void refreshConversations();
+        onConversationCreated: (payload: any) => {
+          if (cancelled) return;
+          sound.playNewConversation();
+          sendBrowserNotification(
+            'New Conversation',
+            payload?.visitor?.name ? `New chat from ${payload.visitor.name}` : 'A visitor started a new conversation',
+            { tag: payload?.id ? `conv-${payload.id}` : undefined },
+          );
+          void refreshConversations();
         },
         onConversationUpdated: (payload: any) => {
           if (cancelled) return;
@@ -1419,6 +1213,14 @@ export default function DashboardPage() {
           if (!targetId) {
             void refreshConversations();
             return;
+          }
+          if (payload.handoff_status === 'waiting_for_agent') {
+            sound.playIncomingMessage();
+            sendBrowserNotification(
+              'Human Handoff Requested',
+              'A customer conversation is waiting for an agent.',
+              { tag: `handoff-${targetId}` },
+            );
           }
           let matched = false;
           setConversations((prev) =>
@@ -1453,33 +1255,22 @@ export default function DashboardPage() {
             void refreshConversations();
           }
         },
+        onPresenceUpdate: ({ userId, status }) => {
+          if (cancelled || !userId) return;
+          setAllAgents((prev) =>
+            prev.map((a) => (a.id === userId ? { ...a, status } : a)),
+          );
+        },
       });
 
       backendRealtimeRef.current = rt;
 
-      // Fallback safety sync only when Socket.IO is disconnected
-      const pollInterval = setInterval(async () => {
-        if (cancelled || document.visibilityState !== 'visible' || isSocketConnected) return;
-        try {
-          await refreshConversations();
-          if (selectedConversationIdRef.current) {
-            const freshMsgs = await getBackendMessages(selectedConversationIdRef.current);
-            setMessages((prev) => {
-              if (
-                freshMsgs.length !== prev.length ||
-                (freshMsgs.length > 0 && freshMsgs[freshMsgs.length - 1]?.id !== prev[prev.length - 1]?.id)
-              ) {
-                return freshMsgs;
-              }
-              return prev;
-            });
-          }
-        } catch {}
-      }, 15000);
+      // Fallback safety sync when Socket.IO is disconnected or backend runs in stateless HTTP mode
+      schedulePollInterval(rt ? 15000 : 5000);
 
       return () => {
         cancelled = true;
-        clearInterval(pollInterval);
+        if (pollInterval) clearInterval(pollInterval);
         rt?.disconnect();
         if (backendRealtimeRef.current === rt) {
           backendRealtimeRef.current = null;
@@ -1487,370 +1278,22 @@ export default function DashboardPage() {
       };
     }
 
-    const wsFilter = `workspace_id=eq.${realtimeWorkspaceId}`;
-    const channelSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     let cancelled = false;
-    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-    // A channel that errors, times out or closes is re-opened a few seconds
-    // later; once it is back, one refresh picks up whatever was missed.
-    const onStatus = (status: string) => {
-      if (cancelled) return;
-      if (status === 'SUBSCRIBED') {
-        if (!realtimeHealthyRef.current) {
-          realtimeHealthyRef.current = true;
-          refreshConversations();
-        }
-      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
-        realtimeHealthyRef.current = false;
-        if (!reconnectTimer) {
-          reconnectTimer = setTimeout(() => setRealtimeEpoch((n) => n + 1), 3000);
-        }
-      }
+    const poll = () => {
+      if (cancelled || document.visibilityState !== 'visible') return;
+      void refreshConversations(realtimeWorkspaceId);
+      void refreshVisitors(realtimeWorkspaceId);
     };
 
-    const messagesChannel = supabase
-      .channel(`zen-try-dashboard-messages-${channelSuffix}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages' },
-        (payload: any) => {
-          const newMsg = payload.new as Message;
-
-          if (newMsg.conversation_id === selectedConversationIdRef.current) {
-            setMessages((prev) => {
-              if (prev.some((m) => m.id === newMsg.id)) return prev;
-              return [...prev, newMsg];
-            });
-
-            if (newMsg.sender_type === 'visitor') {
-              // Arriving over realtime IS delivery. Whether it counts as read
-              // depends on the agent actually looking at the tab.
-              const receipt = document.hasFocus()
-                ? 'fn_mark_messages_read'
-                : 'fn_mark_messages_delivered';
-              supabase
-                .rpc(receipt, {
-                  p_conversation_id: newMsg.conversation_id,
-                  p_exclude_sender: 'agent',
-                })
-                .then(undefined, () => {});
-            }
-          }
-
-          // The bot could not answer: tell the person it was given to (or
-          // everyone, when nobody could be assigned), loudly and by name. Ringing
-          // for every message the bot is answering buried this one.
-          const meta = (newMsg.metadata || {}) as { is_handover?: boolean; assigned_agent_id?: string | null };
-          if (newMsg.is_internal && meta.is_handover) {
-            const me = currentAgentRef.current?.id;
-            const myRole = currentAgentRef.current?.role;
-            const isRelevant = !meta.assigned_agent_id || meta.assigned_agent_id === me || myRole === 'owner' || myRole === 'admin';
-            if (isRelevant) {
-              const conv = conversationsRef.current.find((c) => c.id === newMsg.conversation_id);
-              const customer = conv?.visitor?.name || conv?.visitor?.email || 'A customer';
-              sound.playIncomingMessage();
-              sendBrowserNotification(
-                meta.assigned_agent_id === me ? `⚡ ${customer} needs you` : `⚡ Handover: ${customer} needs an agent`,
-                'The AI assistant handed over this conversation. Click to open and reply.',
-                {
-                  tag: `handover-${newMsg.conversation_id}`,
-                  onClick: () => {
-                    setActiveView('inbox');
-                    setSelectedConversationId(newMsg.conversation_id);
-                  },
-                }
-              );
-            }
-          }
-
-          if (newMsg.sender_type === 'visitor') {
-            const conv = conversationsRef.current.find((c) => c.id === newMsg.conversation_id);
-            // While the bot is answering on its own, a new line is not a call
-            // for a person; the list still shows it. It rings again the moment
-            // the bot hands over (above) or a person takes the chat.
-            // (New chats are assigned on creation, so the assignee does not
-            // mean a person is answering; a person's reply pauses the bot.)
-            const botHandling = conv?.ai_mode === 'autopilot' && !conv.ai_paused_reason && !conv.ai_needs_attention_at;
-            if (!botHandling) {
-              sound.playIncomingMessage();
-              sendBrowserNotification('New Customer Message', newMsg.content || 'Sent an attachment', {
-                tag: `msg-${newMsg.conversation_id}`,
-                onClick: () => {
-                  setSelectedConversationId(newMsg.conversation_id);
-                },
-              });
-            }
-
-            // Dispatch offline agent email check
-            fetch('/api/notifications/dispatch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                event: 'new_message',
-                conversation_id: newMsg.conversation_id,
-                message: newMsg,
-                workspace_id: currentWorkspaceIdRef.current,
-              }),
-            }).catch((err) => console.error('[Offline Email Dispatch]:', err));
-          }
-
-          // Update in-memory cache immediately
-          if (messagesCacheRef.current[newMsg.conversation_id]) {
-            const cached = messagesCacheRef.current[newMsg.conversation_id];
-            if (!cached.some((m) => m.id === newMsg.id)) {
-              messagesCacheRef.current[newMsg.conversation_id] = [...cached, newMsg];
-            }
-          }
-
-          // 1. If conversation already exists in memory, bump to top immediately
-          setConversations((prev) => {
-            const index = prev.findIndex((c) => c.id === newMsg.conversation_id);
-            if (index !== -1) {
-              const target = prev[index];
-              const isSelected = target.id === selectedConversationIdRef.current;
-              const updated: Conversation = {
-                ...target,
-                status: newMsg.sender_type === 'visitor' ? 'open' : target.status,
-                closed_at: newMsg.sender_type === 'visitor' ? null : target.closed_at,
-                snoozed_until: newMsg.sender_type === 'visitor' ? null : target.snoozed_until,
-                updated_at: newMsg.created_at,
-                last_message: newMsg,
-                unread_count: isSelected
-                  ? 0
-                  : newMsg.sender_type === 'visitor'
-                  ? (target.unread_count || 0) + 1
-                  : target.unread_count,
-              };
-              const others = prev.filter((c) => c.id !== newMsg.conversation_id);
-              return [updated, ...others];
-            }
-            return prev;
-          });
-
-          // 2. Fetch conversation details outside state updater to guarantee visitor details and instant appearance
-          supabase
-            .from('conversations')
-            .select('*, visitor:visitors(*), agent:agents!conversations_agent_id_fkey(*)')
-            .eq('id', newMsg.conversation_id)
-            .single()
-            .then(({ data: fetchedConv }: any) => {
-              if (fetchedConv) {
-                if (
-                  currentWorkspaceIdRef.current &&
-                  fetchedConv.workspace_id &&
-                  fetchedConv.workspace_id !== currentWorkspaceIdRef.current
-                ) {
-                  return;
-                }
-
-                const isSelected = fetchedConv.id === selectedConversationIdRef.current;
-                const newConvItem: Conversation = {
-                  ...fetchedConv,
-                  status: newMsg.sender_type === 'visitor' ? 'open' : fetchedConv.status,
-                  closed_at: newMsg.sender_type === 'visitor' ? null : fetchedConv.closed_at,
-                  snoozed_until: newMsg.sender_type === 'visitor' ? null : fetchedConv.snoozed_until,
-                  updated_at: newMsg.created_at,
-                  last_message: newMsg,
-                  unread_count: isSelected ? 0 : (newMsg.sender_type === 'visitor' ? 1 : 0),
-                };
-
-                setConversations((current) => {
-                  const exists = current.some((c) => c.id === newConvItem.id);
-                  if (exists) {
-                    return current.map((c) => (c.id === newConvItem.id ? { ...c, ...newConvItem } : c));
-                  }
-                  return [newConvItem, ...current];
-                });
-
-                if (!selectedConversationIdRef.current) {
-                  setSelectedConversationId(newConvItem.id);
-                }
-              }
-            })
-            .catch(() => {});
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'UPDATE', schema: 'public', table: 'messages' },
-        (payload: any) => {
-          const updatedMsg = payload.new as Message;
-          if (messagesCacheRef.current[updatedMsg.conversation_id]) {
-            messagesCacheRef.current[updatedMsg.conversation_id] = messagesCacheRef.current[
-              updatedMsg.conversation_id
-            ].map((m) => (m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m));
-          }
-          if (updatedMsg.conversation_id === selectedConversationIdRef.current) {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m))
-            );
-          }
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.id === updatedMsg.conversation_id && (!c.last_message || c.last_message.id === updatedMsg.id)
-                ? { ...c, last_message: { ...(c.last_message || {}), ...updatedMsg } }
-                : c
-            )
-          );
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: 'DELETE', schema: 'public', table: 'messages' },
-        (payload: any) => {
-          const deletedId = payload.old?.id;
-          if (!deletedId) return;
-          setMessages((prev) => prev.filter((m) => m.id !== deletedId));
-          for (const convId in messagesCacheRef.current) {
-            messagesCacheRef.current[convId] = messagesCacheRef.current[convId].filter(
-              (m) => m.id !== deletedId
-            );
-          }
-          refreshConversations();
-        }
-      )
-      .subscribe(onStatus);
-
-    const conversationsChannel = supabase
-      .channel(`zen-try-dashboard-conversations-${channelSuffix}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'conversations', filter: wsFilter },
-        (payload: any) => {
-          if (payload.eventType === 'INSERT') {
-            sound.playNewConversation();
-            const newConv = payload.new as Conversation;
-            sendBrowserNotification(
-              'New Conversation Started',
-              'A visitor started a new conversation on your site.',
-              {
-                tag: `conv-${newConv.id}`,
-                onClick: () => {
-                  setSelectedConversationId(newConv.id);
-                },
-              }
-            );
-
-            // Fetch enriched conversation details (visitor, agent) and prepend smoothly
-            supabase
-              .from('conversations')
-              .select('*, visitor:visitors(*), agent:agents!conversations_agent_id_fkey(*)')
-              .eq('id', newConv.id)
-              .single()
-              .then(({ data }: any) => {
-                if (data) {
-                  if (
-                    currentWorkspaceIdRef.current &&
-                    data.workspace_id &&
-                    data.workspace_id !== currentWorkspaceIdRef.current
-                  ) {
-                    return;
-                  }
-                  setConversations((prev) => {
-                    if (prev.some((c) => c.id === data.id)) return prev;
-                    return [data as Conversation, ...prev];
-                  });
-                  if (!selectedConversationIdRef.current) {
-                    setSelectedConversationId(data.id);
-                  }
-                }
-              })
-              .catch(() => {});
-
-            // Dispatch Slack notification
-            fetch('/api/notifications/dispatch', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                event: 'conversation_created',
-                conversation_id: newConv.id,
-                workspace_id: currentWorkspaceIdRef.current,
-              }),
-            }).catch((err) => console.error('[Slack Dispatch]:', err));
-          } else if (payload.eventType === 'UPDATE') {
-            const updated = payload.new as Conversation;
-            setConversations((prev) =>
-              prev.map((c) => (c.id === updated.id ? { ...c, ...updated } : c))
-            );
-          }
-        }
-      )
-      .subscribe(onStatus);
-
-    const visitorsChannel = supabase
-      .channel(`zen-try-dashboard-visitors-${channelSuffix}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'visitors', filter: wsFilter },
-        (payload: any) => {
-          const updatedVisitor = payload.new as Visitor;
-          // Only process if belongs to this workspace
-          if (
-            currentWorkspaceIdRef.current &&
-            updatedVisitor.workspace_id &&
-            updatedVisitor.workspace_id !== currentWorkspaceIdRef.current
-          ) {
-            return;
-          }
-
-          setVisitors((prev) => {
-            const index = prev.findIndex((v) => v.id === updatedVisitor.id);
-            if (index >= 0) {
-              const copy = [...prev];
-              copy[index] = updatedVisitor;
-              return copy;
-            } else {
-              return [updatedVisitor, ...prev];
-            }
-          });
-
-          setConversations((prev) =>
-            prev.map((c) =>
-              c.visitor_id === updatedVisitor.id ? { ...c, visitor: updatedVisitor } : c
-            )
-          );
-        }
-      )
-      .subscribe(onStatus);
-
-    const internalNotesChannel = supabase
-      .channel(`zen-try-dashboard-internal-notes-${channelSuffix}`)
-      .on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'internal_notes' },
-        (payload: any) => {
-          const note = payload.new as any;
-          const agentId = currentAgentRef.current?.id;
-          if (
-            agentId &&
-            note.mentioned_agent_ids?.includes(agentId) &&
-            note.agent_id !== agentId
-          ) {
-            sound.playMention();
-            sendBrowserNotification(
-              'You were @mentioned in a conversation',
-              note.content
-            );
-          }
-        }
-      )
-      .subscribe(onStatus);
-
+    const pollTimer = setInterval(poll, 4000);
     return () => {
       cancelled = true;
-      if (reconnectTimer) clearTimeout(reconnectTimer);
-      supabase.removeChannel(messagesChannel);
-      supabase.removeChannel(conversationsChannel);
-      supabase.removeChannel(visitorsChannel);
-      supabase.removeChannel(internalNotesChannel);
+      clearInterval(pollTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [supabase, realtimeEpoch, realtimeWorkspaceId]);
+  }, [realtimeWorkspaceId]);
 
-  // Realtime events are lost while a laptop sleeps or a tab is frozen in the
-  // background, without any error being raised. Coming back to the tab, or
-  // back online, re-syncs the list and the open thread; a slow heartbeat
-  // covers the rest (faster while realtime is known to be down).
+  // Re-sync the list and open thread when returning to a tab or reconnecting.
   useEffect(() => {
     let lastSync = Date.now();
     const sync = (minGapMs: number) => {
@@ -1861,15 +1304,8 @@ export default function DashboardPage() {
       refreshConversations();
     };
     const onVisible = () => sync(5_000);
-    const onOnline = () => {
-      realtimeHealthyRef.current = false;
-      setRealtimeEpoch((n) => n + 1);
-      sync(0);
-    };
-    const heartbeat = setInterval(
-      () => sync(realtimeHealthyRef.current ? 120_000 : 15_000),
-      15_000
-    );
+    const onOnline = () => sync(0);
+    const heartbeat = setInterval(() => sync(15_000), 15_000);
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('focus', onVisible);
     window.addEventListener('online', onOnline);
@@ -1956,66 +1392,40 @@ export default function DashboardPage() {
       }
     }
 
-    const { data: insertedMsg, error } = await supabase
-      .from('messages')
-      .insert({
-        conversation_id: targetId,
-        sender_type: 'agent',
-        sender_id: currentAgent.id,
-        content: content || (attachmentUrl ? 'Sent an attachment' : ''),
-        is_internal: isInternal,
-        ...(metadata ? { metadata } : {}),
-        ...(attachmentUrl ? { attachment_url: attachmentUrl } : {}),
-        // Omitted rather than set to null when there is no quote, so the insert
-        // still works against a database that has not run the migration yet.
-        ...(replyToId ? { reply_to_message_id: replyToId } : {}),
-      })
-      .select('*, agent:agents(*)')
-      .single();
-
-    if (error) {
-      console.error('Error sending message:', error);
-      throw error;
+    const wsId = currentWorkspaceRef.current?.id || currentWorkspaceIdRef.current;
+    if (!wsId) {
+      throw new Error('Workspace not loaded');
     }
 
-    // Immediately display the note/reply in the thread without waiting for realtime latency
+    const { message: insertedMsg, newStatus, now } = await sendDashboardMessageAction(wsId, {
+      conversationId: targetId,
+      content,
+      isInternal,
+      replyToId,
+      attachmentUrl,
+      metadata,
+      shouldAutoAssign,
+    });
+
+    // Immediately display the note/reply in the thread
     if (insertedMsg && insertedMsg.conversation_id === selectedConversationIdRef.current) {
       setMessages((prev) => {
         if (prev.some((m) => m.id === insertedMsg.id)) return prev;
-        return [...prev, insertedMsg as Message];
+        return [...prev, insertedMsg];
       });
     }
 
     if (!isInternal) {
-      const now = new Date().toISOString();
-      const newStatus = target?.status === 'closed' ? 'closed' : 'pending';
-
-      await supabase
-        .from('conversations')
-        .update({
-          updated_at: now,
-          status: newStatus,
-          ai_mode: 'disabled',
-          ai_paused_reason: 'human_reply',
-          ai_needs_attention_at: null,
-          channel_metadata: {
-            ...((target?.channel_metadata as Record<string, any>) || {}),
-            last_human_reply_at: now,
-          },
-          ...(shouldAutoAssign ? { agent_id: currentAgent.id, assigned_agent_id: currentAgent.id } : {}),
-        })
-        .eq('id', targetId);
-
       setConversations((prev) =>
         prev.map((c) =>
           c.id === targetId
             ? {
                 ...c,
-                status: newStatus,
+                status: newStatus || (c.status === 'closed' ? 'closed' : 'pending'),
                 ai_mode: 'disabled',
                 ai_paused_reason: 'human_reply',
                 ai_needs_attention_at: null,
-                last_message: (insertedMsg as Message) || c.last_message,
+                last_message: insertedMsg || c.last_message,
                 channel_metadata: {
                   ...((c.channel_metadata as Record<string, any>) || {}),
                   last_human_reply_at: now,
@@ -2042,20 +1452,12 @@ export default function DashboardPage() {
         });
       }
     } else {
-      await supabase
-        .from('conversations')
-        .update({
-          updated_at: new Date().toISOString(),
-          ...(shouldAutoAssign ? { agent_id: currentAgent.id, assigned_agent_id: currentAgent.id } : {}),
-        })
-        .eq('id', targetId);
-
       setConversations((prev) =>
         prev.map((c) =>
           c.id === targetId
             ? {
                 ...c,
-                last_message: (insertedMsg as Message) || c.last_message,
+                last_message: insertedMsg || c.last_message,
                 ...(shouldAutoAssign ? { agent_id: currentAgent.id, assigned_agent_id: currentAgent.id, agent: currentAgent } : {}),
               }
             : c
@@ -2106,7 +1508,7 @@ export default function DashboardPage() {
       );
     }
 
-    // 2. Persist edit in NestJS backend or Supabase
+    // 2. Persist edit in NestJS backend or via Server Action
     if (isBackendAuthenticated() && selectedConversationId) {
       try {
         await editBackendMessage(selectedConversationId, messageId, newContent);
@@ -2118,32 +1520,13 @@ export default function DashboardPage() {
       return;
     }
 
-    const { data: existing } = await supabase
-      .from('messages')
-      .select('metadata')
-      .eq('id', messageId)
-      .single();
-
-    const currentMeta = (existing?.metadata as Record<string, any>) || {};
-
-    // 3. Update message content in database
-    const { error } = await supabase
-      .from('messages')
-      .update({
-        content: newContent,
-        metadata: {
-          ...currentMeta,
-          is_edited: true,
-          edited_at: nowIso,
-        },
-      })
-      .eq('id', messageId);
-
-    if (error) {
+    const wsId = currentWorkspaceRef.current?.id || currentWorkspaceIdRef.current;
+    if (!wsId || !selectedConversationId) return;
+    try {
+      await editDashboardMessageAction(wsId, selectedConversationId, messageId, newContent);
+    } catch (error) {
       console.error('Error editing message:', error);
-      if (selectedConversationId) {
-        loadMessages(selectedConversationId);
-      }
+      loadMessages(selectedConversationId);
       throw error;
     }
   };
@@ -2161,7 +1544,7 @@ export default function DashboardPage() {
       ].filter((m) => m.id !== messageId);
     }
 
-    // 2. Delete row from NestJS backend or Supabase
+    // 2. Delete row from NestJS backend or via Server Action
     if (isBackendAuthenticated() && selectedConversationId) {
       try {
         await deleteBackendMessage(selectedConversationId, messageId);
@@ -2174,16 +1557,13 @@ export default function DashboardPage() {
       return;
     }
 
-    const { error } = await supabase
-      .from('messages')
-      .delete()
-      .eq('id', messageId);
-
-    if (error) {
+    const wsId = currentWorkspaceRef.current?.id || currentWorkspaceIdRef.current;
+    if (!wsId || !selectedConversationId) return;
+    try {
+      await deleteDashboardMessageAction(wsId, selectedConversationId, messageId);
+    } catch (error) {
       console.error('Error deleting message:', error);
-      if (selectedConversationId) {
-        loadMessages(selectedConversationId);
-      }
+      loadMessages(selectedConversationId);
       throw error;
     }
 
@@ -2205,12 +1585,11 @@ export default function DashboardPage() {
       return;
     }
 
-    const { error } = await supabase
-      .from('conversations')
-      .update({ priority, updated_at: new Date().toISOString() })
-      .eq('id', selectedConversationId);
-
-    if (error) {
+    const wsId = currentWorkspaceRef.current?.id || currentWorkspaceIdRef.current;
+    if (!wsId) return;
+    try {
+      await updateDashboardConversationAction(wsId, selectedConversationId, { priority });
+    } catch (error) {
       console.error('Error updating conversation priority:', error);
       return;
     }
@@ -2235,12 +1614,11 @@ export default function DashboardPage() {
       return;
     }
 
-    const { error } = await supabase
-      .from('conversations')
-      .update({ tags, updated_at: new Date().toISOString() })
-      .eq('id', selectedConversationId);
-
-    if (error) {
+    const wsId = currentWorkspaceRef.current?.id || currentWorkspaceIdRef.current;
+    if (!wsId) return;
+    try {
+      await updateDashboardConversationAction(wsId, selectedConversationId, { tags });
+    } catch (error) {
       console.error('Error updating conversation tags:', error);
       return;
     }
@@ -2265,6 +1643,9 @@ export default function DashboardPage() {
       return;
     }
 
+    const wsId = currentWorkspaceRef.current?.id || currentWorkspaceIdRef.current;
+    if (!wsId) return;
+
     const currentConv = conversations.find((c) => c.id === selectedConversationId);
     const wasPausedBeforeReopen =
       status === 'open' && currentConv?.status === 'closed' && currentConv?.ai_mode === 'disabled';
@@ -2275,23 +1656,27 @@ export default function DashboardPage() {
       updated_at: new Date().toISOString(),
     };
 
-    const { error } = await supabase
-      .from('conversations')
-      .update(updates)
-      .eq('id', selectedConversationId);
-
-    if (error) {
+    try {
+      await updateDashboardConversationAction(wsId, selectedConversationId, {
+        status,
+        closed_at: updates.closed_at,
+        ...(wasPausedBeforeReopen
+          ? {
+              ai_mode: 'disabled' as const,
+              ai_paused_reason: currentConv?.ai_paused_reason || 'agent_paused',
+            }
+          : {}),
+      });
+    } catch (error) {
       console.error('Error updating conversation status:', error);
       return;
     }
 
     if (wasPausedBeforeReopen) {
-      const keepPaused = {
+      Object.assign(updates, {
         ai_mode: 'disabled' as const,
         ai_paused_reason: currentConv?.ai_paused_reason || ('agent_paused' as const),
-      };
-      await supabase.from('conversations').update(keepPaused).eq('id', selectedConversationId);
-      Object.assign(updates, keepPaused);
+      });
     }
 
     setConversations((prev) =>
@@ -2319,16 +1704,14 @@ export default function DashboardPage() {
       return;
     }
 
-    const { error } = await supabase
-      .from('conversations')
-      .update({
+    const wsId = currentWorkspaceRef.current?.id || currentWorkspaceIdRef.current;
+    if (!wsId) return;
+    try {
+      await updateDashboardConversationAction(wsId, selectedConversationId, {
         agent_id: agentId,
         assigned_agent_id: agentId,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', selectedConversationId);
-
-    if (error) {
+      });
+    } catch (error) {
       console.error('Error assigning agent:', error);
       return;
     }
@@ -2356,47 +1739,15 @@ export default function DashboardPage() {
       return;
     }
 
-    // Handoff availability (agent_status) only knows online and away.
-    const { error: availabilityErr } = await supabase.rpc('set_agent_status', {
-      p_status: status === 'online' ? 'online' : 'away',
-    });
-    if (availabilityErr) console.warn('[Agent Status]: set_agent_status failed:', availabilityErr.message);
-
-    const { error } = await supabase
-      .from('agents')
-      .update({ status })
-      .eq('id', currentAgent.id);
-
-    if (error) {
-      console.error('Error updating agent status:', error);
-      return;
-    }
-    setCurrentAgent((prev) => (prev ? { ...prev, status } : null));
-
-    if (presenceChanRef.current) {
-      presenceChanRef.current
-        .track({
-          agent_id: currentAgent.id,
-          name: currentAgent.name,
-          status,
-          online_at: new Date().toISOString(),
-        })
-        .catch(() => {});
-    }
-
-    if (status === 'online' && currentWorkspace?.id) {
-      try {
-        const { count } = await supabase
-          .from('conversations')
-          .select('id', { count: 'exact', head: true })
-          .eq('workspace_id', currentWorkspace.id)
-          .in('handoff_status', ['waiting_for_agent', 'offline_queued']);
-        if (count && count > 0) {
-          toast.show(`${count} chat${count > 1 ? 's are' : ' is'} waiting in the queue`, 'info');
-        }
-      } catch {
-        // ignore
+    if (!currentWorkspace?.id) return;
+    try {
+      const { waitingQueueCount } = await updateAgentStatusAction(currentWorkspace.id, status);
+      setCurrentAgent((prev) => (prev ? { ...prev, status } : null));
+      if (status === 'online' && waitingQueueCount > 0) {
+        toast.show(`${waitingQueueCount} chat${waitingQueueCount > 1 ? 's are' : ' is'} waiting in the queue`, 'info');
       }
+    } catch (error) {
+      console.error('Error updating agent status:', error);
     }
   };
   // The inactivity timer above calls the latest version of this.
@@ -2415,20 +1766,15 @@ export default function DashboardPage() {
         } catch (e) {
           console.error('[Dashboard] createBackendConversation failed:', e);
         }
-      } else {
-        const { data } = await supabase
-          .from('conversations')
-          .insert({
-            visitor_id: visitorId,
-            workspace_id: currentWorkspace?.id || null,
-            status: 'open',
-          })
-          .select('*, visitor:visitors(*)')
-          .single();
-
-        if (data) {
-          existing = data as Conversation;
-          setConversations((prev) => [existing!, ...prev]);
+      } else if (currentWorkspace?.id) {
+        try {
+          const created = await startDashboardConversationAction(currentWorkspace.id, visitorId);
+          if (created) {
+            existing = created;
+            setConversations((prev) => [existing!, ...prev]);
+          }
+        } catch (e) {
+          console.error('[Dashboard] startDashboardConversationAction failed:', e);
         }
       }
     }
@@ -2440,20 +1786,21 @@ export default function DashboardPage() {
   };
 
   const handleLogout = async () => {
-    if (isBackendAuthenticated()) {
-      backendRealtimeRef.current?.disconnect();
-      backendRealtimeRef.current = null;
-      clearAuthSession();
-      router.replace('/login');
-      return;
+    backendRealtimeRef.current?.disconnect();
+    backendRealtimeRef.current = null;
+    if (currentAgent && currentWorkspace?.id && !isBackendAuthenticated()) {
+      await updateAgentStatusAction(currentWorkspace.id, 'offline').catch(() => {});
     }
-
-    if (currentAgent) {
-      const { error: availabilityErr } = await supabase.rpc('set_agent_status', { p_status: 'away' });
-      if (availabilityErr) console.warn('[Agent Status]: set_agent_status failed:', availabilityErr.message);
-      await supabase.from('agents').update({ status: 'offline' }).eq('id', currentAgent.id);
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'local' }),
+      });
+    } catch {
+      // ignore
     }
-    await supabase.auth.signOut();
+    clearAuthSession();
     router.replace('/login');
   };
 
@@ -2734,11 +2081,12 @@ export default function DashboardPage() {
                       aiMode: mode,
                       handoffStatus: isAutopilot ? 'bot_active' : undefined,
                     });
-                  } else {
-                    await supabase
-                      .from('conversations')
-                      .update(dbUpdates)
-                      .eq('id', selectedConversationId);
+                  } else if (currentWorkspace?.id) {
+                    await updateDashboardConversationAction(
+                      currentWorkspace.id,
+                      selectedConversationId,
+                      dbUpdates
+                    );
                   }
 
                   setConversations((prev) =>
@@ -2869,7 +2217,6 @@ export default function DashboardPage() {
       {activeView === 'team' && currentWorkspace && currentAgent && (
         <div className="flex-1 flex overflow-hidden w-full pb-14 md:pb-0">
           <TeamChat
-            supabase={supabase}
             workspaceId={currentWorkspace.id}
             currentAgent={currentAgent}
             agents={allAgents}
@@ -2901,14 +2248,11 @@ export default function DashboardPage() {
             onArticlesCountChange={(c) => {
               setArticlesCount(c);
               if (currentWorkspace?.id) {
-                supabase
-                  .from('help_sections')
-                  .select('*', { count: 'exact', head: true })
-                  .eq('workspace_id', currentWorkspace.id)
-                  .then((res: any) => {
-                    const count = res?.count;
+                void getHelpSectionsCountAction(currentWorkspace.id)
+                  .then((count) => {
                     if (count !== null && count !== undefined) setSectionsCount(count);
-                  });
+                  })
+                  .catch(() => {});
               }
             }}
           />

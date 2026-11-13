@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import type { ProviderConfig } from './provider';
 import { chat, isConfigured } from './provider';
 import { getPlatformAiConfigServerOnly } from './platform-gateway';
@@ -229,7 +229,7 @@ async function generateGoogleEmbeddings(texts: string[], apiKey: string): Promis
 
   for (let i = 0; i < texts.length; i += BATCH_SIZE) {
     const batch = texts.slice(i, i + BATCH_SIZE);
-    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents?key=${encodeURIComponent(apiKey)}`;
+    const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents';
     const requests = batch.map((text) => ({
       model: 'models/gemini-embedding-001',
       content: { parts: [{ text }] },
@@ -238,7 +238,10 @@ async function generateGoogleEmbeddings(texts: string[], apiKey: string): Promis
 
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey,
+      },
       body: JSON.stringify({ requests }),
       signal: AbortSignal.timeout(15_000),
     });
@@ -700,11 +703,11 @@ export async function expandVisitorQueries({
   }
 
   const system = [
-    'You turn a customer\'s chat message into search queries for a prop-trading firm\'s help center.',
-    'Customers type fast: typos, shorthand (dd = drawdown, acc = account, p1 = phase 1), Roman Urdu, Urdu-English mix, slang, venting. Look past the words to what they actually need.',
-    'Resolve follow-ups ("aur 25k pe?", "and for phase 2?") from the conversation. Ignore greetings and venting; keep the request.',
+    'You turn a customer\'s chat message into search queries for the workspace\'s customer support help center.',
+    'Customers type fast: typos, shorthand (acc = account, pwd = password, inv = invoice, sub = subscription), Roman Urdu, mixed languages, slang, venting. Look past the words to what they actually need.',
+    'Resolve follow-ups ("aur pro plan pe?", "and for step 2?") from the conversation. Ignore greetings and venting; keep the request.',
     'Write 1-3 short English queries (3-10 words each), worded like help-center headings or FAQ questions. One per separate question; if there is one question, add a second wording of it. Keep exact numbers, sizes and names.',
-    'Output only a JSON array of strings, e.g. ["daily drawdown limit 10k account","maximum daily loss rule"].',
+    'Output only a JSON array of strings, e.g. ["billing refund policy","change account password"].',
   ].join('\n');
   const user = [
     history.length ? `Conversation:\n${history.join('\n')}\n` : '',

@@ -1,14 +1,16 @@
-import { createClient } from '@supabase/supabase-js';
+import { Pool } from 'pg';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const databaseUrl = process.env.DATABASE_URL;
 
-if (!supabaseUrl || !serviceKey) {
-  console.error('Missing supabase credentials in env');
+if (!databaseUrl) {
+  console.error('Missing DATABASE_URL in env');
   process.exit(1);
 }
 
-const supabase = createClient(supabaseUrl, serviceKey);
+const pool = new Pool({
+  connectionString: databaseUrl,
+  max: 5,
+});
 
 function estimateTokenCount(text) {
   if (!text) return 0;
@@ -159,38 +161,39 @@ async function getEmbeddings(texts, apiKey, baseUrl) {
 
 async function run() {
   console.log('Fetching platform AI settings...');
-  const { data: aiSettings, error: aiErr } = await supabase
-    .from('platform_ai_settings')
-    .select('*')
-    .eq('id', true)
-    .single();
+  const { rows: aiRows } = await pool.query(
+    'SELECT * FROM public.platform_ai_settings WHERE id = true LIMIT 1',
+  );
+  const aiSettings = aiRows[0];
 
-  if (aiErr || !aiSettings || !aiSettings.api_key) {
-    console.error('Cannot load platform AI settings:', aiErr);
+  if (!aiSettings || !aiSettings.api_key) {
+    console.error('Cannot load platform AI settings');
     process.exit(1);
   }
 
   console.log('Using provider:', aiSettings.provider, 'baseUrl:', aiSettings.base_url);
 
-  const { data: workspaces } = await supabase.from('workspaces').select('id, name');
+  const { rows: workspaces } = await pool.query('SELECT id, name FROM public.workspaces');
   console.log(`Found ${workspaces.length} workspaces.`);
 
   let totalArticles = 0;
   let totalChunks = 0;
 
   for (const ws of workspaces) {
-    const { data: articles } = await supabase
-      .from('articles')
-      .select('*, section:help_sections(name)')
-      .eq('workspace_id', ws.id)
-      .eq('status', 'published');
+    const { rows: articles } = await pool.query(
+      `SELECT a.*, hs.name AS section_name
+       FROM public.articles a
+       LEFT JOIN public.help_sections hs ON hs.id = a.section_id
+       WHERE a.workspace_id = $1 AND a.status = 'published'`,
+      [ws.id],
+    );
 
     if (!articles || articles.length === 0) continue;
 
     console.log(`\nWorkspace "${ws.name}" (${ws.id}): ${articles.length} published articles.`);
     const chunks = [];
     for (const art of articles) {
-      const secName = art.section?.name || art.category || 'General';
+      const secName = art.section_name || art.category || 'General';
       const artChunks = splitArticleIntoChunks({ ...art, sectionName: secName });
       chunks.push(...artChunks);
     }
@@ -200,20 +203,38 @@ async function run() {
     const embeddings = await getEmbeddings(texts, aiSettings.api_key, aiSettings.base_url);
 
     console.log(`  Got ${embeddings.length} embeddings. Storing in database...`);
-    await supabase.from('article_chunks').delete().eq('workspace_id', ws.id);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query('DELETE FROM public.article_chunks WHERE workspace_id = $1', [ws.id]);
 
-    const rows = chunks.map((c, idx) => ({
-      ...c,
-      embedding: embeddings[idx],
-    }));
-
-    const BATCH = 20;
-    for (let i = 0; i < rows.length; i += BATCH) {
-      const { error: insErr } = await supabase.from('article_chunks').insert(rows.slice(i, i + BATCH));
-      if (insErr) {
-        console.error(`  Error inserting chunks for ${ws.name}:`, insErr);
-        break;
+      for (let idx = 0; idx < chunks.length; idx++) {
+        const c = chunks[idx];
+        const vec = `[${embeddings[idx].join(',')}]`;
+        await client.query(
+          `INSERT INTO public.article_chunks
+             (workspace_id, article_id, article_title, section_name, article_slug, chunk_index, content, token_count, embedding)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::vector)`,
+          [
+            c.workspace_id,
+            c.article_id,
+            c.article_title,
+            c.section_name,
+            c.article_slug,
+            c.chunk_index,
+            c.content,
+            c.token_count,
+            vec,
+          ],
+        );
       }
+      await client.query('COMMIT');
+    } catch (insErr) {
+      await client.query('ROLLBACK').catch(() => {});
+      console.error(`  Error inserting chunks for ${ws.name}:`, insErr);
+      continue;
+    } finally {
+      client.release();
     }
     console.log(`  Successfully indexed ${articles.length} articles, ${chunks.length} chunks for ${ws.name}.`);
     totalArticles += articles.length;
@@ -223,4 +244,6 @@ async function run() {
   console.log(`\nBackfill complete! Total articles: ${totalArticles}, Total chunks: ${totalChunks}`);
 }
 
-run().catch(console.error);
+run()
+  .catch(console.error)
+  .finally(() => pool.end());

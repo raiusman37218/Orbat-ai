@@ -2,13 +2,13 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 /**
  * Secret used to sign CSAT survey links sent via email.
- * Falls back to NEXT_PUBLIC_SUPABASE_ANON_KEY or a hardcoded pepper if unset.
+ * Falls back to JWT_SECRET, CRON_SECRET, or a static pepper if unset.
  */
 function getSigningSecret(): string {
   return (
     process.env.CHANNEL_ENCRYPTION_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY ||
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+    process.env.JWT_SECRET ||
+    process.env.CRON_SECRET ||
     'zentry-csat-token-secret-fallback'
   );
 }

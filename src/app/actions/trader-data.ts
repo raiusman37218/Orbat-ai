@@ -14,7 +14,7 @@
  * email, so a test never reads anyone's record.
  */
 import { assertAdminUser } from '@/app/actions/admin';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { checkAgentUrl } from '@/lib/agent/external-agent';
 import { encryptSecret, hasEncryptionKey } from '@/lib/channels/crypto';
 import { loadTraderDataConnection, TraderDataError, type TraderDataKind } from '@/lib/ai/trader-data/client';

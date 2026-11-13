@@ -12,7 +12,7 @@
  * explaining any it cannot add.
  */
 import { assertSuperAdmin, recordSuperAdminAudit } from '@/app/actions/platform';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { HELP_BASE_DOMAIN, cleanDomain } from '@/lib/domain';
 import { addDomain, checkVercelSetup, type VercelSetupStatus } from '@/lib/vercel-domains';
 import { errorMessage } from '@/lib/errors/user-error';

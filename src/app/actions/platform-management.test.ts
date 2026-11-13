@@ -77,13 +77,17 @@ vi.mock('next/headers', () => ({
   })),
 }));
 
-vi.mock('@/lib/supabase/server', () => ({
+vi.mock('@/lib/pg/server', () => ({
   createClient: vi.fn(async () => createMockSupabaseClient()),
 }));
 
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: vi.fn(() => createMockSupabaseClient()),
   createServiceClient: vi.fn(() => createMockSupabaseClient()),
+}));
+
+vi.mock('@/lib/auth/session-user', () => ({
+  sessionUser: vi.fn(async () => fakeState.currentUser),
 }));
 
 function createMockSupabaseClient() {

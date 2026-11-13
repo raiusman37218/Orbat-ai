@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { providerConfigFrom } from './help-answer';
 import { isLikelyEnglishText, isRomanizedText, translateToEnglish } from './translator';
 

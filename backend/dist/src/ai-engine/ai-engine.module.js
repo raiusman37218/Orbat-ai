@@ -20,6 +20,9 @@ const llm_provider_interface_1 = require("./interfaces/llm-provider.interface");
 const mock_fallback_provider_1 = require("./providers/mock-fallback.provider");
 const openai_provider_1 = require("./providers/openai.provider");
 const anthropic_provider_1 = require("./providers/anthropic.provider");
+const gemini_provider_1 = require("./providers/gemini.provider");
+const openai_compatible_provider_1 = require("./providers/openai-compatible.provider");
+const ai_gateway_provider_1 = require("./providers/ai-gateway.provider");
 let AiEngineModule = class AiEngineModule {
 };
 exports.AiEngineModule = AiEngineModule;
@@ -39,21 +42,15 @@ exports.AiEngineModule = AiEngineModule = __decorate([
             mock_fallback_provider_1.MockFallbackProvider,
             openai_provider_1.OpenAiProvider,
             anthropic_provider_1.AnthropicProvider,
+            gemini_provider_1.GeminiProvider,
+            openai_compatible_provider_1.OpenAiCompatibleProvider,
+            ai_gateway_provider_1.AiGatewayProvider,
             {
                 provide: llm_provider_interface_1.LLM_PROVIDER,
-                inject: [config_1.ConfigService, openai_provider_1.OpenAiProvider, anthropic_provider_1.AnthropicProvider, mock_fallback_provider_1.MockFallbackProvider],
-                useFactory: (config, openAi, anthropic, mock) => {
-                    if (config.get('OPENAI_API_KEY') || process.env.OPENAI_API_KEY) {
-                        return openAi;
-                    }
-                    if (config.get('ANTHROPIC_API_KEY') || process.env.ANTHROPIC_API_KEY) {
-                        return anthropic;
-                    }
-                    return mock;
-                },
+                useExisting: ai_gateway_provider_1.AiGatewayProvider,
             },
         ],
-        exports: [ai_engine_service_1.AiEngineService, ai_usage_service_1.AiUsageService, llm_provider_interface_1.LLM_PROVIDER],
+        exports: [ai_engine_service_1.AiEngineService, ai_usage_service_1.AiUsageService, hybrid_retrieval_service_1.HybridRetrievalService, llm_provider_interface_1.LLM_PROVIDER],
     })
 ], AiEngineModule);
 //# sourceMappingURL=ai-engine.module.js.map

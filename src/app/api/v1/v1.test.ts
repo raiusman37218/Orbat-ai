@@ -63,7 +63,7 @@ function query(table: string) {
   return builder;
 }
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => ({ from: query }), hasServiceRole: () => true }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => ({ from: query }), hasServiceRole: () => true }));
 
 const plan = vi.hoisted(() => ({ limitOk: true }));
 vi.mock('@/lib/plans/enforce', () => ({

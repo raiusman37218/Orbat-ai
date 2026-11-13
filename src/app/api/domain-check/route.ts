@@ -1,10 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
-
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL ||
-  '';
-const SUPABASE_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+import { serviceClient } from '@/lib/pg/service';
 
 /**
  * Answers "is this hostname actually reaching this app, and which workspace
@@ -32,8 +27,8 @@ export async function GET(request: Request) {
     return NextResponse.json({ ok: false, reason: 'no_host' }, { status: 400 });
   }
 
-  const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-  const { data: ws } = await supabase
+  const db = serviceClient();
+  const { data: ws } = await db
     .from('public_workspaces')
     .select('id, slug, custom_domain')
     .ilike('custom_domain', host)

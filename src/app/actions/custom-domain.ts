@@ -10,7 +10,7 @@
  * project move left domains behind), and, once Vercel has verified the
  * domain, runs the same "is it live on HTTPS" check as verifyWorkspaceDomainAction.
  */
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/pg/server';
 import { assertAdminUser } from '@/app/actions/admin';
 import { verifyWorkspaceDomainAction } from '@/app/actions/domain';
 import { cleanDomain, splitDomain, type DnsProviderId } from '@/lib/domain';

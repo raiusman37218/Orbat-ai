@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { Workspace } from '@/types/database';
 import { cleanDomain } from '@/lib/domain';
 import { getDomainStatus } from '@/lib/vercel-domains';

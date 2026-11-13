@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { hasServiceRole, serviceClient } from '@/lib/supabase/service';
+import { hasServiceRole, serviceClient } from '@/lib/pg/service';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,7 @@ async function handle(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   if (!hasServiceRole()) {
-    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not set' }, { status: 500 });
+    return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 });
   }
 
   const { data, error } = await serviceClient().rpc('fn_close_solved_tickets');

@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { emailConfig } from './config';
 import { composeReply } from './compose';
 import { getEmailProvider } from './providers';

@@ -1,5 +1,10 @@
 'use client';
 
+import {
+  resolveClientBackendBaseUrl,
+  resolveClientSocketUrl,
+} from '../backend-url';
+
 export interface BackendUser {
   id: string;
   email: string;
@@ -32,16 +37,12 @@ export function isBackendAuthenticated(): boolean {
 }
 
 export function getBackendBaseUrl(): string {
-  const raw = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000/api/v1').trim().replace(/\/+$/, '');
-  if (!raw) return 'http://localhost:4000/api/v1';
-  return raw.endsWith('/api/v1') ? raw : `${raw}/api/v1`;
+  return resolveClientBackendBaseUrl();
 }
 
 export function getBackendSocketUrl(): string {
-  return getBackendBaseUrl().replace(/\/api\/v1$/, '');
+  return resolveClientSocketUrl() || '';
 }
-
-const BACKEND_BASE_URL = getBackendBaseUrl();
 
 function setBrowserCookie(name: string, value: string, maxAgeSeconds = 604800) {
   if (typeof document === 'undefined') return;
@@ -227,21 +228,21 @@ export async function refreshBackendSession(): Promise<string | null> {
 }
 
 export async function backendLogin(email: string, password: string): Promise<AuthResponse> {
-  const res = await fetch(`${BACKEND_BASE_URL}/auth/login`, {
+  const res = await fetch(`${getBackendBaseUrl()}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
   });
 
-  const body = await res.json();
+  const body = await res.json().catch(() => null);
   if (!res.ok) {
     const message = Array.isArray(body?.message)
       ? body.message.join(', ')
-      : body?.message || 'Login failed. Please verify your credentials.';
+      : body?.message || `Login failed (${res.status}). Please check your credentials and backend connection.`;
     throw new Error(message);
   }
 
-  const data: AuthResponse = body.data || body;
+  const data: AuthResponse = body?.data || body;
   saveAuthSession(data);
   return data;
 }
@@ -252,7 +253,7 @@ export async function backendSignup(
   password: string,
   workspaceName?: string
 ): Promise<AuthResponse> {
-  const res = await fetch(`${BACKEND_BASE_URL}/auth/signup`, {
+  const res = await fetch(`${getBackendBaseUrl()}/auth/signup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -263,15 +264,15 @@ export async function backendSignup(
     }),
   });
 
-  const body = await res.json();
+  const body = await res.json().catch(() => null);
   if (!res.ok) {
     const message = Array.isArray(body?.message)
       ? body.message.join(', ')
-      : body?.message || 'Signup failed. Please try again.';
+      : body?.message || `Signup failed (${res.status}). Please try again.`;
     throw new Error(message);
   }
 
-  const data: AuthResponse = body.data || body;
+  const data: AuthResponse = body?.data || body;
   saveAuthSession(data);
   return data;
 }
@@ -280,30 +281,42 @@ export async function backendGoogleAuth(payload: {
   code?: string;
   idToken?: string;
   credential?: string;
+  redirectUri?: string;
 }): Promise<AuthResponse> {
-  const res = await fetch(`${BACKEND_BASE_URL}/auth/google`, {
+  const res = await fetch(`${getBackendBaseUrl()}/auth/google`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
 
-  const body = await res.json();
+  const body = await res.json().catch(() => null);
   if (!res.ok) {
     const message = Array.isArray(body?.message)
       ? body.message.join(', ')
-      : body?.message || 'Google authentication failed.';
+      : body?.message || `Google authentication failed (${res.status}).`;
     throw new Error(message);
   }
 
-  const data: AuthResponse = body.data || body;
+  const data: AuthResponse = body?.data || body;
   saveAuthSession(data);
   return data;
 }
 
 export async function backendGetGoogleUrl(): Promise<{ configured: boolean; url: string | null; message?: string }> {
   try {
-    const res = await fetch(`${BACKEND_BASE_URL}/auth/google/url`);
-    const body = await res.json();
+    const redirectQuery =
+      typeof window !== 'undefined'
+        ? `?redirectUri=${encodeURIComponent(`${window.location.origin}/auth/callback`)}`
+        : '';
+    const res = await fetch(`${getBackendBaseUrl()}/auth/google/url${redirectQuery}`);
+    const body = await res.json().catch(() => null);
+    if (!res.ok || !body) {
+      return {
+        configured: false,
+        url: null,
+        message: body?.message || `Backend returned status ${res.status}`,
+      };
+    }
     return body.data || body;
   } catch (err: any) {
     return { configured: false, url: null, message: err.message };

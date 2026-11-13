@@ -4,7 +4,12 @@ export interface LlmMessage {
 }
 
 export interface LlmCompletionRequest {
+  workspaceId?: string;
+  provider?: string;
   model?: string;
+  apiKey?: string;
+  baseUrl?: string;
+  timeoutMs?: number;
   messages: LlmMessage[];
   temperature?: number;
   maxTokens?: number;

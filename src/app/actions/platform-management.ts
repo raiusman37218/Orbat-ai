@@ -3,8 +3,9 @@
 import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { revalidatePath } from 'next/cache';
-import { createClient } from '@/lib/supabase/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { createClient } from '@/lib/pg/server';
+import { sessionUser } from '@/lib/auth/session-user';
+import { serviceClient } from '@/lib/pg/service';
 import { assertSuperAdmin, assertPlatformOwner } from './platform';
 import { getBillingProvider } from '@/lib/billing/lemonsqueezy';
 import {
@@ -295,9 +296,9 @@ export async function createWorkspaceCheckoutAction(params: {
   if (!email) {
     try {
       const supabase = await createClient();
-      const { data: authData } = await supabase.auth.getUser();
-      if (authData?.user?.email) {
-        email = authData.user.email;
+      const user = await sessionUser(supabase);
+      if (user?.email) {
+        email = user.email;
       }
     } catch {}
   }

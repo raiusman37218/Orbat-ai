@@ -14,9 +14,25 @@ vi.mock('server-only', () => ({}));
 // Mock dependencies
 const mockServiceClient = vi.fn();
 const mockSendSmtpEmail = vi.fn();
+const authBridge = {
+  getUsers: (): any[] => [],
+  updateUserById: null as any,
+  createUser: null as any,
+};
 
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: () => mockServiceClient(),
+}));
+
+vi.mock('@/lib/auth/postgres-auth', () => ({
+  findPgAuthUserByEmail: async (email: string) => {
+    const clean = email.trim().toLowerCase();
+    return authBridge.getUsers().find((u) => u.email.toLowerCase() === clean) || null;
+  },
+  findPgAuthUserById: async (id: string) =>
+    authBridge.getUsers().find((u) => u.id === id) || null,
+  createPgAuthUser: async (attrs: any) => authBridge.createUser(attrs),
+  updatePgAuthUser: async (id: string, attrs: any) => authBridge.updateUserById(id, attrs),
 }));
 
 vi.mock('@/lib/email/smtp', () => ({
@@ -56,7 +72,11 @@ describe('auth-verification action suite', () => {
       return { data: { user: newUser }, error: null };
     });
 
-    // Mock Supabase admin client
+    authBridge.getUsers = () => fakeUsers;
+    authBridge.updateUserById = updateUserByIdSpy;
+    authBridge.createUser = createUserSpy;
+
+    // Mock PG service client
     mockServiceClient.mockReturnValue({
       auth: {
         admin: {

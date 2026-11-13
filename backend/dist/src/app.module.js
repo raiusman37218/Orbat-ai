@@ -22,6 +22,7 @@ const inboxes_module_1 = require("./inboxes/inboxes.module");
 const realtime_module_1 = require("./realtime/realtime.module");
 const attachments_module_1 = require("./attachments/attachments.module");
 const queues_module_1 = require("./queues/queues.module");
+const queues_workers_module_1 = require("./queues/queues-workers.module");
 const ai_engine_module_1 = require("./ai-engine/ai-engine.module");
 const health_module_1 = require("./health/health.module");
 const widget_module_1 = require("./widget/widget.module");
@@ -37,6 +38,7 @@ exports.AppModule = AppModule = __decorate([
             config_1.ConfigModule.forRoot({
                 isGlobal: true,
                 load: [configuration_1.default],
+                ignoreEnvFile: process.env.VERCEL === '1' || process.env.VERCEL === 'true',
                 envFilePath: ['.env', '.env.local'],
             }),
             database_module_1.DatabaseModule,
@@ -50,6 +52,9 @@ exports.AppModule = AppModule = __decorate([
             realtime_module_1.RealtimeModule,
             attachments_module_1.AttachmentsModule,
             queues_module_1.QueuesModule,
+            ...(process.env.IS_WORKER === 'true' || process.env.ENABLE_EMBEDDED_WORKERS === 'true'
+                ? [queues_workers_module_1.QueuesWorkersModule]
+                : []),
             ai_engine_module_1.AiEngineModule,
             health_module_1.HealthModule,
             widget_module_1.WidgetModule,

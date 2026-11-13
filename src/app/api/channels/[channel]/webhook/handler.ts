@@ -1,7 +1,7 @@
 import { NextResponse, after } from 'next/server';
 import { handleWebhookChallenge, handleWebhookPost } from '@/lib/channels/inbound';
 import { processOutboundQueue } from '@/lib/channels/outbound';
-import { hasServiceRole } from '@/lib/supabase/service';
+import { hasServiceRole } from '@/lib/pg/service';
 import { handleEmailWebhook } from '@/lib/channels/email/inbound';
 import { processAutomationOutbox } from '@/lib/automation/outbox';
 
@@ -21,7 +21,7 @@ export async function verify(request: Request, channel: string, connectionId?: s
 
 export async function receive(request: Request, channel: string, connectionId?: string) {
   if (!hasServiceRole()) {
-    console.error('[Channels Webhook Error]: SUPABASE_SERVICE_ROLE_KEY is not set; cannot store inbound messages.');
+    console.error('[Channels Webhook Error]: DATABASE_URL is not set; cannot store inbound messages.');
     return NextResponse.json({ error: 'Not configured' }, { status: 503 });
   }
   if (channel === 'email') {

@@ -14,7 +14,7 @@
 
 import { createHash, randomBytes } from 'node:crypto';
 import { getWorkspaceAccess, type WorkspaceAccess } from '@/lib/team/access';
-import { hasServiceRole, serviceClient } from '@/lib/supabase/service';
+import { hasServiceRole, serviceClient } from '@/lib/pg/service';
 import { ROLE_LABELS, assignableRoles, isRole, type Role } from '@/lib/team/permissions';
 import { assertWorkspaceLimit } from '@/lib/plans/enforce';
 import { getEffectiveFromEmail, sendSmtpEmail } from '@/lib/email/smtp';
@@ -254,7 +254,7 @@ export async function inviteMemberAction(
   if (!isRole(input.role) || input.role === 'owner' || !assignableRoles(access.role).includes(input.role)) {
     throw userError(access.role === 'admin' && input.role === 'admin' ? 'Only the owner can invite admins.' : 'Choose a role.');
   }
-  if (!hasServiceRole()) throw userError('Inviting needs SUPABASE_SERVICE_ROLE_KEY on the server.');
+  if (!hasServiceRole()) throw userError('Inviting needs DATABASE_URL on the server.');
   const admin = serviceClient();
 
   const { data: existing } = await admin

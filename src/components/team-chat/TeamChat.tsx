@@ -1,9 +1,17 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { RealtimePostgresChangesPayload, SupabaseClient } from '@supabase/supabase-js';
 import { ArrowLeft, Hash, Link2, MessageCircle, MessagesSquare, Search, Send, Trash2, X } from 'lucide-react';
 import type { Agent, TeamInboxRow, TeamMessage } from '@/types/database';
+import {
+  deleteTeamMessageAction,
+  ensureTeamGeneralAction,
+  listTeamMessagesAction,
+  markTeamThreadReadAction,
+  openDirectTeamThreadAction,
+  sendTeamMessageAction,
+} from '@/app/actions/team-chat';
+import { useWorkspaceLive } from '@/lib/realtime/use-workspace-live';
 import { Avatar } from '@/components/ui/Avatar';
 import { Linkified } from '@/components/ui/Linkified';
 import { ErrorState, LoadingState } from '@/components/ui/States';
@@ -27,7 +35,6 @@ export interface TeamChatShare {
 }
 
 interface TeamChatProps {
-  supabase: SupabaseClient;
   workspaceId: string;
   currentAgent: Agent;
   agents: Agent[];
@@ -63,7 +70,6 @@ function timeLabel(iso: string) {
 }
 
 export function TeamChat({
-  supabase,
   workspaceId,
   currentAgent,
   agents,
@@ -106,11 +112,10 @@ export function TeamChat({
   useEffect(() => {
     if (inbox.loading || !inbox.available || general || ensuredGeneral.current) return;
     ensuredGeneral.current = true;
-    void supabase.rpc('fn_team_general', { p_workspace_id: workspaceId }).then(({ error }) => {
-      if (error) console.error('[Team Chat] General channel:', error.message);
-      else void inbox.reload();
-    });
-  }, [inbox, general, supabase, workspaceId]);
+    void ensureTeamGeneralAction(workspaceId)
+      .then(() => void inbox.reload())
+      .catch((err) => console.error('[Team Chat] General channel:', err?.message || err));
+  }, [inbox, general, workspaceId]);
 
   // Start on General (or the thread something was shared into).
   const firstOpen = useRef(false);
@@ -133,14 +138,15 @@ export function TeamChat({
     }
     setOpening(agentId);
     setOpenError(null);
-    const { data, error } = await supabase.rpc('fn_team_open_direct', { p_workspace_id: workspaceId, p_agent_id: agentId });
-    setOpening(null);
-    if (error || !data) {
-      setOpenError(error?.message || 'Could not open that conversation.');
-      return;
+    try {
+      const threadId = await openDirectTeamThreadAction(workspaceId, agentId);
+      setOpening(null);
+      setOpenThread(threadId);
+      void inbox.reload();
+    } catch (err: any) {
+      setOpening(null);
+      setOpenError(err?.message || 'Could not open that conversation.');
     }
-    setOpenThread(data as string);
-    void inbox.reload();
   };
 
   const thread = inbox.threads.find((t) => t.thread_id === openThread) ?? null;
@@ -263,7 +269,6 @@ export function TeamChat({
         {thread ? (
           <ThreadView
             key={thread.thread_id}
-            supabase={supabase}
             workspaceId={workspaceId}
             me={me}
             thread={thread}
@@ -358,7 +363,6 @@ function ThreadButton({
 /* ── One thread ────────────────────────────────────────────────────────── */
 
 function ThreadView({
-  supabase,
   workspaceId,
   me,
   thread,
@@ -375,7 +379,6 @@ function ThreadView({
   onBack,
   onRead,
 }: {
-  supabase: SupabaseClient;
   workspaceId: string;
   me: string;
   thread: TeamInboxRow;
@@ -403,26 +406,45 @@ function ThreadView({
 
   const markRead = useCallback(() => {
     onRead();
-    void supabase.rpc('fn_team_mark_read', { p_thread_id: thread.thread_id }).then(({ error: err }) => {
-      if (err) console.warn('[Team Chat] mark read:', err.message);
+    void markTeamThreadReadAction(workspaceId, thread.thread_id).catch((err) => {
+      console.warn('[Team Chat] mark read:', err?.message || err);
     });
-  }, [supabase, thread.thread_id, onRead]);
+  }, [workspaceId, thread.thread_id, onRead]);
 
   const load = useCallback(
     async (before?: string) => {
-      let query = supabase
-        .from('team_messages')
-        .select('*')
-        .eq('thread_id', thread.thread_id)
-        .order('created_at', { ascending: false })
-        .limit(PAGE);
-      if (before) query = query.lt('created_at', before);
-      const { data, error: err } = await query;
-      if (err) throw err;
-      return ((data as TeamMessage[]) || []).reverse();
+      return listTeamMessagesAction(workspaceId, thread.thread_id, before, PAGE);
     },
-    [supabase, thread.thread_id]
+    [workspaceId, thread.thread_id]
   );
+
+  const syncLatest = useCallback(async () => {
+    try {
+      const latest = await load();
+      let sawIncoming = false;
+      setMessages((prev) => {
+        const drafts = prev.filter((m) => m.pending || m.failed);
+        const byId = new Map(latest.map((m) => [m.id, m]));
+        const known = new Set(prev.filter((m) => !m.pending && !m.failed).map((m) => m.id));
+        if (latest.some((m) => !known.has(m.id) && m.sender_id !== me)) {
+          sawIncoming = true;
+        }
+        const merged = prev
+          .filter((m) => !m.pending && !m.failed)
+          .map((m) => byId.get(m.id) ?? m);
+        const mergedIds = new Set(merged.map((m) => m.id));
+        for (const m of latest) {
+          if (!mergedIds.has(m.id)) merged.push(m);
+        }
+        return [...merged, ...drafts];
+      });
+      if (sawIncoming && typeof document !== 'undefined' && document.visibilityState === 'visible') {
+        markRead();
+      }
+    } catch {
+      // Transient poll errors ignored; initial load shows error state
+    }
+  }, [load, markRead, me]);
 
   useEffect(() => {
     let cancelled = false;
@@ -440,28 +462,18 @@ function ThreadView({
         setLoading(false);
       });
 
-    const channel = supabase
-      .channel(`team-thread-${thread.thread_id}-${Math.random().toString(36).slice(2, 8)}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'team_messages', filter: `thread_id=eq.${thread.thread_id}` },
-        (payload: RealtimePostgresChangesPayload<TeamMessage>) => {
-          const row = payload.new as TeamMessage;
-          if (!row?.id) return;
-          setMessages((prev) => {
-            const at = prev.findIndex((m) => m.id === row.id);
-            if (at >= 0) return prev.map((m, i) => (i === at ? row : m));
-            return [...prev, row];
-          });
-          if (payload.eventType === 'INSERT' && row.sender_id !== me && document.visibilityState === 'visible') markRead();
-        }
-      )
-      .subscribe();
     return () => {
       cancelled = true;
-      void supabase.removeChannel(channel);
     };
-  }, [supabase, thread.thread_id, load, markRead, me]);
+  }, [thread.thread_id, load, markRead]);
+
+  useWorkspaceLive({
+    workspaceId,
+    enabled: Boolean(workspaceId && thread.thread_id),
+    pollMs: 2500,
+    debounceMs: 200,
+    onRefresh: () => void syncLatest(),
+  });
 
   // Stay at the newest message unless the reader scrolled up.
   useEffect(() => {
@@ -508,32 +520,35 @@ function ThreadView({
     };
     atBottom.current = true;
     setMessages((prev) => (retryOf ? prev.map((m) => (m.id === retryOf ? draft : m)) : [...prev, draft]));
-    const { data, error: err } = await supabase
-      .from('team_messages')
-      .insert({
-        thread_id: thread.thread_id,
-        workspace_id: workspaceId,
-        sender_id: me,
+    try {
+      const saved = await sendTeamMessageAction(workspaceId, {
+        threadId: thread.thread_id,
         content,
-        conversation_id: conversationId,
+        conversationId,
         mentions,
-      })
-      .select()
-      .single();
-    if (err || !data) {
-      console.error('[Team Chat] send:', err?.message);
+      });
+      setMessages((prev) =>
+        prev.some((m) => m.id === saved.id)
+          ? prev.filter((m) => m.id !== tempId)
+          : prev.map((m) => (m.id === tempId ? saved : m))
+      );
+      return true;
+    } catch (err: any) {
+      console.error('[Team Chat] send:', err?.message || err);
       setMessages((prev) => prev.map((m) => (m.id === tempId ? { ...m, pending: false, failed: true } : m)));
       return false;
     }
-    const saved = data as TeamMessage;
-    // Realtime may have delivered it already.
-    setMessages((prev) => (prev.some((m) => m.id === saved.id) ? prev.filter((m) => m.id !== tempId) : prev.map((m) => (m.id === tempId ? saved : m))));
-    return true;
   };
 
   const remove = async (id: string) => {
-    const { error: err } = await supabase.rpc('fn_team_delete_message', { p_message_id: id });
-    if (err) setError(err.message);
+    try {
+      await deleteTeamMessageAction(workspaceId, id);
+      setMessages((prev) =>
+        prev.map((m) => (m.id === id ? { ...m, deleted_at: new Date().toISOString(), content: '…' } : m)),
+      );
+    } catch (err: any) {
+      setError(err?.message || 'That message cannot be deleted.');
+    }
   };
 
   const names = useMemo(() => agents.map((a) => a.name || '').filter(Boolean), [agents]);

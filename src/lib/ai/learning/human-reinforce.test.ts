@@ -8,7 +8,7 @@ import { buildHumanSupportSystemPrompt } from '@/lib/ai/anthropic';
 import * as semanticRetrieval from '@/lib/ai/semantic-retrieval';
 
 // Mock serviceClient from supabase
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: vi.fn(),
 }));
 

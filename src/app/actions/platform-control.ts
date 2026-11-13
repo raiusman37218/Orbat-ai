@@ -1,7 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { createClient } from '@/lib/pg/server';
+import { serviceClient } from '@/lib/pg/service';
 import { assertSuperAdmin, recordSuperAdminAudit } from '@/app/actions/platform';
 import {
   getEffectiveWorkspaceSettings,

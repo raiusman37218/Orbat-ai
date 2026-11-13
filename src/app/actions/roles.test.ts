@@ -39,7 +39,7 @@ function respond(q: Query) {
   return { data: [], error: null, count: 0 };
 }
 
-vi.mock('@/lib/supabase/server', () => ({
+vi.mock('@/lib/pg/server', () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: ME } } }) },
     from: (table: string) => {
@@ -65,7 +65,11 @@ vi.mock('@/lib/supabase/server', () => ({
     },
   }),
 }));
-vi.mock('@/lib/supabase/service', () => ({ hasServiceRole: () => false, serviceClient: () => ({}) }));
+vi.mock('server-only', () => ({}));
+vi.mock('@/lib/auth/session-user', () => ({
+  sessionUser: async () => ({ id: ME }),
+}));
+vi.mock('@/lib/pg/service', () => ({ hasServiceRole: () => false, serviceClient: () => ({}) }));
 vi.mock('@/lib/email/smtp', () => ({ isValidEmail: () => true, sendSmtpEmail: vi.fn() }));
 vi.mock('next/server', () => ({ after: vi.fn(), NextResponse: { json: vi.fn() } }));
 

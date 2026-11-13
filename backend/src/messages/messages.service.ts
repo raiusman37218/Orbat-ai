@@ -13,6 +13,11 @@ import { SendMessageDto } from './dto/send-message.dto';
 import { UpdateMessageDto } from './dto/update-message.dto';
 import { AuthenticatedUser } from '../common/types/tenant-context';
 import { RealtimeService } from '../realtime/realtime.service';
+import { OutboxService } from '../realtime/outbox.service';
+import {
+  shouldSuppressDirectRealtimeEmit,
+  trackSuppressContextOutboxId,
+} from '../realtime/realtime-emit.context';
 
 @Injectable()
 export class MessagesService {
@@ -23,6 +28,9 @@ export class MessagesService {
     @Optional()
     @Inject(forwardRef(() => RealtimeService))
     private readonly realtime?: RealtimeService,
+    @Optional()
+    @Inject(forwardRef(() => OutboxService))
+    private readonly outbox?: OutboxService,
   ) {}
 
   async getMessages(
@@ -40,6 +48,7 @@ export class MessagesService {
       throw new NotFoundException(`Conversation ${conversationId} not found.`);
     }
 
+    const clampedLimit = Math.min(Math.max(1, Math.floor(limit || 50)), 100);
     const conditions: string[] = ['m.conversation_id = $1'];
     const params: any[] = [conversationId];
     let idx = 2;
@@ -49,17 +58,21 @@ export class MessagesService {
       params.push(before);
     }
 
-    params.push(limit);
+    params.push(clampedLimit);
+    // Fetch the newest page DESC and wrap in ascending chronological order for chat rendering.
     const sql = `
-      SELECT m.id, m.conversation_id, m.sender_type, m.sender_id, m.content,
-             m.attachment_url, m.is_internal, m.reply_to_message_id,
-             m.delivered_at, m.read_at, m.metadata, m.created_at,
-             a.name as sender_agent_name, a.avatar_url as sender_agent_avatar
-      FROM public.messages m
-      LEFT JOIN public.agents a ON a.id = m.sender_id AND m.sender_type = 'agent'
-      WHERE ${conditions.join(' AND ')}
-      ORDER BY m.created_at ASC
-      LIMIT $${idx}
+      SELECT * FROM (
+        SELECT m.id, m.conversation_id, m.sender_type, m.sender_id, m.content,
+               m.attachment_url, m.is_internal, m.reply_to_message_id,
+               m.delivered_at, m.read_at, m.metadata, m.created_at,
+               a.name as sender_agent_name, a.avatar_url as sender_agent_avatar
+        FROM public.messages m
+        LEFT JOIN public.agents a ON a.id = m.sender_id AND m.sender_type = 'agent'
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY m.created_at DESC
+        LIMIT $${idx}
+      ) latest
+      ORDER BY latest.created_at ASC
     `;
 
     const result = await this.db.query(sql, params);
@@ -100,9 +113,21 @@ export class MessagesService {
       }
     }
 
-    const senderType = dto.senderType || (sender ? 'agent' : 'visitor');
-    const senderId = sender?.id || (senderType === 'visitor' ? conv.visitor_id : null);
     const isInternal = Boolean(dto.isInternal);
+    let senderType: 'agent' | 'visitor' | 'system' | 'ai';
+    if (sender) {
+      if (sender.role === 'light_agent' && !isInternal) {
+        throw new ForbiddenException('Light agents can only post internal notes.');
+      }
+      const isAdmin = sender.role === 'owner' || sender.role === 'admin' || Boolean(sender.isSuperAdmin);
+      senderType = dto.senderType === 'system' && isAdmin ? 'system' : 'agent';
+    } else {
+      senderType =
+        dto.senderType === 'ai' || dto.senderType === 'system' || dto.senderType === 'visitor'
+          ? dto.senderType
+          : 'visitor';
+    }
+    const senderId = sender?.id || (senderType === 'visitor' ? conv.visitor_id : null);
     const content = (dto.content || '').trim();
     const attachmentUrl = dto.attachmentUrl || null;
 
@@ -115,7 +140,7 @@ export class MessagesService {
       metadata.idempotency_key = dto.idempotencyKey;
     }
 
-    const createdMessage = await this.db.transaction(async (client) => {
+    const txResult = await this.db.transaction(async (client) => {
       // 3. Insert message
       const msgRes = await client.query(
         `INSERT INTO public.messages (
@@ -139,7 +164,8 @@ export class MessagesService {
       const message = msgRes.rows[0];
 
       // 4. Update conversation state:
-      // If agent replies publicly: bump updated_at, reopen if closed, assign agent, pause AI auto-reply
+      // If human agent replies publicly: bump updated_at, reopen if closed, assign agent, pause AI auto-reply.
+      // AI/bot replies bump updated_at without pausing AI.
       if (senderType === 'agent' && !isInternal) {
         await client.query(
           `UPDATE public.conversations
@@ -156,7 +182,6 @@ export class MessagesService {
           [senderId, conversationId, workspaceId],
         );
       } else if (senderType === 'visitor') {
-        // If customer writes: reopen closed conversation
         await client.query(
           `UPDATE public.conversations
            SET updated_at = now(),
@@ -164,26 +189,53 @@ export class MessagesService {
            WHERE id = $1 AND workspace_id = $2`,
           [conversationId, workspaceId],
         );
+      } else if (senderType === 'ai') {
+        await client.query(
+          `UPDATE public.conversations
+           SET updated_at = now()
+           WHERE id = $1 AND workspace_id = $2`,
+          [conversationId, workspaceId],
+        );
       }
 
-      return message;
+      const enriched = {
+        ...message,
+        sender_agent_name: senderType === 'agent' ? sender?.name || null : null,
+        sender_agent_avatar: null,
+      };
+
+      const rooms = [`conversation:${conversationId}`];
+      if (!isInternal) rooms.push(`workspace:${workspaceId}`);
+
+      const outboxId = this.outbox
+        ? await this.outbox.recordInTransaction(client, {
+            workspaceId,
+            conversationId,
+            eventName: 'message:new',
+            rooms,
+            payload: enriched,
+          })
+        : null;
+
+      return { enriched, outboxId };
     });
 
-    const enrichedMessage = {
-      ...createdMessage,
-      sender_agent_name: senderType === 'agent' ? sender?.name || null : null,
-      sender_agent_avatar: null,
-    };
+    const enrichedMessage = txResult.enriched;
 
-    // Notify connected realtime clients
-    if (this.realtime) {
-      this.realtime.emitToConversation(conversationId, 'message:new', enrichedMessage);
+      if (shouldSuppressDirectRealtimeEmit()) {
+        trackSuppressContextOutboxId(txResult.outboxId);
+      } else if (this.realtime) {
+      const sentConv = this.realtime.emitToConversation(conversationId, 'message:new', enrichedMessage);
+      let sentWs = true;
       if (!isInternal) {
-        this.realtime.emitToWorkspace(workspaceId, 'message:new', enrichedMessage);
+        sentWs = this.realtime.emitToWorkspace(workspaceId, 'message:new', enrichedMessage);
         this.realtime.emitToWorkspace(workspaceId, 'conversation:updated', {
           conversationId,
           lastMessage: enrichedMessage,
         });
+      }
+      if (txResult.outboxId && sentConv && sentWs) {
+        await this.outbox?.markPublished(txResult.outboxId).catch(() => {});
       }
     }
 
@@ -215,7 +267,7 @@ export class MessagesService {
 
     const existing = msgRes.rows[0];
     const isAdmin = actor.role === 'owner' || actor.role === 'admin' || actor.isSuperAdmin;
-    if (!isAdmin && existing.sender_id && existing.sender_id !== actor.id) {
+    if (!isAdmin && (!existing.sender_id || existing.sender_id !== actor.id)) {
       throw new ForbiddenException('You can only edit your own messages.');
     }
 
@@ -260,7 +312,7 @@ export class MessagesService {
 
     const existing = msgRes.rows[0];
     const isAdmin = actor.role === 'owner' || actor.role === 'admin' || actor.isSuperAdmin;
-    if (!isAdmin && existing.sender_id && existing.sender_id !== actor.id) {
+    if (!isAdmin && (!existing.sender_id || existing.sender_id !== actor.id)) {
       throw new ForbiddenException('You can only delete your own messages.');
     }
 
@@ -296,7 +348,12 @@ export class MessagesService {
       [conversationId, targetSender, workspaceId],
     );
 
-    if (this.realtime && result.rowCount && result.rowCount > 0) {
+    if (
+      this.realtime &&
+      !shouldSuppressDirectRealtimeEmit() &&
+      result.rowCount &&
+      result.rowCount > 0
+    ) {
       this.realtime.emitToConversation(conversationId, 'message:read', {
         conversationId,
         readBy: senderType,

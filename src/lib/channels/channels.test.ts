@@ -11,7 +11,7 @@ import mediaMessages from './whatsapp/fixtures/media-messages.json';
 /* ── Mocks: no database, no network ───────────────────────────────────── */
 
 const rpc = vi.fn();
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: () => ({
     rpc,
     from: () => ({ update: () => ({ eq: async () => ({ error: null }) }) }),

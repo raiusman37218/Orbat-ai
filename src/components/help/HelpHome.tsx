@@ -22,7 +22,6 @@ import {
 } from 'lucide-react';
 import { HelpSection, Workspace } from '@/types/database';
 import type { HelpListArticle, HelpSite } from '@/lib/help/data';
-import { createClient } from '@/lib/supabase/client';
 import { isPlatformHost } from '@/lib/domain';
 import type { ResolvedHelpTheme } from '@/lib/help/theme';
 import { HelpHeader, HelpFooter, HelpWidget, helpTitleOf, openChat, formatDate } from '@/components/help/HelpChrome';
@@ -65,7 +64,6 @@ function PublicHelpCenterContent({ initial, workspaceKey }: { initial: HelpSite 
     setActiveIndex(0);
   }, []);
 
-  const supabase = useMemo(() => createClient(), []);
   const { theme } = useHelpTheme(workspace, initial?.theme);
 
   // The open collection lives in the URL. Keeping it in component state alone
@@ -116,22 +114,23 @@ function PublicHelpCenterContent({ initial, workspaceKey }: { initial: HelpSite 
   useEffect(() => {
     if (!query.trim() || bodiesRequested.current || !workspace) return;
     bodiesRequested.current = true;
-    supabase
-      .from('articles')
-      .select('id, content')
-      .eq('workspace_id', workspace.id)
-      .eq('status', 'published')
-      .then(({ data, error }: { data: { id: string; content: string | null }[] | null; error: { message: string } | null }) => {
-        if (error) {
-          console.warn('[Help Center] search bodies:', error.message);
-          bodiesRequested.current = false;
-          return;
-        }
+    fetch(`/api/help/bodies?workspaceId=${encodeURIComponent(workspace.id)}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return (await res.json()) as { articles?: { id: string; content: string | null }[] };
+      })
+      .then((payload) => {
         const map: Record<string, string> = {};
-        for (const row of data ?? []) map[row.id] = (row.content || '').toLowerCase();
+        for (const row of payload.articles ?? []) {
+          map[row.id] = (row.content || '').toLowerCase();
+        }
         setBodies(map);
+      })
+      .catch((err) => {
+        console.warn('[Help Center] search bodies:', err?.message || err);
+        bodiesRequested.current = false;
       });
-  }, [query, workspace, supabase]);
+  }, [query, workspace]);
 
   const byCollection = useMemo(() => {
     const map: Record<string, ListArticle[]> = {};

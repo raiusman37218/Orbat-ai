@@ -144,7 +144,7 @@ const fakeSupabase = {
 
 /* ── Everything outside the route is faked ────────────────────────────── */
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => fakeSupabase, hasServiceRole: () => true }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => fakeSupabase, hasServiceRole: () => true }));
 
 const plan = vi.hoisted(() => ({ feature: true, limit: true }));
 vi.mock('@/lib/plans/enforce', () => ({

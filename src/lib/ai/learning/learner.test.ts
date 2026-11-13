@@ -31,7 +31,7 @@ function fakeSupabase() {
   };
 }
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => fakeSupabase(), hasServiceRole: () => true }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => fakeSupabase(), hasServiceRole: () => true }));
 vi.mock('@/lib/ai/bot-knowledge', () => ({ embedBotKnowledge: vi.fn(async () => ({ status: 'ready' })) }));
 vi.mock('@/lib/ai/provider', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/ai/provider')>();

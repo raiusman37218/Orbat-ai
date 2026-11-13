@@ -13,7 +13,7 @@ vi.mock('@/lib/geo', () => ({
 }));
 
 // Mock supabase service
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: vi.fn(() => ({
     from: () => ({
       select: () => ({

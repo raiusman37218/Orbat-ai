@@ -8,7 +8,7 @@ export declare class HealthController {
         timestamp: string;
         uptimeSeconds: number;
         database: {
-            error: string;
+            error?: string | undefined;
             connected: boolean;
             latencyMs: number;
         };
@@ -23,6 +23,6 @@ export declare class HealthController {
     };
     readiness(): Promise<{
         status: string;
-        database: string;
+        database: string | undefined;
     }>;
 }

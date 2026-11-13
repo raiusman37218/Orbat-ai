@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
  * the visitor's words as a marked note. The model and the network are faked.
  */
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => ({}) }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => ({}) }));
 vi.mock('@/lib/ai/provider', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/ai/provider')>();
   return { ...actual, visionChat: vi.fn() };

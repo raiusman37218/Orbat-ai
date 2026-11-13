@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardConversation } from '@/lib/team/route-guard';
+import { getDbPool as pool } from '@/lib/db';
 
 /**
  * POST /api/conversations/merge
@@ -26,8 +27,78 @@ export async function POST(req: NextRequest) {
     const guard = await guardConversation(source_conversation_id, 'edit_ticket');
     if (!guard.ok) return guard.response;
     const supabase = guard.access.supabase;
+    const shortSourceId = source_conversation_id.slice(0, 8);
+    const systemText = `📎 Thread merged: Conversation #${shortSourceId} was consolidated into this thread by ${
+      agent_name || 'an agent'
+    }.`;
 
-    // 1. Fetch source and target conversation records
+    // Atomic transactional merge when direct PostgreSQL pool is configured
+    if (process.env.DATABASE_URL) {
+      const client = await pool().connect();
+      try {
+        await client.query('BEGIN');
+        const rowsRes = await client.query<{ id: string; workspace_id: string; tags: string[] | null }>(
+          `SELECT id, workspace_id, tags
+           FROM public.conversations
+           WHERE id = ANY($1::uuid[]) AND workspace_id = $2
+           FOR UPDATE`,
+          [[source_conversation_id, target_conversation_id], guard.workspaceId]
+        );
+        const sourceRow = rowsRes.rows.find((r) => r.id === source_conversation_id);
+        const targetRow = rowsRes.rows.find((r) => r.id === target_conversation_id);
+        if (!sourceRow) {
+          await client.query('ROLLBACK');
+          return NextResponse.json({ error: 'Source conversation not found' }, { status: 404 });
+        }
+        if (!targetRow) {
+          await client.query('ROLLBACK');
+          return NextResponse.json({ error: 'Target conversation not found' }, { status: 404 });
+        }
+
+        const combinedTags = Array.from(
+          new Set([...(targetRow.tags || []), ...(sourceRow.tags || [])])
+        );
+
+        await client.query(
+          'UPDATE public.messages SET conversation_id = $1 WHERE conversation_id = $2',
+          [target_conversation_id, source_conversation_id]
+        );
+        await client.query(
+          'UPDATE public.internal_notes SET conversation_id = $1 WHERE conversation_id = $2',
+          [target_conversation_id, source_conversation_id]
+        );
+        await client.query(
+          'UPDATE public.conversations SET tags = $1, updated_at = now() WHERE id = $2 AND workspace_id = $3',
+          [combinedTags, target_conversation_id, guard.workspaceId]
+        );
+        await client.query(
+          `UPDATE public.conversations
+           SET status = 'closed', merged_into = $1, closed_at = now(), updated_at = now()
+           WHERE id = $2 AND workspace_id = $3`,
+          [target_conversation_id, source_conversation_id, guard.workspaceId]
+        );
+        await client.query(
+          `INSERT INTO public.messages (conversation_id, sender_type, content, is_internal)
+           VALUES ($1, 'system', $2, false)`,
+          [target_conversation_id, systemText]
+        );
+        await client.query('COMMIT');
+
+        return NextResponse.json({
+          success: true,
+          target_id: target_conversation_id,
+          source_id: source_conversation_id,
+          merged_tags: combinedTags,
+        });
+      } catch (txErr) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw txErr;
+      } finally {
+        client.release();
+      }
+    }
+
+    // Fallback path when only Supabase REST client is configured
     const { data: sourceConv, error: sErr } = await supabase
       .from('conversations')
       .select('id, tags')
@@ -95,13 +166,10 @@ export async function POST(req: NextRequest) {
       .eq('id', source_conversation_id);
 
     // 7. Insert an informative system event message in target thread
-    const shortSourceId = source_conversation_id.slice(0, 8);
     await supabase.from('messages').insert({
       conversation_id: target_conversation_id,
       sender_type: 'system',
-      content: `📎 Thread merged: Conversation #${shortSourceId} was consolidated into this thread by ${
-        agent_name || 'an agent'
-      }.`,
+      content: systemText,
       is_internal: false,
     });
 

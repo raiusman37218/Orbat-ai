@@ -9,8 +9,8 @@
  * createApiKeyAction; only its hash is stored.
  */
 import { assertAdminUser } from '@/app/actions/admin';
-import { createClient } from '@/lib/supabase/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { createClient } from '@/lib/pg/server';
+import { serviceClient } from '@/lib/pg/service';
 import { generateApiKey } from '@/lib/api/keys';
 
 export interface ApiKeyRow {

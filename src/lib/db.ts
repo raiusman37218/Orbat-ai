@@ -4,13 +4,18 @@ let poolInstance: Pool | null = null;
 
 export function getDbPool(): Pool {
   if (!poolInstance) {
-    const connectionString =
-      process.env.DATABASE_URL ||
-      'postgresql://neondb_owner:npg_HAFi43YTWDot@ep-rapid-tree-b3mv8m3l-pooler.c-4.ap-southeast-1.aws.neon.tech/neondb?sslmode=require';
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error('DATABASE_URL environment variable is required to connect to PostgreSQL.');
+    }
+
+    const disableSsl =
+      process.env.DB_SSL === 'false' || connectionString.includes('sslmode=disable');
+    const rejectUnauthorized = process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false';
 
     poolInstance = new Pool({
       connectionString,
-      ssl: { rejectUnauthorized: false },
+      ssl: disableSsl ? false : { rejectUnauthorized },
       max: 10,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,

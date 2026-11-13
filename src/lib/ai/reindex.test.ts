@@ -45,7 +45,7 @@ function fakeSupabase() {
   };
 }
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => fakeSupabase() }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => fakeSupabase() }));
 vi.mock('@/lib/ai/platform-gateway', () => ({
   getPlatformAiConfigServerOnly: async () => ({
     isEnabled: true,

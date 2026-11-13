@@ -8,7 +8,7 @@
  * 4. Allows the AI to retrieve and imitate approved human demonstrations for future questions in that workspace.
  */
 
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { containsPersonalData } from './safety';
 import { embedBotKnowledge } from '@/lib/ai/bot-knowledge';
 import { hybridSearchBotKnowledge } from '@/lib/ai/semantic-retrieval';

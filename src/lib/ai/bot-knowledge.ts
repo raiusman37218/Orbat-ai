@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { getPlatformAiConfigServerOnly } from './platform-gateway';
 import {
   BOT_KNOWLEDGE_SECTION,

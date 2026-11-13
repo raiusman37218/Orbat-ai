@@ -3,11 +3,10 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { AlertCircle, ArrowUpRight, ChevronDown, Clock, CornerDownRight, Ticket as TicketIcon } from 'lucide-react';
 import type { Ticket, TicketPriority, TicketStatus, TicketType } from '@/types/database';
-import { createClient } from '@/lib/supabase/client';
 import { Menu } from '@/components/ui/Menu';
 import { StatusBadge, PriorityLabel } from '@/components/tickets/TicketBits';
 import { PRIORITY_LABEL, SETTABLE_STATUSES, STATUS_LABEL, TICKET_PRIORITIES, TICKET_TYPES, TYPE_LABEL } from '@/lib/tickets/views';
-import { updateTicketAction } from '@/app/actions/tickets';
+import { getTicketBarAction, updateTicketAction } from '@/app/actions/tickets';
 import { errorMessage } from '@/lib/errors/user-error';
 import { cn } from '@/lib/utils';
 
@@ -27,8 +26,6 @@ type BarTicket = Pick<
   Ticket,
   'id' | 'number' | 'subject' | 'status' | 'priority' | 'type' | 'follow_up_of_id' | 'sla_next_due_at' | 'sla_state'
 >;
-
-const COLUMNS = 'id, number, subject, status, priority, type, follow_up_of_id, sla_next_due_at, sla_state';
 
 /** "Due in 23m", "Due in 2h", "Overdue 5m". */
 export function slaDueLabel(dueAt: string | null | undefined, now = Date.now()): { text: string; overdue: boolean; soon: boolean } | null {
@@ -62,21 +59,14 @@ export function ConversationTicketBar({
   const [, setTick] = useState(0);
 
   const load = useCallback(async () => {
-    const supabase = createClient();
-    const { data, error: err } = await supabase.from('tickets').select(COLUMNS).eq('id', ticketId).maybeSingle();
-    if (err) {
-      console.error('[Ticket Bar] load:', err.message);
-      return;
+    try {
+      const { ticket: row, parentNumber: pNum } = await getTicketBarAction(workspaceId, ticketId);
+      setTicket(row);
+      setParentNumber(pNum);
+    } catch (err: any) {
+      console.error('[Ticket Bar] load:', err?.message || err);
     }
-    const row = (data as BarTicket | null) ?? null;
-    setTicket(row);
-    if (row?.follow_up_of_id) {
-      const { data: parent } = await supabase.from('tickets').select('number').eq('id', row.follow_up_of_id).maybeSingle();
-      setParentNumber((parent?.number as number | undefined) ?? null);
-    } else {
-      setParentNumber(null);
-    }
-  }, [ticketId]);
+  }, [workspaceId, ticketId]);
 
   useEffect(() => {
     const t = setTimeout(() => void load(), 0);

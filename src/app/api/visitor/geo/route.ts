@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { clientIpOf, geoFromRequest } from '@/lib/geo';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { verifyVisitorToken } from '@/lib/widget/visitor-token';

@@ -265,12 +265,47 @@ function createMockSupabaseClient() {
   };
 }
 
-vi.mock('@/lib/supabase/server', () => ({
+vi.mock('@/lib/pg/server', () => ({
   createClient: vi.fn(async () => createMockSupabaseClient()),
 }));
 
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: vi.fn(() => createMockSupabaseClient()),
+}));
+
+vi.mock('@/lib/auth/session-user', () => ({
+  sessionUser: vi.fn(async () => fakeState.user),
+}));
+
+vi.mock('@/lib/auth/postgres-auth', () => ({
+  findPgAuthUserByEmail: vi.fn(async (email: string) => {
+    const clean = (email || '').trim().toLowerCase();
+    return fakeState.authUsers.find((u: any) => u.email.toLowerCase() === clean) || null;
+  }),
+  findPgAuthUserById: vi.fn(async (id: string) =>
+    fakeState.authUsers.find((u: any) => u.id === id) || null
+  ),
+  createPgAuthUser: vi.fn(async ({ email, user_metadata, email_confirm }: any) => {
+    const id = `created-${fakeState.authUsers.length + 1}`;
+    const u = {
+      id,
+      email: (email || '').trim().toLowerCase(),
+      name: user_metadata?.name ?? null,
+      email_confirmed_at: email_confirm ? new Date().toISOString() : null,
+      user_metadata: user_metadata || {},
+    };
+    fakeState.authUsers.push(u);
+    return { data: { user: u }, error: null };
+  }),
+  updatePgAuthUser: vi.fn(async (id: string, patch: any) => {
+    const u = fakeState.authUsers.find((x: any) => x.id === id) || null;
+    if (u) {
+      if (patch?.email_confirm) u.email_confirmed_at = new Date().toISOString();
+      if (patch?.user_metadata) u.user_metadata = { ...u.user_metadata, ...patch.user_metadata };
+    }
+    return { data: { user: u }, error: null };
+  }),
+  getPgPasswordHashForUser: vi.fn(async () => null),
 }));
 
 import {

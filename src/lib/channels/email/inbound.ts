@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { serviceClient } from '@/lib/supabase/service';
-import { isCloudinaryConfigured, uploadToCloudinary } from '@/lib/cloudinary';
+import { serviceClient } from '@/lib/pg/service';
+import { isStorageConfigured, uploadFileBuffer } from '@/lib/storage';
 import { loadConnectionByAccount, updateConnection, type LoadedConnection } from '@/lib/channels/store';
 import { normalizeEmail, splitTaggedAddress, ticketNumberFromSubject, verifiedTicketFromTag, cleanSubject } from './addresses';
 import { classifyInbound } from './classify';
@@ -58,17 +58,17 @@ async function storeAttachments(workspaceId: string, mail: ParsedEmail): Promise
       list.push({ ...base, url: null, skipped: 'This file type is blocked for safety.' });
     } else if (a.size > MAX_FILE_BYTES || a.content.length > MAX_FILE_BYTES) {
       list.push({ ...base, url: null, skipped: 'Larger than 10 MB.' });
-    } else if (!isCloudinaryConfigured()) {
-      list.push({ ...base, url: null, skipped: 'File storage is not set up (Cloudinary).' });
+    } else if (!isStorageConfigured()) {
+      list.push({ ...base, url: null, skipped: 'File storage is not set up (R2/Cloudinary).' });
     } else {
       try {
-        const uploaded = await uploadToCloudinary(a.content, {
+        const uploaded = await uploadFileBuffer(a.content, {
           folder: `channels/${workspaceId}/email`,
           filename: a.filename,
-          resourceType: a.contentType.startsWith('image/') ? 'image' : 'raw',
+          mimeType: a.contentType || 'application/octet-stream',
         });
-        list.push({ ...base, url: uploaded.secure_url });
-        if (a.contentId) cidMap[a.contentId] = uploaded.secure_url;
+        list.push({ ...base, url: uploaded.url });
+        if (a.contentId) cidMap[a.contentId] = uploaded.url;
       } catch (err) {
         console.error('[Email Inbound Error]: attachment upload failed:', (err as Error).message);
         list.push({ ...base, url: null, skipped: 'The file could not be stored.' });
@@ -225,10 +225,15 @@ export async function processInboundEmail(mail: ParsedEmail, origin: string): Pr
 
   if ((result.ai_mode ?? 'autopilot') === 'autopilot' && result.conversation_id) {
     followUps.push(async () => {
+      const internalSecret = process.env.INTERNAL_API_SECRET || process.env.CRON_SECRET || '';
       await fetch(`${origin}/api/ai/auto-respond`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(internalSecret ? { 'x-internal-secret': internalSecret } : {}),
+        },
         body: JSON.stringify({ conversation_id: result.conversation_id, workspace_id: workspaceId, message_id: result.message_id }),
+        signal: AbortSignal.timeout(15_000),
       }).catch((err) => console.error('[Email Inbound Error]: could not hand the email to the bot:', err));
     });
   }

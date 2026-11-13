@@ -1,5 +1,5 @@
-import { serviceClient } from '@/lib/supabase/service';
-import { isCloudinaryConfigured, uploadToCloudinary } from '@/lib/cloudinary';
+import { serviceClient } from '@/lib/pg/service';
+import { isStorageConfigured, uploadFileBuffer } from '@/lib/storage';
 import { getAdapter } from './registry';
 import { loadConnectionByAccount, loadConnectionById, updateConnection, type LoadedConnection } from './store';
 import type { ChannelAdapter, ChannelEvent, InboundMessageEvent } from './types';
@@ -200,10 +200,15 @@ export async function storeEvent(
       await nameSender(adapter, conn, event.from).catch((err) => console.error('[Channels] Could not look up the sender:', err));
     }
     if ((result.ai_mode ?? 'autopilot') === 'autopilot' && result.conversation_id) {
+      const internalSecret = process.env.INTERNAL_API_SECRET || process.env.CRON_SECRET || '';
       await fetch(`${origin}/api/ai/auto-respond`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(internalSecret ? { 'x-internal-secret': internalSecret } : {}),
+        },
         body: JSON.stringify({ conversation_id: result.conversation_id, workspace_id: result.workspace_id, message_id: result.message_id }),
+        signal: AbortSignal.timeout(15_000),
       }).catch((err) => console.error('[Channels] Could not hand the message to the bot:', err));
     }
   };
@@ -217,14 +222,14 @@ async function attachMedia(
   mediaId: string,
   filename?: string
 ) {
-  if (!isCloudinaryConfigured()) return;
+  if (!isStorageConfigured()) return;
   const file = await adapter.downloadMedia(conn, mediaId);
-  const uploaded = await uploadToCloudinary(file.data, {
+  const uploaded = await uploadFileBuffer(file.data, {
     folder: `channels/${conn.connection.workspace_id}`,
-    filename,
-    resourceType: file.mimeType.startsWith('image/') ? 'image' : 'auto',
+    filename: filename || `media-${mediaId}`,
+    mimeType: file.mimeType || 'application/octet-stream',
   });
-  const { error } = await serviceClient().from('messages').update({ attachment_url: uploaded.secure_url }).eq('id', messageId);
+  const { error } = await serviceClient().from('messages').update({ attachment_url: uploaded.url }).eq('id', messageId);
   if (error) throw userError(error.message);
 }
 
@@ -239,13 +244,14 @@ async function keepStory(
   storyUrl: string,
   metadata: Record<string, unknown>
 ) {
-  if (!isCloudinaryConfigured()) return;
+  if (!isStorageConfigured()) return;
   const file = await adapter.downloadMedia(conn, storyUrl);
-  const uploaded = await uploadToCloudinary(file.data, {
+  const uploaded = await uploadFileBuffer(file.data, {
     folder: `channels/${conn.connection.workspace_id}/stories`,
-    resourceType: file.mimeType.startsWith('image/') ? 'image' : 'auto',
+    filename: `story-${messageId}`,
+    mimeType: file.mimeType || 'application/octet-stream',
   });
-  const story = { ...(metadata.channel_story as Record<string, unknown>), media_url: uploaded.secure_url, media_type: file.mimeType };
+  const story = { ...(metadata.channel_story as Record<string, unknown>), media_url: uploaded.url, media_type: file.mimeType };
   const { error } = await serviceClient()
     .from('messages')
     .update({ metadata: { ...metadata, channel_story: story } })

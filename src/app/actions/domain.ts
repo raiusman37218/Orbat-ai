@@ -1,7 +1,7 @@
 'use server';
 
 import dns, { Resolver } from 'node:dns/promises';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/pg/server';
 import { Workspace } from '@/types/database';
 import {
   cleanDomain,

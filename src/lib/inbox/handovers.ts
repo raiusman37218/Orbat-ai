@@ -1,4 +1,4 @@
-import type { SupabaseClient } from '@supabase/supabase-js';
+import type { PgCompatClient } from '@/lib/pg/query-client';
 import type { Conversation } from '@/types/database';
 import { getBackendHandovers } from '@/lib/api/backend-client';
 
@@ -259,7 +259,7 @@ export async function loadHandoversFromBackend(
  * handover note; a conversation handed over twice shows both questions.
  */
 export async function loadHandovers(
-  supabase: SupabaseClient,
+  supabase: PgCompatClient,
   workspaceId: string,
   { days = 14, limit = 300 }: { days?: number; limit?: number } = {}
 ): Promise<HandoverItem[]> {

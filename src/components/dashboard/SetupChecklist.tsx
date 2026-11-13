@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Workspace, Visitor, Agent, Conversation } from '@/types/database';
 import { cn } from '@/lib/utils';
-import { createClient } from '@/lib/supabase/client';
+import { getVisitorsCountAction } from '@/app/actions/inbox';
 import type { View } from '@/components/dashboard/Sidebar';
 import type { SectionId } from '@/components/dashboard/SettingsHub';
 
@@ -52,7 +52,6 @@ export function SetupChecklist({
   onOpenSimulator,
   className,
 }: SetupChecklistProps) {
-  const supabase = createClient();
   const [copiedSnippet, setCopiedSnippet] = useState(false);
   const [isCheckingLive, setIsCheckingLive] = useState(false);
   const [liveCheckDetected, setLiveCheckDetected] = useState(false);
@@ -106,12 +105,8 @@ export function SetupChecklist({
     if (!workspace?.id || isCheckingLive) return;
     setIsCheckingLive(true);
     try {
-      const { count } = await supabase
-        .from('visitors')
-        .select('id', { count: 'exact', head: true })
-        .eq('workspace_id', workspace.id);
-
-      if (count && count > 0) {
+      const count = await getVisitorsCountAction(workspace.id);
+      if (count > 0) {
         setLiveCheckDetected(true);
       }
     } catch (e) {

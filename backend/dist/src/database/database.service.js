@@ -18,25 +18,31 @@ let DatabaseService = DatabaseService_1 = class DatabaseService {
     constructor(configService) {
         this.configService = configService;
         this.logger = new common_1.Logger(DatabaseService_1.name);
+        this.pool = null;
     }
     async onModuleInit() {
         const dbUrl = this.configService.get('database.url');
         const ssl = this.configService.get('database.ssl');
+        const sslRejectUnauthorized = this.configService.get('database.sslRejectUnauthorized') ?? true;
         const max = this.configService.get('database.maxPoolSize');
         if (!dbUrl) {
             this.logger.warn('DATABASE_URL is not set. Database operations will fail until configured.');
             return;
         }
+        const isVercel = this.configService.get('isVercel') ?? (process.env.VERCEL === '1' || process.env.VERCEL === 'true');
         this.pool = new pg_1.Pool({
             connectionString: dbUrl,
-            ssl: ssl ? { rejectUnauthorized: false } : false,
-            max: max || 20,
-            idleTimeoutMillis: 30000,
+            ssl: ssl ? { rejectUnauthorized: sslRejectUnauthorized } : false,
+            max: max || (isVercel ? 5 : 20),
+            idleTimeoutMillis: isVercel ? 10000 : 30000,
             connectionTimeoutMillis: 5000,
         });
         this.pool.on('error', (err) => {
             this.logger.error('Unexpected idle client error in PostgreSQL pool:', err);
         });
+        if (isVercel) {
+            return;
+        }
         try {
             const res = await this.pool.query('SELECT NOW() as current_time, version() as version');
             this.logger.log(`Connected to PostgreSQL successfully. Version: ${res.rows[0]?.version?.split(' ')[1] || 'Unknown'}`);

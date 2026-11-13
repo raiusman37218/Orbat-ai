@@ -1,6 +1,6 @@
 import 'server-only';
 import { unstable_cache } from 'next/cache';
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createPgCompatClient, type PgCompatClient } from '@/lib/pg/query-client';
 import type { Article, HelpSection, Workspace } from '@/types/database';
 import { HELP_KEYS_TAG, helpTag } from '@/lib/help/tags';
 
@@ -9,30 +9,16 @@ export { HELP_KEYS_TAG, helpTag };
 /**
  * The public help center's data, read on the server and cached.
  *
- * The pages used to be client components that, after the HTML arrived, ran
- * five or six Supabase queries one after another from the visitor's browser
- * (workspace, sections, articles, theme, article, siblings), and the metadata
- * layouts ran three or four more on the server before any HTML was sent. An
- * article took two to four seconds to appear. Now one cached read serves the
- * metadata and the page, and the browser starts with everything it needs.
- *
- * Reads use the anon key with no session: exactly what any visitor may see
- * (RLS shows published articles only). Each workspace's data is tagged
- * `help:<workspace id>`; the actions that change articles, sections, branding
- * or the design call refreshHelpCenter, so edits show up at once. Without an
- * edit, data is at most HELP_TTL seconds old.
+ * Reads run unauthenticated with role `anon` (preserving RLS / public view visibility).
  */
 
 const HELP_TTL = 300;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-
-let client: SupabaseClient | null = null;
-function anon(): SupabaseClient {
+let client: PgCompatClient | null = null;
+function anon(): PgCompatClient {
   if (!client) {
-    client = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL || '', process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '', {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
+    client = createPgCompatClient({ role: 'anon' });
   }
   return client;
 }

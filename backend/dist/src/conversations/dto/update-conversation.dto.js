@@ -38,13 +38,13 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.ValidateIf)((_o, value) => value !== null),
     (0, class_validator_1.IsUUID)(),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], UpdateConversationDto.prototype, "assignedAgentId", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.ValidateIf)((_o, value) => value !== null),
     (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], UpdateConversationDto.prototype, "snoozedUntil", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),

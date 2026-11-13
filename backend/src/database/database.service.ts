@@ -1,17 +1,19 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Pool, PoolClient, QueryResult } from 'pg';
+import { Pool, PoolClient, QueryResult, QueryResultRow } from 'pg';
 
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(DatabaseService.name);
-  private pool: Pool;
+  private pool: Pool | null = null;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) { }
 
   async onModuleInit() {
     const dbUrl = this.configService.get<string>('database.url');
     const ssl = this.configService.get<boolean>('database.ssl');
+    const sslRejectUnauthorized =
+      this.configService.get<boolean>('database.sslRejectUnauthorized') ?? true;
     const max = this.configService.get<number>('database.maxPoolSize');
 
     if (!dbUrl) {
@@ -19,17 +21,23 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    const isVercel = this.configService.get<boolean>('isVercel') ?? (process.env.VERCEL === '1' || process.env.VERCEL === 'true');
     this.pool = new Pool({
       connectionString: dbUrl,
-      ssl: ssl ? { rejectUnauthorized: false } : false,
-      max: max || 20,
-      idleTimeoutMillis: 30000,
+      ssl: ssl ? { rejectUnauthorized: sslRejectUnauthorized } : false,
+      max: max || (isVercel ? 5 : 20),
+      idleTimeoutMillis: isVercel ? 10000 : 30000,
       connectionTimeoutMillis: 5000,
     });
 
     this.pool.on('error', (err) => {
       this.logger.error('Unexpected idle client error in PostgreSQL pool:', err);
     });
+
+    if (isVercel) {
+      // Avoid extra synchronous round-trip latency on serverless cold starts
+      return;
+    }
 
     try {
       const res = await this.pool.query('SELECT NOW() as current_time, version() as version');
@@ -46,7 +54,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  async query<T = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
+  async query<T extends QueryResultRow = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
     if (!this.pool) {
       throw new Error('Database pool is not initialized. Please check DATABASE_URL.');
     }

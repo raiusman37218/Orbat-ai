@@ -19,7 +19,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { Workspace, WorkspaceIntegration } from '@/types/database';
-import { createClient } from '@/lib/supabase/client';
+import { getLegacyIntegrationsAction, saveLegacyIntegrationsAction } from '@/app/actions/settings';
 import { errorMessage } from '@/lib/errors/user-error';
 
 interface IntegrationsSettingsProps {
@@ -42,8 +42,6 @@ export function IntegrationsSettings({
   tab,
   embedded = false,
 }: IntegrationsSettingsProps) {
-  const supabase = createClient();
-
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -98,46 +96,21 @@ export function IntegrationsSettings({
 
     async function loadIntegrations() {
       try {
-        const [{ data }, { count: secCount }, { count: artCount }] = await Promise.all([
-          supabase
-            .from('workspace_integrations')
-            .select('*')
-            .eq('workspace_id', workspace!.id)
-            .maybeSingle(),
-          supabase
-            .from('help_sections')
-            .select('id', { count: 'exact', head: true })
-            .eq('workspace_id', workspace!.id),
-          supabase
-            .from('articles')
-            .select('id', { count: 'exact', head: true })
-            .eq('workspace_id', workspace!.id)
-            .eq('status', 'published'),
-        ]);
-
-        let currentVerifyToken = data?.meta_verify_token;
-        if (!currentVerifyToken || currentVerifyToken === 'chatify_meta_verify_secret' || currentVerifyToken === 'zentry_meta_verify_secret') {
-          currentVerifyToken = 'meta_vfy_' + Math.random().toString(36).substring(2, 10) + Math.random().toString(36).substring(2, 10);
-          await supabase
-            .from('workspace_integrations')
-            .upsert({
-              workspace_id: workspace!.id,
-              meta_verify_token: currentVerifyToken,
-            }, { onConflict: 'workspace_id' });
-        }
+        const res = await getLegacyIntegrationsAction(workspace!.id);
+        const data = res.integration;
 
         if (data) {
-          setFormData((prev) => ({ ...prev, ...data, meta_verify_token: currentVerifyToken }));
+          setFormData((prev) => ({ ...prev, ...data, meta_verify_token: res.metaVerifyToken }));
           if (data.langgraph_webhook_url) {
             setShowAdvancedWebhook(true);
           }
         } else {
-          setFormData((prev) => ({ ...prev, meta_verify_token: currentVerifyToken }));
+          setFormData((prev) => ({ ...prev, meta_verify_token: res.metaVerifyToken }));
         }
 
         setHelpStats({
-          sectionsCount: secCount || 0,
-          articlesCount: artCount || 0,
+          sectionsCount: res.sectionsCount,
+          articlesCount: res.articlesCount,
         });
       } catch (err) {
         console.error('Error fetching integrations:', err);
@@ -147,7 +120,7 @@ export function IntegrationsSettings({
     }
 
     loadIntegrations();
-  }, [workspace?.id, supabase]);
+  }, [workspace?.id]);
 
   // 2. Save settings
   const handleSave = async () => {
@@ -156,23 +129,8 @@ export function IntegrationsSettings({
     setSaveSuccess(false);
 
     try {
-      // The LangGraph fields belong to Settings → AI bot → LangGraph
-      // (saveExternalAgentSettingsAction). Saving them from here wrote this
-      // screen's stale copy, and the API key, back over that screen's changes.
-      const payload: Record<string, unknown> = {
-        ...formData,
-        workspace_id: workspace.id,
-        updated_at: new Date().toISOString(),
-      };
-      for (const key of Object.keys(payload)) {
-        if (key.startsWith('langgraph_')) delete payload[key];
-      }
-
-      const { error } = await supabase
-        .from('workspace_integrations')
-        .upsert(payload, { onConflict: 'workspace_id' });
-
-      if (error) throw error;
+      const res = await saveLegacyIntegrationsAction(workspace.id, formData);
+      if (!res.success) throw new Error(res.error);
 
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);

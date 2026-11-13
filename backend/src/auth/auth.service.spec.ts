@@ -112,5 +112,49 @@ describe('AuthService', () => {
       ).rejects.toThrow(ConflictException);
     });
   });
+
+  describe('googleAuth', () => {
+    it('should reject Google idToken when aud does not match GOOGLE_CLIENT_ID', async () => {
+      (mockConfig.get as any) = vi.fn((key: string) => {
+        if (key === 'google.clientId') return 'expected-client-id.apps.googleusercontent.com';
+        return 'test_secret';
+      });
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          aud: 'attacker-other-app.apps.googleusercontent.com',
+          email: 'victim@example.com',
+          email_verified: true,
+        }),
+      } as any);
+
+      await expect(
+        service.googleAuth({ idToken: 'fake-google-id-token' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      fetchSpy.mockRestore();
+    });
+
+    it('should reject Google idToken when email_verified is false', async () => {
+      (mockConfig.get as any) = vi.fn((key: string) => {
+        if (key === 'google.clientId') return 'expected-client-id.apps.googleusercontent.com';
+        return 'test_secret';
+      });
+      const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          aud: 'expected-client-id.apps.googleusercontent.com',
+          email: 'unverified@example.com',
+          email_verified: false,
+        }),
+      } as any);
+
+      await expect(
+        service.googleAuth({ idToken: 'fake-google-id-token' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      fetchSpy.mockRestore();
+    });
+  });
 });
 

@@ -56,7 +56,7 @@ describe('AI Engine & Usage Accounting', () => {
     expect(mockMessagesService.sendMessage).toHaveBeenCalledWith(
       'ws-1',
       'conv-1',
-      expect.objectContaining({ senderType: 'agent' }),
+      expect.objectContaining({ senderType: 'ai' }),
     );
     // CRITICAL: Billable reply must be called exactly once
     expect(aiUsage.recordBillableReply).toHaveBeenCalledTimes(1);

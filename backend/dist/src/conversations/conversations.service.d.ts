@@ -9,7 +9,7 @@ export declare class ConversationsService {
     private readonly db;
     private readonly realtime?;
     private readonly logger;
-    constructor(db: DatabaseService, realtime?: RealtimeService);
+    constructor(db: DatabaseService, realtime?: RealtimeService | undefined);
     getConversations(workspaceId: string, query: QueryConversationsDto): Promise<{
         items: any[];
         meta: {
@@ -51,7 +51,7 @@ export declare class ConversationsService {
             visitor: {
                 name: any;
                 email: any;
-            };
+            } | null;
         };
     }[]>;
     skipHandoff(workspaceId: string, conversationId: string, agent: AuthenticatedUser): Promise<{

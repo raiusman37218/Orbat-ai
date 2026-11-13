@@ -13,7 +13,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => ({}) }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => ({}) }));
 const chat = vi.hoisted(() => vi.fn());
 vi.mock('./provider', async (orig) => ({ ...(await orig<typeof import('./provider')>()), chat }));
 

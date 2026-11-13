@@ -14,6 +14,7 @@ exports.UsersService = void 0;
 const common_1 = require("@nestjs/common");
 const bcrypt = require("bcryptjs");
 const database_service_1 = require("../database/database.service");
+const jwt_auth_guard_1 = require("../auth/guards/jwt-auth.guard");
 let UsersService = UsersService_1 = class UsersService {
     constructor(db) {
         this.db = db;
@@ -108,6 +109,7 @@ let UsersService = UsersService_1 = class UsersService {
       RETURNING id, name, email, avatar_url, role, status, is_active, max_open_tickets, created_at
     `;
         const result = await this.db.query(sql, values);
+        (0, jwt_auth_guard_1.invalidateAuthStateCache)(agentId);
         return result.rows[0];
     }
     async updateMyStatus(workspaceId, agentId, status) {
@@ -136,6 +138,7 @@ let UsersService = UsersService_1 = class UsersService {
         await this.db.query(`UPDATE public.agents
        SET is_active = false, status = 'offline', deactivated_at = now()
        WHERE id = $1 AND workspace_id = $2`, [agentId, workspaceId]);
+        (0, jwt_auth_guard_1.invalidateAuthStateCache)(agentId);
         return { success: true, message: `Agent ${agent.name} has been deactivated.` };
     }
 };

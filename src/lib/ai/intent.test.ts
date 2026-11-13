@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => ({}), hasServiceRole: () => false }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => ({}), hasServiceRole: () => false }));
 vi.mock('@/lib/ai/provider', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/ai/provider')>();
   return { ...actual, chat: vi.fn() };

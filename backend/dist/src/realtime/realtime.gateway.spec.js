@@ -87,10 +87,19 @@ const realtime_service_1 = require("./realtime.service");
             (0, vitest_1.expect)(mockSocket.disconnect).not.toHaveBeenCalled();
         });
         (0, vitest_1.it)('should authenticate visitor socket with visitorId and workspaceId', async () => {
+            const visitorUuid = '11111111-1111-4111-8111-111111111456';
+            const workspaceUuid = '22222222-2222-4222-8222-222222222001';
+            mockDb.query.mockResolvedValueOnce({
+                rows: [{ visitor_id: visitorUuid, workspace_id: workspaceUuid }],
+            });
             const mockSocket = {
                 id: 'sock-2',
                 handshake: {
-                    auth: { visitorId: 'vis-456', workspaceId: 'ws-1' },
+                    auth: {
+                        visitorId: visitorUuid,
+                        visitorToken: 'vtok_valid_123',
+                        workspaceId: workspaceUuid,
+                    },
                     headers: {},
                 },
                 data: {},
@@ -99,7 +108,7 @@ const realtime_service_1 = require("./realtime.service");
             };
             await gateway.handleConnection(mockSocket);
             (0, vitest_1.expect)(mockSocket.data.type).toBe('visitor');
-            (0, vitest_1.expect)(mockSocket.data.visitorId).toBe('vis-456');
+            (0, vitest_1.expect)(mockSocket.data.visitorId).toBe(visitorUuid);
             (0, vitest_1.expect)(mockSocket.disconnect).not.toHaveBeenCalled();
         });
         (0, vitest_1.it)('should reject unauthenticated connections', async () => {
@@ -134,6 +143,9 @@ const realtime_service_1 = require("./realtime.service");
                 content: 'Hello world',
                 sender_type: 'agent',
             };
+            mockDb.query.mockResolvedValueOnce({
+                rows: [{ id: 'conv-1', visitor_id: 'vis-1' }],
+            });
             mockMessagesService.sendMessage.mockResolvedValue(mockMsg);
             const mockSocket = {
                 data: {
@@ -141,6 +153,7 @@ const realtime_service_1 = require("./realtime.service");
                     type: 'agent',
                     user: { sub: 'ag-1', email: 'ag@test.com', role: 'agent' },
                 },
+                rooms: new Set(),
             };
             const res = await gateway.handleSendMessage(mockSocket, {
                 conversationId: 'conv-1',
@@ -152,8 +165,12 @@ const realtime_service_1 = require("./realtime.service");
             (0, vitest_1.expect)(mockServer.emit).toHaveBeenCalledWith('message:new', mockMsg);
         });
         (0, vitest_1.it)('should mark messages as read and broadcast to room', async () => {
+            mockDb.query.mockResolvedValueOnce({
+                rows: [{ id: 'conv-1', visitor_id: 'vis-1' }],
+            });
             const mockSocket = {
                 data: { workspaceId: 'ws-1', type: 'agent' },
+                rooms: new Set(),
             };
             const res = await gateway.handleMessageRead(mockSocket, { conversationId: 'conv-1' });
             (0, vitest_1.expect)(res?.markedCount).toBe(2);

@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { ArrowRight, Check, Minus } from 'lucide-react';
 import type { Agent, Workspace } from '@/types/database';
-import { createClient } from '@/lib/supabase/client';
+import { updateAutoCloseDaysAction } from '@/app/actions/settings';
 import { CAPABILITIES, ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, roleCan, type Capability } from '@/lib/team/permissions';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -117,9 +117,9 @@ export function AutoCloseCard({ workspace, onWorkspaceUpdated }: { workspace: Wo
     if (invalid) return;
     setSaving(true);
     setError(null);
-    const { error: err } = await createClient().from('workspaces').update({ auto_close_days: n }).eq('id', workspace.id);
+    const res = await updateAutoCloseDaysAction(workspace.id, n);
     setSaving(false);
-    if (err) return setError(err.message);
+    if (!res.success) return setError(res.error);
     onWorkspaceUpdated?.({ ...workspace, auto_close_days: n });
     setJustSaved(true);
     toast.success('Auto-close rule saved.');

@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Only for messages in the caller's own workspace (the lookup goes through their session).
-    const { createClient } = await import('@/lib/supabase/server');
+    const { createClient } = await import('@/lib/pg/server');
     const { data: row } = await (await createClient()).from('messages').select('conversation_id').eq('id', messageId).maybeSingle();
     const guard = await guardConversation(row?.conversation_id, 'view');
     if (!guard.ok) return NextResponse.json(await guard.response.json(), { status: guard.response.status, headers: CORS_HEADERS });

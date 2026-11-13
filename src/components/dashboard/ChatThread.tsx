@@ -79,7 +79,16 @@ import {
 import { CountryFlag } from '@/components/ui/BrandIcon';
 import { parseLocation } from '@/lib/visitor-meta';
 import { looksLikeImage, uploadChatImage } from '@/lib/image-upload';
-import { createClient } from '@/lib/supabase/client';
+import {
+  claimConversationAction,
+  createInternalNoteAction,
+  listCannedResponsesAction,
+  listVisitorConversationsAction,
+  returnToAiAction,
+  setConversationLanguageOverrideAction,
+} from '@/app/actions/inbox';
+import { getAuthToken } from '@/lib/api/backend-auth';
+import { createBackendRealtimeClient } from '@/lib/api/backend-realtime';
 import { EMOJI_CATEGORIES, ALL_EMOJIS } from '@/lib/emojis';
 import { Linkified } from '@/components/ui/Linkified';
 import { ChatMarkdown } from '@/components/ui/ChatMarkdown';
@@ -90,7 +99,7 @@ import {
   isLikelyEnglishText,
   isRomanizedText,
   normalizeDetectedLanguage,
-} from '@/lib/ai/translator';
+} from '@/lib/ai/translator-client';
 import { errorMessage } from '@/lib/errors/user-error';
 import { useToast } from '@/components/ui/Toast';
 
@@ -271,11 +280,7 @@ export function ChatThread({
       // customer). Anyone else, or a chat not in agent_active, goes through
       // the normal AI switch, which the database treats the same way.
       if (conversation.handoff_status === 'agent_active' && conversation.assigned_agent_id === currentAgent?.id) {
-        const supabase = createClient();
-        const { error } = await supabase.rpc('return_to_ai', {
-          p_conversation_id: conversation.id,
-        });
-        if (error) throw error;
+        await returnToAiAction(conversation.id);
       }
       if (onToggleAiMode) {
         await onToggleAiMode('autopilot');
@@ -292,12 +297,7 @@ export function ChatThread({
   const handleClaimHandoff = async () => {
     setIsClaimingHandoff(true);
     try {
-      const supabase = createClient();
-      const { data, error } = await supabase.rpc('claim_conversation', {
-        p_conversation_id: conversation.id,
-      });
-      if (error) throw error;
-      const res = (data || {}) as { ok?: boolean; reason?: string; message?: string };
+      const res = await claimConversationAction(conversation.id);
       const inHandoffQueue =
         conversation.handoff_status === 'waiting_for_agent' || conversation.handoff_status === 'offline_queued';
       if (!res.ok && inHandoffQueue) {
@@ -604,73 +604,44 @@ export function ChatThread({
     }
   };
 
-  // 1. Realtime Agent Collision Detection (Supabase Presence)
+  // 1. Realtime Agent Collision Detection (NestJS Socket.IO Presence)
   useEffect(() => {
     if (!conversation.id || !currentAgent?.id) return;
+    const token = getAuthToken();
+    if (!token) {
+      setCollisionAgents([]);
+      return;
+    }
 
-    const supabase = createClient();
-    const presenceChannel = supabase.channel(
-      `conversation-presence-${conversation.id}`,
-      {
-        config: { presence: { key: currentAgent.id } },
-      }
-    );
-
-    presenceChannel
-      .on('presence', { event: 'sync' }, () => {
-        const state = presenceChannel.presenceState();
-        const others: { id: string; name: string; avatar_url?: string }[] = [];
-
-        Object.keys(state).forEach((key) => {
-          if (key !== currentAgent.id) {
-            const presences = state[key] as any[];
-            presences.forEach((p) => {
-              if (
-                p &&
-                p.agent_id !== currentAgent.id &&
-                !others.some((o) => o.id === p.agent_id)
-              ) {
-                others.push({
-                  id: p.agent_id,
-                  name: p.agent_name || 'Another agent',
-                  avatar_url: p.avatar_url,
-                });
-              }
-            });
-          }
-        });
-
-        setCollisionAgents(others);
-      })
-      .subscribe(async (status: any) => {
-        if (status === 'SUBSCRIBED') {
-          await presenceChannel.track({
-            agent_id: currentAgent.id,
-            agent_name: currentAgent.name,
-            avatar_url: currentAgent.avatar_url,
-          });
-        }
-      });
+    const client = createBackendRealtimeClient({}, token);
+    if (!client) {
+      setCollisionAgents([]);
+      return;
+    }
+    client.joinConversation(conversation.id);
 
     return () => {
-      presenceChannel.untrack();
-      supabase.removeChannel(presenceChannel);
+      client.leaveConversation(conversation.id);
+      client.disconnect();
+      setCollisionAgents([]);
     };
-  }, [conversation.id, currentAgent?.id, currentAgent?.name, currentAgent?.avatar_url]);
+  }, [conversation.id, currentAgent?.id]);
 
   // 2. Fetch Canned Responses from Database if not provided via props
   useEffect(() => {
     if (cannedResponses && cannedResponses.length > 0) return;
-    const supabase = createClient();
-    let query = supabase.from('canned_responses').select('*');
-    if (conversation.workspace_id) {
-      query = query.or(`workspace_id.eq.${conversation.workspace_id},workspace_id.is.null`);
-    }
-    query.then(({ data }: any) => {
-      if (data && data.length > 0) {
-        setDbMacros(data as CannedResponse[]);
-      }
-    });
+    if (!conversation.workspace_id) return;
+    let active = true;
+    listCannedResponsesAction(conversation.workspace_id)
+      .then((data) => {
+        if (active && data.length > 0) {
+          setDbMacros(data);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
   }, [cannedResponses, conversation.workspace_id]);
 
   // Whether the agent is reading the latest messages. Only then does the thread
@@ -832,24 +803,38 @@ export function ChatThread({
     };
   }, [showTagPicker]);
 
-  const typingSignalRef = React.useRef<{ convId: string; channel: any; last: number } | null>(null);
+  const typingSignalRef = React.useRef<{
+    convId: string;
+    client: ReturnType<typeof createBackendRealtimeClient> | null;
+    last: number;
+  } | null>(null);
+
+  useEffect(() => {
+    return () => {
+      typingSignalRef.current?.client?.disconnect();
+      typingSignalRef.current = null;
+    };
+  }, []);
 
   // Lets the visitor's widget show "typing…". Throttled; never for internal notes.
   const sendTypingSignal = () => {
     if (!conversation?.id) return;
+    const token = getAuthToken();
+    if (!token) return;
     const now = Date.now();
     let state = typingSignalRef.current;
     if (!state || state.convId !== conversation.id) {
-      const supabase = createClient();
-      if (state) supabase.removeChannel(state.channel);
-      const channel = supabase.channel(`zen-try-typing-${conversation.id}`);
-      channel.subscribe();
-      state = { convId: conversation.id, channel, last: 0 };
+      state?.client?.disconnect();
+      const client = createBackendRealtimeClient({}, token);
+      if (client) {
+        client.joinConversation(conversation.id);
+      }
+      state = { convId: conversation.id, client, last: 0 };
       typingSignalRef.current = state;
     }
     if (now - state.last < 2500) return;
     state.last = now;
-    state.channel.send({ type: 'broadcast', event: 'typing', payload: { sender: 'agent' } });
+    state.client?.sendTyping(conversation.id, true);
   };
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
@@ -953,30 +938,19 @@ export function ChatThread({
     setShowMergeModal(true);
     setSelectedMergeId('');
     try {
-      const supabase = createClient();
       const vid = conversation.visitor_id;
       const email = conversation.visitor?.email?.trim().toLowerCase();
-      let visitorIds = [vid].filter(Boolean) as string[];
-
-      if (email) {
-        const { data: matchedVisitors } = await supabase
-          .from('visitors')
-          .select('id')
-          .eq('email', email);
-        if (matchedVisitors) {
-          const ids = (matchedVisitors as Array<{ id: string }>).map((v) => v.id);
-          visitorIds = Array.from(new Set([...visitorIds, ...ids]));
-        }
+      if (!conversation.workspace_id || (!vid && !email)) {
+        setMergeCandidates([]);
+        return;
       }
-
-      const { data } = await supabase
-        .from('conversations')
-        .select('id, status, created_at, updated_at, tags')
-        .in('visitor_id', visitorIds)
-        .neq('id', conversation.id)
-        .order('updated_at', { ascending: false });
-
-      setMergeCandidates((data as Conversation[]) || []);
+      const data = await listVisitorConversationsAction(
+        conversation.workspace_id,
+        vid || null,
+        email || null,
+        conversation.id
+      );
+      setMergeCandidates(data || []);
     } catch (err) {
       console.error('Failed to load merge candidates:', err);
     }
@@ -1119,18 +1093,11 @@ export function ChatThread({
     setTargetLanguage(effectiveLang);
     setAutoTranslateEnabled(effectiveLang !== 'en');
     try {
-      const supabase = createClient();
-      const meta: Record<string, unknown> = { ...((conversation.channel_metadata as Record<string, unknown>) || {}) };
-      if (next) {
-        meta.language_override = next;
-        meta.visitor_language = next;
-        meta.language_name = getLanguageInfo(next).name;
-      } else {
-        delete meta.language_override;
-        meta.visitor_language = detectedVisitorLang;
-        meta.language_name = getLanguageInfo(detectedVisitorLang).name;
-      }
-      await supabase.from('conversations').update({ channel_metadata: meta }).eq('id', conversation.id);
+      await setConversationLanguageOverrideAction(
+        conversation.id,
+        next,
+        detectedVisitorLang
+      );
     } catch (err) {
       console.warn('Failed to save conversation language override:', err);
     }
@@ -1262,13 +1229,11 @@ export function ChatThread({
       sound.playSentMessage();
 
       if (isInternal) {
-        const supabase = createClient();
-        await supabase.from('internal_notes').insert({
-          conversation_id: conversation.id,
-          agent_id: currentAgent?.id || null,
-          content: text || (attachmentUrl ? 'Attached an image' : ''),
-          mentioned_agent_ids: mentionedAgentIds,
-        });
+        await createInternalNoteAction(
+          conversation.id,
+          text || (attachmentUrl ? 'Attached an image' : ''),
+          mentionedAgentIds
+        );
         setMentionedAgentIds([]);
       }
 

@@ -103,10 +103,13 @@ async function runMigrations() {
         appliedCount++;
       } catch (err: any) {
         await client.query('ROLLBACK').catch(() => {});
-        console.warn(`⚠️ Warning on ${file}: ${err.message}`);
-        // Record so it does not block the pipeline
-        await client.query('INSERT INTO public.schema_migrations (version) VALUES ($1) ON CONFLICT DO NOTHING', [file]);
-        warningCount++;
+        console.error(`❌ Migration failed on ${file}: ${err.message}`);
+        if (process.argv.includes('--allow-baseline-errors')) {
+          warningCount++;
+          console.warn(`⚠️ Continuing due to --allow-baseline-errors without marking ${file} as applied.`);
+        } else {
+          throw err;
+        }
       }
     }
 

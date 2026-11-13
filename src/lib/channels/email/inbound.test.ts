@@ -10,7 +10,7 @@ const { rpc, upload, logInbound, updateConnection, settings } = vi.hoisted(() =>
   settings: {} as Record<string, unknown>,
 }));
 
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: () => ({
     rpc,
     from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: null }) }) }) }),

@@ -1,6 +1,6 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 
 /**
  * Callback for the old LangGraph bridge (src/lib/agent/langgraph.ts): lets an

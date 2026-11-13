@@ -3,6 +3,7 @@ import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { RealtimeService } from './realtime.service';
+import { OutboxService } from './outbox.service';
 import { MessagesService } from '../messages/messages.service';
 import { DatabaseService } from '../database/database.service';
 export declare class RealtimeGateway implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect {
@@ -11,9 +12,10 @@ export declare class RealtimeGateway implements OnGatewayInit, OnGatewayConnecti
     private readonly realtimeService;
     private readonly messagesService;
     private readonly db;
+    private readonly outbox?;
     private readonly logger;
     server: Server;
-    constructor(jwtService: JwtService, configService: ConfigService, realtimeService: RealtimeService, messagesService: MessagesService, db: DatabaseService);
+    constructor(jwtService: JwtService, configService: ConfigService, realtimeService: RealtimeService, messagesService: MessagesService, db: DatabaseService, outbox?: OutboxService | undefined);
     afterInit(server: Server): void;
     handleConnection(client: Socket): Promise<void>;
     handleDisconnect(client: Socket): void;
@@ -40,15 +42,16 @@ export declare class RealtimeGateway implements OnGatewayInit, OnGatewayConnecti
         success: boolean;
         message: any;
     }>;
+    private verifyConversationAccess;
     handleTypingStart(client: Socket, payload: {
         conversationId: string;
-    }): void;
+    }): Promise<void>;
     handleTypingStop(client: Socket, payload: {
         conversationId: string;
-    }): void;
+    }): Promise<void>;
     handleMessageRead(client: Socket, payload: {
         conversationId: string;
     }): Promise<{
-        markedCount: number;
-    }>;
+        markedCount: number | null;
+    } | undefined>;
 }

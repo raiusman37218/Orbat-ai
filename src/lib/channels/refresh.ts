@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { getAdapter } from './registry';
 import { loadConnectionById, recordConnectionError, updateConnection, updateSecrets, type LoadedConnection } from './store';
 import type { ChannelConnection } from '@/types/database';

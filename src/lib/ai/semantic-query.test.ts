@@ -4,7 +4,7 @@
  */
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => ({}), hasServiceRole: () => true }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => ({}), hasServiceRole: () => true }));
 vi.mock('@/lib/ai/provider', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/ai/provider')>();
   return { ...actual, chat: vi.fn(async () => ({ text: 'refund policy for returned items' })) };

@@ -42,20 +42,24 @@ export async function POST(req: NextRequest) {
 
     const convIds = staleConvs.map((c) => c.id);
     const nowIso = new Date().toISOString();
+    const BATCH_SIZE = 200;
 
-    // Batch update all stale conversations to closed
-    const { error: updateErr } = await supabase
-      .from('conversations')
-      .update({
-        status: 'closed',
-        closed_at: nowIso,
-        updated_at: nowIso,
-      })
-      .in('id', convIds);
+    // Batch update stale conversations in bounded slices to stay under PostgREST URL limits
+    for (let i = 0; i < convIds.length; i += BATCH_SIZE) {
+      const batchIds = convIds.slice(i, i + BATCH_SIZE);
+      const { error: updateErr } = await supabase
+        .from('conversations')
+        .update({
+          status: 'closed',
+          closed_at: nowIso,
+          updated_at: nowIso,
+        })
+        .in('id', batchIds);
 
-    if (updateErr) {
-      console.error('[Auto-Close Update Error]:', updateErr);
-      return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      if (updateErr) {
+        console.error('[Auto-Close Update Error]:', updateErr);
+        return NextResponse.json({ error: updateErr.message }, { status: 500 });
+      }
     }
 
     // Insert system messages in batches
@@ -68,7 +72,9 @@ export async function POST(req: NextRequest) {
     }));
 
     try {
-      await supabase.from('messages').insert(systemMessages);
+      for (let i = 0; i < systemMessages.length; i += BATCH_SIZE) {
+        await supabase.from('messages').insert(systemMessages.slice(i, i + BATCH_SIZE));
+      }
     } catch (err) {
       console.warn('[Auto-Close Messages Insert Warning]:', err);
     }

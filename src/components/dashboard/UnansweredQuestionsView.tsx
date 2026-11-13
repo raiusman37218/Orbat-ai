@@ -31,7 +31,7 @@ import {
   approvePendingAnswerAction,
   type UnansweredQuestionRecord,
 } from '@/app/actions/unanswered';
-import { createClient } from '@/lib/supabase/client';
+import { getHelpDeskDataAction } from '@/app/actions/helpdesk';
 import { formatTimeAgo, cn } from '@/lib/utils';
 import { errorMessage } from '@/lib/errors/user-error';
 
@@ -87,18 +87,14 @@ export function UnansweredQuestionsView({
       const data = await listUnansweredQuestionsAction(workspace.id, activeTab);
       setQuestions(data);
 
-      const supabase = createClient();
-      const [{ data: secData }, { data: artData }] = await Promise.all([
-        supabase.from('help_sections').select('id, name').eq('workspace_id', workspace.id),
-        supabase
-          .from('articles')
-          .select('id, title, slug')
-          .eq('workspace_id', workspace.id)
-          .eq('status', 'published')
-          .order('title'),
-      ]);
-      setSections(secData || []);
-      setArticles(artData || []);
+      const hd = await getHelpDeskDataAction(workspace.id);
+      setSections(hd.sections.map((s) => ({ id: s.id, name: s.name })));
+      setArticles(
+        hd.articles
+          .filter((a) => a.status === 'published')
+          .map((a) => ({ id: a.id, title: a.title, slug: a.slug ?? null }))
+          .sort((a, b) => a.title.localeCompare(b.title))
+      );
     } catch (err: any) {
       console.warn('Failed to load unanswered questions:', err);
     } finally {

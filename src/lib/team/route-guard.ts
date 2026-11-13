@@ -6,7 +6,7 @@
 import { NextResponse } from 'next/server';
 import { AccessError, getWorkspaceAccess, type WorkspaceAccess } from './access';
 import type { Capability } from './permissions';
-import { sessionUser } from '@/lib/supabase/session-user';
+import { sessionUser } from '@/lib/auth/session-user';
 import { queryRows } from '@/lib/db';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -37,7 +37,7 @@ export async function guardConversation(
   const id = String(conversationId ?? '');
   if (!UUID.test(id)) return { ok: false, response: NextResponse.json({ error: 'Conversation not found' }, { status: 404 }) };
   // Look the workspace up via the caller's session + Neon / Supabase fallback.
-  const { createClient } = await import('@/lib/supabase/server');
+  const { createClient } = await import('@/lib/pg/server');
   const supabase = await createClient();
   const user = await sessionUser(supabase);
   if (!user) return { ok: false, response: NextResponse.json({ error: 'Unauthorized: sign in again.' }, { status: 401 }) };
@@ -71,7 +71,7 @@ export async function guardConversation(
  * they work in, with `capability` there.
  */
 export async function guardMember(capability: Capability): Promise<Guarded> {
-  const { createClient } = await import('@/lib/supabase/server');
+  const { createClient } = await import('@/lib/pg/server');
   const supabase = await createClient();
   const user = await sessionUser(supabase);
   if (!user) return { ok: false, response: NextResponse.json({ error: 'Unauthorized: sign in again.' }, { status: 401 }) };

@@ -11,11 +11,16 @@
  */
 
 import { createHash } from 'node:crypto';
-import { createClient } from '@/lib/supabase/server';
-import { serviceClient, hasServiceRole } from '@/lib/supabase/service';
+import { serviceClient, hasServiceRole } from '@/lib/pg/service';
+import { sessionUser } from '@/lib/auth/session-user';
+import {
+  createPgAuthUser,
+  deletePgAuthUser,
+  getPgPasswordHashForUser,
+} from '@/lib/auth/postgres-auth';
 import { checkWorkspaceLimit } from '@/lib/plans/enforce';
 import { ROLE_LABELS, isRole, type Role } from '@/lib/team/permissions';
-import { errorMessage, userError } from '@/lib/errors/user-error';
+import { errorMessage } from '@/lib/errors/user-error';
 import { findAuthUserByEmail } from '@/lib/auth/verification-code';
 
 const MIN_PASSWORD = 8;
@@ -73,9 +78,8 @@ async function loadInvite(token: string): Promise<{ invite: InviteRow | null; pr
 
 async function sessionEmail(): Promise<{ id: string; email: string } | null> {
   try {
-    const supabase = await createClient();
-    const { data } = await supabase.auth.getUser();
-    return data.user?.email ? { id: data.user.id, email: data.user.email.toLowerCase() } : null;
+    const user = await sessionUser();
+    return user?.email ? { id: user.id, email: user.email.toLowerCase() } : null;
   } catch {
     return null;
   }
@@ -115,10 +119,10 @@ export type AcceptResult =
 export async function acceptInvitationAction(input: { token: string; name: string; password?: string }): Promise<AcceptResult> {
   try {
     if (!hasServiceRole()) {
-      console.error('[Team Invite] SUPABASE_SERVICE_ROLE_KEY is not configured');
+      console.error('[Team Invite] DATABASE_URL is not configured');
       return {
         success: false,
-        error: 'Server authentication configuration is missing (SUPABASE_SERVICE_ROLE_KEY). Please contact your administrator.',
+        error: 'Server database configuration is missing (DATABASE_URL). Please contact your administrator.',
       };
     }
 
@@ -137,90 +141,97 @@ export async function acceptInvitationAction(input: { token: string; name: strin
     let userId: string;
     let created = false;
     if (me) {
-    if (me.email !== invite.email) {
-      return {
-        success: false,
-        code: 'wrong_account',
-        error: `You are signed in as ${me.email}, but this invitation is for ${invite.email}. Sign out, then open the link again.`,
-      };
+      if (me.email !== invite.email) {
+        return {
+          success: false,
+          code: 'wrong_account',
+          error: `You are signed in as ${me.email}, but this invitation is for ${invite.email}. Sign out, then open the link again.`,
+        };
+      }
+      userId = me.id;
+    } else {
+      const existingId = await authUserByEmail(invite.email);
+      if (existingId) {
+        return {
+          success: false,
+          code: 'account_exists',
+          error: `${invite.email} already has an account. Sign in with it, then open this link again to join.`,
+        };
+      }
+      const password = input.password || '';
+      if (password.length < MIN_PASSWORD) {
+        return { success: false, error: `Choose a password of at least ${MIN_PASSWORD} characters.` };
+      }
+      const { data, error } = await createPgAuthUser({
+        email: invite.email,
+        password,
+        email_confirm: true,
+        user_metadata: { name },
+      });
+      if (error || !data.user) {
+        console.error('[Team Invite] Could not create the account:', error);
+        return { success: false, error: error?.message || 'Could not create your account.' };
+      }
+      userId = data.user.id;
+      created = true;
     }
-    userId = me.id;
-  } else {
-    const existingId = await authUserByEmail(invite.email);
-    if (existingId) {
-      return {
-        success: false,
-        code: 'account_exists',
-        error: `${invite.email} already has an account. Sign in with it, then open this link again to join.`,
-      };
+
+    const { data: agent } = await admin.from('agents').select('workspace_id').eq('id', userId).maybeSingle();
+    if (agent?.workspace_id && agent.workspace_id !== invite.workspace_id) {
+      if (created) await deletePgAuthUser(userId);
+      return { success: false, error: 'Your account already belongs to another workspace. Leave it before joining this one.' };
     }
-    const password = input.password || '';
-    if (password.length < MIN_PASSWORD) return { success: false, error: `Choose a password of at least ${MIN_PASSWORD} characters.` };
-    const { data, error } = await admin.auth.admin.createUser({
-      email: invite.email,
-      password,
-      email_confirm: true,
-      user_metadata: { name },
-    });
-    if (error || !data.user) {
-      console.error('[Team Invite] Could not create the account:', error);
-      return { success: false, error: error?.message || 'Could not create your account.' };
+
+    // Claim the invitation; only one acceptance wins.
+    const { data: claimed, error: claimError } = await admin
+      .from('workspace_invitations')
+      .update({ accepted_at: new Date().toISOString(), accepted_by: userId })
+      .eq('id', invite.id)
+      .is('accepted_at', null)
+      .is('revoked_at', null)
+      .select('id')
+      .maybeSingle();
+    if (claimError || !claimed) {
+      if (created) await deletePgAuthUser(userId);
+      return { success: false, error: 'This invitation was just used or withdrawn.', code: 'used' };
     }
-    userId = data.user.id;
-    created = true;
-  }
 
-  const { data: agent } = await admin.from('agents').select('workspace_id').eq('id', userId).maybeSingle();
-  if (agent?.workspace_id && agent.workspace_id !== invite.workspace_id) {
-    return { success: false, error: 'Your account already belongs to another workspace. Leave it before joining this one.' };
-  }
+    const passwordHash = await getPgPasswordHashForUser(userId, invite.email);
 
-  // Claim the invitation; only one acceptance wins.
-  const { data: claimed, error: claimError } = await admin
-    .from('workspace_invitations')
-    .update({ accepted_at: new Date().toISOString(), accepted_by: userId })
-    .eq('id', invite.id)
-    .is('accepted_at', null)
-    .is('revoked_at', null)
-    .select('id')
-    .maybeSingle();
-  if (claimError || !claimed) {
-    if (created) await admin.auth.admin.deleteUser(userId).catch(() => {});
-    return { success: false, error: 'This invitation was just used or withdrawn.', code: 'used' };
-  }
-
-  const { error: agentError } = await admin.from('agents').upsert(
-    {
-      id: userId,
-      workspace_id: invite.workspace_id,
-      name,
-      email: invite.email,
-      role: invite.role,
-      status: 'offline',
-      is_active: true,
-      deactivated_at: null,
-    },
-    { onConflict: 'id' }
-  );
-  if (agentError) {
-    console.error('[Team Invite] Could not add the member:', agentError);
-    await admin.from('workspace_invitations').update({ accepted_at: null, accepted_by: null }).eq('id', invite.id);
-    if (created) await admin.auth.admin.deleteUser(userId).catch(() => {});
-    return { success: false, error: 'Could not add you to the team. Try again in a moment.' };
-  }
-
-  // Groups chosen when inviting, if they still exist in this workspace.
-  const groupIds = invite.role === 'light_agent' ? [] : invite.group_ids || [];
-  if (groupIds.length) {
-    const { data: groups } = await admin.from('ticket_groups').select('id').eq('workspace_id', invite.workspace_id).in('id', groupIds);
-    const rows = ((groups as { id: string }[] | null) || []).map((g) => ({ group_id: g.id, agent_id: userId, workspace_id: invite.workspace_id }));
-    if (rows.length) {
-      const { error } = await admin.from('ticket_group_members').insert(rows);
-      if (error) console.error('[Team Invite] Could not add the member to groups:', error.message);
+    const { error: agentError } = await admin.from('agents').upsert(
+      {
+        id: userId,
+        workspace_id: invite.workspace_id,
+        name,
+        email: invite.email,
+        role: invite.role,
+        status: 'offline',
+        is_active: true,
+        deactivated_at: null,
+        email_verified: true,
+        ...(passwordHash ? { password_hash: passwordHash } : {}),
+      },
+      { onConflict: 'id' }
+    );
+    if (agentError) {
+      console.error('[Team Invite] Could not add the member:', agentError);
+      await admin.from('workspace_invitations').update({ accepted_at: null, accepted_by: null }).eq('id', invite.id);
+      if (created) await deletePgAuthUser(userId);
+      return { success: false, error: 'Could not add you to the team. Try again in a moment.' };
     }
-  }
 
-  return { success: true, email: invite.email, needsSignIn: created };
+    // Groups chosen when inviting, if they still exist in this workspace.
+    const groupIds = invite.role === 'light_agent' ? [] : invite.group_ids || [];
+    if (groupIds.length) {
+      const { data: groups } = await admin.from('ticket_groups').select('id').eq('workspace_id', invite.workspace_id).in('id', groupIds);
+      const rows = ((groups as { id: string }[] | null) || []).map((g) => ({ group_id: g.id, agent_id: userId, workspace_id: invite.workspace_id }));
+      if (rows.length) {
+        const { error } = await admin.from('ticket_group_members').insert(rows);
+        if (error) console.error('[Team Invite] Could not add the member to groups:', error.message);
+      }
+    }
+
+    return { success: true, email: invite.email, needsSignIn: created };
   } catch (err: unknown) {
     console.error('[Team Invite] acceptInvitationAction error:', err);
     return {

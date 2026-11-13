@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Compiled widget bundle and standalone NestJS backend/widget packages:
+    "public/widget.js",
+    "backend/**",
+    "widget/**",
+    "scratch/**",
+    "coverage/**",
   ]),
 ]);
 

@@ -239,14 +239,18 @@ function createMockSupabaseClient() {
   };
 }
 
-// Mock @/lib/supabase/server
-vi.mock('@/lib/supabase/server', () => ({
+// Mock @/lib/pg/server
+vi.mock('@/lib/pg/server', () => ({
   createClient: vi.fn(async () => createMockSupabaseClient()),
 }));
 
-// Mock @/lib/supabase/service
-vi.mock('@/lib/supabase/service', () => ({
+// Mock @/lib/pg/service
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: vi.fn(() => createMockSupabaseClient()),
+}));
+
+vi.mock('@/lib/auth/session-user', () => ({
+  sessionUser: vi.fn(async () => fakeState.user),
 }));
 
 import {

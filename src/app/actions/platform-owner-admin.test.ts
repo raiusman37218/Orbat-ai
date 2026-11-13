@@ -300,13 +300,17 @@ vi.mock('@/components/admin/WorkspaceDetailView', () => ({
   WorkspaceDetailView: vi.fn((props: any) => ({ type: 'WorkspaceDetailView', props })),
 }));
 
-vi.mock('@/lib/supabase/server', () => ({
+vi.mock('@/lib/pg/server', () => ({
   createClient: async () => createMockSupabaseClient(),
 }));
 
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: () => createMockSupabaseClient(),
   hasServiceRole: () => true,
+}));
+
+vi.mock('@/lib/auth/session-user', () => ({
+  sessionUser: async () => fakeState.user,
 }));
 
 vi.mock('next/headers', () => ({

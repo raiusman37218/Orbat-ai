@@ -27,6 +27,6 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsUUID)(),
-    __metadata("design:type", String)
+    __metadata("design:type", Object)
 ], BulkUpdateConversationsDto.prototype, "agentId", void 0);
 //# sourceMappingURL=bulk-update-conversations.dto.js.map

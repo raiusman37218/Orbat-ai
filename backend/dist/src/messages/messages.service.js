@@ -17,10 +17,13 @@ exports.MessagesService = void 0;
 const common_1 = require("@nestjs/common");
 const database_service_1 = require("../database/database.service");
 const realtime_service_1 = require("../realtime/realtime.service");
+const outbox_service_1 = require("../realtime/outbox.service");
+const realtime_emit_context_1 = require("../realtime/realtime-emit.context");
 let MessagesService = MessagesService_1 = class MessagesService {
-    constructor(db, realtime) {
+    constructor(db, realtime, outbox) {
         this.db = db;
         this.realtime = realtime;
+        this.outbox = outbox;
         this.logger = new common_1.Logger(MessagesService_1.name);
     }
     async getMessages(workspaceId, conversationId, limit = 50, before) {
@@ -28,6 +31,7 @@ let MessagesService = MessagesService_1 = class MessagesService {
         if (conv.rows.length === 0) {
             throw new common_1.NotFoundException(`Conversation ${conversationId} not found.`);
         }
+        const clampedLimit = Math.min(Math.max(1, Math.floor(limit || 50)), 100);
         const conditions = ['m.conversation_id = $1'];
         const params = [conversationId];
         let idx = 2;
@@ -35,17 +39,20 @@ let MessagesService = MessagesService_1 = class MessagesService {
             conditions.push(`m.created_at < $${idx++}`);
             params.push(before);
         }
-        params.push(limit);
+        params.push(clampedLimit);
         const sql = `
-      SELECT m.id, m.conversation_id, m.sender_type, m.sender_id, m.content,
-             m.attachment_url, m.is_internal, m.reply_to_message_id,
-             m.delivered_at, m.read_at, m.metadata, m.created_at,
-             a.name as sender_agent_name, a.avatar_url as sender_agent_avatar
-      FROM public.messages m
-      LEFT JOIN public.agents a ON a.id = m.sender_id AND m.sender_type = 'agent'
-      WHERE ${conditions.join(' AND ')}
-      ORDER BY m.created_at ASC
-      LIMIT $${idx}
+      SELECT * FROM (
+        SELECT m.id, m.conversation_id, m.sender_type, m.sender_id, m.content,
+               m.attachment_url, m.is_internal, m.reply_to_message_id,
+               m.delivered_at, m.read_at, m.metadata, m.created_at,
+               a.name as sender_agent_name, a.avatar_url as sender_agent_avatar
+        FROM public.messages m
+        LEFT JOIN public.agents a ON a.id = m.sender_id AND m.sender_type = 'agent'
+        WHERE ${conditions.join(' AND ')}
+        ORDER BY m.created_at DESC
+        LIMIT $${idx}
+      ) latest
+      ORDER BY latest.created_at ASC
     `;
         const result = await this.db.query(sql, params);
         return result.rows;
@@ -68,9 +75,22 @@ let MessagesService = MessagesService_1 = class MessagesService {
                 return existingMsg.rows[0];
             }
         }
-        const senderType = dto.senderType || (sender ? 'agent' : 'visitor');
-        const senderId = sender?.id || (senderType === 'visitor' ? conv.visitor_id : null);
         const isInternal = Boolean(dto.isInternal);
+        let senderType;
+        if (sender) {
+            if (sender.role === 'light_agent' && !isInternal) {
+                throw new common_1.ForbiddenException('Light agents can only post internal notes.');
+            }
+            const isAdmin = sender.role === 'owner' || sender.role === 'admin' || Boolean(sender.isSuperAdmin);
+            senderType = dto.senderType === 'system' && isAdmin ? 'system' : 'agent';
+        }
+        else {
+            senderType =
+                dto.senderType === 'ai' || dto.senderType === 'system' || dto.senderType === 'visitor'
+                    ? dto.senderType
+                    : 'visitor';
+        }
+        const senderId = sender?.id || (senderType === 'visitor' ? conv.visitor_id : null);
         const content = (dto.content || '').trim();
         const attachmentUrl = dto.attachmentUrl || null;
         if (!content && !attachmentUrl) {
@@ -80,7 +100,7 @@ let MessagesService = MessagesService_1 = class MessagesService {
         if (dto.idempotencyKey) {
             metadata.idempotency_key = dto.idempotencyKey;
         }
-        const createdMessage = await this.db.transaction(async (client) => {
+        const txResult = await this.db.transaction(async (client) => {
             const msgRes = await client.query(`INSERT INTO public.messages (
            conversation_id, sender_type, sender_id, content,
            attachment_url, is_internal, reply_to_message_id, metadata
@@ -117,21 +137,46 @@ let MessagesService = MessagesService_1 = class MessagesService {
                status = 'open'
            WHERE id = $1 AND workspace_id = $2`, [conversationId, workspaceId]);
             }
-            return message;
+            else if (senderType === 'ai') {
+                await client.query(`UPDATE public.conversations
+           SET updated_at = now()
+           WHERE id = $1 AND workspace_id = $2`, [conversationId, workspaceId]);
+            }
+            const enriched = {
+                ...message,
+                sender_agent_name: senderType === 'agent' ? sender?.name || null : null,
+                sender_agent_avatar: null,
+            };
+            const rooms = [`conversation:${conversationId}`];
+            if (!isInternal)
+                rooms.push(`workspace:${workspaceId}`);
+            const outboxId = this.outbox
+                ? await this.outbox.recordInTransaction(client, {
+                    workspaceId,
+                    conversationId,
+                    eventName: 'message:new',
+                    rooms,
+                    payload: enriched,
+                })
+                : null;
+            return { enriched, outboxId };
         });
-        const enrichedMessage = {
-            ...createdMessage,
-            sender_agent_name: senderType === 'agent' ? sender?.name || null : null,
-            sender_agent_avatar: null,
-        };
-        if (this.realtime) {
-            this.realtime.emitToConversation(conversationId, 'message:new', enrichedMessage);
+        const enrichedMessage = txResult.enriched;
+        if ((0, realtime_emit_context_1.shouldSuppressDirectRealtimeEmit)()) {
+            (0, realtime_emit_context_1.trackSuppressContextOutboxId)(txResult.outboxId);
+        }
+        else if (this.realtime) {
+            const sentConv = this.realtime.emitToConversation(conversationId, 'message:new', enrichedMessage);
+            let sentWs = true;
             if (!isInternal) {
-                this.realtime.emitToWorkspace(workspaceId, 'message:new', enrichedMessage);
+                sentWs = this.realtime.emitToWorkspace(workspaceId, 'message:new', enrichedMessage);
                 this.realtime.emitToWorkspace(workspaceId, 'conversation:updated', {
                     conversationId,
                     lastMessage: enrichedMessage,
                 });
+            }
+            if (txResult.outboxId && sentConv && sentWs) {
+                await this.outbox?.markPublished(txResult.outboxId).catch(() => { });
             }
         }
         return enrichedMessage;
@@ -147,7 +192,7 @@ let MessagesService = MessagesService_1 = class MessagesService {
         }
         const existing = msgRes.rows[0];
         const isAdmin = actor.role === 'owner' || actor.role === 'admin' || actor.isSuperAdmin;
-        if (!isAdmin && existing.sender_id && existing.sender_id !== actor.id) {
+        if (!isAdmin && (!existing.sender_id || existing.sender_id !== actor.id)) {
             throw new common_1.ForbiddenException('You can only edit your own messages.');
         }
         const updatedRes = await this.db.query(`UPDATE public.messages
@@ -172,7 +217,7 @@ let MessagesService = MessagesService_1 = class MessagesService {
         }
         const existing = msgRes.rows[0];
         const isAdmin = actor.role === 'owner' || actor.role === 'admin' || actor.isSuperAdmin;
-        if (!isAdmin && existing.sender_id && existing.sender_id !== actor.id) {
+        if (!isAdmin && (!existing.sender_id || existing.sender_id !== actor.id)) {
             throw new common_1.ForbiddenException('You can only delete your own messages.');
         }
         await this.db.query('DELETE FROM public.messages WHERE id = $1 AND conversation_id = $2', [messageId, conversationId]);
@@ -190,7 +235,10 @@ let MessagesService = MessagesService_1 = class MessagesService {
          AND read_at IS NULL
          AND conversation_id IN (SELECT id FROM public.conversations WHERE workspace_id = $3)
        RETURNING id, read_at`, [conversationId, targetSender, workspaceId]);
-        if (this.realtime && result.rowCount && result.rowCount > 0) {
+        if (this.realtime &&
+            !(0, realtime_emit_context_1.shouldSuppressDirectRealtimeEmit)() &&
+            result.rowCount &&
+            result.rowCount > 0) {
             this.realtime.emitToConversation(conversationId, 'message:read', {
                 conversationId,
                 readBy: senderType,
@@ -215,7 +263,10 @@ exports.MessagesService = MessagesService = MessagesService_1 = __decorate([
     (0, common_1.Injectable)(),
     __param(1, (0, common_1.Optional)()),
     __param(1, (0, common_1.Inject)((0, common_1.forwardRef)(() => realtime_service_1.RealtimeService))),
+    __param(2, (0, common_1.Optional)()),
+    __param(2, (0, common_1.Inject)((0, common_1.forwardRef)(() => outbox_service_1.OutboxService))),
     __metadata("design:paramtypes", [database_service_1.DatabaseService,
-        realtime_service_1.RealtimeService])
+        realtime_service_1.RealtimeService,
+        outbox_service_1.OutboxService])
 ], MessagesService);
 //# sourceMappingURL=messages.service.js.map

@@ -36,7 +36,7 @@ export declare class ConversationsController {
             visitor: {
                 name: any;
                 email: any;
-            };
+            } | null;
         };
     }[]>;
     bulkUpdateConversations(workspaceId: string, dto: BulkUpdateConversationsDto, actor: AuthenticatedUser): Promise<{

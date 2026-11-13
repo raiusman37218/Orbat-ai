@@ -61,13 +61,12 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Bypass non-GET, internal HMR, Supabase APIs, Cloudinary, and Next.js APIs
+  // Bypass non-GET, internal HMR, Cloudinary, and Next.js APIs
   if (
     request.method !== 'GET' ||
     !url.protocol.startsWith('http') ||
     url.pathname.startsWith('/api/') ||
     url.pathname.startsWith('/_next/webpack-hmr') ||
-    url.hostname.includes('supabase.co') ||
     url.hostname.includes('cloudinary.com')
   ) {
     return;

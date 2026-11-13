@@ -23,8 +23,8 @@ import {
 import { isSubAgentId, SUB_AGENT_BY_ID } from '@/lib/ai/sub-agents';
 import { cn } from '@/lib/utils';
 import { ErrorState, LoadingState } from '@/components/ui/States';
-import { createClient } from '@/lib/supabase/client';
 import { Avatar } from '@/components/ui/Avatar';
+import { useWorkspaceLive } from '@/lib/realtime/use-workspace-live';
 import { Linkified } from '@/components/ui/Linkified';
 import { ChatMarkdown } from '@/components/ui/ChatMarkdown';
 import { isVisitorOnline, formatTimeOnPage, calculateTimeOnPage, formatPageDisplay } from '@/lib/tracking/visitor-tracking';
@@ -117,28 +117,14 @@ export function TicketDetail({ workspaceId, ticketId, agents, groups, me, onBack
 
   // Live: new chat messages and changes made by anyone else.
   const conversationId = detail?.ticket.conversation_id;
-  useEffect(() => {
-    const supabase = createClient();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const refresh = () => {
-      clearTimeout(timer);
-      timer = setTimeout(load, 250);
-    };
-    const channel = supabase.channel(`ticket-${ticketId}-${Math.random().toString(36).slice(2, 7)}`);
-    channel.on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'tickets', filter: `id=eq.${ticketId}` }, refresh);
-    if (conversationId) {
-      channel.on(
-        'postgres_changes',
-        { event: 'INSERT', schema: 'public', table: 'messages', filter: `conversation_id=eq.${conversationId}` },
-        refresh
-      );
-    }
-    channel.subscribe();
-    return () => {
-      clearTimeout(timer);
-      supabase.removeChannel(channel);
-    };
-  }, [ticketId, conversationId, load]);
+  useWorkspaceLive({
+    workspaceId,
+    conversationId,
+    enabled: Boolean(workspaceId && ticketId),
+    pollMs: 4000,
+    debounceMs: 250,
+    onRefresh: load,
+  });
 
   const people = useMemo(() => {
     const map: Record<string, string> = { ...(detail?.people || {}) };

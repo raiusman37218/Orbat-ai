@@ -47,7 +47,7 @@ function builder(table: string) {
   return proxy;
 }
 
-vi.mock('@/lib/supabase/server', () => ({
+vi.mock('@/lib/pg/server', () => ({
   createClient: async () => ({
     auth: { getUser: async () => ({ data: { user: { id: ME } } }) },
     from: (table: string) => builder(table),
@@ -58,6 +58,10 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }));
 vi.mock('@/lib/email/smtp', () => ({ isValidEmail: () => true, sendSmtpEmail: vi.fn() }));
+vi.mock('server-only', () => ({}));
+vi.mock('@/lib/auth/session-user', () => ({
+  sessionUser: async () => ({ id: ME }),
+}));
 
 import * as actions from '@/app/actions/tickets';
 
@@ -86,7 +90,9 @@ const touchedTicketData = () =>
 describe('ticket actions refuse another workspace before touching its data', () => {
   const calls: [string, () => Promise<unknown>][] = [
     ['getTicketsBootstrapAction', () => actions.getTicketsBootstrapAction(WS_B)],
+    ['getTicketBarAction', () => actions.getTicketBarAction(WS_B, T1)],
     ['getViewCountsAction', () => actions.getViewCountsAction(WS_B)],
+    ['listTicketViewsAction', () => actions.listTicketViewsAction(WS_B)],
     ['listTicketsAction', () => actions.listTicketsAction(WS_B, { viewId: 'system:all_open' })],
     ['getTicketAction', () => actions.getTicketAction(WS_B, T1)],
     ['updateTicketAction', () => actions.updateTicketAction(WS_B, T1, { status: 'solved' })],

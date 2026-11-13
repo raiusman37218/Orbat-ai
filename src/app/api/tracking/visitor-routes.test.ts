@@ -69,7 +69,7 @@ async function rpc(fn: string, args: Row) {
   throw new Error(`unexpected rpc ${fn}`);
 }
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => ({ from: query, rpc }) }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => ({ from: query, rpc }) }));
 vi.mock('@/lib/geo', () => ({
   geoFromRequest: async () => ({ city: 'Lahore', country: 'Pakistan', countryCode: 'PK' }),
   clientIpOf: () => '203.0.113.9',

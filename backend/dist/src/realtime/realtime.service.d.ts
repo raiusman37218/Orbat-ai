@@ -3,6 +3,7 @@ export declare class RealtimeService {
     private readonly logger;
     private server;
     setServer(server: Server): void;
+    isReady(): boolean;
     emitToConversation(conversationId: string, event: string, data: any): boolean;
     emitToWorkspace(workspaceId: string, event: string, data: any): boolean;
     emitToUser(userId: string, event: string, data: any): boolean;

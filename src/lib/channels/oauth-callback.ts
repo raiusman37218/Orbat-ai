@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceAccess } from '@/lib/team/access';
-import { hasServiceRole } from '@/lib/supabase/service';
+import { hasServiceRole } from '@/lib/pg/service';
 import { hasEncryptionKey } from './crypto';
 import { readOAuthState, type OAuthState } from './oauth-state';
 import { saveConnection } from './store';
@@ -41,7 +41,7 @@ export async function handleOAuthCallback(
     return back(appUrl, channel, 'error', params.get('error_description') || params.get('error') || `${label} sign-in was cancelled.`);
   }
   if (!hasServiceRole() || !hasEncryptionKey()) {
-    return back(appUrl, channel, 'error', 'The server is missing SUPABASE_SERVICE_ROLE_KEY or CHANNEL_ENCRYPTION_KEY.');
+    return back(appUrl, channel, 'error', 'The server is missing DATABASE_URL or CHANNEL_ENCRYPTION_KEY.');
   }
   const state = readOAuthState(channel, params.get('state'));
   const code = params.get('code');

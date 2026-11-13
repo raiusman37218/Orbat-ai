@@ -58,7 +58,7 @@ function mockQuery(table: string) {
   return proxy;
 }
 
-vi.mock('@/lib/supabase/server', () => ({
+vi.mock('@/lib/pg/server', () => ({
   createClient: async () => ({
     auth: {
       getUser: async () => ({ data: { user: fakeState.user }, error: null }),
@@ -67,7 +67,13 @@ vi.mock('@/lib/supabase/server', () => ({
   }),
 }));
 
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('server-only', () => ({}));
+
+vi.mock('@/lib/auth/session-user', () => ({
+  sessionUser: async () => fakeState.user,
+}));
+
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: () => ({
     from: (table: string) => mockQuery(table),
   }),

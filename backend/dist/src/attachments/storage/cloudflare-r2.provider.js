@@ -22,7 +22,6 @@ const ALLOWED_MIME_TYPES = new Set([
     'image/png',
     'image/webp',
     'image/gif',
-    'image/svg+xml',
     'application/pdf',
     'text/plain',
     'text/csv',
@@ -74,7 +73,12 @@ let CloudflareR2StorageProvider = CloudflareR2StorageProvider_1 = class Cloudfla
         const storageKey = `workspaces/${workspaceId}/attachments/${Date.now()}-${(0, crypto_1.randomUUID)()}${ext}`;
         const expiresInSeconds = 3600;
         let uploadUrl = `https://mock-r2.orbat.internal/${this.bucketName}/${storageKey}`;
-        if (this.s3Client) {
+        if (!this.s3Client) {
+            if (this.config.get('nodeEnv') === 'production') {
+                throw new common_1.ServiceUnavailableException('Object storage (Cloudflare R2) is not configured.');
+            }
+        }
+        else {
             const command = new client_s3_1.PutObjectCommand({
                 Bucket: this.bucketName,
                 Key: storageKey,
@@ -96,17 +100,20 @@ let CloudflareR2StorageProvider = CloudflareR2StorageProvider_1 = class Cloudfla
         };
     }
     async getPresignedDownloadUrl(storageKey, expiresInSeconds = 3600) {
+        if (this.s3Client) {
+            const command = new client_s3_1.GetObjectCommand({
+                Bucket: this.bucketName,
+                Key: storageKey,
+            });
+            return (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, { expiresIn: expiresInSeconds });
+        }
         if (this.publicBaseUrl) {
             return `${this.publicBaseUrl.replace(/\/$/, '')}/${storageKey}`;
         }
-        if (!this.s3Client) {
-            return `https://mock-r2.orbat.internal/${this.bucketName}/${storageKey}?mock_token=123`;
+        if (this.config.get('nodeEnv') === 'production') {
+            throw new common_1.ServiceUnavailableException('Object storage (Cloudflare R2) is not configured.');
         }
-        const command = new client_s3_1.GetObjectCommand({
-            Bucket: this.bucketName,
-            Key: storageKey,
-        });
-        return (0, s3_request_presigner_1.getSignedUrl)(this.s3Client, command, { expiresIn: expiresInSeconds });
+        return `https://mock-r2.orbat.internal/${this.bucketName}/${storageKey}?mock_token=123`;
     }
     async deleteFile(storageKey) {
         if (!this.s3Client) {

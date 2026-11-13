@@ -1,4 +1,3 @@
-import { OnModuleInit } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { DatabaseService } from '../database/database.service';
@@ -7,13 +6,12 @@ import { SignupDto } from './dto/signup.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
 import { AuthenticatedUser } from '../common/types/tenant-context';
-export declare class AuthService implements OnModuleInit {
+export declare class AuthService {
     private readonly db;
     private readonly jwtService;
     private readonly configService;
     private readonly logger;
     constructor(db: DatabaseService, jwtService: JwtService, configService: ConfigService);
-    onModuleInit(): Promise<void>;
     signup(dto: SignupDto): Promise<{
         user: AuthenticatedUser;
         workspace: {
@@ -24,7 +22,7 @@ export declare class AuthService implements OnModuleInit {
         accessToken: string;
         refreshToken: string;
         tokenType: string;
-        expiresIn: string;
+        expiresIn: string | undefined;
     }>;
     login(dto: LoginDto): Promise<{
         user: AuthenticatedUser;
@@ -32,11 +30,11 @@ export declare class AuthService implements OnModuleInit {
             id: any;
             name: any;
             brandColor: any;
-        };
+        } | null;
         accessToken: string;
         refreshToken: string;
         tokenType: string;
-        expiresIn: string;
+        expiresIn: string | undefined;
     }>;
     googleAuth(dto: GoogleAuthDto): Promise<{
         user: AuthenticatedUser;
@@ -44,15 +42,16 @@ export declare class AuthService implements OnModuleInit {
             id: any;
             name: any;
             brandColor: any;
-        };
+        } | null;
         accessToken: string;
         refreshToken: string;
         tokenType: string;
-        expiresIn: string;
+        expiresIn: string | undefined;
     }>;
-    getGoogleAuthUrl(): {
+    private resolveGoogleCallbackUrl;
+    getGoogleAuthUrl(requestedRedirectUri?: string): {
         configured: boolean;
-        url: any;
+        url: null;
         message: string;
     } | {
         configured: boolean;
@@ -64,7 +63,7 @@ export declare class AuthService implements OnModuleInit {
         accessToken: string;
         refreshToken: string;
         tokenType: string;
-        expiresIn: string;
+        expiresIn: string | undefined;
     }>;
     getMe(userId: string): Promise<{
         id: any;
@@ -82,7 +81,7 @@ export declare class AuthService implements OnModuleInit {
             brandColor: any;
             slug: any;
             logoUrl: any;
-        };
+        } | null;
     }>;
     private generateTokens;
 }

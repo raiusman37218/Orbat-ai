@@ -21,7 +21,8 @@ let AnthropicProvider = AnthropicProvider_1 = class AnthropicProvider {
         this.apiKey = this.config.get('ANTHROPIC_API_KEY') || process.env.ANTHROPIC_API_KEY;
     }
     async generateCompletion(request) {
-        if (!this.apiKey) {
+        const apiKey = (request.apiKey || this.apiKey || '').trim();
+        if (!apiKey) {
             throw new Error('ANTHROPIC_API_KEY is not configured.');
         }
         const model = request.model || 'claude-3-5-haiku-20241022';
@@ -36,7 +37,7 @@ let AnthropicProvider = AnthropicProvider_1 = class AnthropicProvider {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'x-api-key': this.apiKey,
+                'x-api-key': apiKey,
                 'anthropic-version': '2023-06-01',
             },
             body: JSON.stringify({
@@ -46,6 +47,7 @@ let AnthropicProvider = AnthropicProvider_1 = class AnthropicProvider {
                 messages: conversationMessages,
                 temperature: request.temperature ?? 0.3,
             }),
+            signal: AbortSignal.timeout(request.timeoutMs ?? 25000),
         });
         if (!response.ok) {
             const errorText = await response.text();

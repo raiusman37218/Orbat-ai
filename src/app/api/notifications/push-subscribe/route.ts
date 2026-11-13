@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/pg/server';
+import { sessionUser } from '@/lib/auth/session-user';
 
 export async function POST(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const user = await sessionUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const db = await createClient();
     const body = await req.json();
     const { endpoint, keys } = body;
 
@@ -22,7 +19,7 @@ export async function POST(req: NextRequest) {
 
     const userAgent = req.headers.get('user-agent') || null;
 
-    const { error: insertError } = await supabase.from('push_subscriptions').upsert(
+    const { error: insertError } = await db.from('push_subscriptions').upsert(
       {
         agent_id: user.id,
         endpoint,
@@ -46,16 +43,12 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
+    const user = await sessionUser();
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const db = await createClient();
     const body = await req.json();
     const { endpoint } = body;
 
@@ -63,7 +56,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'Missing endpoint' }, { status: 400 });
     }
 
-    await supabase
+    await db
       .from('push_subscriptions')
       .delete()
       .eq('agent_id', user.id)

@@ -13,7 +13,7 @@
  * Never throws: an email problem must not affect the chat. Results are written
  * to team_email_log.
  */
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { sendSmtpEmail } from '@/lib/email/smtp';
 import { teamAlertEmail, type TeamAlertEvent } from '@/lib/email/team-emails';
 import { normalizeNotificationPrefs } from '@/lib/settings/validation';

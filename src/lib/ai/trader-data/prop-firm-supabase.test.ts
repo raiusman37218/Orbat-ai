@@ -1,62 +1,79 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  lookupInPropFirmSupabase,
+  checkServiceRoleKey,
+  checkSupabaseUrl,
+  breachReason,
+  dashboardOf,
+} from './prop-firm-supabase';
 
 /*
- * Reading a firm's prop-firm backend: only the verified user's rows, never a
- * password or document column, ids from the chat only narrow those rows, and
- * the breach reason is found however the firm rebranded its compliance key.
- * The Supabase client is faked: it records every query and answers from the
- * tables below.
+ * Reading a firm's trader records via PostgREST: only the verified user's rows,
+ * never a password or document column, ids from the chat only narrow those
+ * rows, and the breach reason is found however the firm rebranded its
+ * compliance key. Fetch is mocked to record every PostgREST query and answer
+ * from the in-memory tables below.
  */
 
 type Row = Record<string, unknown>;
 let tables: Record<string, Row[]> = {};
 const queries: { table: string; columns: string; filters: [string, string, unknown][] }[] = [];
 
-function builder(table: string) {
-  const q = { table, columns: '', filters: [] as [string, string, unknown][] };
-  queries.push(q);
-  const rows = () =>
-    (tables[table] || []).filter((r) =>
-      q.filters.every(([op, col, v]) =>
-        op === 'eq'
-          ? r[col] === v
-          : op === 'ilike'
-          ? String(r[col] ?? '').toLowerCase() === String(v).replace(/\\([\\%_])/g, '$1').toLowerCase()
-          : (v as unknown[]).includes(r[col])
-      )
-    );
-  const pick = (r: Row) =>
-    q.columns === 'id' ? { id: r.id } : Object.fromEntries(q.columns.split(',').map((c) => c.trim()).filter((c) => c in r).map((c) => [c, r[c]]));
-  const b = {
-    select(cols: string) {
-      q.columns = cols;
-      return b;
-    },
-    eq(col: string, v: unknown) {
-      q.filters.push(['eq', col, v]);
-      return b;
-    },
-    ilike(col: string, v: unknown) {
-      q.filters.push(['ilike', col, v]);
-      return b;
-    },
-    in(col: string, v: unknown[]) {
-      q.filters.push(['in', col, v]);
-      return b;
-    },
-    order: () => b,
-    limit: () => b,
-    maybeSingle: async () => ({ data: rows()[0] ? pick(rows()[0]) : null, error: null }),
-    then(resolve: (v: { data: Row[]; error: null }) => void) {
-      resolve({ data: rows().map(pick), error: null });
-    },
-  };
-  return b;
+function parsePostgrestIn(raw: string): string[] {
+  const inner = raw.slice('in.('.length, -1);
+  if (!inner) return [];
+  return inner.split(',').map((item) => item.replace(/^"|"$/g, '').replace(/""/g, '"'));
 }
 
-vi.mock('@supabase/supabase-js', () => ({ createClient: () => ({ from: builder }) }));
+function installRestFetchMock() {
+  return vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+    const u = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
+    const table = decodeURIComponent(u.pathname.replace(/^\/rest\/v1\//, ''));
+    const columns = u.searchParams.get('select') || '';
+    const filters: [string, string, unknown][] = [];
 
-const { lookupInPropFirmSupabase, checkServiceRoleKey, checkSupabaseUrl, breachReason, dashboardOf } = await import('./prop-firm-supabase');
+    for (const [col, expr] of u.searchParams.entries()) {
+      if (col === 'select' || col === 'order' || col === 'limit') continue;
+      if (expr.startsWith('eq.')) {
+        filters.push(['eq', col, expr.slice(3)]);
+      } else if (expr.startsWith('ilike.')) {
+        filters.push(['ilike', col, expr.slice(6)]);
+      } else if (expr.startsWith('in.(') && expr.endsWith(')')) {
+        filters.push(['in', col, parsePostgrestIn(expr)]);
+      }
+    }
+
+    queries.push({ table, columns, filters });
+
+    const limitVal = u.searchParams.get('limit') ? Number(u.searchParams.get('limit')) : null;
+    const matched = (tables[table] || []).filter((r) =>
+      filters.every(([op, col, v]) =>
+        op === 'eq'
+          ? String(r[col] ?? '') === String(v)
+          : op === 'ilike'
+            ? String(r[col] ?? '').toLowerCase() === String(v).replace(/\\([\\%_])/g, '$1').toLowerCase()
+            : (v as unknown[]).includes(String(r[col] ?? ''))
+      )
+    );
+    const picked = (limitVal != null ? matched.slice(0, limitVal) : matched).map((r) =>
+      columns === 'id'
+        ? { id: r.id }
+        : Object.fromEntries(
+            columns
+              .split(',')
+              .map((c) => c.trim())
+              .filter((c) => c in r)
+              .map((c) => [c, r[c]])
+          )
+    );
+    return new Response(JSON.stringify(picked), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  });
+}
+
+let fetchSpy: ReturnType<typeof installRestFetchMock>;
 
 const CONN = { url: 'https://abcd.supabase.co', key: 'sb_secret_x' };
 const req = (action: 'account_status' | 'kyc_status' | 'order_status' | 'affiliate_stats' | 'coupon_check', extra: Record<string, unknown> = {}) =>
@@ -74,6 +91,7 @@ const FORBIDDEN = /passwordHash|passwordMaster|passwordInvestor|frontUrl|backUrl
 
 beforeEach(() => {
   queries.length = 0;
+  fetchSpy = installRestFetchMock();
   tables = {
     users: [
       { id: 'u-1', email: 'ali@x.com', name: 'Ali', status: 'active', createdAt: '2026-01-01', passwordHash: 'HASH' },
@@ -98,6 +116,10 @@ beforeEach(() => {
     ],
     coupons: [{ code: 'SAVE20', discountPercent: 20, status: 'active', expiresAt: '2020-01-01' }],
   };
+});
+
+afterEach(() => {
+  fetchSpy?.mockRestore();
 });
 
 describe('lookupInPropFirmSupabase', () => {

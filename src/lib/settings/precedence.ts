@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { PlanFeatureKey, PlanLimitKey, FEATURE_MAP, LIMIT_MAP } from '@/lib/plans/features';
 import { PlatformSettings } from '@/types/platform-management';
 import { PlatformPlan, WorkspaceSubscription } from '@/types/plans';

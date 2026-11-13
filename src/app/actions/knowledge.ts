@@ -1,7 +1,7 @@
 'use server';
 
 import { invalidateHelpIndex } from '@/lib/ai/help-answer';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { getWorkspaceEffectivePlan } from '@/lib/plans/enforce';
 import { getWorkspaceAccess } from '@/lib/team/access';
 import type { Capability } from '@/lib/team/permissions';

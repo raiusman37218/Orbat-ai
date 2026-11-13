@@ -22,7 +22,7 @@
  * loses accuracy on long, cluttered state, and reads instructions literally,
  * so state is kept short and the most common intent comes first.
  */
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import type { VisitorIntent } from './intent';
 
 export const JEV_ENDPOINT = 'https://api.typesafe.ai/v1/systemone';

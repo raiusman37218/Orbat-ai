@@ -36,7 +36,7 @@ function fakeSupabase() {
   };
 }
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => fakeSupabase(), hasServiceRole: () => true }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => fakeSupabase(), hasServiceRole: () => true }));
 
 const semantic = vi.hoisted(() => ({ chunks: [] as RetrievedChunk[] }));
 vi.mock('@/lib/ai/semantic-retrieval', () => ({

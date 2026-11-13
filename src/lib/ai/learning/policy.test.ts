@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => ({}), hasServiceRole: () => true }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => ({}), hasServiceRole: () => true }));
 
 import { chooseArm, DEFAULT_ARM, POLICY_ARMS, sampleBeta, type ArmPosterior } from './policy';
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { getBillingProvider } from '@/lib/billing/lemonsqueezy';
 
 export async function POST(req: NextRequest) {
@@ -25,13 +25,19 @@ export async function POST(req: NextRequest) {
 
     const billingProvider = getBillingProvider({ webhookSecret: secret });
 
-    // Verify webhook signature if secret configured
-    if (secret) {
-      const isValid = billingProvider.verifyWebhookSignature(rawBody, signature, secret);
-      if (!isValid) {
-        console.warn('[Lemon Squeezy Webhook] Invalid signature rejected');
-        return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
-      }
+    // Fail closed: reject webhooks whenever signing secret or signature is missing/invalid.
+    if (!secret) {
+      console.error('[Lemon Squeezy Webhook] Rejected: webhook signing secret is not configured');
+      return NextResponse.json({ error: 'Webhook signing secret not configured' }, { status: 500 });
+    }
+    if (!signature) {
+      console.warn('[Lemon Squeezy Webhook] Missing x-signature header rejected');
+      return NextResponse.json({ error: 'Missing webhook signature' }, { status: 401 });
+    }
+    const isValid = billingProvider.verifyWebhookSignature(rawBody, signature, secret);
+    if (!isValid) {
+      console.warn('[Lemon Squeezy Webhook] Invalid signature rejected');
+      return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
     }
 
     const payload = JSON.parse(rawBody);

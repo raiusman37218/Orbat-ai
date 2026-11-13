@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import type { CitableArticle } from './help-answer';
 
 export interface CachedBotAnswer {

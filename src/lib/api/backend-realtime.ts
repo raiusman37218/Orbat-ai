@@ -6,6 +6,7 @@ import { getAuthToken, getBackendSocketUrl } from './backend-auth';
 export interface BackendRealtimeHandlers {
   onConnect?: () => void;
   onDisconnect?: (reason: string) => void;
+  onConnectError?: (err: Error) => void;
   onMessageNew?: (payload: any) => void;
   onMessageUpdated?: (payload: any) => void;
   onMessageDeleted?: (payload: { id: string; conversationId: string }) => void;
@@ -35,15 +36,19 @@ export function createBackendRealtimeClient(
   explicitToken?: string | null
 ): BackendRealtimeClient | null {
   if (typeof window === 'undefined') return null;
+  if (process.env.NEXT_PUBLIC_REALTIME_ENABLED === 'false') return null;
   const token = explicitToken ?? getAuthToken();
   if (!token) return null;
 
-  const socket = io(`${getBackendSocketUrl()}/realtime`, {
+  const socketBaseUrl = getBackendSocketUrl();
+  if (!socketBaseUrl) return null;
+
+  const socket = io(`${socketBaseUrl}/realtime`, {
     auth: { token },
     transports: ['websocket', 'polling'],
     reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 1500,
+    reconnectionAttempts: 4,
+    reconnectionDelay: 2000,
   });
 
   if (handlers.onConnect) {
@@ -51,6 +56,9 @@ export function createBackendRealtimeClient(
   }
   if (handlers.onDisconnect) {
     socket.on('disconnect', handlers.onDisconnect);
+  }
+  if (handlers.onConnectError) {
+    socket.on('connect_error', handlers.onConnectError);
   }
   if (handlers.onMessageNew) {
     socket.on('message:new', handlers.onMessageNew);

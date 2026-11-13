@@ -1,7 +1,7 @@
 'use server';
 
 import { getWorkspaceAccess } from '@/lib/team/access';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { userError } from '@/lib/errors/user-error';
 import {
   CopilotActionType,

@@ -12,7 +12,7 @@
  * still has a model call after it; any failure means "no record", and the
  * specialist answers the way it does without a connection.
  */
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { decryptSecret } from '@/lib/channels/crypto';
 import { checkAgentUrl } from '@/lib/agent/external-agent';
 import type { TraderLookupAction } from '@/lib/ai/sub-agents';

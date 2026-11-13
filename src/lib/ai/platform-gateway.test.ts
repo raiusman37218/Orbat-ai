@@ -50,10 +50,10 @@ vi.mock('@/app/actions/platform', () => ({
 }));
 
 // Mock serviceClient & createClient
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: () => createMockClient(true),
 }));
-vi.mock('@/lib/supabase/server', () => ({
+vi.mock('@/lib/pg/server', () => ({
   createClient: () => createMockClient(false),
 }));
 

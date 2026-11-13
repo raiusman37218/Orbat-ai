@@ -35,9 +35,10 @@ import {
   timezoneFrom,
 } from '@/lib/visitor-meta';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { createClient } from '@/lib/supabase/client';
+import { getLiveVisitorMetaAction } from '@/app/actions/inbox';
 import { isBackendAuthenticated } from '@/lib/api/backend-auth';
 import { getBackendLiveVisitorMeta } from '@/lib/api/backend-client';
+import { useWorkspaceLive } from '@/lib/realtime/use-workspace-live';
 import {
   isVisitorOnline,
   formatTimeOnPage,
@@ -95,83 +96,40 @@ export function LiveVisitorsRadar({
 
   // Real-time metadata loading: fetches page histories & open tickets for online visitors
   useEffect(() => {
-    const wsId = workspace?.id;
-    if (!wsId || activeVisitors.length === 0) {
+    const workspaceId = workspace?.id;
+    if (!workspaceId || activeVisitors.length === 0) {
       return;
     }
 
     const visitorIds = activeVisitors.map((v) => v.id);
-    const supabase = createClient();
     let cancelled = false;
 
     async function loadMeta() {
       try {
-        if (isBackendAuthenticated()) {
-          const { pageHistory, openTickets } = await getBackendLiveVisitorMeta(visitorIds);
-          if (cancelled) return;
-
-          const hMap: Record<string, VisitorPageHistory[]> = {};
-          for (const row of pageHistory || []) {
-            if (!hMap[row.visitor_id]) hMap[row.visitor_id] = [];
-            hMap[row.visitor_id].push(row as VisitorPageHistory);
-          }
-          setPageHistoryMap(hMap);
-
-          const tMap: Record<string, OpenTicketSummary[]> = {};
-          for (const row of openTickets || []) {
-            if (!row.requester_id) continue;
-            if (!tMap[row.requester_id]) tMap[row.requester_id] = [];
-            tMap[row.requester_id].push({
-              id: row.id,
-              number: row.number,
-              subject: row.subject,
-              status: row.status,
-            });
-          }
-          setOpenTicketsMap(tMap);
-          return;
-        }
-
-        const [historyRes, ticketsRes] = await Promise.all([
-          supabase
-            .from('visitor_page_history')
-            .select('*')
-            .in('visitor_id', visitorIds)
-            .order('visited_at', { ascending: false })
-            .limit(100),
-          supabase
-            .from('tickets')
-            .select('id, number, subject, status, requester_id')
-            .eq('workspace_id', wsId)
-            .in('status', ['new', 'open', 'pending', 'on_hold'])
-            .in('requester_id', visitorIds),
-        ]);
-
+        const meta = isBackendAuthenticated()
+          ? await getBackendLiveVisitorMeta(visitorIds)
+          : await getLiveVisitorMetaAction(workspaceId!, visitorIds);
         if (cancelled) return;
 
-        if (historyRes.data) {
-          const hMap: Record<string, VisitorPageHistory[]> = {};
-          for (const row of historyRes.data) {
-            if (!hMap[row.visitor_id]) hMap[row.visitor_id] = [];
-            hMap[row.visitor_id].push(row as VisitorPageHistory);
-          }
-          setPageHistoryMap(hMap);
+        const hMap: Record<string, VisitorPageHistory[]> = {};
+        for (const row of meta.pageHistory || []) {
+          if (!hMap[row.visitor_id]) hMap[row.visitor_id] = [];
+          hMap[row.visitor_id].push(row as VisitorPageHistory);
         }
+        setPageHistoryMap(hMap);
 
-        if (ticketsRes.data) {
-          const tMap: Record<string, OpenTicketSummary[]> = {};
-          for (const row of ticketsRes.data) {
-            if (!row.requester_id) continue;
-            if (!tMap[row.requester_id]) tMap[row.requester_id] = [];
-            tMap[row.requester_id].push({
-              id: row.id,
-              number: row.number,
-              subject: row.subject,
-              status: row.status,
-            });
-          }
-          setOpenTicketsMap(tMap);
+        const tMap: Record<string, OpenTicketSummary[]> = {};
+        for (const row of meta.openTickets || []) {
+          if (!row.requester_id) continue;
+          if (!tMap[row.requester_id]) tMap[row.requester_id] = [];
+          tMap[row.requester_id].push({
+            id: row.id,
+            number: row.number,
+            subject: row.subject,
+            status: row.status,
+          });
         }
+        setOpenTicketsMap(tMap);
       } catch (err) {
         console.error('Failed to load live visitor metadata:', err);
       }
@@ -179,28 +137,14 @@ export function LiveVisitorsRadar({
 
     loadMeta();
 
-    if (isBackendAuthenticated()) {
-      const poll = setInterval(loadMeta, 15_000);
-      return () => {
-        cancelled = true;
-        clearInterval(poll);
-      };
-    }
-
-    // Subscribe to realtime updates for page history and tickets in this workspace
-    const channel = supabase
-      .channel(`radar-meta-${wsId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'visitor_page_history' }, () => {
-        loadMeta();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets' }, () => {
-        loadMeta();
-      })
-      .subscribe();
+    const poll = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState !== 'visible') return;
+      void loadMeta();
+    }, 10_000);
 
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      clearInterval(poll);
     };
   }, [workspace?.id, activeVisitors.map((v) => v.id).sort().join(',')]);
 

@@ -13,6 +13,7 @@ import { InboxesModule } from './inboxes/inboxes.module';
 import { RealtimeModule } from './realtime/realtime.module';
 import { AttachmentsModule } from './attachments/attachments.module';
 import { QueuesModule } from './queues/queues.module';
+import { QueuesWorkersModule } from './queues/queues-workers.module';
 import { AiEngineModule } from './ai-engine/ai-engine.module';
 import { HealthModule } from './health/health.module';
 import { WidgetModule } from './widget/widget.module';
@@ -25,6 +26,7 @@ import { RolesGuard } from './common/guards/roles.guard';
     ConfigModule.forRoot({
       isGlobal: true,
       load: [configuration],
+      ignoreEnvFile: process.env.VERCEL === '1' || process.env.VERCEL === 'true',
       envFilePath: ['.env', '.env.local'],
     }),
     DatabaseModule,
@@ -38,6 +40,9 @@ import { RolesGuard } from './common/guards/roles.guard';
     RealtimeModule,
     AttachmentsModule,
     QueuesModule,
+    ...(process.env.IS_WORKER === 'true' || process.env.ENABLE_EMBEDDED_WORKERS === 'true'
+      ? [QueuesWorkersModule]
+      : []),
     AiEngineModule,
     HealthModule,
     WidgetModule,

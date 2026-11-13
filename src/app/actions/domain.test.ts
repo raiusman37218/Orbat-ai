@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('server-only', () => ({}));
+
 const fakeAdmin = {
   id: 'agent-super-1',
   email: 'super@platform.test',

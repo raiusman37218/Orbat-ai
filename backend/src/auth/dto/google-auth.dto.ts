@@ -16,5 +16,9 @@ export class GoogleAuthDto {
   @IsString()
   @IsOptional()
   accessToken?: string;
+
+  @IsString()
+  @IsOptional()
+  redirectUri?: string;
 }
 

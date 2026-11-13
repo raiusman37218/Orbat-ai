@@ -11,10 +11,42 @@
  * user the verified email belongs to, and a few rows at most. A login or
  * order id the visitor typed only narrows that user's own rows.
  */
-import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import type { TraderLookupAction } from '@/lib/ai/sub-agents';
 import { TRADER_DATA_TIMEOUT_MS, TraderDataError, type TraderLookupRequest, type TraderRecord } from './client';
 import { checkAgentUrl } from '@/lib/agent/external-agent';
+
+interface RestError {
+  message: string;
+  code?: string;
+}
+
+interface RestResult<T = Record<string, unknown>> {
+  data: T[] | null;
+  error: RestError | null;
+}
+
+interface RestSingleResult<T = Record<string, unknown>> {
+  data: T | null;
+  error: RestError | null;
+}
+
+interface RestDbQuery {
+  select(columns: string, opts?: { head?: boolean; count?: 'exact' | 'planned' | 'estimated' }): RestDbQuery;
+  eq(column: string, value: unknown): RestDbQuery;
+  ilike(column: string, pattern: string): RestDbQuery;
+  in(column: string, values: unknown[]): RestDbQuery;
+  order(column: string, opts?: { ascending?: boolean }): RestDbQuery;
+  limit(n: number): RestDbQuery;
+  maybeSingle(): Promise<RestSingleResult>;
+  then<TResult1 = RestResult, TResult2 = never>(
+    onfulfilled?: ((value: RestResult) => TResult1 | PromiseLike<TResult1>) | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | null
+  ): Promise<TResult1 | TResult2>;
+}
+
+interface RestDbClient {
+  from(table: string): RestDbQuery;
+}
 
 const MAX_ROWS = 5;
 
@@ -47,14 +79,83 @@ export function checkSupabaseUrl(raw: string | null | undefined): { ok: true; ur
   return { ok: true, url: checked.url.origin };
 }
 
-function clientFor(url: string, key: string, timeoutMs: number): SupabaseClient {
-  return createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    global: {
-      fetch: (input, init) => fetch(input, { ...init, redirect: 'manual', signal: AbortSignal.timeout(timeoutMs) }),
-      headers: { 'User-Agent': 'Zentry-Trader-Data/1' },
+function clientFor(url: string, key: string, timeoutMs: number): RestDbClient {
+  return {
+    from(table: string): RestDbQuery {
+      const params = new URLSearchParams();
+      let head = false;
+
+      const exec = async (single: boolean): Promise<any> => {
+        try {
+          const res = await fetch(`${url}/rest/v1/${encodeURIComponent(table)}?${params.toString()}`, {
+            method: head ? 'HEAD' : 'GET',
+            redirect: 'manual',
+            signal: AbortSignal.timeout(timeoutMs),
+            headers: {
+              apikey: key,
+              Authorization: `Bearer ${key}`,
+              'User-Agent': 'Zentry-Trader-Data/1',
+              ...(head ? { Prefer: 'count=exact' } : {}),
+            },
+          });
+          if (!res.ok) {
+            const errJson = await res.json().catch(() => null);
+            const fallbackMsg = res.status === 401 ? 'invalid api key (401)' : `HTTP ${res.status}`;
+            return {
+              data: null,
+              error: {
+                message: errJson?.message || fallbackMsg,
+                code: errJson?.code,
+              },
+            };
+          }
+          if (head) return { data: null, error: null };
+          const json = await res.json().catch(() => []);
+          const rows = Array.isArray(json) ? json : [];
+          return { data: single ? (rows[0] ?? null) : rows, error: null };
+        } catch (err: any) {
+          return { data: null, error: { message: err?.message || 'Request failed' } };
+        }
+      };
+
+      const q: RestDbQuery = {
+        select(columns: string, opts?: { head?: boolean; count?: 'exact' | 'planned' | 'estimated' }) {
+          params.set('select', columns);
+          if (opts?.head) head = true;
+          return q;
+        },
+        eq(column: string, value: unknown) {
+          params.append(column, `eq.${String(value)}`);
+          return q;
+        },
+        ilike(column: string, pattern: string) {
+          params.append(column, `ilike.${pattern}`);
+          return q;
+        },
+        in(column: string, values: unknown[]) {
+          const encoded = values.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',');
+          params.append(column, `in.(${encoded})`);
+          return q;
+        },
+        order(column: string, opts?: { ascending?: boolean }) {
+          params.append('order', `${column}.${opts?.ascending === false ? 'desc' : 'asc'}`);
+          return q;
+        },
+        limit(n: number) {
+          params.set('limit', String(n));
+          return q;
+        },
+        maybeSingle() {
+          if (!params.has('limit')) params.set('limit', '1');
+          return exec(true);
+        },
+        then(onfulfilled, onrejected) {
+          return exec(false).then(onfulfilled, onrejected);
+        },
+      };
+      return q;
     },
-  });
+  };
 }
 
 /** Turns a Supabase error into one an admin can act on. */
@@ -85,7 +186,7 @@ const record = (data: unknown): TraderRecord => {
  * ("a_b@x.com" must not match "axb@x.com"), and the result is compared
  * again here, so a lookup can only ever reach the verified address.
  */
-async function findUserByEmail(db: SupabaseClient, email: string): Promise<Record<string, unknown> | null> {
+async function findUserByEmail(db: RestDbClient, email: string): Promise<Record<string, unknown> | null> {
   const cols = 'id, name, status, createdAt, email';
   const exact = await db.from('users').select(cols).eq('email', email).limit(1);
   if (exact.error) fail('users', exact.error);
@@ -98,7 +199,7 @@ async function findUserByEmail(db: SupabaseClient, email: string): Promise<Recor
 }
 
 /** A case-insensitive exact match on one column, LIKE wildcards escaped, compared again here. */
-async function findOneByText(db: SupabaseClient, table: string, column: string, value: string, cols: string): Promise<Record<string, unknown> | null> {
+async function findOneByText(db: RestDbClient, table: string, column: string, value: string, cols: string): Promise<Record<string, unknown> | null> {
   const want = value.trim().toLowerCase();
   const pattern = value.trim().replace(/[\\%_]/g, (c) => `\\${c}`);
   const { data, error } = await db.from(table).select(cols).ilike(column, pattern).limit(3);
@@ -107,7 +208,7 @@ async function findOneByText(db: SupabaseClient, table: string, column: string, 
   return rows.length === 1 ? rows[0] : null;
 }
 
-async function userById(db: SupabaseClient, id: unknown): Promise<Record<string, unknown> | null> {
+async function userById(db: RestDbClient, id: unknown): Promise<Record<string, unknown> | null> {
   if (!id) return null;
   const { data, error } = await db.from('users').select('id, name, status, createdAt, email').eq('id', String(id)).maybeSingle();
   if (error) fail('users', error);
@@ -115,13 +216,13 @@ async function userById(db: SupabaseClient, id: unknown): Promise<Record<string,
 }
 
 /** The trader who placed this order ("O-2681" matches "o-2681"). */
-async function findUserByOrderId(db: SupabaseClient, orderId: string): Promise<Record<string, unknown> | null> {
+async function findUserByOrderId(db: RestDbClient, orderId: string): Promise<Record<string, unknown> | null> {
   const order = await findOneByText(db, 'orders', 'id', orderId, 'id, userId');
   return order ? userById(db, order.userId) : null;
 }
 
 /** The trader who holds this trading login. */
-async function findUserByLogin(db: SupabaseClient, login: string): Promise<Record<string, unknown> | null> {
+async function findUserByLogin(db: RestDbClient, login: string): Promise<Record<string, unknown> | null> {
   const { data, error } = await db.from('trading_accounts').select('userId').eq('login', login.trim()).limit(2);
   if (error) fail('trading_accounts', error);
   const owners = [...new Set(((data || []) as Record<string, unknown>[]).map((r) => String(r.userId)))];
@@ -134,7 +235,7 @@ async function findUserByLogin(db: SupabaseClient, login: string): Promise<Recor
  * ("I paid but have no account"). Only this user's orders; an order id from
  * the chat only narrows them.
  */
-async function recentOrders(db: SupabaseClient, userId: string, orderId: string | null, limit: number) {
+async function recentOrders(db: RestDbClient, userId: string, orderId: string | null, limit: number) {
   let q = db
     .from('orders')
     .select('id, planId, amountPaid, couponUsed, paymentMethod, status, createdAt, updatedAt')

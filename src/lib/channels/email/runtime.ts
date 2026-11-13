@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { domainOf, normalizeEmail } from './addresses';
 import { emailConfig } from './config';
 import type { SenderSettings, WorkspaceBrand } from './compose';

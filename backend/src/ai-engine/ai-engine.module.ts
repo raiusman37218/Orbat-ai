@@ -1,5 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from '../database/database.module';
 import { MessagesModule } from '../messages/messages.module';
 import { ConversationsModule } from '../conversations/conversations.module';
@@ -11,6 +11,9 @@ import { LLM_PROVIDER } from './interfaces/llm-provider.interface';
 import { MockFallbackProvider } from './providers/mock-fallback.provider';
 import { OpenAiProvider } from './providers/openai.provider';
 import { AnthropicProvider } from './providers/anthropic.provider';
+import { GeminiProvider } from './providers/gemini.provider';
+import { OpenAiCompatibleProvider } from './providers/openai-compatible.provider';
+import { AiGatewayProvider } from './providers/ai-gateway.provider';
 
 @Module({
   imports: [
@@ -27,26 +30,15 @@ import { AnthropicProvider } from './providers/anthropic.provider';
     MockFallbackProvider,
     OpenAiProvider,
     AnthropicProvider,
+    GeminiProvider,
+    OpenAiCompatibleProvider,
+    AiGatewayProvider,
     {
       provide: LLM_PROVIDER,
-      inject: [ConfigService, OpenAiProvider, AnthropicProvider, MockFallbackProvider],
-      useFactory: (
-        config: ConfigService,
-        openAi: OpenAiProvider,
-        anthropic: AnthropicProvider,
-        mock: MockFallbackProvider,
-      ) => {
-        if (config.get<string>('OPENAI_API_KEY') || process.env.OPENAI_API_KEY) {
-          return openAi;
-        }
-        if (config.get<string>('ANTHROPIC_API_KEY') || process.env.ANTHROPIC_API_KEY) {
-          return anthropic;
-        }
-        return mock;
-      },
+      useExisting: AiGatewayProvider,
     },
   ],
-  exports: [AiEngineService, AiUsageService, LLM_PROVIDER],
+  exports: [AiEngineService, AiUsageService, HybridRetrievalService, LLM_PROVIDER],
 })
 export class AiEngineModule {}
 

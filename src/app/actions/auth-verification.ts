@@ -1,7 +1,11 @@
 'use server';
 
 import { headers } from 'next/headers';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
+import {
+  createPgAuthUser,
+  updatePgAuthUser,
+} from '@/lib/auth/postgres-auth';
 import { clientIpOf } from '@/lib/geo';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sendSmtpEmail, verificationCodeEmail, isValidEmail } from '@/lib/email/smtp';
@@ -39,7 +43,7 @@ export async function sendSignupVerificationCodeAction(params: {
     // - Existing account WITH email_confirmed_at -> refuse ("already exists, sign in or reset password").
     // - Existing account WITHOUT email_confirmed_at -> do NOT create user and do NOT call updateUserById with password.
     //   Just send a new code. When it is verified, the account keeps the password it was created with.
-    const existingUser = await findAuthUserByEmail(supabaseAdmin, normalizedEmail);
+    const existingUser = await findAuthUserByEmail(normalizedEmail);
     if (existingUser?.email_confirmed_at) {
       throw userError('An account with this email already exists. Sign in, or use "Forgot password".');
     }
@@ -92,7 +96,7 @@ export async function sendSignupVerificationCodeAction(params: {
     // Create user unconfirmed in Supabase Auth if this is a fresh registration and password is provided.
     // If an unconfirmed user already exists, do NOT create a user and do NOT call updateUserById with a password.
     if (!existingUser && params.password) {
-      const { error: createError } = await supabaseAdmin.auth.admin.createUser({
+      const { error: createError } = await createPgAuthUser({
         email: normalizedEmail,
         password: params.password,
         email_confirm: false,
@@ -277,11 +281,11 @@ export async function verifySignupCodeAction(params: {
       .delete()
       .eq('email', normalizedEmail);
 
-    // 5. Mark user confirmed in Supabase Auth
-    const targetUser = await findAuthUserByEmail(supabaseAdmin, normalizedEmail);
+    // 5. Mark user confirmed in pure PostgreSQL auth accounts / agents
+    const targetUser = await findAuthUserByEmail(normalizedEmail);
 
     if (targetUser) {
-      const { error: confirmError } = await supabaseAdmin.auth.admin.updateUserById(
+      const { error: confirmError } = await updatePgAuthUser(
         targetUser.id,
         { email_confirm: true }
       );

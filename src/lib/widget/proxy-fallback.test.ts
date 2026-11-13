@@ -1,30 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const queryRowsMock = vi.fn();
-const rpcMock = vi.fn();
 
 vi.mock('@/lib/db', () => ({
   queryRows: (...args: any[]) => queryRowsMock(...args),
-}));
-
-vi.mock('@/lib/supabase/service', () => ({
-  serviceClient: () => ({
-    rpc: (...args: any[]) => rpcMock(...args),
-    from: () => ({
-      select: () => ({
-        eq: () => ({
-          order: () => ({
-            order: async () => ({ data: [], error: null }),
-          }),
-          eq: () => ({
-            order: () => ({
-              order: async () => ({ data: [], error: null }),
-            }),
-          }),
-        }),
-      }),
-    }),
-  }),
 }));
 
 import { executeWidgetFallback, WidgetFallbackHttpError } from './proxy-fallback';
@@ -36,11 +15,11 @@ const CONV_ID = '33333333-3333-4333-8333-333333333333';
 describe('executeWidgetFallback', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://noop.supabase.co';
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-key';
+    delete process.env.NEXT_PUBLIC_SOCKET_URL;
+    delete process.env.NEXT_PUBLIC_BACKEND_URL;
   });
 
-  it('returns workspace config for GET config when Neon returns row', async () => {
+  it('returns workspace config for GET config when PostgreSQL returns row', async () => {
     const mockCfg = { id: WS_ID, name: 'Acme Support', brand_color: '#2563eb' };
     queryRowsMock.mockResolvedValueOnce([{ data: mockCfg }]);
 
@@ -71,20 +50,15 @@ describe('executeWidgetFallback', () => {
     });
   });
 
-  it('falls back to Supabase when configured and workspace does not exist in Neon', async () => {
-    process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://demo.supabase.co';
-    const sbCfg = { id: WS_ID, name: 'Zen-try' };
-    queryRowsMock
-      .mockResolvedValueOnce([{ data: null }]) // Neon fn_get_workspace_config
-      .mockResolvedValueOnce([]); // neonRecordExists('workspaces', WS_ID) -> false
-    rpcMock.mockResolvedValueOnce({ data: sbCfg, error: null });
+  it('attaches socket_url to workspace config when backend socket URL is configured', async () => {
+    process.env.NEXT_PUBLIC_BACKEND_URL = 'https://rt.orbatai.com/api/v1';
+    queryRowsMock.mockResolvedValueOnce([{ data: { id: WS_ID, name: 'Zen-try' } }]);
 
     const res = await executeWidgetFallback('rpc/fn_get_workspace_config', 'POST', new URLSearchParams(), {
       p_workspace_id: WS_ID,
     });
 
-    expect(res).toEqual(sbCfg);
-    expect(rpcMock).toHaveBeenCalledWith('fn_get_workspace_config', { p_workspace_id: WS_ID });
+    expect(res).toEqual({ id: WS_ID, name: 'Zen-try', socket_url: 'https://rt.orbatai.com' });
   });
 
   it('rejects invalid UUID and unsupported RPC functions with 400', async () => {

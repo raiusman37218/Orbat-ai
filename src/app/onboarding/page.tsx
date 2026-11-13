@@ -16,7 +16,6 @@ import {
   AlertCircle,
   RefreshCw,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
 import { createWorkspaceAction } from '@/app/actions/admin';
 import {
   isBackendAuthenticated,
@@ -48,7 +47,6 @@ const STEP_LABELS = ['Business', 'Branding', 'Install'] as const;
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const supabase = createClient();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [loading, setLoading] = useState(false);
@@ -116,52 +114,42 @@ export default function OnboardingPage() {
       }
     }
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
+    const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
+    if (!sessionRes.ok) {
       router.replace('/login');
       return;
     }
-    setUserEmail(user.email || '');
+    const sessionData = await sessionRes.json().catch(() => null);
+    if (!sessionData?.authenticated || !sessionData?.user) {
+      router.replace('/login');
+      return;
+    }
+    setUserEmail(sessionData.user.email || '');
 
     // Platform admins with no workspace belong in /admin, not workspace onboarding
-    const { data: agentData } = await supabase
-      .from('agents')
-      .select('is_super_admin, workspace_id')
-      .eq('id', user.id)
-      .maybeSingle();
-
+    const agentData = sessionData.agent || null;
     if (agentData?.is_super_admin && !agentData.workspace_id) {
       router.replace('/admin');
       return;
     }
 
-    const isConfirmed = Boolean(user.email_confirmed_at || (user as any).confirmed_at);
-    setEmailUnconfirmed(!isConfirmed);
+    setEmailUnconfirmed(sessionData.emailConfirmed === false);
     setRefreshing(false);
   };
 
   // Check auth session
   useEffect(() => {
     verifyUserSession();
-  }, [supabase, router]);
+  }, [router]);
 
   const handleResendConfirmation = async () => {
     if (resendCooldown > 0 || resending || !userEmail) return;
     setResending(true);
     setResendSuccess(false);
     try {
-      const origin =
-        typeof window !== 'undefined'
-          ? window.location.origin
-          : (process.env.NEXT_PUBLIC_APP_URL || '');
-      const { error } = await supabase.auth.resend({
-        type: 'signup',
-        email: userEmail,
-        options: {
-          emailRedirectTo: `${origin}/auth/callback?next=/onboarding`,
-        },
-      });
-      if (error) throw error;
+      const res = await fetch('/api/auth/session', { method: 'POST' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || 'Failed to resend confirmation email.');
       setResendSuccess(true);
       setResendCooldown(30);
     } catch (err: any) {
@@ -188,8 +176,8 @@ export default function OnboardingPage() {
           return;
         }
       } else {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session) {
+        const sessionRes = await fetch('/api/auth/session', { cache: 'no-store' });
+        if (!sessionRes.ok) {
           router.replace('/login');
           return;
         }
@@ -198,20 +186,10 @@ export default function OnboardingPage() {
       // Generate clean workspace slug (uniqueness enforced by server action)
       const slug = formatWorkspaceSlug(businessName || 'workspace') || 'workspace';
       const suggested = getDefaultSubdomain(websiteUrl);
-      let customDomain =
+      const customDomain =
         suggested && !suggested.includes('localhost') && !suggested.endsWith('.test')
           ? suggested
           : null;
-
-      if (customDomain && !usingBackend) {
-        // public_workspaces: RLS hides other tenants' rows from `workspaces`.
-        const { data: taken } = await supabase
-          .from('public_workspaces')
-          .select('id')
-          .ilike('custom_domain', customDomain)
-          .maybeSingle();
-        if (taken) customDomain = null;
-      }
 
       const verificationToken = `zentry_tok_${Math.random().toString(36).substring(2, 10)}`;
 

@@ -5,6 +5,8 @@ import { DatabaseModule } from '../database/database.module';
 import { MessagesModule } from '../messages/messages.module';
 import { RealtimeGateway } from './realtime.gateway';
 import { RealtimeService } from './realtime.service';
+import { OutboxService } from './outbox.service';
+import { OutboxRelayService } from './outbox-relay.service';
 
 @Module({
   imports: [
@@ -13,8 +15,8 @@ import { RealtimeService } from './realtime.service';
     DatabaseModule,
     forwardRef(() => MessagesModule),
   ],
-  providers: [RealtimeGateway, RealtimeService],
-  exports: [RealtimeGateway, RealtimeService],
+  providers: [RealtimeGateway, RealtimeService, OutboxService, OutboxRelayService],
+  exports: [RealtimeGateway, RealtimeService, OutboxService],
 })
 export class RealtimeModule {}
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query, queryRows } from '@/lib/db';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { clientIpOf } from '@/lib/geo';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { verifyCsatToken } from '@/lib/csat/token';
@@ -51,7 +51,16 @@ export async function GET(req: NextRequest) {
       if (!ticket) {
         return NextResponse.json({ error: 'Ticket not found' }, { status: 404, headers: CORS_HEADERS });
       }
-      const validToken = token ? verifyCsatToken(ticket.id, ticket.workspace_id, token) : true;
+      const validToken =
+        typeof token === 'string' &&
+        token.length > 0 &&
+        verifyCsatToken(ticket.id, ticket.workspace_id, token);
+      if (!validToken) {
+        return NextResponse.json(
+          { error: 'Invalid or missing survey token', token_valid: false },
+          { status: 403, headers: CORS_HEADERS }
+        );
+      }
       return NextResponse.json(
         {
           ticket: {
@@ -64,7 +73,7 @@ export async function GET(req: NextRequest) {
             csat_rated_at: ticket.csat_rated_at,
             workspace: ticket.workspace,
           },
-          token_valid: validToken,
+          token_valid: true,
         },
         { headers: CORS_HEADERS }
       );
@@ -81,8 +90,17 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404, headers: CORS_HEADERS });
     }
 
-    // If token provided, verify it (or allow checking if not required for preview)
-    const validToken = token ? verifyCsatToken(ticket.id, ticket.workspace_id, token) : true;
+    // Fail closed: survey lookup requires a valid signed CSAT token.
+    const validToken =
+      typeof token === 'string' &&
+      token.length > 0 &&
+      verifyCsatToken(ticket.id, ticket.workspace_id, token);
+    if (!validToken) {
+      return NextResponse.json(
+        { error: 'Invalid or missing survey token', token_valid: false },
+        { status: 403, headers: CORS_HEADERS }
+      );
+    }
 
     return NextResponse.json(
       {
@@ -96,7 +114,7 @@ export async function GET(req: NextRequest) {
           csat_rated_at: ticket.csat_rated_at,
           workspace: ticket.workspace,
         },
-        token_valid: validToken,
+        token_valid: true,
       },
       { headers: CORS_HEADERS }
     );

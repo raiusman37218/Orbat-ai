@@ -16,7 +16,7 @@ const updateConnection = vi.fn(async (_id: string, patch: Record<string, unknown
 const recordConnectionError = vi.fn(async () => undefined);
 const storeEvent = vi.fn(async () => async () => undefined);
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => ({}), hasServiceRole: () => true }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => ({}), hasServiceRole: () => true }));
 vi.mock('./registry', () => ({ getAdapter: () => adapter }));
 vi.mock('./refresh', () => ({ withFreshCredentials: async (c: unknown) => c }));
 vi.mock('./inbound', () => ({ storeEvent: (...a: unknown[]) => storeEvent(...(a as [])) }));

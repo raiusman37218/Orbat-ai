@@ -4,7 +4,7 @@ export declare class WidgetService {
     private readonly db;
     private readonly realtime?;
     private readonly logger;
-    constructor(db: DatabaseService, realtime?: RealtimeService);
+    constructor(db: DatabaseService, realtime?: RealtimeService | undefined);
     private assertUuid;
     private assertToken;
     private mapPgError;

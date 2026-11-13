@@ -1,10 +1,13 @@
 declare const _default: () => {
     port: number;
     nodeEnv: string;
+    isVercel: boolean;
     corsOrigin: string;
+    frontendUrl: string | undefined;
     database: {
-        url: string;
+        url: string | undefined;
         ssl: boolean;
+        sslRejectUnauthorized: boolean;
         maxPoolSize: number;
         idleTimeoutMillis: number;
         connectionTimeoutMillis: number;
@@ -21,14 +24,14 @@ declare const _default: () => {
         callbackUrl: string;
     };
     redis: {
-        url: string;
+        url: string | undefined;
     };
     storage: {
-        accountId: string;
-        accessKeyId: string;
-        secretAccessKey: string;
+        accountId: string | undefined;
+        accessKeyId: string | undefined;
+        secretAccessKey: string | undefined;
         bucketName: string;
-        publicUrl: string;
+        publicUrl: string | undefined;
     };
 };
 export default _default;

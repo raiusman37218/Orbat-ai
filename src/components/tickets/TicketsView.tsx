@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Pencil, Plus, Search, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { createClient } from '@/lib/supabase/client';
+import { useWorkspaceLive } from '@/lib/realtime/use-workspace-live';
 import {
   bulkUpdateTicketsAction,
   createTicketAction,
@@ -117,23 +117,18 @@ export function TicketsView({
     };
   }, [workspaceId, refreshTick]);
 
-  // Any ticket change in the workspace (a new chat, a colleague's edit, the
-  // auto-close job) refreshes the list and the counts.
-  useEffect(() => {
-    const supabase = createClient();
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const channel = supabase
-      .channel(`tickets-${workspaceId}-${Math.random().toString(36).slice(2, 7)}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tickets', filter: `workspace_id=eq.${workspaceId}` }, () => {
-        clearTimeout(timer);
-        timer = setTimeout(() => setRefreshTick((t) => t + 1), 400);
-      })
-      .subscribe();
-    return () => {
-      clearTimeout(timer);
-      supabase.removeChannel(channel);
-    };
-  }, [workspaceId]);
+  // Any ticket change in the workspace refreshes the list and the counts.
+  const refreshLive = useCallback(() => {
+    setRefreshTick((t) => t + 1);
+  }, []);
+
+  useWorkspaceLive({
+    workspaceId,
+    enabled: Boolean(workspaceId),
+    pollMs: 5000,
+    debounceMs: 400,
+    onRefresh: refreshLive,
+  });
 
   const selectView = (id: string) => {
     setViewId(id);

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { resolveServerBackendBaseUrl } from '@/lib/backend-url';
 
 /**
  * Sanitizes the `next` redirect parameter.
@@ -51,17 +51,25 @@ export async function GET(request: Request) {
   }
 
   if (code) {
-    // 1. Try NestJS Backend Google OAuth Exchange first (NestJS + Neon DB)
-    const rawBackendUrl = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000/api/v1')
-      .trim()
-      .replace(/\/+$/, '');
-    const backendUrl = rawBackendUrl.endsWith('/api/v1') ? rawBackendUrl : `${rawBackendUrl}/api/v1`;
+    // 1. Exchange code with NestJS Backend (passing exact callback URL so Google redirect_uri matches)
+    const backendUrl = resolveServerBackendBaseUrl();
+    if (!backendUrl) {
+      return NextResponse.redirect(
+        `${baseUrl}/login?error=${encodeURIComponent(
+          'Backend URL is not configured on the frontend deployment (set BACKEND_URL or NEXT_PUBLIC_BACKEND_URL).'
+        )}`
+      );
+    }
+
     let backendErrorMessage: string | null = null;
     try {
       const backendRes = await fetch(`${backendUrl}/auth/google`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({
+          code,
+          redirectUri: `${baseUrl}/auth/callback`,
+        }),
       });
 
       if (backendRes.ok) {
@@ -97,37 +105,6 @@ export async function GET(request: Request) {
     } catch (e: any) {
       backendErrorMessage = e.message;
     }
-
-    // 2. Fallback to Supabase OAuth Code Exchange (for testing & fallback compatibility)
-    try {
-      const supabase = await createClient();
-      const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(code);
-      if (!exchangeError) {
-        const {
-          data: { session },
-        } = await supabase.auth.getSession();
-
-        if (session?.user?.id) {
-          const { data: agent } = await supabase
-            .from('agents')
-            .select('workspace_id')
-            .eq('id', session.user.id)
-            .maybeSingle();
-
-          const { data: ownedWs } = await supabase
-            .from('workspaces')
-            .select('id')
-            .eq('owner_id', session.user.id)
-            .limit(1)
-            .maybeSingle();
-
-          if (!agent?.workspace_id && !ownedWs?.id) {
-            return NextResponse.redirect(`${baseUrl}/onboarding`);
-          }
-        }
-        return NextResponse.redirect(`${baseUrl}${next}`);
-      }
-    } catch {}
 
     const errorToDisplay = backendErrorMessage || 'Authentication failed.';
     return NextResponse.redirect(

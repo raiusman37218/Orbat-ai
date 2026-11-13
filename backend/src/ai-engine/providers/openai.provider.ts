@@ -5,6 +5,7 @@ import {
   LlmCompletionRequest,
   LlmCompletionResponse,
 } from '../interfaces/llm-provider.interface';
+import { validateProviderBaseUrl } from '../../common/security/url-safety';
 
 @Injectable()
 export class OpenAiProvider implements LlmProvider {
@@ -19,16 +20,20 @@ export class OpenAiProvider implements LlmProvider {
   async generateCompletion(
     request: LlmCompletionRequest,
   ): Promise<LlmCompletionResponse> {
-    if (!this.apiKey) {
+    const apiKey = (request.apiKey || this.apiKey || '').trim();
+    if (!apiKey) {
       throw new Error('OPENAI_API_KEY is not configured.');
     }
 
+    const baseUrl = request.baseUrl
+      ? await validateProviderBaseUrl(request.baseUrl)
+      : 'https://api.openai.com/v1';
     const model = request.model || 'gpt-4o-mini';
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: `Bearer ${this.apiKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
         model,
@@ -36,6 +41,7 @@ export class OpenAiProvider implements LlmProvider {
         temperature: request.temperature ?? 0.3,
         max_tokens: request.maxTokens ?? 512,
       }),
+      signal: AbortSignal.timeout(request.timeoutMs ?? 25000),
     });
 
     if (!response.ok) {

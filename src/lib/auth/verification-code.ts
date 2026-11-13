@@ -1,6 +1,6 @@
 import 'server-only';
 import crypto from 'node:crypto';
-import type { serviceClient } from '@/lib/supabase/service';
+import { findPgAuthUserByEmail, type PgAuthUser } from '@/lib/auth/postgres-auth';
 
 /**
  * Generates a cryptographically sound 6-digit OTP code using crypto.randomInt
@@ -22,22 +22,13 @@ export function timingSafeCodeCheck(input: string, stored: string): boolean {
 }
 
 /**
- * Looks up an auth user by email across all pages.
+ * Looks up a pure-PostgreSQL auth account or agent by email.
+ * Accepts either (email) or legacy (unusedAdmin, email) during caller migration.
  */
 export async function findAuthUserByEmail(
-  admin: ReturnType<typeof serviceClient>,
-  email: string
-) {
-  const targetEmail = (email || '').trim().toLowerCase();
-  for (let page = 1; page <= 50; page++) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) {
-      console.error('[Verification] Error listing users:', error);
-      break;
-    }
-    const found = (data?.users || []).find((u) => u.email?.toLowerCase() === targetEmail);
-    if (found) return found;
-    if (!data?.users || data.users.length < 1000) break;
-  }
-  return null;
+  emailOrAdmin: string | unknown,
+  maybeEmail?: string,
+): Promise<PgAuthUser | null> {
+  const targetEmail = typeof emailOrAdmin === 'string' ? emailOrAdmin : maybeEmail || '';
+  return findPgAuthUserByEmail(targetEmail);
 }

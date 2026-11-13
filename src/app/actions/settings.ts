@@ -17,7 +17,7 @@ import {
   type NotificationPrefs,
   type WorkspaceGeneralInput,
 } from '@/lib/settings/validation';
-import type { Workspace, CsatSettingsConfig } from '@/types/database';
+import type { Workspace, WorkspaceIntegration, CsatSettingsConfig } from '@/types/database';
 
 export async function updateWorkspaceGeneralAction(workspaceId: string, input: WorkspaceGeneralInput) {
   await assertSettingNotLocked(workspaceId, 'workspace_general');
@@ -143,3 +143,119 @@ export async function updateCsatSettingsAction(workspaceId: string, settings: Cs
   return { success: true as const, workspace: data as Workspace };
 }
 
+
+export async function updateAutoCloseDaysAction(workspaceId: string, days: number) {
+  await assertSettingNotLocked(workspaceId, 'workspace_general');
+  const { supabase } = await getWorkspaceAccess(workspaceId, 'manage_settings');
+  const n = Number(days);
+  if (!Number.isInteger(n) || n < 1 || n > 365) {
+    return { success: false as const, error: 'Enter a whole number of days from 1 to 365.' };
+  }
+
+  const { error } = await supabase
+    .from('workspaces')
+    .update({ auto_close_days: n })
+    .eq('id', workspaceId);
+
+  if (error) {
+    return { success: false as const, error: error.message };
+  }
+  return { success: true as const };
+}
+
+const ALLOWED_LEGACY_INTEGRATION_FIELDS = [
+  'whatsapp_enabled',
+  'whatsapp_phone_number_id',
+  'whatsapp_access_token',
+  'whatsapp_business_account_id',
+  'meta_enabled',
+  'meta_page_access_token',
+  'meta_verify_token',
+  'meta_app_secret',
+  'linkedin_enabled',
+  'linkedin_access_token',
+  'linkedin_organization_urn',
+  'slack_enabled',
+  'slack_webhook_url',
+  'email_offline_notifications',
+] as const;
+
+export async function getLegacyIntegrationsAction(workspaceId: string): Promise<{
+  integration: Partial<WorkspaceIntegration> | null;
+  metaVerifyToken: string;
+  sectionsCount: number;
+  articlesCount: number;
+}> {
+  const { supabase } = await getWorkspaceAccess(workspaceId, 'manage_settings');
+
+  const [{ data }, { count: secCount }, { count: artCount }] = await Promise.all([
+    supabase
+      .from('workspace_integrations')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .maybeSingle(),
+    supabase
+      .from('help_sections')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspaceId),
+    supabase
+      .from('articles')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'published'),
+  ]);
+
+  const row = (data as Partial<WorkspaceIntegration> | null) || null;
+  let currentVerifyToken = row?.meta_verify_token || '';
+  if (
+    !currentVerifyToken ||
+    currentVerifyToken === 'chatify_meta_verify_secret' ||
+    currentVerifyToken === 'zentry_meta_verify_secret'
+  ) {
+    currentVerifyToken =
+      'meta_vfy_' +
+      Math.random().toString(36).substring(2, 10) +
+      Math.random().toString(36).substring(2, 10);
+    await supabase.from('workspace_integrations').upsert(
+      {
+        workspace_id: workspaceId,
+        meta_verify_token: currentVerifyToken,
+      },
+      { onConflict: 'workspace_id' },
+    );
+  }
+
+  return {
+    integration: row,
+    metaVerifyToken: currentVerifyToken,
+    sectionsCount: secCount || 0,
+    articlesCount: artCount || 0,
+  };
+}
+
+export async function saveLegacyIntegrationsAction(
+  workspaceId: string,
+  form: Partial<WorkspaceIntegration>,
+): Promise<{ success: true } | { success: false; error: string }> {
+  await assertSettingNotLocked(workspaceId, 'integrations');
+  const { supabase } = await getWorkspaceAccess(workspaceId, 'manage_settings');
+
+  const payload: Record<string, unknown> = {
+    workspace_id: workspaceId,
+    updated_at: new Date().toISOString(),
+  };
+  for (const field of ALLOWED_LEGACY_INTEGRATION_FIELDS) {
+    if (field in form) {
+      payload[field] = (form as Record<string, unknown>)[field];
+    }
+  }
+
+  const { error } = await supabase
+    .from('workspace_integrations')
+    .upsert(payload, { onConflict: 'workspace_id' });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+  return { success: true };
+}

@@ -12,11 +12,22 @@ function base64UrlToUint8Array(input: string): Uint8Array {
 }
 
 async function decodeNestJwt(token: string): Promise<Record<string, any> | null> {
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
 
-  const secret = process.env.JWT_SECRET;
-  if (secret && globalThis.crypto?.subtle) {
+    // Fail closed: never trust unsigned or unverified tokens when JWT_SECRET is missing.
+    const secret = process.env.JWT_SECRET;
+    if (!secret || !globalThis.crypto?.subtle) {
+      return null;
+    }
+
+    const headerJson = new TextDecoder().decode(base64UrlToUint8Array(parts[0]));
+    const header = JSON.parse(headerJson);
+    if (!header || typeof header !== 'object' || header.alg !== 'HS256') {
+      return null;
+    }
+
     const encoder = new TextEncoder();
     const key = await crypto.subtle.importKey(
       'raw',
@@ -33,15 +44,19 @@ async function decodeNestJwt(token: string): Promise<Record<string, any> | null>
       encoder.encode(`${parts[0]}.${parts[1]}`)
     );
     if (!valid) return null;
-  }
 
-  const json = new TextDecoder().decode(base64UrlToUint8Array(parts[1]));
-  const payload = JSON.parse(json);
-  const now = Math.floor(Date.now() / 1000);
-  if (typeof payload.exp === 'number' && payload.exp <= now) {
+    const json = new TextDecoder().decode(base64UrlToUint8Array(parts[1]));
+    const payload = JSON.parse(json);
+    if (!payload || typeof payload !== 'object') return null;
+
+    const now = Math.floor(Date.now() / 1000);
+    if (typeof payload.exp !== 'number' || !Number.isFinite(payload.exp) || payload.exp <= now) {
+      return null;
+    }
+    return payload;
+  } catch {
     return null;
   }
-  return payload;
 }
 
 export async function proxy(request: NextRequest) {
@@ -97,6 +112,17 @@ export async function proxy(request: NextRequest) {
   // 4. Redirect already-logged-in users away from /login and /signup
   if ((pathname === '/login' || pathname === '/signup') && userId) {
     return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  // 5. Rewrite custom Help Center domains and <slug>.HELP_BASE_DOMAIN subdomains to /help/<workspace>
+  try {
+    const { resolveHelpCenterRewriteUrl } = await import('@/lib/help/custom-domain-routing');
+    const rewriteUrl = await resolveHelpCenterRewriteUrl(request);
+    if (rewriteUrl) {
+      return NextResponse.rewrite(rewriteUrl);
+    }
+  } catch {
+    // Non-fatal: fall through to standard routing if custom domain resolution fails
   }
 
   return response;

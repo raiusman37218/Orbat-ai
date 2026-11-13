@@ -70,7 +70,7 @@ const fakeState = vi.hoisted(() => ({
   locks: [] as any[],
 }));
 
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: vi.fn(() => ({
     from: vi.fn((table: string) => {
       let isSingle = false;

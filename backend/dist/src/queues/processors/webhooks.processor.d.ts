@@ -1,7 +1,9 @@
-import { WorkerHost } from '@nestjs/bullmq';
 import { Job } from 'bullmq';
 import { WebhookPayload } from '../queue.constants';
-export declare class WebhooksProcessor extends WorkerHost {
+import { QueuesService } from '../queues.service';
+import { BaseQueueProcessor } from './base.processor';
+export declare class WebhooksProcessor extends BaseQueueProcessor {
     private readonly logger;
+    constructor(queuesService?: QueuesService);
     process(job: Job<WebhookPayload>): Promise<any>;
 }

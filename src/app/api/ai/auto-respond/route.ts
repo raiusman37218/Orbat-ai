@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse, after } from 'next/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { checkRateLimit } from '@/lib/rate-limit';
 import {
   generateHelpDeskResponseWithHandover,
@@ -131,7 +131,7 @@ function helpCenterUrlFor(ws: any): string | null {
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
+  'Access-Control-Allow-Headers': 'Content-Type, X-Visitor-Token',
 };
 
 function json(body: unknown, init?: { status?: number }) {
@@ -147,6 +147,35 @@ const inFlightConversations = new Set<string>();
 const inFlightMessages = new Set<string>();
 
 export async function POST(req: NextRequest) {
+  let body: any;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
+
+  const conversation_id: string | undefined = body?.conversation_id;
+  const workspace_id: string | undefined = body?.workspace_id;
+
+  if (!conversation_id || !workspace_id) {
+    return json({ error: 'Missing conversation_id or workspace_id' }, { status: 400 });
+  }
+
+  if (!(await checkRateLimit(`auto_respond:${conversation_id}`, 30, 60))) {
+    return json({ error: 'rate_limited' }, { status: 429 });
+  }
+
+  const { withConversationAdvisoryLock } = await import('@/lib/ai/auto-respond-guard');
+  const lockOutcome = await withConversationAdvisoryLock(conversation_id, () =>
+    executeAutoRespond(req, body),
+  );
+  if (!lockOutcome.acquired) {
+    return json({ replied: false, reason: 'already_in_flight' });
+  }
+  return lockOutcome.result!;
+}
+
+async function executeAutoRespond(req: NextRequest, body: any) {
   let lockAcquired = false;
   let messageLockAcquired = false;
   let conversation_id: string | undefined;
@@ -156,17 +185,12 @@ export async function POST(req: NextRequest) {
   let eventScope: { workspaceId: string; conversationId: string } | null = null;
 
   try {
-    const body = await req.json();
     conversation_id = body.conversation_id;
     const workspace_id = body.workspace_id;
     const requested_message_id = body.message_id || body.messageId;
 
     if (!conversation_id || !workspace_id) {
       return json({ error: 'Missing conversation_id or workspace_id' }, { status: 400 });
-    }
-
-    if (!(await checkRateLimit(`auto_respond:${conversation_id}`, 30, 60))) {
-      return json({ error: 'rate_limited' }, { status: 429 });
     }
 
     console.log('[Auto-Respond Step 1] AI reply triggered for message:', {
@@ -244,6 +268,18 @@ export async function POST(req: NextRequest) {
     }
 
     eventScope = { workspaceId: workspace_id, conversationId: conversation_id };
+
+    const { verifyAutoRespondCaller } = await import('@/lib/ai/auto-respond-guard');
+    const callerAuth = await verifyAutoRespondCaller({
+      request: req,
+      workspaceId: workspace_id,
+      convVisitorId: conv.visitor_id,
+      visitorToken: body?.visitor_token,
+      supabase,
+    });
+    if (!callerAuth.authorized) {
+      return json({ error: 'Unauthorized', code: callerAuth.reason || 'unauthorized' }, { status: 401 });
+    }
 
     // Every silent "no" is recorded with its reason, so "the bot didn't
     // reply" can be answered from ai_reply_events instead of guessed at. The

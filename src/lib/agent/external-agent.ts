@@ -23,7 +23,7 @@
  *   response { response | content | message | output, action?: "reply" | "escalate",
  *              priority?, internal_note? }
  */
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { buildModelContext } from '@/lib/ai/help-answer';
 import { buildHandoverSummary, classifyByRules, noAnswerHandoverReply, replyLanguageOf } from '@/lib/ai/intent';
 import type { HelpDeskResponseResult, HumanContext } from '@/lib/ai/anthropic';

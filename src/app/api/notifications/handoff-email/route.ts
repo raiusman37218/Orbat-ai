@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { loadTeamAlertSmtp } from '@/lib/email/workspace-smtp';
 import { sendSmtpEmail } from '@/lib/email/smtp';
 import {
@@ -52,11 +52,11 @@ export async function POST(req: NextRequest) {
     // environment: it used to accept any "Bearer ..." header.
     const authHeader = req.headers.get('authorization') || '';
     const cronSecret = process.env.CRON_SECRET;
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    const internalSecret = process.env.INTERNAL_API_SECRET || process.env.AI_INTERNAL_SECRET;
 
     const isAuthorized =
       Boolean(cronSecret && authHeader === `Bearer ${cronSecret}`) ||
-      Boolean(serviceRoleKey && authHeader === `Bearer ${serviceRoleKey}`);
+      Boolean(internalSecret && authHeader === `Bearer ${internalSecret}`);
 
     if (!isAuthorized) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });

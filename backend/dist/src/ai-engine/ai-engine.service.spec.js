@@ -41,7 +41,7 @@ const mock_fallback_provider_1 = require("./providers/mock-fallback.provider");
         const result = await aiService.generateBotResponse('ws-1', 'conv-1', 'What are your support hours?');
         (0, vitest_1.expect)(result.replied).toBe(true);
         (0, vitest_1.expect)(mockRetrieval.retrieveChunks).toHaveBeenCalled();
-        (0, vitest_1.expect)(mockMessagesService.sendMessage).toHaveBeenCalledWith('ws-1', 'conv-1', vitest_1.expect.objectContaining({ senderType: 'agent' }));
+        (0, vitest_1.expect)(mockMessagesService.sendMessage).toHaveBeenCalledWith('ws-1', 'conv-1', vitest_1.expect.objectContaining({ senderType: 'ai' }));
         (0, vitest_1.expect)(aiUsage.recordBillableReply).toHaveBeenCalledTimes(1);
         (0, vitest_1.expect)(aiUsage.recordBillableReply).toHaveBeenCalledWith('ws-1', 'conv-1', 'msg-bot-1');
     });

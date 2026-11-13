@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { ShieldCheck, Monitor } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { saveAuthSession } from '@/lib/api/backend-auth';
 import { getAuditLogAction, type AuditEntry } from '@/app/actions/settings';
 import { describeAuditEntry } from '@/lib/settings/validation';
 import { Button } from '@/components/ui/Button';
@@ -32,12 +32,19 @@ export function SessionsPanel() {
 
   useEffect(() => {
     let live = true;
-    createClient()
-      .auth.getUser()
-      .then(({ data, error: err }: { data: { user: { email?: string; last_sign_in_at?: string } | null }; error: { message: string } | null }) => {
+    fetch('/api/auth/sessions', { cache: 'no-store' })
+      .then(async (res) => {
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'You are not signed in.');
+        return json;
+      })
+      .then((data) => {
         if (!live) return;
-        if (err || !data.user) return setError(err?.message || 'You are not signed in.');
-        setInfo({ email: data.user.email ?? null, lastSignIn: data.user.last_sign_in_at ?? null });
+        setInfo({ email: data?.email ?? null, lastSignIn: data?.lastSignIn ?? null });
+      })
+      .catch((err) => {
+        if (!live) return;
+        setError(errorMessage(err, 'You are not signed in.'));
       });
     return () => {
       live = false;
@@ -46,11 +53,22 @@ export function SessionsPanel() {
 
   async function signOutOthers() {
     setBusy(true);
-    const { error: err } = await createClient().auth.signOut({ scope: 'others' });
-    setBusy(false);
-    setConfirm(false);
-    if (err) toast.error(err.message || 'Could not sign out other sessions.');
-    else toast.success('Signed out everywhere else.');
+    try {
+      const res = await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'others' }),
+      });
+      const json = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(json?.error || 'Could not sign out other sessions.');
+      if (json?.accessToken) saveAuthSession(json);
+      toast.success('Signed out everywhere else.');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not sign out other sessions.'));
+    } finally {
+      setBusy(false);
+      setConfirm(false);
+    }
   }
 
   if (error) {
@@ -138,12 +156,19 @@ export function TwoFactorPanel() {
 
   useEffect(() => {
     let live = true;
-    createClient()
-      .auth.mfa.listFactors()
-      .then(({ data, error: err }: { data: { totp?: { id: string; status: string }[] } | null; error: { message: string } | null }) => {
+    fetch('/api/auth/mfa', { cache: 'no-store' })
+      .then(async (res) => {
+        const json = await res.json().catch(() => null);
+        if (!res.ok) throw new Error(json?.error || 'Could not load two-factor settings');
+        return json;
+      })
+      .then((data) => {
         if (!live) return;
-        if (err) return setError(err.message);
-        setFactors((data?.totp ?? []).map((f) => ({ id: f.id, status: f.status })));
+        setFactors((data?.factors ?? []).map((f: { id: string; status: string }) => ({ id: f.id, status: f.status })));
+      })
+      .catch((err) => {
+        if (!live) return;
+        setError(errorMessage(err, 'Could not load two-factor settings'));
       });
     return () => {
       live = false;
@@ -153,13 +178,24 @@ export function TwoFactorPanel() {
   async function start() {
     setBusy(true);
     setCodeError(null);
-    // An abandoned, unverified enrolment blocks a new one with the same name.
-    for (const f of factors ?? []) if (f.status !== 'verified') await createClient().auth.mfa.unenroll({ factorId: f.id });
-    const { data, error: err } = await createClient().auth.mfa.enroll({ factorType: 'totp', friendlyName: `Zentry ${new Date().toISOString().slice(0, 10)}` });
-    setBusy(false);
-    if (err || !data) return toast.error(err?.message || 'Could not start setup. Two-factor may be switched off for this project.');
-    setEnrolling({ factorId: data.id, qr: data.totp.qr_code, secret: data.totp.secret });
-    setCode('');
+    try {
+      const res = await fetch('/api/auth/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'enroll' }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data?.totp) {
+        toast.error(data?.error || 'Could not start two-factor setup.');
+        return;
+      }
+      setEnrolling({ factorId: data.id || 'totp', qr: data.totp.qr_code, secret: data.totp.secret });
+      setCode('');
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not start two-factor setup.'));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function verify(e: React.FormEvent) {
@@ -167,22 +203,44 @@ export function TwoFactorPanel() {
     if (!enrolling) return;
     if (!/^\d{6}$/.test(code)) return setCodeError('Enter the 6-digit code from your app.');
     setBusy(true);
-    const { error: err } = await createClient().auth.mfa.challengeAndVerify({ factorId: enrolling.factorId, code });
-    setBusy(false);
-    if (err) return setCodeError(err.message || 'That code did not match. Try the next one.');
-    setEnrolling(null);
-    toast.success('Two-factor authentication is on.');
-    reload();
+    try {
+      const res = await fetch('/api/auth/mfa', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'verify', code }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setCodeError(data?.error || 'That code did not match. Try the next one.');
+        return;
+      }
+      setEnrolling(null);
+      toast.success('Two-factor authentication is on.');
+      reload();
+    } catch (err) {
+      setCodeError(errorMessage(err, 'That code did not match. Try the next one.'));
+    } finally {
+      setBusy(false);
+    }
   }
 
-  async function remove(id: string) {
+  async function remove(_id: string) {
     setBusy(true);
-    const { error: err } = await createClient().auth.mfa.unenroll({ factorId: id });
-    setBusy(false);
-    setRemoving(null);
-    if (err) return toast.error(err.message || 'Could not turn off two-factor. Sign in again and retry.');
-    toast.success('Two-factor authentication is off.');
-    reload();
+    try {
+      const res = await fetch('/api/auth/mfa', { method: 'DELETE' });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        toast.error(data?.error || 'Could not turn off two-factor. Sign in again and retry.');
+        return;
+      }
+      toast.success('Two-factor authentication is off.');
+      reload();
+    } catch (err) {
+      toast.error(errorMessage(err, 'Could not turn off two-factor. Sign in again and retry.'));
+    } finally {
+      setBusy(false);
+      setRemoving(null);
+    }
   }
 
   if (error) {

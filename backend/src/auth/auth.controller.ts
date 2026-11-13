@@ -3,6 +3,7 @@ import {
   Post,
   Get,
   Body,
+  Query,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
@@ -53,8 +54,8 @@ export class AuthController {
   @Public()
   @Get('google/url')
   @ApiOperation({ summary: 'Get Google OAuth login URL' })
-  getGoogleAuthUrl() {
-    return this.authService.getGoogleAuthUrl();
+  getGoogleAuthUrl(@Query('redirectUri') redirectUri?: string) {
+    return this.authService.getGoogleAuthUrl(redirectUri);
   }
 
   @Public()

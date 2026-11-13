@@ -1,4 +1,4 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { io, type Socket } from 'socket.io-client';
 import { CHATIFY_ICON_DATA_URI, ZENTRY_ICON_DATA_URI } from './icon';
 import { EMOJI_CATEGORIES, ALL_EMOJIS } from '../../src/lib/emojis';
 import { looksLikeImage, uploadChatImage } from '../../src/lib/image-upload';
@@ -11,8 +11,6 @@ import { DEFAULT_BRAND_COLOR } from '../../src/lib/brand';
 const DEFAULT_API_URL = 'https://orbatai.com';
 /** Hosts that only redirect to DEFAULT_API_URL; API calls go there directly. */
 const LEGACY_API_HOSTS = new Set(['chat-system-wabd.vercel.app']);
-const DEFAULT_SUPABASE_URL ='https://vfjsaynnubxywdbevxtx.supabase.co';
-const DEFAULT_SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZmanNheW5udWJ4eXdkYmV2eHR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgyNTA5MDEsImV4cCI6MjEwMzgyNjkwMX0.YyBCXMqwrOk5BRhQafYLFw8tiM5PC8lc8Yocodw9wf0';
 
 interface NavbarTriggerConfig {
   enabled: boolean;
@@ -26,9 +24,8 @@ interface NavbarTriggerConfig {
 }
 
 interface WidgetConfig {
-  supabaseUrl: string;
-  supabaseKey: string;
   workspaceId: string | null;
+  backendUrl?: string;
   title: string;
   subtitle: string;
   primaryColor: string;
@@ -151,7 +148,6 @@ declare global {
 
 class ZentryWidget {
   private config: WidgetConfig;
-  private supabase: SupabaseClient;
   private container: HTMLDivElement | null = null;
   private shadow: ShadowRoot | null = null;
 
@@ -200,25 +196,21 @@ class ZentryWidget {
   private botTyping: boolean = false;
   private agentTyping: boolean = false;
   private agentTypingTimer: ReturnType<typeof setTimeout> | null = null;
-  private realtimeChannel: any = null;
-  private typingChannel: any = null;
   private forceNewConversation: boolean = false;
 
   /*
-   * Visitor session (docs/AUDIT.md H-3). The widget reaches the database only
-   * through the fn_widget_* functions, which check this token, so the public
-   * anon key on its own cannot read anyone's chat. Live updates arrive as
-   * broadcasts on the session's topic, with polling as the safety net.
+   * Visitor session. The widget communicates with `/api/widget/*` using this
+   * visitor token. Live updates arrive over NestJS Socket.IO `/realtime`
+   * when configured, with adaptive polling (`fn_widget_sync`) as safety net.
    */
   private storageSuffix: string = '';
   private visitorToken: string | null = null;
   private sessionTopic: string | null = null;
   private sessionConversation: { id: string; status: string; csat_rating?: number | null } | null = null;
   private sessionPromise: Promise<boolean> | null = null;
-  /** The project has not run the session migration: use the older direct table access. */
-  private legacyData: boolean = false;
-  private liveChannel: ReturnType<SupabaseClient['channel']> | null = null;
+  private liveSocket: Socket | null = null;
   private liveConnected: boolean = false;
+  private visibilityListenerBound: boolean = false;
   private pollTimer: ReturnType<typeof setTimeout> | null = null;
   private agentsPollTimer: ReturnType<typeof setInterval> | null = null;
   private previousConversations: Array<{
@@ -251,7 +243,6 @@ class ZentryWidget {
 
   constructor() {
     this.config = this.parseConfig();
-    this.supabase = createClient(this.config.supabaseUrl, this.config.supabaseKey);
 
     // Initialize or restore visitor ID (scoped to workspace)
     const storageKeySuffix = this.config.workspaceId ? `_${this.config.workspaceId.slice(0, 8)}` : '';
@@ -292,36 +283,13 @@ class ZentryWidget {
       this.initVisitorTracking();
       this.initSPANavigationTracking();
 
-      if (!this.legacyData) {
-        const conv = this.sessionConversation;
-        if (!this.conversationId && conv?.id) {
-          this.conversationId = conv.id;
-          this.conversationStatus = conv.status || 'open';
-          try {
-            localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, conv.id);
-            localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, conv.id);
-            localStorage.setItem(`chatify_conversation_id${storageKeySuffix}`, conv.id);
-          } catch {}
-        }
-      } else if (!this.conversationId && this.visitorId) {
+      const conv = this.sessionConversation;
+      if (!this.conversationId && conv?.id) {
+        this.conversationId = conv.id;
+        this.conversationStatus = conv.status || 'open';
         try {
-          let query = this.supabase
-            .from('conversations')
-            .select('id, status')
-            .eq('visitor_id', this.visitorId)
-            .order('created_at', { ascending: false })
-            .limit(1);
-          if (this.config.workspaceId) {
-            query = query.eq('workspace_id', this.config.workspaceId);
-          }
-          const { data: existingConv } = await query.maybeSingle();
-          if (existingConv?.id) {
-            this.conversationId = existingConv.id;
-            this.conversationStatus = existingConv.status || 'open';
-            localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, existingConv.id);
-            localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, existingConv.id);
-            localStorage.setItem(`chatify_conversation_id${storageKeySuffix}`, existingConv.id);
-          }
+          localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, conv.id);
+          localStorage.setItem(`chatify_conversation_id${storageKeySuffix}`, conv.id);
         } catch {}
       }
 
@@ -391,9 +359,8 @@ class ZentryWidget {
     } catch (e) {}
 
     return {
-      supabaseUrl: script?.getAttribute('data-supabase-url') || DEFAULT_SUPABASE_URL,
-      supabaseKey: script?.getAttribute('data-supabase-key') || DEFAULT_SUPABASE_KEY,
       workspaceId: urlWs || script?.getAttribute('data-workspace-id') || null,
+      backendUrl: script?.getAttribute('data-backend-url') || urlParams?.get('backend_url') || undefined,
       title: script?.getAttribute('data-title') || 'Support Team',
       subtitle: script?.getAttribute('data-subtitle') || 'We reply in under 5 minutes',
       primaryColor: script?.getAttribute('data-color') || DEFAULT_BRAND_COLOR,
@@ -543,6 +510,9 @@ class ZentryWidget {
         if (data.slug) {
           this.config.helpSlug = data.slug;
         }
+        if (!this.config.backendUrl && data.socket_url) {
+          this.config.backendUrl = String(data.socket_url);
+        }
         if (data.navbar_trigger_config) {
           this.config.navbarTriggerConfig = data.navbar_trigger_config;
         }
@@ -600,7 +570,6 @@ class ZentryWidget {
     try {
       let articles: any[] = [];
       let rawSections: any[] = [];
-      let loadedViaProxy = false;
 
       const apiBase = (this.config.apiUrl || '').replace(/\/$/, '');
       if (apiBase) {
@@ -609,42 +578,17 @@ class ZentryWidget {
             `${apiBase}/api/widget/help?workspaceId=${encodeURIComponent(this.config.workspaceId)}`,
             { cache: 'no-store' }
           );
-          const isProxy = helpRes.headers.get('x-orbat-widget-proxy') === '1';
           if (helpRes.ok) {
             const json = await helpRes.json().catch(() => null);
             const payload = json && typeof json === 'object' && 'data' in json ? json.data : json;
             if (payload) {
               articles = payload.articles || [];
               rawSections = payload.sections || [];
-              loadedViaProxy = true;
             }
-          } else if (isProxy && helpRes.status < 500) {
-            loadedViaProxy = true;
           }
-        } catch {
-          // Fall back to Supabase below
+        } catch (err) {
+          console.warn('[Zen-try] Failed to fetch help articles:', err);
         }
-      }
-
-      if (!loadedViaProxy) {
-        const [secRes, artRes] = await Promise.all([
-          this.supabase
-            .from('help_sections')
-            .select('id, name, description, icon, order_index, slug')
-            .eq('workspace_id', this.config.workspaceId)
-            .order('order_index', { ascending: true })
-            .order('created_at', { ascending: true }),
-          this.supabase
-            .from('articles')
-            .select('id, title, slug, summary, content, category, section_id, order_index, section:help_sections(id, name, icon)')
-            .eq('workspace_id', this.config.workspaceId)
-            .eq('status', 'published')
-            .order('order_index', { ascending: true })
-            .order('created_at', { ascending: true }),
-        ]);
-
-        articles = artRes.data || [];
-        rawSections = secRes.data || [];
       }
 
       this.faqs = articles.map((a: any) => ({
@@ -713,22 +657,6 @@ class ZentryWidget {
       }
 
       this.sections = uniqueSections;
-
-      if (!this.config.customDomain || !this.config.helpSlug) {
-        const { data: ws } = await this.supabase
-          .from('public_workspaces')
-          .select('custom_domain, custom_domain_status, slug')
-          .eq('id', this.config.workspaceId)
-          .maybeSingle();
-        if (ws) {
-          if (ws.custom_domain && (ws.custom_domain_status === 'live' || ws.custom_domain_status === 'verified')) {
-            this.config.customDomain = ws.custom_domain;
-          }
-          if (ws.slug) {
-            this.config.helpSlug = ws.slug;
-          }
-        }
-      }
 
       this.renderFaqList();
       this.updateThemeAndTexts();
@@ -1110,11 +1038,6 @@ class ZentryWidget {
     });
   }
 
-  private static isMissingFunction(error: unknown): boolean {
-    const e = error as { code?: string; message?: string } | null | undefined;
-    return e?.code === 'PGRST202' || e?.code === '42883' || /could not find the function/i.test(String(e?.message || ''));
-  }
-
   private static errorText(error: unknown): string {
     return String((error as { message?: string } | null)?.message || error || '');
   }
@@ -1124,56 +1047,41 @@ class ZentryWidget {
     args: Record<string, unknown> = {}
   ): Promise<{ data: T | null; error: any }> {
     const apiBase = (this.config.apiUrl || '').replace(/\/$/, '');
-    if (apiBase) {
-      try {
-        const res = await fetch(`${apiBase}/api/widget/rpc/${encodeURIComponent(fn)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(args),
-        });
-        const isProxy = res.headers.get('x-orbat-widget-proxy') === '1';
-        const json = await res.json().catch(() => null);
-        if (res.ok) {
-          const unwrapped =
-            json && typeof json === 'object' && 'data' in json ? json.data : json;
-          return { data: (unwrapped ?? null) as T | null, error: null };
-        }
-        if (res.status >= 500) {
-          // Transient proxy/backend failure -> try Supabase fallback before giving up
-          try {
-            const sbRes = (await this.supabase.rpc(fn, args)) as { data: T | null; error: any };
-            if (!sbRes.error && sbRes.data !== null) {
-              return sbRes;
-            }
-          } catch {}
-          return {
-            data: null,
-            error: {
-              message: json?.message || json?.error || `HTTP ${res.status}`,
-              status: res.status,
-            },
-          };
-        }
-        if (isProxy || res.status !== 404) {
-          return {
-            data: null,
-            error: {
-              message: json?.message || json?.error || `HTTP ${res.status}`,
-              code: res.status === 429 ? 'P0001' : undefined,
-              status: res.status,
-            },
-          };
-        }
-      } catch {
-        // Network error reaching widget proxy -> fall back to legacy Supabase if configured
-      }
+    if (!apiBase) {
+      return { data: null, error: { message: 'Widget API URL is not configured.' } };
     }
-    return (await this.supabase.rpc(fn, args)) as { data: T | null; error: any };
+    try {
+      const res = await fetch(`${apiBase}/api/widget/rpc/${encodeURIComponent(fn)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(args),
+      });
+      const json = await res.json().catch(() => null);
+      if (res.ok) {
+        const unwrapped =
+          json && typeof json === 'object' && 'data' in json ? json.data : json;
+        return { data: (unwrapped ?? null) as T | null, error: null };
+      }
+      return {
+        data: null,
+        error: {
+          message: json?.message || json?.error || `HTTP ${res.status}`,
+          code: res.status === 429 ? 'P0001' : undefined,
+          status: res.status,
+        },
+      };
+    } catch (err: any) {
+      return {
+        data: null,
+        error: { message: err?.message || 'Network error reaching widget API.' },
+      };
+    }
   }
 
   /** Opens (or resumes) this visitor's session; false only when the server could not be reached. */
   private ensureSession(): Promise<boolean> {
-    if (this.legacyData || (this.visitorToken && this.sessionTopic)) return Promise.resolve(true);
+    if (!this.config.workspaceId) return Promise.resolve(false);
+    if (this.visitorToken && this.sessionTopic) return Promise.resolve(true);
     if (!this.sessionPromise) {
       this.sessionPromise = this.openSession().finally(() => {
         this.sessionPromise = null;
@@ -1184,9 +1092,7 @@ class ZentryWidget {
 
   private async openSession(): Promise<boolean> {
     if (!this.config.workspaceId) {
-      // Nothing to scope a session to (a bare preview); the old path is all there is.
-      this.legacyData = true;
-      return true;
+      return false;
     }
     for (let attempt = 0; attempt < 3; attempt++) {
       let data: WidgetSession | null = null;
@@ -1211,10 +1117,6 @@ class ZentryWidget {
         }
         this.sessionTopic = data.topic || null;
         this.sessionConversation = data.conversation || null;
-        return true;
-      }
-      if (ZentryWidget.isMissingFunction(error)) {
-        this.legacyData = true;
         return true;
       }
       if (/workspace_unavailable/.test(ZentryWidget.errorText(error))) {
@@ -1292,19 +1194,6 @@ class ZentryWidget {
 
   /** Name, email, page and place of this visitor. */
   private async saveVisitorDetails(location: string | null) {
-    if (this.legacyData) {
-      await this.supabase.rpc('fn_upsert_visitor', {
-        p_id: this.visitorId,
-        p_name: this.visitorName || null,
-        p_email: this.visitorEmail || null,
-        p_current_url: window.location.href,
-        p_user_agent: navigator.userAgent,
-        p_ip_address: null,
-        p_location: location,
-        p_workspace_id: this.config.workspaceId || null,
-      });
-      return;
-    }
     await this.widgetRpc('fn_widget_update_visitor', {
       p_name: this.visitorName || null,
       p_email: this.visitorEmail || null,
@@ -1333,18 +1222,10 @@ class ZentryWidget {
       await this.recordPage(window.location.href, document.title || null, 0);
 
       try {
-        if (this.legacyData) {
-          await this.supabase.rpc('fn_update_visitor_meta', {
-            p_id: this.visitorId,
-            p_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
-            p_language: navigator.language || null,
-          });
-        } else {
-          await this.widgetRpc('fn_widget_update_meta', {
-            p_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
-            p_language: navigator.language || null,
-          });
-        }
+        await this.widgetRpc('fn_widget_update_meta', {
+          p_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || null,
+          p_language: navigator.language || null,
+        });
       } catch {}
     } catch (e) {
       console.warn('[Zen-try] Visitor tracking error:', e);
@@ -1375,21 +1256,19 @@ class ZentryWidget {
       this.sendHeartbeat();
     }, 20000);
 
-    // A keepalive request survives the page closing (sendBeacon cannot carry
-    // the apikey header Supabase needs).
+    // Keepalive offline notification via /api/widget/offline
     const notifyOffline = () => {
       try {
-        const legacy = this.legacyData;
-        fetch(`${this.config.supabaseUrl}/rest/v1/rpc/${legacy ? 'fn_visitor_offline' : 'fn_widget_offline'}`, {
+        if (!this.visitorToken) return;
+        const apiBase = (this.config.apiUrl || '').replace(/\/$/, '');
+        if (!apiBase) return;
+        fetch(`${apiBase}/api/widget/offline`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': this.config.supabaseKey,
-            'Authorization': `Bearer ${this.config.supabaseKey}`,
-          },
-          body: JSON.stringify(
-            legacy ? { p_visitor_id: this.visitorId } : { p_visitor_id: this.visitorId, p_token: this.visitorToken }
-          ),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            p_visitor_id: this.visitorId,
+            p_token: this.visitorToken,
+          }),
           keepalive: true,
         }).catch(() => {});
       } catch {}
@@ -1409,34 +1288,19 @@ class ZentryWidget {
         p_referrer: this.referrerSource || null,
         p_time_on_page: this.getTimeOnPage(),
       };
-      if (this.legacyData) {
-        await this.supabase.rpc('fn_visitor_heartbeat', { p_visitor_id: this.visitorId, ...args });
-      } else {
-        await this.widgetRpc('fn_widget_heartbeat', args);
-      }
+      await this.widgetRpc('fn_widget_heartbeat', args);
     } catch {}
   }
 
   /** One page of the visitor's browsing trail (also marks them online on it). */
   private async recordPage(url: string, title: string | null, durationSeconds: number) {
     try {
-      if (this.legacyData) {
-        await this.supabase.rpc('fn_record_visitor_page', {
-          p_visitor_id: this.visitorId,
-          p_url: url,
-          p_title: title,
-          p_referrer: this.referrerSource || null,
-          p_duration_seconds: durationSeconds,
-          p_workspace_id: this.config.workspaceId || null,
-        });
-      } else {
-        await this.widgetRpc('fn_widget_record_page', {
-          p_url: url,
-          p_title: title,
-          p_referrer: this.referrerSource || null,
-          p_duration_seconds: durationSeconds,
-        });
-      }
+      await this.widgetRpc('fn_widget_record_page', {
+        p_url: url,
+        p_title: title,
+        p_referrer: this.referrerSource || null,
+        p_duration_seconds: durationSeconds,
+      });
     } catch {}
   }
 
@@ -1515,61 +1379,10 @@ class ZentryWidget {
   // 7. Live updates
   private subscribeToRealtime() {
     if (!this.conversationId) return;
-
-    if (this.realtimeChannel) {
-      try { this.supabase.removeChannel(this.realtimeChannel); } catch {}
-      this.realtimeChannel = null;
+    this.startLiveUpdates();
+    if (this.liveSocket?.connected) {
+      this.liveSocket.emit('conversation:join', { conversationId: this.conversationId });
     }
-    this.subscribeToTyping();
-
-    if (!this.legacyData) {
-      this.startLiveUpdates();
-      return;
-    }
-
-    this.realtimeChannel = this.supabase
-      .channel(`chatify-widget-${this.conversationId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${this.conversationId}`,
-        },
-        (payload) => this.receiveMessage(payload.new as MessageItem)
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${this.conversationId}`,
-        },
-        (payload) => this.updateMessage(payload.new as MessageItem)
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: 'messages',
-          filter: `conversation_id=eq.${this.conversationId}`,
-        },
-        (payload) => this.removeMessage((payload.old as { id?: string })?.id)
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'conversations',
-          filter: `id=eq.${this.conversationId}`,
-        },
-        (payload) => this.updateConversationStatus((payload.new as { status?: string }).status)
-      )
-      .subscribe();
   }
 
   /** A new message in the open conversation, from realtime or a poll. */
@@ -1654,21 +1467,80 @@ class ZentryWidget {
   }
 
   /**
-   * Session mode: one broadcast channel per visitor (its topic is a secret
-   * only this browser was told), plus a poll. The broadcast makes replies
-   * instant; the poll catches anything it missed, and carries everything on
-   * a project where public broadcast is switched off.
+   * Session mode: Socket.IO `/realtime` (when backend URL is configured) plus
+   * adaptive polling via `fn_widget_messages` / `fn_widget_session`.
    */
   private startLiveUpdates() {
-    if (this.legacyData) return;
-    if (this.sessionTopic && !this.liveChannel) {
-      this.liveChannel = this.supabase
-        .channel(this.sessionTopic, { config: { private: false } })
-        .on('broadcast', { event: 'message' }, ({ payload }) => this.onLiveMessage(payload as LiveMessagePayload))
-        .on('broadcast', { event: 'conversation' }, ({ payload }) => this.onLiveConversation(payload as LiveConversationPayload))
-        .subscribe((status: string) => {
-          this.liveConnected = status === 'SUBSCRIBED';
+    const rawBackend = (this.config.backendUrl || '').trim().replace(/\/+$/, '');
+    const socketBase = rawBackend ? rawBackend.replace(/\/api\/v1$/, '') : '';
+    if (socketBase && !this.liveSocket && this.visitorToken && this.config.workspaceId) {
+      try {
+        this.liveSocket = io(`${socketBase}/realtime`, {
+          auth: {
+            visitorId: this.visitorId,
+            visitorToken: this.visitorToken,
+            workspaceId: this.config.workspaceId,
+          },
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 2000,
         });
+
+        this.liveSocket.on('connect', () => {
+          this.liveConnected = true;
+          if (this.conversationId) {
+            this.liveSocket?.emit('conversation:join', { conversationId: this.conversationId });
+          }
+        });
+
+        this.liveSocket.on('disconnect', () => {
+          this.liveConnected = false;
+        });
+
+        this.liveSocket.on('message:new', (msg: MessageItem) => {
+          if (msg) this.onLiveMessage({ op: 'INSERT', message: msg });
+        });
+
+        this.liveSocket.on('message:updated', (msg: MessageItem) => {
+          if (msg) this.onLiveMessage({ op: 'UPDATE', message: msg });
+        });
+
+        this.liveSocket.on('message:deleted', (payload: { id?: string; conversationId?: string }) => {
+          if (payload?.id) {
+            this.onLiveMessage({
+              op: 'DELETE',
+              message: { id: payload.id, conversation_id: payload.conversationId } as MessageItem,
+            });
+          }
+        });
+
+        this.liveSocket.on('conversation:updated', (conv: any) => {
+          if (conv) this.onLiveConversation({ op: 'UPDATE', conversation: conv });
+        });
+
+        this.liveSocket.on('typing:update', (payload: { conversationId?: string; userId?: string; isTyping?: boolean }) => {
+          if (payload?.conversationId !== this.conversationId || payload?.userId === this.visitorId) return;
+          if (payload?.isTyping) {
+            this.agentTyping = true;
+            if (this.agentTypingTimer) clearTimeout(this.agentTypingTimer);
+            this.agentTypingTimer = setTimeout(() => {
+              this.agentTyping = false;
+              this.renderMessages();
+            }, 4000);
+          } else {
+            if (this.agentTypingTimer) clearTimeout(this.agentTypingTimer);
+            this.agentTyping = false;
+          }
+          this.renderMessages();
+        });
+      } catch {
+        this.liveSocket = null;
+      }
+    }
+
+    if (!this.visibilityListenerBound) {
+      this.visibilityListenerBound = true;
       document.addEventListener('visibilitychange', () => {
         if (document.visibilityState === 'visible') this.pollSoon();
       });
@@ -1726,7 +1598,6 @@ class ZentryWidget {
   }
 
   private schedulePoll() {
-    if (this.legacyData) return;
     if (this.pollTimer) clearTimeout(this.pollTimer);
     const hidden = typeof document !== 'undefined' && document.visibilityState === 'hidden';
     const watching = this.isOpen && this.activeTab === 'messages';
@@ -1744,7 +1615,7 @@ class ZentryWidget {
 
   /** Check now (the page came back, or the visitor opened the chat). */
   private pollSoon() {
-    if (this.legacyData || !this.sessionTopic) return;
+    if (!this.sessionTopic) return;
     if (this.pollTimer) clearTimeout(this.pollTimer);
     this.pollTimer = setTimeout(() => this.poll(), 300);
   }
@@ -1778,7 +1649,7 @@ class ZentryWidget {
   /** Brings the open conversation up to date without losing messages still being sent. */
   private async syncMessages() {
     const convId = this.conversationId;
-    if (!convId || this.legacyData) return;
+    if (!convId) return;
     let res: {
       conversation?: {
         status?: string;
@@ -1831,37 +1702,27 @@ class ZentryWidget {
     if (!this.conversationId) return;
 
     let data: MessageItem[] | null = null;
-    if (this.legacyData) {
-      const res = await this.supabase
-        .from('messages')
-        .select('*')
-        .eq('conversation_id', this.conversationId)
-        .or('is_internal.is.null,is_internal.eq.false')
-        .order('created_at', { ascending: true });
-      data = res.data as MessageItem[] | null;
-    } else {
-      try {
-        const res = await this.widgetRpc<{
-          conversation?: { status?: string; csat_rating?: number | null };
-          messages?: MessageItem[];
-        }>('fn_widget_messages', { p_conversation_id: this.conversationId });
-        data = Array.isArray(res?.messages) ? res.messages : [];
-        if (res?.conversation?.status) this.conversationStatus = res.conversation.status;
-        if ((res?.conversation as any)?.handoff_status) this.handoffStatus = (res!.conversation as any).handoff_status;
-        if ((res?.conversation as any)?.handoff_summary) this.handoffSummary = (res!.conversation as any).handoff_summary;
-        if ((res?.conversation as any)?.handoff_reason) this.handoffReason = (res!.conversation as any).handoff_reason;
-        if ((res?.conversation as any)?.ai_assist !== undefined) this.aiAssistEnabled = Boolean((res!.conversation as any).ai_assist);
-        if ((res?.conversation as any)?.assigned_agent_id) this.assignedAgentId = (res!.conversation as any).assigned_agent_id;
-        this.applyHandoffDetails(res?.conversation);
-        if (res?.conversation?.csat_rating != null) this.csatRated = true;
-      } catch (e) {
-        if (/conversation_not_found/.test(ZentryWidget.errorText(e))) {
-          // Stored by an earlier visitor identity in this browser.
-          this.forgetConversation();
-          this.renderMessages();
-        }
-        return;
+    try {
+      const res = await this.widgetRpc<{
+        conversation?: { status?: string; csat_rating?: number | null };
+        messages?: MessageItem[];
+      }>('fn_widget_messages', { p_conversation_id: this.conversationId });
+      data = Array.isArray(res?.messages) ? res.messages : [];
+      if (res?.conversation?.status) this.conversationStatus = res.conversation.status;
+      if ((res?.conversation as any)?.handoff_status) this.handoffStatus = (res!.conversation as any).handoff_status;
+      if ((res?.conversation as any)?.handoff_summary) this.handoffSummary = (res!.conversation as any).handoff_summary;
+      if ((res?.conversation as any)?.handoff_reason) this.handoffReason = (res!.conversation as any).handoff_reason;
+      if ((res?.conversation as any)?.ai_assist !== undefined) this.aiAssistEnabled = Boolean((res!.conversation as any).ai_assist);
+      if ((res?.conversation as any)?.assigned_agent_id) this.assignedAgentId = (res!.conversation as any).assigned_agent_id;
+      this.applyHandoffDetails(res?.conversation);
+      if (res?.conversation?.csat_rating != null) this.csatRated = true;
+    } catch (e) {
+      if (/conversation_not_found/.test(ZentryWidget.errorText(e))) {
+        // Stored by an earlier visitor identity in this browser.
+        this.forgetConversation();
+        this.renderMessages();
       }
+      return;
     }
 
     if (data) {
@@ -1895,20 +1756,9 @@ class ZentryWidget {
   /** Receipt only — the visitor has received these but not necessarily seen them. */
   private async markMessagesAsDelivered() {
     if (!this.conversationId) return;
-    if (!this.legacyData) {
-      try {
-        await this.widgetRpc('fn_widget_mark', { p_conversation_id: this.conversationId, p_read: false });
-      } catch {}
-      return;
-    }
     try {
-      await this.supabase.rpc('fn_mark_messages_delivered', {
-        p_conversation_id: this.conversationId,
-        p_exclude_sender: 'visitor',
-      });
-    } catch {
-      // Project has not run the receipts migration yet; ticks stay at "sent".
-    }
+      await this.widgetRpc('fn_widget_mark', { p_conversation_id: this.conversationId, p_read: false });
+    } catch {}
   }
 
   private async markMessagesAsRead() {
@@ -1916,30 +1766,9 @@ class ZentryWidget {
     // Every call writes receipts that come back as updates (and re-renders);
     // with nothing unread there is nothing to say.
     if (!this.messages.some((m) => m.sender_type !== 'visitor' && !m.read_at && !String(m.id).startsWith('temp-'))) return;
-    if (!this.legacyData) {
-      try {
-        await this.widgetRpc('fn_widget_mark', { p_conversation_id: this.conversationId, p_read: true });
-      } catch {}
-      return;
-    }
     try {
-      // Backfills delivered_at too, so a read receipt never exists on its own.
-      await this.supabase.rpc('fn_mark_messages_read', {
-        p_conversation_id: this.conversationId,
-        p_exclude_sender: 'visitor',
-      });
-    } catch {
-      // ignored
-    }
-
-    try {
-      await this.supabase.rpc('fn_mark_conversation_messages_as_read', {
-        p_conversation_id: this.conversationId,
-        p_reader_type: 'visitor',
-      });
-    } catch {
-      // ignored
-    }
+      await this.widgetRpc('fn_widget_mark', { p_conversation_id: this.conversationId, p_read: true });
+    } catch {}
   }
 
   // 9. Conversation Management
@@ -1947,74 +1776,20 @@ class ZentryWidget {
     if (this.conversationId) return this.conversationId;
 
     const suffix = this.config.workspaceId ? `_${this.config.workspaceId.slice(0, 8)}` : '';
-    let data: any = null;
-    let error: any = null;
-    if (!this.legacyData) {
-      // "Start a new conversation" (forceNewConversation) skips get-or-create,
-      // which could hand back the conversation that was just closed.
-      const conv = await this.widgetRpc<{ id: string; status: string }>('fn_widget_start_conversation', {
-        p_force_new: this.forceNewConversation,
-      });
-      this.forceNewConversation = false;
-      this.conversationId = conv.id;
-      this.conversationStatus = conv.status || 'open';
-      try {
-        localStorage.setItem(`zentry_conversation_id${suffix}`, conv.id);
-        localStorage.setItem(`chatify_conversation_id${suffix}`, conv.id);
-      } catch {}
-      this.subscribeToRealtime();
-      return conv.id;
-    }
-    if (this.forceNewConversation) {
-      // "Start a new conversation": skip get-or-create, which could hand back
-      // the conversation that was just closed.
-      error = new Error('forced new conversation');
-    } else {
-      const res = await this.supabase.rpc('fn_get_or_create_conversation', {
-        p_visitor_id: this.visitorId,
-        p_workspace_id: this.config.workspaceId || null,
-      });
-      data = res.data;
-      error = res.error;
-    }
+    // "Start a new conversation" (forceNewConversation) skips get-or-create,
+    // which could hand back the conversation that was just closed.
+    const conv = await this.widgetRpc<{ id: string; status: string }>('fn_widget_start_conversation', {
+      p_force_new: this.forceNewConversation,
+    });
     this.forceNewConversation = false;
-
-    if (error || !data) {
-      console.warn('[Zen-try] fn_get_or_create_conversation fallback:', error);
-      try {
-        await this.supabase.from('visitors').upsert({
-          id: this.visitorId,
-          workspace_id: this.config.workspaceId || null,
-          last_seen: new Date().toISOString(),
-          is_online: true,
-        });
-
-        const { data: convData, error: convErr } = await this.supabase
-          .from('conversations')
-          .insert({
-            visitor_id: this.visitorId,
-            workspace_id: this.config.workspaceId || null,
-            status: 'open',
-            ai_mode: 'autopilot',
-          })
-          .select()
-          .single();
-
-        if (convData) {
-          data = convData;
-        } else {
-          throw convErr || new Error('Failed to create conversation');
-        }
-      } catch (fallbackErr) {
-        throw new Error('Failed to create conversation: ' + (error?.message || String(fallbackErr)));
-      }
-    }
-
-    this.conversationId = data.id;
-    this.conversationStatus = data.status || 'open';
-    localStorage.setItem(`chatify_conversation_id${suffix}`, data.id);
+    this.conversationId = conv.id;
+    this.conversationStatus = conv.status || 'open';
+    try {
+      localStorage.setItem(`zentry_conversation_id${suffix}`, conv.id);
+      localStorage.setItem(`chatify_conversation_id${suffix}`, conv.id);
+    } catch {}
     this.subscribeToRealtime();
-    return data.id;
+    return conv.id;
   }
 
   public async sendMessage(content: string, attachmentUrl?: string) {
@@ -2035,42 +1810,16 @@ class ZentryWidget {
 
     let data: MessageItem | null = null;
     let error: unknown = null;
-    if (!this.legacyData) {
-      // The function also reopens a closed or snoozed conversation.
-      this.conversationStatus = 'open';
-      try {
-        data = await this.widgetRpc<MessageItem>('fn_widget_send_message', {
-          p_conversation_id: convId,
-          p_content: content.trim(),
-          p_attachment_url: attachmentUrl || null,
-        });
-      } catch (e) {
-        error = e;
-      }
-    } else {
-      if (this.conversationStatus !== 'open') {
-        this.conversationStatus = 'open';
-        this.supabase
-          .from('conversations')
-          .update({
-            status: 'open',
-            closed_at: null,
-            snoozed_until: null,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', convId)
-          .then(() => {});
-      }
-
-      const res = await this.supabase.from('messages').insert({
-        conversation_id: convId,
-        sender_type: 'visitor',
-        content: content.trim() || (attachmentUrl ? 'Sent a picture' : ''),
-        attachment_url: attachmentUrl || null,
-        is_internal: false,
-      }).select().single();
-      data = res.data as MessageItem | null;
-      error = res.error;
+    // The function also reopens a closed or snoozed conversation.
+    this.conversationStatus = 'open';
+    try {
+      data = await this.widgetRpc<MessageItem>('fn_widget_send_message', {
+        p_conversation_id: convId,
+        p_content: content.trim(),
+        p_attachment_url: attachmentUrl || null,
+      });
+    } catch (e) {
+      error = e;
     }
 
     if (error) {
@@ -2127,6 +1876,7 @@ class ZentryWidget {
         conversation_id: convId,
         workspace_id: this.config.workspaceId,
         message_id: data?.id,
+        ...(this.visitorToken ? { visitor_token: this.visitorToken } : {}),
       });
       const ask = (base: string) =>
         fetch(`${base}/api/ai/auto-respond`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body });
@@ -2156,34 +1906,19 @@ class ZentryWidget {
     this.renderMessages();
   }
 
-  /** Agents broadcast a 'typing' event on the conversation's channel. */
+  /** Typing updates arrive on the Socket.IO `/realtime` room when configured. */
   private subscribeToTyping() {
-    if (this.typingChannel) {
-      try { this.supabase.removeChannel(this.typingChannel); } catch {}
-      this.typingChannel = null;
+    if (this.conversationId && this.liveSocket?.connected) {
+      this.liveSocket.emit('conversation:join', { conversationId: this.conversationId });
     }
-    if (!this.conversationId) return;
-    this.typingChannel = this.supabase
-      .channel(`chatify-typing-${this.conversationId}`)
-      .on('broadcast', { event: 'typing' }, (payload: any) => {
-        if (payload?.payload?.sender === 'visitor') return;
-        this.agentTyping = true;
-        if (this.agentTypingTimer) clearTimeout(this.agentTypingTimer);
-        this.agentTypingTimer = setTimeout(() => {
-          this.agentTyping = false;
-          this.renderMessages();
-        }, 4000);
-        this.renderMessages();
-      })
-      .subscribe();
   }
 
   /** Closed conversation: forget it locally so the next message opens a fresh one. */
   private startNewConversation() {
     const suffix = this.config.workspaceId ? `_${this.config.workspaceId.slice(0, 8)}` : '';
-    if (this.realtimeChannel) {
-      try { this.supabase.removeChannel(this.realtimeChannel); } catch {}
-      this.realtimeChannel = null;
+    const prevConvId = this.conversationId;
+    if (prevConvId && this.liveSocket?.connected) {
+      this.liveSocket.emit('conversation:leave', { conversationId: prevConvId });
     }
     this.conversationId = null;
     this.conversationStatus = 'open';
@@ -2212,14 +1947,7 @@ class ZentryWidget {
   private async loadPreviousConversations() {
     if (!this.visitorId) return;
     try {
-      const data = this.legacyData
-        ? (
-            await this.supabase.rpc('fn_get_visitor_conversations', {
-              p_visitor_id: this.visitorId,
-              p_workspace_id: this.config.workspaceId || null,
-            })
-          ).data
-        : await this.widgetRpc('fn_widget_conversations');
+      const data = await this.widgetRpc('fn_widget_conversations');
       this.previousConversations = Array.isArray(data) ? data : [];
     } catch {}
     this.renderPreviousConversations();
@@ -2294,7 +2022,6 @@ class ZentryWidget {
     const numRating = ratingVal === 'good' ? 5 : 1;
 
     try {
-      // Our API, not the customer's site the widget is embedded on.
       const res = await fetch(`${this.config.apiUrl || ''}/api/csat/rate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2307,14 +2034,8 @@ class ZentryWidget {
         }),
       });
       if (!res.ok) throw new Error(`CSAT ${res.status}`);
-    } catch {
-      // Only the older direct access can write it from here.
-      if (this.legacyData) try {
-        await this.supabase
-          .from('conversations')
-          .update({ csat_rating: numRating, csat_feedback: comment ? comment.trim() : null })
-          .eq('id', this.conversationId);
-      } catch {}
+    } catch (err) {
+      console.warn('[Zen-try] Failed to save CSAT rating:', err);
     }
 
     this.renderMessages();
@@ -3507,13 +3228,7 @@ class ZentryWidget {
     const refresh = async () => {
       if (document.visibilityState === 'hidden') return;
       const { data, error } = await this.rpcCall('fn_widget_agents', { p_workspace_id: this.config.workspaceId });
-      if (error) {
-        if (ZentryWidget.isMissingFunction(error) && this.agentsPollTimer) {
-          clearInterval(this.agentsPollTimer);
-          this.subscribeToLegacyAgentsRealtime();
-        }
-        return;
-      }
+      if (error) return;
       if (Array.isArray(data)) {
         this.workspaceAgents = data;
         this.renderAvatarsStack(this.workspaceAgents);
@@ -3523,39 +3238,6 @@ class ZentryWidget {
     this.agentsPollTimer = setInterval(() => {
       refresh().catch(() => {});
     }, 60000);
-  }
-
-  /** A project without the session migration: agent rows over realtime, as before. */
-  private subscribeToLegacyAgentsRealtime() {
-    if (!this.config.workspaceId) return;
-
-    this.supabase
-      .channel(`chatify-agents-${this.config.workspaceId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'agents',
-          filter: `workspace_id=eq.${this.config.workspaceId}`,
-        },
-        async () => {
-          try {
-            const { data } = await this.supabase
-              .from('agents')
-              .select('id, name, avatar_url, status')
-              .eq('workspace_id', this.config.workspaceId);
-            if (data) {
-              this.workspaceAgents = data;
-              this.renderAvatarsStack(this.workspaceAgents);
-              this.updatePresenceAndTexts();
-            }
-          } catch (e) {
-            console.warn('[Zen-try] Error updating agent presence:', e);
-          }
-        }
-      )
-      .subscribe();
   }
 
   private updateThemeAndTexts() {
@@ -6709,68 +6391,33 @@ class ZentryWidget {
     // their triggers) can route it.
     if (topic && convId) {
       try {
-        if (this.legacyData) {
-          await this.supabase.rpc('fn_set_conversation_topic', {
-            p_conversation_id: convId,
-            p_visitor_id: this.visitorId,
-            p_topic: topic,
-          });
-        } else {
-          await this.widgetRpc('fn_widget_set_topic', { p_conversation_id: convId, p_topic: topic });
-        }
+        await this.widgetRpc('fn_widget_set_topic', { p_conversation_id: convId, p_topic: topic });
       } catch {}
     }
 
     // Send auto welcome message immediately before visitor types/sends any message
     // (the session function writes it only on an empty conversation).
-    let isEmpty = !this.legacyData;
-    if (this.legacyData) {
-      const { data: existingMsgs } = await this.supabase
-        .from('messages')
-        .select('id')
-        .eq('conversation_id', convId)
-        .limit(1);
-      isEmpty = !existingMsgs || existingMsgs.length === 0;
-    }
+    const rawName = (this.config.businessName || this.config.title || 'our company')
+      .replace(/^Welcome to\s+/i, '')
+      .replace(/\s*Support\s*$/i, '')
+      .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}️]+\s*$/u, '')
+      .replace(/^the\s+/i, '')
+      .trim() || (this.config.businessName || this.config.title || 'our company');
 
-    if (isEmpty) {
-      const rawName = (this.config.businessName || this.config.title || 'our company')
-        .replace(/^Welcome to\s+/i, '')
-        .replace(/\s*Support\s*$/i, '')
-        .replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}️]+\s*$/u, '')
-        .replace(/^the\s+/i, '')
-        .trim() || (this.config.businessName || this.config.title || 'our company');
+    const customWelcome = this.config.welcomeText?.trim();
+    const welcomeContent = customWelcome
+      ? customWelcome.charAt(0).toUpperCase() + customWelcome.slice(1)
+      : `Welcome to ${rawName}`;
+    let savedMsg: MessageItem | null = null;
+    try {
+      savedMsg = await this.widgetRpc<MessageItem | null>('fn_widget_welcome', {
+        p_conversation_id: convId,
+        p_content: welcomeContent,
+      });
+    } catch {}
 
-      const customWelcome = this.config.welcomeText?.trim();
-      const welcomeContent = customWelcome
-        ? customWelcome.charAt(0).toUpperCase() + customWelcome.slice(1)
-        : `Welcome to ${rawName}`;
-      let savedMsg: MessageItem | null = null;
-      if (this.legacyData) {
-        const res = await this.supabase
-          .from('messages')
-          .insert({
-            conversation_id: convId,
-            sender_type: 'agent',
-            content: welcomeContent,
-            is_internal: false,
-            metadata: { is_welcome: true },
-          })
-          .select()
-          .single();
-        savedMsg = res.data as MessageItem | null;
-      } else {
-        try {
-          savedMsg = await this.widgetRpc<MessageItem | null>('fn_widget_welcome', {
-            p_conversation_id: convId,
-            p_content: welcomeContent,
-          });
-        } catch {}
-      }
-
-      if (savedMsg && !this.messages.some((m) => m.id === savedMsg!.id)) {
-        this.messages.push(savedMsg);
-      }
+    if (savedMsg && !this.messages.some((m) => m.id === savedMsg!.id)) {
+      this.messages.push(savedMsg);
     }
 
     this.renderMessages();
@@ -8130,37 +7777,10 @@ class ZentryWidget {
     this.hideMessagePopup(true);
   }
 
-  private subscribeToVisitorConversations(storageKeySuffix: string) {
+  private subscribeToVisitorConversations(_storageKeySuffix: string) {
     if (!this.visitorId) return;
-    if (!this.legacyData) {
-      // A conversation the team starts arrives on the session topic (or the poll).
-      this.startLiveUpdates();
-      return;
-    }
-    this.supabase
-      .channel(`zen-try-visitor-convs-${this.visitorId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'conversations',
-          filter: `visitor_id=eq.${this.visitorId}`,
-        },
-        async (payload) => {
-          const conv = payload.new as { id?: string; status?: string; workspace_id?: string };
-          if (conv?.id && (!this.config.workspaceId || conv.workspace_id === this.config.workspaceId)) {
-            this.conversationId = conv.id;
-            this.conversationStatus = conv.status || 'open';
-            localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, conv.id);
-            localStorage.setItem(`zentry_conversation_id${storageKeySuffix}`, conv.id);
-            localStorage.setItem(`chatify_conversation_id${storageKeySuffix}`, conv.id);
-            await this.loadMessageHistory();
-            this.subscribeToRealtime();
-          }
-        }
-      )
-      .subscribe();
+    // Team-started conversations arrive via Socket.IO / polling updates.
+    this.startLiveUpdates();
   }
 
   public search(query: string) {

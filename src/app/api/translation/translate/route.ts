@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { guardMember } from '@/lib/team/route-guard';
-import { serviceClient } from '@/lib/supabase/service';
+import { guardMember, guardWorkspace } from '@/lib/team/route-guard';
+import { serviceClient } from '@/lib/pg/service';
 import { providerConfigFrom } from '@/lib/ai/help-answer';
 import {
   detectLanguage,
@@ -22,8 +22,6 @@ export async function OPTIONS() {
 
 export async function POST(req: NextRequest) {
   try {
-    const guard = await guardMember('view');
-    if (!guard.ok) return guard.response;
     const body = await req.json();
     const {
       text,
@@ -34,6 +32,11 @@ export async function POST(req: NextRequest) {
       romanize,
     } = body;
 
+    const guard = workspaceId
+      ? await guardWorkspace(workspaceId, 'view')
+      : await guardMember('view');
+    if (!guard.ok) return guard.response;
+
     if (!text || !text.trim()) {
       return NextResponse.json({ translatedText: text || '', isOriginalEnglish: true }, { headers: CORS_HEADERS });
     }
@@ -41,13 +44,14 @@ export async function POST(req: NextRequest) {
     let providerConfig = null;
     let businessName = '';
 
-    if (workspaceId) {
+    const verifiedWorkspaceId = guard.access.agent.workspace_id;
+    if (verifiedWorkspaceId) {
       try {
         const supabase = serviceClient();
         const { data: ws } = await supabase
           .from('workspaces')
           .select('name, ai_settings')
-          .eq('id', workspaceId)
+          .eq('id', verifiedWorkspaceId)
           .maybeSingle();
 
         if (ws) {

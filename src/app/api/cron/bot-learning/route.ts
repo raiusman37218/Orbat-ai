@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { hasServiceRole } from '@/lib/supabase/service';
+import { hasServiceRole } from '@/lib/pg/service';
 import { runBotLearning } from '@/lib/ai/learning/learner';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +18,7 @@ async function handle(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   if (!hasServiceRole()) {
-    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not set' }, { status: 500 });
+    return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 });
   }
   try {
     return NextResponse.json(await runBotLearning());

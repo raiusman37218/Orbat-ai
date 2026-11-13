@@ -8,11 +8,10 @@
  * every row already carries the workspace it belongs to.
  */
 import { createHmac } from 'node:crypto';
-import { lookup } from 'node:dns/promises';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { isValidEmail, sendSmtpEmail, teamMessageEmail } from '@/lib/email/smtp';
 import { loadWorkspaceSmtp } from '@/lib/email/workspace-smtp';
-import { isPrivateAddress, isSafeWebhookUrl } from '@/lib/automation/rules';
+import { resolveAndVerifyPublicHttpsUrl } from '@/lib/security/url-guard.server';
 import { emailConfig } from '@/lib/channels/email/config';
 import { composeNotification } from '@/lib/channels/email/compose';
 import { getEmailProvider } from '@/lib/channels/email/providers';
@@ -127,15 +126,9 @@ export async function deliverSignedWebhook(
   event: string,
   payload: Record<string, unknown>
 ): Promise<{ ok: boolean; error?: string; permanent?: boolean; status?: number }> {
-  if (!isSafeWebhookUrl(url)) return { ok: false, error: 'The webhook address is not a public https URL.', permanent: true };
-  const host = new URL(url).hostname.replace(/^\[|\]$/g, '');
-  try {
-    const addresses = await lookup(host, { all: true });
-    if (addresses.some((a) => isPrivateAddress(a.address))) {
-      return { ok: false, error: 'The webhook address resolves to a private network.', permanent: true };
-    }
-  } catch {
-    return { ok: false, error: 'The webhook address could not be resolved.' };
+  const urlCheck = await resolveAndVerifyPublicHttpsUrl(url);
+  if (!urlCheck.ok) {
+    return { ok: false, error: urlCheck.error || 'The webhook address is not allowed.', permanent: true };
   }
 
   const body = JSON.stringify(payload);

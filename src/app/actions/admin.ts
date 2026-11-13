@@ -1,8 +1,9 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
-import { serviceClient } from '@/lib/supabase/service';
-import { sessionUser } from '@/lib/supabase/session-user';
+import { createClient } from '@/lib/pg/server';
+import { serviceClient } from '@/lib/pg/service';
+import { sessionUser } from '@/lib/auth/session-user';
+import { getPgPasswordHashForUser } from '@/lib/auth/postgres-auth';
 import { query, queryRows } from '@/lib/db';
 import {
   Workspace,
@@ -688,23 +689,16 @@ export async function createWorkspaceAction(input: {
   verificationToken?: string | null;
 }) {
   const nestUser = await sessionUser();
-  const supabase = await createClient();
-  const {
-    data: { user: sbUser },
-    error: authErr,
-  } = nestUser
-    ? { data: { user: null }, error: null }
-    : await supabase.auth.getUser();
 
-  if (!sbUser && !nestUser) {
-    throw userError(authErr?.message || 'Unauthorized: Authentication required.');
+  if (!nestUser) {
+    throw userError('Unauthorized: Authentication required.');
   }
 
   const industry = input.industry?.toLowerCase()?.trim() || 'generic';
   const preset = getIndustryPreset(industry);
 
-  // Fast native NestJS + Neon creation path (preferred whenever NestJS session is active)
-  if (nestUser) {
+  // Create workspace directly in PostgreSQL
+  {
     let baseSlug = formatWorkspaceSlug(input.slug || input.businessName);
     if (!baseSlug || RESERVED_WORKSPACE_SLUGS.has(baseSlug)) {
       baseSlug = baseSlug ? `${baseSlug}-kb` : 'workspace';
@@ -757,16 +751,19 @@ export async function createWorkspaceAction(input: {
       throw userError('Failed to create workspace.');
     }
 
-    const ownerName = nestUser.email?.split('@')[0] || 'Owner';
+    const ownerName = nestUser.name || nestUser.email?.split('@')[0] || 'Owner';
+    const passwordHash = await getPgPasswordHashForUser(nestUser.id, nestUser.email);
     await query(
-      `INSERT INTO public.agents (id, name, email, workspace_id, role, status, is_active)
-       VALUES ($1, $2, $3, $4, 'owner', 'online', true)
+      `INSERT INTO public.agents (id, name, email, workspace_id, role, status, is_active, email_verified, password_hash)
+       VALUES ($1, $2, $3, $4, 'owner', 'online', true, true, $5)
        ON CONFLICT (id) DO UPDATE
          SET workspace_id = EXCLUDED.workspace_id,
              role = 'owner',
              status = 'online',
-             is_active = true`,
-      [nestUser.id, ownerName, nestUser.email || '', ws.id]
+             is_active = true,
+             email_verified = true,
+             password_hash = COALESCE(public.agents.password_hash, EXCLUDED.password_hash)`,
+      [nestUser.id, ownerName, nestUser.email || '', ws.id, passwordHash]
     );
 
     await query(
@@ -806,7 +803,7 @@ export async function createWorkspaceAction(input: {
         }
       }
     } catch (seedErr) {
-      console.warn('Could not seed help blueprints (Neon):', seedErr);
+      console.warn('Could not seed help blueprints:', seedErr);
     }
 
     try {
@@ -830,151 +827,11 @@ export async function createWorkspaceAction(input: {
         ws.plan = defaultPlan.slug;
       }
     } catch (subErr) {
-      console.warn('[Workspace Subscription Init Warning (Neon)]:', subErr);
+      console.warn('[Workspace Subscription Init Warning]:', subErr);
     }
 
     return { success: true, workspace: ws as Workspace };
   }
-
-  const user = sbUser!;
-
-  // Require email verification before the workspace becomes active
-  const isEmailConfirmed = Boolean(user.email_confirmed_at || (user as any).confirmed_at);
-  if (!isEmailConfirmed) {
-    throw userError('Email verification required: Please verify your email address before creating or activating a workspace.');
-  }
-
-  // 1. Generate clean, unique slug from workspace name
-  const slug = await generateUniqueWorkspaceSlug(
-    supabase,
-    input.slug || input.businessName
-  );
-
-  // 2. Insert Workspace
-  const { data: ws, error: wsError } = await supabase
-    .from('workspaces')
-    .insert({
-      name: input.businessName,
-      website_url: input.websiteUrl || null,
-      brand_color: input.brandColor,
-      greeting_title: input.greetingTitle || preset.greetingTitle,
-      greeting_message: input.greetingMessage || preset.greetingPlaceholder,
-      owner_id: user.id,
-      slug,
-      slug_changes_count: 0,
-      slug_changed_at: null,
-      custom_domain: input.customDomain || null,
-      custom_domain_status: input.customDomain ? 'pending' : null,
-      custom_domain_verification_token: input.customDomain ? input.verificationToken : null,
-      industry,
-    })
-    .select()
-    .single();
-
-  if (wsError || !ws) {
-    throw userError(wsError?.message || 'Failed to create workspace.');
-  }
-
-  // 3. Link current agent to workspace
-  await supabase
-    .from('agents')
-    .upsert({
-      id: user.id,
-      name: user.user_metadata?.name || user.email?.split('@')[0] || 'Owner',
-      email: user.email || '',
-      workspace_id: ws.id,
-      role: 'owner',
-      status: 'online',
-    });
-
-  // 4. Seed two generic saved replies (greeting, "we're checking")
-  await supabase.from('canned_responses').insert([
-    {
-      workspace_id: ws.id,
-      title: 'Greeting',
-      shortcut: 'hello',
-      content: 'Hi there! Thanks for reaching out. How can I help you today?',
-    },
-    {
-      workspace_id: ws.id,
-      title: "We're checking",
-      shortcut: 'checking',
-      content: "Thanks for your patience! I'm looking into this for you right now and will update you shortly.",
-    },
-  ]);
-
-  // 5. Seed industry first help section & 3 article blueprints
-  try {
-    const { data: section } = await supabase
-      .from('help_sections')
-      .insert({
-        workspace_id: ws.id,
-        name: preset.sectionName,
-        slug: preset.sectionSlug,
-        icon: preset.icon,
-        description: preset.sectionDescription,
-        order_index: 1,
-      })
-      .select('id')
-      .maybeSingle();
-
-    if (section?.id && preset.articles?.length) {
-      const articleInserts = preset.articles.map((art, idx) => ({
-        workspace_id: ws.id,
-        section_id: section.id,
-        title: art.title,
-        slug: art.slug,
-        category: preset.sectionName,
-        summary: art.summary,
-        content: art.content,
-        status: 'published',
-        author_id: user.id,
-        views_count: 0,
-        order_index: idx + 1,
-      }));
-
-      await supabase.from('articles').insert(articleInserts);
-    }
-  } catch (seedErr) {
-    console.warn('Could not seed help blueprints:', seedErr);
-  }
-
-  // 6. Initialize default plan trial subscription (Safety Requirement 10)
-  try {
-    const adminClient = serviceClient();
-    const { data: defaultPlan } = await adminClient
-      .from('platform_plans')
-      .select('id, slug, trial_days, version')
-      .eq('is_default', true)
-      .limit(1)
-      .maybeSingle();
-
-    if (defaultPlan) {
-      const trialDays = defaultPlan.trial_days || 14;
-      const now = new Date();
-      const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000).toISOString();
-      const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-      await adminClient.from('workspace_subscriptions').insert({
-        workspace_id: ws.id,
-        plan_id: defaultPlan.id,
-        plan_version: defaultPlan.version,
-        status: 'trialing',
-        billing_period: 'monthly',
-        current_period_start: now.toISOString(),
-        current_period_end: periodEnd,
-        trial_ends_at: trialEndsAt,
-        admin_note: 'Initial 14-day trial of Starter plan.',
-      });
-
-      await adminClient.from('workspaces').update({ plan: defaultPlan.slug }).eq('id', ws.id);
-      ws.plan = defaultPlan.slug;
-    }
-  } catch (subErr) {
-    console.warn('[Workspace Subscription Init Warning]:', subErr);
-  }
-
-  return { success: true, workspace: ws as Workspace };
 }
 
 

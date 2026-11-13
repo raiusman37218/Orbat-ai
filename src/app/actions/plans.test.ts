@@ -60,18 +60,20 @@ vi.mock('next/cache', () => ({
   revalidatePath: vi.fn(),
 }));
 
-// Mock @/lib/supabase/server, client, and service
-vi.mock('@/lib/supabase/server', () => ({
+// Mock @/lib/pg/server, client, and service
+vi.mock('@/lib/pg/server', () => ({
   createClient: () => createMockSupabase(),
   createServiceClient: () => createMockSupabase(),
 }));
 
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: () => createMockSupabase(),
 }));
 
-vi.mock('@supabase/ssr', () => ({
-  createServerClient: () => createMockSupabase(),
+vi.mock('server-only', () => ({}));
+
+vi.mock('@/lib/auth/session-user', () => ({
+  sessionUser: async () => fakeDb.currentUser,
 }));
 
 function createMockSupabase() {

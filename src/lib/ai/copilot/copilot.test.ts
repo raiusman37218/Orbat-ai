@@ -83,7 +83,7 @@ vi.mock('@/lib/plans/enforce', () => ({
   getWorkspaceEffectivePlan: (...args: unknown[]) => mockGetWorkspaceEffectivePlan(...args),
 }));
 
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: () => ({
     from: (table: string) => {
       if (table === 'platform_ai_settings') {

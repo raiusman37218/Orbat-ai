@@ -1,5 +1,5 @@
 import { queryRows } from '@/lib/db';
-import { serviceClient } from '@/lib/supabase/service';
+import { normalizeSocketBaseUrl } from '@/lib/backend-url';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -62,12 +62,6 @@ function mapPgError(error: any): never {
   throw error;
 }
 
-export function isSupabaseConfigured(): boolean {
-  const url = (process.env.NEXT_PUBLIC_SUPABASE_URL || '').trim();
-  const key = (process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '').trim();
-  return Boolean(url && !url.includes('noop.supabase.co') && key);
-}
-
 async function runNeonRpc<T = any>(sql: string, params: any[]): Promise<T> {
   try {
     const rows = await queryRows<{ data: T }>(sql, params);
@@ -77,77 +71,31 @@ async function runNeonRpc<T = any>(sql: string, params: any[]): Promise<T> {
   }
 }
 
-async function runSupabaseRpc<T = any>(fnName: string, params: Record<string, any>): Promise<T> {
-  const sb = serviceClient();
-  const { data, error } = await sb.rpc(fnName, params);
-  if (error) {
-    if (error.code === 'PGRST202' || error.code === '42883') {
-      throw new WidgetFallbackHttpError(404, error.message);
-    }
-    mapPgError(error);
-  }
-  return data as T;
-}
-
-async function neonRecordExists(table: 'workspaces' | 'visitors', id: string): Promise<boolean> {
-  try {
-    const rows = await queryRows<{ id: string }>(
-      `SELECT id FROM public.${table} WHERE id = $1::uuid LIMIT 1`,
-      [id]
-    );
-    return rows.length > 0;
-  } catch {
-    return false;
-  }
-}
-
-async function withVisitorFallback<T>(
-  visitorId: string,
-  fnName: string,
-  sbParams: Record<string, any>,
-  neonExec: () => Promise<T>
-): Promise<T> {
-  try {
-    return await neonExec();
-  } catch (err) {
-    if (
-      err instanceof WidgetFallbackHttpError &&
-      (err.status === 401 || err.status === 404) &&
-      isSupabaseConfigured() &&
-      !(await neonRecordExists('visitors', visitorId))
-    ) {
-      return runSupabaseRpc<T>(fnName, sbParams);
-    }
-    throw err;
-  }
-}
-
 async function getConfig(workspaceId: unknown) {
   const wsId = assertUuid(workspaceId, 'workspaceId');
-  let data = await runNeonRpc('SELECT public.fn_get_workspace_config($1::uuid) AS data', [wsId]);
-  if (!data && isSupabaseConfigured() && !(await neonRecordExists('workspaces', wsId))) {
-    data = await runSupabaseRpc('fn_get_workspace_config', { p_workspace_id: wsId });
-  }
+  const data = await runNeonRpc('SELECT public.fn_get_workspace_config($1::uuid) AS data', [wsId]);
   if (!data) {
     throw new WidgetFallbackHttpError(404, 'Workspace not found or unavailable.');
+  }
+  const socketUrl = normalizeSocketBaseUrl(
+    process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_BACKEND_URL,
+  );
+  if (typeof data === 'object' && !Array.isArray(data) && socketUrl && !('socket_url' in data)) {
+    return { ...data, socket_url: socketUrl };
   }
   return data;
 }
 
 async function getAgents(workspaceId: unknown) {
   const wsId = assertUuid(workspaceId, 'workspaceId');
-  const data = await runNeonRpc('SELECT public.fn_widget_agents($1::uuid) AS data', [wsId]);
-  if ((!Array.isArray(data) || data.length === 0) && isSupabaseConfigured() && !(await neonRecordExists('workspaces', wsId))) {
-    return runSupabaseRpc('fn_widget_agents', { p_workspace_id: wsId });
-  }
-  return data;
+  return runNeonRpc('SELECT public.fn_widget_agents($1::uuid) AS data', [wsId]);
 }
 
 async function getHelp(workspaceId: unknown) {
   const wsId = assertUuid(workspaceId, 'workspaceId');
   const [sections, articles] = await Promise.all([
     queryRows(
-      `SELECT id, name, description, icon, order_index
+      `SELECT id, name, description, icon, order_index, slug
        FROM public.help_sections
        WHERE workspace_id = $1
        ORDER BY order_index ASC, created_at ASC`,
@@ -164,29 +112,6 @@ async function getHelp(workspaceId: unknown) {
     ),
   ]);
 
-  if (sections.length === 0 && articles.length === 0 && isSupabaseConfigured() && !(await neonRecordExists('workspaces', wsId))) {
-    const sb = serviceClient();
-    const [secRes, artRes] = await Promise.all([
-      sb
-        .from('help_sections')
-        .select('id, name, description, icon, order_index')
-        .eq('workspace_id', wsId)
-        .order('order_index', { ascending: true })
-        .order('created_at', { ascending: true }),
-      sb
-        .from('articles')
-        .select('id, title, slug, summary, content, category, section_id, order_index, section:help_sections(id, name, icon)')
-        .eq('workspace_id', wsId)
-        .eq('status', 'published')
-        .order('order_index', { ascending: true })
-        .order('created_at', { ascending: true }),
-    ]);
-    return {
-      sections: secRes.data || [],
-      articles: artRes.data || [],
-    };
-  }
-
   return { sections, articles };
 }
 
@@ -195,26 +120,10 @@ async function createOrVerifySession(body: Record<string, any>) {
   const visitorId = assertUuid(pick(body, 'visitorId', 'p_visitor_id'), 'visitorId');
   const token = (pick<string | null>(body, 'token', 'p_token') ?? null) as string | null;
 
-  try {
-    return await runNeonRpc(
-      'SELECT public.fn_widget_session($1::uuid, $2::uuid, $3::text) AS data',
-      [wsId, visitorId, token]
-    );
-  } catch (err) {
-    if (
-      err instanceof WidgetFallbackHttpError &&
-      err.status === 404 &&
-      isSupabaseConfigured() &&
-      !(await neonRecordExists('workspaces', wsId))
-    ) {
-      return runSupabaseRpc('fn_widget_session', {
-        p_workspace_id: wsId,
-        p_visitor_id: visitorId,
-        p_token: token,
-      });
-    }
-    throw err;
-  }
+  return runNeonRpc(
+    'SELECT public.fn_widget_session($1::uuid, $2::uuid, $3::text) AS data',
+    [wsId, visitorId, token]
+  );
 }
 
 async function sendMessage(
@@ -230,58 +139,45 @@ async function sendMessage(
   const cleanedUrl = attachmentUrl ? String(attachmentUrl).trim() : null;
   const textContent = String(content ?? '');
 
-  return withVisitorFallback(
-    vId,
-    'fn_widget_send_message',
-    {
-      p_visitor_id: vId,
-      p_token: t,
-      p_conversation_id: convId,
-      p_content: textContent,
-      p_attachment_url: cleanedUrl,
-    },
-    async () => {
-      if (cleanedUrl && !/^https:\/\//i.test(cleanedUrl) && (/^\//.test(cleanedUrl) || /^http:\/\//i.test(cleanedUrl))) {
-        try {
-          await queryRows('SELECT public.fn_widget_auth($1::uuid, $2::text)', [vId, t]);
-          const convRows = await queryRows<{ id: string; status: string }>(
-            'SELECT * FROM public.fn_widget_conversation($1::uuid, $2::uuid)',
-            [vId, convId]
-          );
-          const conv = convRows[0];
-          if (!conv?.id) {
-            throw new WidgetFallbackHttpError(404, 'Conversation not found.');
-          }
-          const trimmedContent = textContent.trim() || 'Sent a picture';
-          if (conv.status !== 'open') {
-            await queryRows(
-              `UPDATE public.conversations
-               SET status = 'open', closed_at = NULL, snoozed_until = NULL, updated_at = now()
-               WHERE id = $1`,
-              [conv.id]
-            );
-          }
-          const inserted = await queryRows(
-            `INSERT INTO public.messages (conversation_id, sender_type, sender_id, content, attachment_url, is_internal, created_at)
-             VALUES ($1, 'visitor', $2, $3, $4, false, clock_timestamp())
-             RETURNING *`,
-            [conv.id, vId, trimmedContent, cleanedUrl]
-          );
-          const jsonRows = await queryRows<{ data: any }>(
-            'SELECT public.fn_widget_message_json($1::public.messages) AS data',
-            [inserted[0]]
-          ).catch(() => [{ data: inserted[0] }]);
-          return jsonRows[0]?.data || inserted[0];
-        } catch (error) {
-          mapPgError(error);
-        }
-      }
-
-      return runNeonRpc(
-        'SELECT public.fn_widget_send_message($1::uuid, $2::text, $3::uuid, $4::text, $5::text) AS data',
-        [vId, t, convId, textContent, cleanedUrl]
+  if (cleanedUrl && !/^https:\/\//i.test(cleanedUrl) && (/^\//.test(cleanedUrl) || /^http:\/\//i.test(cleanedUrl))) {
+    try {
+      await queryRows('SELECT public.fn_widget_auth($1::uuid, $2::text)', [vId, t]);
+      const convRows = await queryRows<{ id: string; status: string }>(
+        'SELECT * FROM public.fn_widget_conversation($1::uuid, $2::uuid)',
+        [vId, convId]
       );
+      const conv = convRows[0];
+      if (!conv?.id) {
+        throw new WidgetFallbackHttpError(404, 'Conversation not found.');
+      }
+      const trimmedContent = textContent.trim() || 'Sent a picture';
+      if (conv.status !== 'open') {
+        await queryRows(
+          `UPDATE public.conversations
+           SET status = 'open', closed_at = NULL, snoozed_until = NULL, updated_at = now()
+           WHERE id = $1`,
+          [conv.id]
+        );
+      }
+      const inserted = await queryRows(
+        `INSERT INTO public.messages (conversation_id, sender_type, sender_id, content, attachment_url, is_internal, created_at)
+         VALUES ($1, 'visitor', $2, $3, $4, false, clock_timestamp())
+         RETURNING *`,
+        [conv.id, vId, trimmedContent, cleanedUrl]
+      );
+      const jsonRows = await queryRows<{ data: any }>(
+        'SELECT public.fn_widget_message_json($1::public.messages) AS data',
+        [inserted[0]]
+      ).catch(() => [{ data: inserted[0] }]);
+      return jsonRows[0]?.data || inserted[0];
+    } catch (error) {
+      mapPgError(error);
     }
+  }
+
+  return runNeonRpc(
+    'SELECT public.fn_widget_send_message($1::uuid, $2::text, $3::uuid, $4::text, $5::text) AS data',
+    [vId, t, convId, textContent, cleanedUrl]
   );
 }
 
@@ -515,11 +411,9 @@ async function execVisitorRpc(fnName: string, body: Record<string, any>, extraCo
   }
   const vId = assertUuid(pick(body, 'visitorId', 'p_visitor_id'), 'visitorId');
   const t = assertToken(pick(body, 'token', 'p_token'));
-  const { neonParams, sbParams } = spec.buildParams(vId, t, body, extraConvId);
+  const { neonParams } = spec.buildParams(vId, t, body, extraConvId);
 
-  const result = await withVisitorFallback(vId, fnName, sbParams, () =>
-    runNeonRpc(spec.sql, neonParams)
-  );
+  const result = await runNeonRpc(spec.sql, neonParams);
   return spec.okOnly ? { ok: true } : result;
 }
 
@@ -549,15 +443,6 @@ async function invokeWhitelistedRpc(fnName: string, body: Record<string, any>) {
     const isHelpful = Boolean(pick(body, 'p_is_helpful', 'isHelpful'));
     const feedbackText = pick<string | null>(body, 'p_feedback_text', 'feedbackText') ?? null;
 
-    if (isSupabaseConfigured() && !(await neonRecordExists('workspaces', wsId))) {
-      return runSupabaseRpc('fn_submit_article_feedback', {
-        p_article_id: articleId,
-        p_workspace_id: wsId,
-        p_visitor_id: visitorId,
-        p_is_helpful: isHelpful,
-        p_feedback_text: feedbackText,
-      });
-    }
     return runNeonRpc(
       'SELECT public.fn_submit_article_feedback($1::uuid, $2::uuid, $3::text, $4::boolean, $5::text) AS data',
       [articleId, wsId, visitorId, isHelpful, feedbackText]
@@ -588,8 +473,7 @@ const CONV_ACTION_RPCS: Record<string, string> = {
 };
 
 /**
- * Direct PostgreSQL (Neon, with Supabase fallback for legacy/demo workspaces)
- * execution for `/api/widget/*` when NestJS backend (:4000) is offline or unseeded.
+ * Direct PostgreSQL execution for `/api/widget/*` when NestJS backend (:4000) is offline.
  */
 export async function executeWidgetFallback(
   subPath: string,

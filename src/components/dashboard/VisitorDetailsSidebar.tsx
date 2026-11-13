@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   ChevronDown,
   Clock,
@@ -34,7 +34,8 @@ import {
   timezoneFrom,
 } from '@/lib/visitor-meta';
 import { EmptyState } from '@/components/ui/EmptyState';
-import { createClient } from '@/lib/supabase/client';
+import { getVisitorSnapshotAction, listVisitorConversationsAction } from '@/app/actions/inbox';
+import { useWorkspaceLive } from '@/lib/realtime/use-workspace-live';
 
 interface VisitorDetailsSidebarProps {
   visitor: Visitor | null | undefined;
@@ -151,74 +152,62 @@ export function VisitorDetailsSidebar({
   const [showTagInput, setShowTagInput] = useState(false);
   const [customTag, setCustomTag] = useState('');
 
+  const refreshLiveVisitor = useCallback(async () => {
+    if (!visitor?.id || !conversation.workspace_id) return;
+    try {
+      const fresh = await getVisitorSnapshotAction(conversation.workspace_id, visitor.id);
+      if (fresh) {
+        setLiveVisitor((prev) => ({ ...(prev || ({} as Visitor)), ...fresh }));
+      }
+    } catch {
+      // Ignore transient poll errors
+    }
+  }, [visitor?.id, conversation.workspace_id]);
+
   // 1. Sync & Realtime live visitor updates (URL & last seen changes)
   useEffect(() => {
     setLiveVisitor(visitor || null);
-    if (!visitor?.id) return;
-
-    const supabase = createClient();
-    const channel = supabase
-      .channel(`sidebar-visitor-${visitor.id}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'visitors',
-          filter: `id=eq.${visitor.id}`,
-        },
-        (payload: any) => {
-          setLiveVisitor((prev) => ({
-            ...(prev || ({} as Visitor)),
-            ...(payload.new as Visitor),
-          }));
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [visitor]);
+
+  useWorkspaceLive({
+    workspaceId: conversation.workspace_id,
+    conversationId: conversation.id,
+    enabled: Boolean(visitor?.id && conversation.workspace_id),
+    pollMs: 8000,
+    onRefresh: refreshLiveVisitor,
+  });
 
   // 2. Fetch Other Conversation History for this Visitor (by visitor_id and email)
   useEffect(() => {
     const vid = visitor?.id || conversation.visitor_id;
     const email = (visitor?.email || liveVisitor?.email)?.trim().toLowerCase();
-    if (!vid && !email) return;
+    if (!conversation.workspace_id || (!vid && !email)) return;
 
-    const supabase = createClient();
-
-    async function loadVisitorConversations() {
-      let visitorIds = [vid].filter(Boolean) as string[];
-
-      if (email) {
-        const { data: matchedVisitors } = await supabase
-          .from('visitors')
-          .select('id')
-          .eq('email', email);
-        if (matchedVisitors) {
-          const ids = (matchedVisitors as Array<{ id: string }>).map((v) => v.id);
-          visitorIds = Array.from(new Set([...visitorIds, ...ids]));
+    let active = true;
+    listVisitorConversationsAction(
+      conversation.workspace_id,
+      vid || null,
+      email || null,
+      conversation.id
+    )
+      .then((data) => {
+        if (active && data) {
+          setPastConversations(data);
         }
-      }
+      })
+      .catch(() => {});
 
-      if (visitorIds.length === 0) return;
-
-      const { data } = await supabase
-        .from('conversations')
-        .select('id, status, priority, created_at, updated_at')
-        .in('visitor_id', visitorIds)
-        .neq('id', conversation.id)
-        .order('updated_at', { ascending: false });
-
-      if (data) {
-        setPastConversations(data as Conversation[]);
-      }
-    }
-
-    loadVisitorConversations();
-  }, [visitor?.id, visitor?.email, liveVisitor?.email, conversation.id, conversation.visitor_id]);
+    return () => {
+      active = false;
+    };
+  }, [
+    conversation.workspace_id,
+    visitor?.id,
+    visitor?.email,
+    liveVisitor?.email,
+    conversation.id,
+    conversation.visitor_id,
+  ]);
 
   // Tag Handlers
   const handleToggleTag = (tag: string) => {

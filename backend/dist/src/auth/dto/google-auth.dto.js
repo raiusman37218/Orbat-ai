@@ -34,4 +34,9 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", String)
 ], GoogleAuthDto.prototype, "accessToken", void 0);
+__decorate([
+    (0, class_validator_1.IsString)(),
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", String)
+], GoogleAuthDto.prototype, "redirectUri", void 0);
 //# sourceMappingURL=google-auth.dto.js.map

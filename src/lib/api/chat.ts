@@ -16,7 +16,7 @@
  * browser would be readable by anyone visiting the page.
  */
 import { NextResponse } from 'next/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { checkWorkspaceLimit, incrementWorkspaceUsage } from '@/lib/plans/enforce';
 import { authenticateApiKey, type ApiCaller } from '@/lib/api/keys';
 import { POST as autoRespond } from '@/app/api/ai/auto-respond/route';

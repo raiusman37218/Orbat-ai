@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { CheckCircle2, Eye, EyeOff, Users } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { clearAuthSession, saveAuthSession } from '@/lib/api/backend-auth';
 import { AuthAside, AuthShell } from '@/components/marketing/AuthShell';
 import { Button } from '@/components/ui/Button';
 import { Field, Input } from '@/components/ui/Input';
@@ -60,7 +60,12 @@ export function InviteAccept({ token }: { token: string }) {
     setBusy(true);
     setError(null);
     try {
-      await createClient().auth.signOut({ scope: 'local' });
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ scope: 'local' }),
+      });
+      clearAuthSession();
       const fresh = await getInvitationAction(token);
       setView(fresh);
       setName(fresh.name || '');
@@ -100,11 +105,17 @@ export function InviteAccept({ token }: { token: string }) {
       }
       setDone(true);
       if (res.needsSignIn && res.email) {
-        const { error: signInError } = await createClient().auth.signInWithPassword({ email: res.email, password });
-        if (signInError) {
+        const loginRes = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: res.email, password }),
+        });
+        const loginData = await loginRes.json().catch(() => null);
+        if (!loginRes.ok || !loginData?.accessToken) {
           router.push(`/login?redirect=/dashboard`);
           return;
         }
+        saveAuthSession(loginData);
       }
       router.push('/dashboard');
       router.refresh();

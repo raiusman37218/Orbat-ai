@@ -5,7 +5,7 @@ import { PhoneCall, PhoneForwarded, X, AlertCircle, Clock, User, MessageSquare }
 import { sound } from '@/lib/sound';
 import { startTabAlert, stopTabAlert } from '@/lib/favicon';
 import { cn } from '@/lib/utils';
-import { createClient } from '@/lib/supabase/client';
+import { claimConversationAction, skipConversationAction } from '@/app/actions/inbox';
 import { isBackendAuthenticated } from '@/lib/api/backend-auth';
 import { claimBackendHandoff, skipBackendHandoff } from '@/lib/api/backend-client';
 import { useToast } from '@/components/ui/Toast';
@@ -29,7 +29,6 @@ interface RingingHandoffModalProps {
 
 export function RingingHandoffModal({ payload, onClose, onAccepted }: RingingHandoffModalProps) {
   const toast = useToast();
-  const supabase = createClient();
   const [remainingSeconds, setRemainingSeconds] = useState(payload?.timeoutSeconds || 45);
   const [claiming, setClaiming] = useState(false);
   const [skipping, setSkipping] = useState(false);
@@ -68,7 +67,7 @@ export function RingingHandoffModal({ payload, onClose, onAccepted }: RingingHan
       if (isBackendAuthenticated()) {
         await skipBackendHandoff(payload.conversationId);
       } else {
-        await supabase.rpc('skip_conversation', { p_conversation_id: payload.conversationId });
+        await skipConversationAction(payload.conversationId);
       }
     } catch {
       // Ignore
@@ -87,16 +86,7 @@ export function RingingHandoffModal({ payload, onClose, onAccepted }: RingingHan
       if (isBackendAuthenticated()) {
         res = await claimBackendHandoff(payload.conversationId);
       } else {
-        const { data, error } = await supabase.rpc('claim_conversation', {
-          p_conversation_id: payload.conversationId,
-        });
-
-        if (error) {
-          toast.error('Failed to claim conversation: ' + error.message);
-          onClose();
-          return;
-        }
-        res = data as { ok: boolean; reason?: string; message?: string };
+        res = await claimConversationAction(payload.conversationId);
       }
 
       if (!res?.ok) {
@@ -130,9 +120,7 @@ export function RingingHandoffModal({ payload, onClose, onAccepted }: RingingHan
       if (isBackendAuthenticated()) {
         await skipBackendHandoff(payload.conversationId);
       } else {
-        await supabase.rpc('skip_conversation', {
-          p_conversation_id: payload.conversationId,
-        });
+        await skipConversationAction(payload.conversationId);
       }
       toast.show('Chat skipped', 'info');
     } catch {

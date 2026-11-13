@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { getAdapter } from './registry';
 import { loadEmailSendContext } from './email/outbound-context';
 import { loadConnection, recordConnectionError, updateConnection } from './store';

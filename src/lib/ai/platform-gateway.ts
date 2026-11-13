@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { getWorkspaceEffectivePlan } from '@/lib/plans/enforce';
 import { chat, ChatRequest, ChatResult, ProviderConfig } from './provider';
 import { autoAssignConversation } from '@/lib/team/auto-assign';

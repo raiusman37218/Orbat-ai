@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { autoAssignConversation } from '@/lib/team/auto-assign';
 import { notifyTeamByEmailLater } from '@/lib/team/agent-notify';
 import {

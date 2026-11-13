@@ -8,7 +8,7 @@
  * written only by the learner and these actions. See
  * src/lib/ai/learning/learner.ts.
  */
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { getWorkspaceAccess } from '@/lib/team/access';
 import { approveCandidate, DEFAULT_LEARNING_SETTINGS, type LearningSettings } from '@/lib/ai/learning/learner';
 import { forgetPolicyCache, POLICY_ARMS, type PolicyArm } from '@/lib/ai/learning/policy';

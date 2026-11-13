@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       await Promise.all([
         supabase
           .from('conversations')
-          .select('*, visitor:visitors(*), agent:agents!conversations_agent_id_fkey(*)')
+          .select('id, status, csat_rating, assigned_agent_id, first_agent_reply_at, closed_at, updated_at, created_at, visitor:visitors(id, name, email), agent:agents!conversations_agent_id_fkey(id, name, avatar_url, email, role, status)')
           .eq('workspace_id', workspaceId)
           .gte('created_at', startDate.toISOString())
           .order('created_at', { ascending: true }),
@@ -39,7 +39,7 @@ export async function GET(req: NextRequest) {
           .lt('created_at', startDate.toISOString()),
         supabase
           .from('agents')
-          .select('*')
+          .select('id, name, avatar_url, email, role, status')
           .eq('workspace_id', workspaceId),
       ]);
 

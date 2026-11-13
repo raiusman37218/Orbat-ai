@@ -56,15 +56,41 @@ let AiEngineService = AiEngineService_1 = class AiEngineService {
             await this.conversationsService.requestHandoff(workspaceId, conversationId);
             return { replied: false, reason: 'handoff_requested' };
         }
-        const chunks = await this.retrieval.retrieveChunks(workspaceId, triggerMessage, undefined, 3);
+        let queryEmbedding;
+        if (this.llm.generateEmbeddings) {
+            try {
+                const vectors = await this.llm.generateEmbeddings([triggerMessage]);
+                if (Array.isArray(vectors?.[0]) && vectors[0].length === 768) {
+                    queryEmbedding = vectors[0];
+                }
+            }
+            catch (err) {
+                this.logger.warn(`Query embedding failed, using FTS fallback: ${err?.message || err}`);
+            }
+        }
+        const chunks = await this.retrieval.retrieveChunks(workspaceId, triggerMessage, queryEmbedding, 5);
         const knowledgeContext = chunks.map((c) => `[Source: ${c.title}]\n${c.content}`).join('\n\n');
-        const systemPrompt = `You are Orbat AI, an intelligent customer support assistant.
+        let customPromptPrefix = '';
+        try {
+            const wsRes = await this.db.query('SELECT name, ai_settings FROM public.workspaces WHERE id = $1 LIMIT 1', [workspaceId]);
+            const wsRow = wsRes?.rows?.[0];
+            const botName = wsRow?.name || 'our support team';
+            const customInstructions = wsRow?.ai_settings?.system_prompt;
+            customPromptPrefix = customInstructions
+                ? `Workspace: ${botName}\nCustom Instructions: ${customInstructions}\n\n`
+                : `Workspace: ${botName}\n\n`;
+        }
+        catch {
+            customPromptPrefix = '';
+        }
+        const systemPrompt = `${customPromptPrefix}You are an intelligent customer support assistant.
 Provide clear, polite, and helpful answers based strictly on the provided knowledge sources.
 If the answer is not contained in the knowledge base, state that you do not have sufficient information and offer to connect the customer with a support specialist.
 
 Knowledge Sources:
 ${knowledgeContext || 'No specific articles found. Answer general greetings politely.'}`;
         const completion = await this.llm.generateCompletion({
+            workspaceId,
             messages: [
                 { role: 'system', content: systemPrompt },
                 { role: 'user', content: triggerMessage },
@@ -74,7 +100,7 @@ ${knowledgeContext || 'No specific articles found. Answer general greetings poli
         });
         const botMsg = await this.messagesService.sendMessage(workspaceId, conversationId, {
             content: completion.content,
-            senderType: 'agent',
+            senderType: 'ai',
         });
         await this.usage.recordTokenUsage({
             workspaceId,
@@ -108,6 +134,7 @@ ${knowledgeContext || 'No specific articles found. Answer general greetings poli
             .join('\n');
         const prompt = `Based on the following conversation between customer and agent, provide 2 short, professional recommended next replies for the agent:\n\n${history}\n\nFormat as JSON array: ["Suggestion 1", "Suggestion 2"]`;
         const completion = await this.llm.generateCompletion({
+            workspaceId,
             messages: [{ role: 'user', content: prompt }],
             maxTokens: 256,
             temperature: 0.4,
@@ -136,6 +163,7 @@ ${knowledgeContext || 'No specific articles found. Answer general greetings poli
         const messages = await this.messagesService.getMessages(workspaceId, conversationId, 20);
         const text = messages.map((m) => `${m.sender_type}: ${m.content}`).join('\n');
         const completion = await this.llm.generateCompletion({
+            workspaceId,
             messages: [
                 {
                     role: 'system',

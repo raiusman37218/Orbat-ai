@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/pg/server';
 import { getWorkspaceAccess } from '@/lib/team/access';
 import { invalidateHelpIndex } from '@/lib/ai/help-answer';
 import { describeEmbeddingProvider } from '@/lib/ai/semantic-retrieval';

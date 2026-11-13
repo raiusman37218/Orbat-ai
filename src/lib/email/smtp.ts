@@ -50,7 +50,7 @@ export function createSmtpTransporter(config: SMTPSettingsConfig) {
     greetingTimeout: 15000,
     socketTimeout: 20000,
     tls: {
-      rejectUnauthorized: false,
+      rejectUnauthorized: config.allow_self_signed === true ? false : true,
     },
   });
 }

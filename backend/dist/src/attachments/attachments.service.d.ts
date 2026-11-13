@@ -11,14 +11,14 @@ export declare class AttachmentsService {
         attachmentId: any;
         uploadUrl: string;
         storageKey: string;
-        publicUrl: string;
+        publicUrl: string | undefined;
         expiresInSeconds: number;
         attachment: any;
     }>;
     confirmUpload(workspaceId: string, attachmentId: string): Promise<{
         success: boolean;
         attachment: any;
-        verifiedMetadata: import("./storage/storage-provider.interface").FileMetadata;
+        verifiedMetadata: import("./storage/storage-provider.interface").FileMetadata | null;
     }>;
     getDownloadUrl(workspaceId: string, attachmentId: string): Promise<{
         attachmentId: any;

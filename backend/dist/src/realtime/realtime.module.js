@@ -14,6 +14,8 @@ const database_module_1 = require("../database/database.module");
 const messages_module_1 = require("../messages/messages.module");
 const realtime_gateway_1 = require("./realtime.gateway");
 const realtime_service_1 = require("./realtime.service");
+const outbox_service_1 = require("./outbox.service");
+const outbox_relay_service_1 = require("./outbox-relay.service");
 let RealtimeModule = class RealtimeModule {
 };
 exports.RealtimeModule = RealtimeModule;
@@ -25,8 +27,8 @@ exports.RealtimeModule = RealtimeModule = __decorate([
             database_module_1.DatabaseModule,
             (0, common_1.forwardRef)(() => messages_module_1.MessagesModule),
         ],
-        providers: [realtime_gateway_1.RealtimeGateway, realtime_service_1.RealtimeService],
-        exports: [realtime_gateway_1.RealtimeGateway, realtime_service_1.RealtimeService],
+        providers: [realtime_gateway_1.RealtimeGateway, realtime_service_1.RealtimeService, outbox_service_1.OutboxService, outbox_relay_service_1.OutboxRelayService],
+        exports: [realtime_gateway_1.RealtimeGateway, realtime_service_1.RealtimeService, outbox_service_1.OutboxService],
     })
 ], RealtimeModule);
 //# sourceMappingURL=realtime.module.js.map

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getWorkspaceAccess } from '@/lib/team/access';
-import { hasServiceRole } from '@/lib/supabase/service';
+import { hasServiceRole } from '@/lib/pg/service';
 import { hasEncryptionKey } from '@/lib/channels/crypto';
 import { instagramAdapter, type InstagramCredentials } from '@/lib/channels/instagram/adapter';
 import { exchangeInstagramCode, INSTAGRAM_SCOPES, readState } from '@/lib/channels/instagram/oauth';
@@ -33,7 +33,7 @@ export async function GET(request: Request) {
     return back(appUrl, 'error', params.get('error_description') || params.get('error_reason') || 'Instagram login was cancelled.');
   }
   if (!hasServiceRole() || !hasEncryptionKey()) {
-    return back(appUrl, 'error', 'The server is missing SUPABASE_SERVICE_ROLE_KEY or CHANNEL_ENCRYPTION_KEY.');
+    return back(appUrl, 'error', 'The server is missing DATABASE_URL or CHANNEL_ENCRYPTION_KEY.');
   }
   const state = readState(params.get('state'));
   const code = params.get('code');

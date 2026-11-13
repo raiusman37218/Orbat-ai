@@ -13,6 +13,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.OpenAiProvider = void 0;
 const common_1 = require("@nestjs/common");
 const config_1 = require("@nestjs/config");
+const url_safety_1 = require("../../common/security/url-safety");
 let OpenAiProvider = OpenAiProvider_1 = class OpenAiProvider {
     constructor(config) {
         this.config = config;
@@ -21,15 +22,19 @@ let OpenAiProvider = OpenAiProvider_1 = class OpenAiProvider {
         this.apiKey = this.config.get('OPENAI_API_KEY') || process.env.OPENAI_API_KEY;
     }
     async generateCompletion(request) {
-        if (!this.apiKey) {
+        const apiKey = (request.apiKey || this.apiKey || '').trim();
+        if (!apiKey) {
             throw new Error('OPENAI_API_KEY is not configured.');
         }
+        const baseUrl = request.baseUrl
+            ? await (0, url_safety_1.validateProviderBaseUrl)(request.baseUrl)
+            : 'https://api.openai.com/v1';
         const model = request.model || 'gpt-4o-mini';
-        const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        const response = await fetch(`${baseUrl}/chat/completions`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${this.apiKey}`,
+                Authorization: `Bearer ${apiKey}`,
             },
             body: JSON.stringify({
                 model,
@@ -37,6 +42,7 @@ let OpenAiProvider = OpenAiProvider_1 = class OpenAiProvider {
                 temperature: request.temperature ?? 0.3,
                 max_tokens: request.maxTokens ?? 512,
             }),
+            signal: AbortSignal.timeout(request.timeoutMs ?? 25000),
         });
         if (!response.ok) {
             const errorText = await response.text();

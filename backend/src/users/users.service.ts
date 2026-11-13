@@ -11,6 +11,7 @@ import { DatabaseService } from '../database/database.service';
 import { CreateAgentDto } from './dto/create-agent.dto';
 import { UpdateAgentDto } from './dto/update-agent.dto';
 import { AuthenticatedUser } from '../common/types/tenant-context';
+import { invalidateAuthStateCache } from '../auth/guards/jwt-auth.guard';
 
 @Injectable()
 export class UsersService {
@@ -147,6 +148,7 @@ export class UsersService {
     `;
 
     const result = await this.db.query(sql, values);
+    invalidateAuthStateCache(agentId);
     return result.rows[0];
   }
 
@@ -192,6 +194,7 @@ export class UsersService {
        WHERE id = $1 AND workspace_id = $2`,
       [agentId, workspaceId],
     );
+    invalidateAuthStateCache(agentId);
 
     return { success: true, message: `Agent ${agent.name} has been deactivated.` };
   }

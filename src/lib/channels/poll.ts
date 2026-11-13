@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import type { ChannelConnection } from '@/types/database';
 import { ChannelApiError } from './http';
 import { withFreshCredentials } from './refresh';

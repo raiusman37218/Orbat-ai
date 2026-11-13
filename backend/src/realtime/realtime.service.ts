@@ -11,6 +11,10 @@ export class RealtimeService {
     this.logger.log('Socket.IO Server instance registered in RealtimeService.');
   }
 
+  isReady(): boolean {
+    return Boolean(this.server);
+  }
+
   emitToConversation(conversationId: string, event: string, data: any) {
     if (!this.server) {
       this.logger.warn(`Cannot emit '${event}' to conversation:${conversationId} — Socket.IO server not initialized`);

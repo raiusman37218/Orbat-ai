@@ -20,7 +20,7 @@
  * service role only); only a hash of the code is stored.
  */
 import crypto from 'node:crypto';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { sendSmtpEmail } from '@/lib/email/smtp';
 import { renderEmail } from '@/lib/email/layout';

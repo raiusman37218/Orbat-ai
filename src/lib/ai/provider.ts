@@ -12,6 +12,7 @@
 
 import Anthropic from '@anthropic-ai/sdk';
 import { DEFAULT_MODELS as BASE_DEFAULT_MODELS } from './models';
+import { validateProviderBaseUrl } from '@/lib/security/url-guard';
 
 export type ProviderId =
   | 'anthropic'
@@ -182,6 +183,10 @@ export async function chat(
     case 'compatible': {
       if (!config.baseUrl) {
         throw new ProviderError('No base URL configured', 'compatible', undefined, false);
+      }
+      const urlCheck = validateProviderBaseUrl(config.baseUrl);
+      if (!urlCheck.ok) {
+        throw new ProviderError(urlCheck.error || 'Unsafe compatible base URL', 'compatible', undefined, false);
       }
       return openAiChat(
         apiKey,
@@ -367,10 +372,13 @@ async function googleChat(
     const res = await fetchJson(
       `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(
         model
-      )}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      )}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: req.system }] },
           contents: req.messages.map((m) => ({
@@ -474,10 +482,13 @@ export async function visionChat(config: ProviderConfig, req: VisionRequest): Pr
 
   if (config.provider === 'google') {
     const res = await fetchJson(
-      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(apiKey)}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify({
           systemInstruction: { parts: [{ text: req.system }] },
           contents: [{ role: 'user', parts: [{ inline_data: { mime_type: req.image.mimeType, data: req.image.base64 } }, { text: req.prompt }] }],
@@ -493,6 +504,12 @@ export async function visionChat(config: ProviderConfig, req: VisionRequest): Pr
 
   const baseUrl = (config.baseUrl || OPENAI_SHAPED_BASE_URLS[config.provider] || '').replace(/\/+$/, '');
   if (!baseUrl) throw new ProviderError('No base URL configured', config.provider, undefined, false);
+  if (config.provider === 'compatible') {
+    const urlCheck = validateProviderBaseUrl(baseUrl);
+    if (!urlCheck.ok) {
+      throw new ProviderError(urlCheck.error || 'Unsafe compatible base URL', 'compatible', undefined, false);
+    }
+  }
   const res = await fetchJson(
     `${baseUrl}/chat/completions`,
     {

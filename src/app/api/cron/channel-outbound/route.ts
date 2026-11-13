@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { hasServiceRole, serviceClient } from '@/lib/supabase/service';
+import { hasServiceRole, serviceClient } from '@/lib/pg/service';
 import { processOutboundQueue } from '@/lib/channels/outbound';
 import { refreshDueCredentials } from '@/lib/channels/refresh';
 import { processAutomationOutbox } from '@/lib/automation/outbox';
@@ -23,7 +23,7 @@ async function handle(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
   if (!hasServiceRole()) {
-    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not set' }, { status: 500 });
+    return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 });
   }
   const totals = { claimed: 0, sent: 0, retrying: 0, failed: 0 };
   // Drain in batches, within the function's time budget.

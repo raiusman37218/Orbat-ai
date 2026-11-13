@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import { preconnect } from 'react-dom';
 
-const SUPABASE_URL =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || process.env.NEXT_PUBLIC_SOCKET_URL || '';
 
 /** Interaction signals that mean a visitor is engaging with the page. */
 const INTENT_EVENTS = ['pointerdown', 'pointermove', 'touchstart', 'keydown', 'scroll', 'focusin'] as const;
@@ -29,9 +29,8 @@ function findLauncher(): Element | null {
 export function WidgetLoader({ workspaceId, src = '/widget.js' }: { workspaceId: string; src?: string }) {
   const [phase, setPhase] = useState<'loading' | 'ready' | 'gone'>('loading');
 
-  // Only a warm-up for the widget's first request; without the env var there
-  // is nothing to connect to, and React rejects an empty href.
-  if (SUPABASE_URL) preconnect(SUPABASE_URL);
+  // Warm up DNS/TLS for the realtime socket host when configured; React rejects an empty href.
+  if (BACKEND_URL) preconnect(BACKEND_URL);
 
   useEffect(() => {
     let injected = false;

@@ -17,7 +17,7 @@ export declare class AuthController {
         accessToken: string;
         refreshToken: string;
         tokenType: string;
-        expiresIn: string;
+        expiresIn: string | undefined;
     }>;
     login(dto: LoginDto): Promise<{
         user: AuthenticatedUser;
@@ -25,11 +25,11 @@ export declare class AuthController {
             id: any;
             name: any;
             brandColor: any;
-        };
+        } | null;
         accessToken: string;
         refreshToken: string;
         tokenType: string;
-        expiresIn: string;
+        expiresIn: string | undefined;
     }>;
     googleAuth(dto: GoogleAuthDto): Promise<{
         user: AuthenticatedUser;
@@ -37,15 +37,15 @@ export declare class AuthController {
             id: any;
             name: any;
             brandColor: any;
-        };
+        } | null;
         accessToken: string;
         refreshToken: string;
         tokenType: string;
-        expiresIn: string;
+        expiresIn: string | undefined;
     }>;
-    getGoogleAuthUrl(): {
+    getGoogleAuthUrl(redirectUri?: string): {
         configured: boolean;
-        url: any;
+        url: null;
         message: string;
     } | {
         configured: boolean;
@@ -57,7 +57,7 @@ export declare class AuthController {
         accessToken: string;
         refreshToken: string;
         tokenType: string;
-        expiresIn: string;
+        expiresIn: string | undefined;
     }>;
     getMe(user: AuthenticatedUser): Promise<{
         id: any;
@@ -75,6 +75,6 @@ export declare class AuthController {
             brandColor: any;
             slug: any;
             logoUrl: any;
-        };
+        } | null;
     }>;
 }

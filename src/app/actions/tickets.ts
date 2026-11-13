@@ -11,7 +11,7 @@
  */
 
 import { after } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/pg/server';
 import { processAutomationOutbox } from '@/lib/automation/outbox';
 import { getWorkspaceAccess } from '@/lib/team/access';
 import { roleCan, type Capability, type Role } from '@/lib/team/permissions';
@@ -408,6 +408,43 @@ async function channelStateFor(supabase: Supabase, workspaceId: string, ticket: 
     connectionStatus: conn?.status ?? 'disconnected',
     connectionName: conn?.display_name ?? null,
   };
+}
+
+export async function getTicketBarAction(
+  workspaceId: string,
+  ticketId: string,
+): Promise<{
+  ticket: Pick<
+    Ticket,
+    'id' | 'number' | 'subject' | 'status' | 'priority' | 'type' | 'follow_up_of_id' | 'sla_next_due_at' | 'sla_state'
+  > | null;
+  parentNumber: number | null;
+}> {
+  const caller = await assertTicketAccess(workspaceId);
+  const { supabase } = caller;
+  const { data: ticket, error } = await supabase
+    .from('tickets')
+    .select('id, number, subject, status, priority, type, follow_up_of_id, sla_next_due_at, sla_state')
+    .eq('workspace_id', workspaceId)
+    .eq('id', ticketId)
+    .maybeSingle();
+  if (error || !ticket) return { ticket: null, parentNumber: null };
+
+  const row = ticket as Pick<
+    Ticket,
+    'id' | 'number' | 'subject' | 'status' | 'priority' | 'type' | 'follow_up_of_id' | 'sla_next_due_at' | 'sla_state'
+  >;
+  let parentNumber: number | null = null;
+  if (row.follow_up_of_id) {
+    const { data: parent } = await supabase
+      .from('tickets')
+      .select('number')
+      .eq('workspace_id', workspaceId)
+      .eq('id', row.follow_up_of_id)
+      .maybeSingle();
+    parentNumber = (parent?.number as number | undefined) ?? null;
+  }
+  return { ticket: row, parentNumber };
 }
 
 export async function getTicketAction(workspaceId: string, ticketId: string): Promise<TicketDetail> {
@@ -987,4 +1024,17 @@ async function othersOnTicket(caller: Caller, workspaceId: string, ticketId: str
     state: r.state,
     updated_at: r.updated_at,
   }));
+}
+
+export async function listTicketViewsAction(
+  workspaceId: string
+): Promise<{ id: string; name: string }[]> {
+  const caller = await assertTicketAccess(workspaceId);
+  const { data, error } = await caller.supabase
+    .from('ticket_views')
+    .select('id, name')
+    .eq('workspace_id', workspaceId)
+    .order('position');
+  if (error) throw dbError(error, 'Could not load saved views.');
+  return (data as { id: string; name: string }[]) || [];
 }

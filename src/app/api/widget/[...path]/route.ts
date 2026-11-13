@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   executeWidgetFallback,
-  isSupabaseConfigured,
   WidgetFallbackHttpError,
 } from '@/lib/widget/proxy-fallback';
+import { resolveServerBackendBaseUrl } from '@/lib/backend-url';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,12 +14,8 @@ const CORS_HEADERS: Record<string, string> = {
   'x-orbat-widget-proxy': '1',
 };
 
-function getBackendServerBaseUrl(): string {
-  const raw = (process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:4000/api/v1')
-    .trim()
-    .replace(/\/+$/, '');
-  if (!raw) return 'http://localhost:4000/api/v1';
-  return raw.endsWith('/api/v1') ? raw : `${raw}/api/v1`;
+function getBackendServerBaseUrl(): string | null {
+  return resolveServerBackendBaseUrl();
 }
 
 function parseJsonBody(raw: string | undefined): Record<string, any> {
@@ -83,14 +79,20 @@ async function forwardRequest(
   const { path } = await context.params;
   const subPath = (path || []).join('/');
   const search = req.nextUrl.search || '';
-  const targetUrl = `${getBackendServerBaseUrl()}/widget/${subPath}${search}`;
   const body = method === 'POST' ? await req.text() : undefined;
+  const backendBase = getBackendServerBaseUrl();
+
+  if (!backendBase) {
+    return handleWithFallback(subPath, method, req.nextUrl.searchParams, body);
+  }
+
+  const targetUrl = `${backendBase}/widget/${subPath}${search}`;
 
   const headers: Record<string, string> = {};
-  const contentType = req.headers.get('content-type');
-  if (contentType) headers['Content-Type'] = contentType;
-  const forwardedFor = req.headers.get('x-forwarded-for');
-  if (forwardedFor) headers['x-forwarded-for'] = forwardedFor;
+  for (const name of ['content-type', 'authorization', 'x-forwarded-for', 'x-zentry-visitor', 'x-zentry-visitor-token']) {
+    const val = req.headers.get(name);
+    if (val) headers[name === 'content-type' ? 'Content-Type' : name] = val;
+  }
 
   try {
     const upstream = await fetch(targetUrl, {
@@ -101,8 +103,7 @@ async function forwardRequest(
       signal: AbortSignal.timeout(3500),
     });
 
-    const shouldTryFallback =
-      upstream.status >= 500 || (upstream.status === 404 && isSupabaseConfigured());
+    const shouldTryFallback = upstream.status >= 500 || upstream.status === 404;
 
     if (!shouldTryFallback) {
       const text = await upstream.text();
@@ -118,7 +119,7 @@ async function forwardRequest(
       });
     }
   } catch {
-    // NestJS backend unreachable or timed out -> serve directly via PostgreSQL/Supabase fallback
+    // NestJS backend unreachable or timed out -> serve directly via PostgreSQL fallback
   }
 
   return handleWithFallback(subPath, method, req.nextUrl.searchParams, body);

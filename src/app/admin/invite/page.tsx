@@ -17,7 +17,7 @@ import {
   ArrowRight,
   RefreshCw,
 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
+import { saveAuthSession } from '@/lib/api/backend-auth';
 import { Button } from '@/components/ui/Button';
 import { Logo } from '@/components/ui/Logo';
 import { useToast } from '@/components/ui/Toast';
@@ -32,7 +32,6 @@ function InviteAcceptForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const toast = useToast();
-  const supabase = createClient();
 
   const token = searchParams.get('token') || '';
 
@@ -126,15 +125,18 @@ function InviteAcceptForm() {
       toast.success('Admin account created! Signing you in…');
 
       // Sign in client-side to establish browser session
-      const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      const loginRes = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
       });
+      const signInData = await loginRes.json().catch(() => null);
 
-      if (signInErr || !signInData.session) {
+      if (!loginRes.ok || !signInData?.accessToken) {
         // If signIn fails for any reason, send user to login
         router.push(`/login?redirect=/admin&message=${encodeURIComponent('Account created successfully. Please sign in.')}`);
       } else {
+        saveAuthSession(signInData);
         // Immediate redirect to admin panel
         router.push('/admin');
         router.refresh();

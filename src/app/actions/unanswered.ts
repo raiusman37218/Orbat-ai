@@ -1,7 +1,7 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { createClient } from '@/lib/pg/server';
+import { serviceClient } from '@/lib/pg/service';
 import { getWorkspaceAccess } from '@/lib/team/access';
 import { syncArticleChunks, syncWorkspaceArticleEmbeddings, generateEmbeddings } from '@/lib/ai/semantic-retrieval';
 import { invalidateHelpIndex } from '@/lib/ai/help-answer';

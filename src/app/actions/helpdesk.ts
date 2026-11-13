@@ -1,6 +1,6 @@
 'use server';
 
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/pg/server';
 import { Agent, Article, HelpSection, Workspace } from '@/types/database';
 import {
   syncArticleChunks,
@@ -10,7 +10,7 @@ import {
   reindexArticleStrict,
   type ArticleReindexResult,
 } from '@/lib/ai/semantic-retrieval';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { generateSlug } from '@/lib/slug';
 import { after } from 'next/server';
 import { freshKnowledgeIndex, invalidateHelpIndex } from '@/lib/ai/help-answer';

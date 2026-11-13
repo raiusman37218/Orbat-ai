@@ -8,8 +8,8 @@
  * rest of the AI settings, and refused when the platform locked ai_settings.
  */
 import { assertAdminUser } from '@/app/actions/admin';
-import { createClient } from '@/lib/supabase/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { createClient } from '@/lib/pg/server';
+import { serviceClient } from '@/lib/pg/service';
 import { assertSettingNotLocked } from '@/lib/settings/precedence';
 import { errorMessage } from '@/lib/errors/user-error';
 import {

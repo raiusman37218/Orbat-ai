@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { hasServiceRole, serviceClient } from '@/lib/supabase/service';
+import { hasServiceRole, serviceClient } from '@/lib/pg/service';
 import { guardConversation } from '@/lib/team/route-guard';
 
 /**
@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
   if (!secret || req.headers.get('authorization') !== `Bearer ${secret}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
-  if (!hasServiceRole()) return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not set' }, { status: 500 });
+  if (!hasServiceRole()) return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 });
   try {
     const supabase = serviceClient();
     const now = new Date().toISOString();
@@ -73,18 +73,22 @@ export async function GET(req: NextRequest) {
     }
 
     const ids = overdue.map((c) => c.id);
+    const BATCH_SIZE = 200;
 
-    // Auto-reopen them
-    const { error: uErr } = await supabase
-      .from('conversations')
-      .update({
-        status: 'open',
-        snoozed_until: null,
-        updated_at: now,
-      })
-      .in('id', ids);
+    // Auto-reopen them in bounded batches to stay safely below URL/query size limits
+    for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+      const batchIds = ids.slice(i, i + BATCH_SIZE);
+      const { error: uErr } = await supabase
+        .from('conversations')
+        .update({
+          status: 'open',
+          snoozed_until: null,
+          updated_at: now,
+        })
+        .in('id', batchIds);
 
-    if (uErr) throw uErr;
+      if (uErr) throw uErr;
+    }
 
     return NextResponse.json({
       reopened: ids.length,

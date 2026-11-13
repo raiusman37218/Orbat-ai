@@ -1,50 +1,40 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GET, resolveBaseUrl, sanitizeNextPath } from './route';
 
-const fakeSession = vi.hoisted(() => ({
-  user: { id: 'user-123' },
-}));
-
-const fakeAgent = vi.hoisted(() => ({
-  workspace_id: 'ws-123',
-}));
-
-vi.mock('@/lib/supabase/server', () => ({
-  createClient: async () => ({
-    auth: {
-      exchangeCodeForSession: async (code: string) => {
-        if (code === 'bad_code') {
-          return { error: { message: 'Invalid code' } };
-        }
-        return { error: null };
-      },
-      getSession: async () => ({
-        data: { session: fakeSession.user ? { user: fakeSession.user } : null },
-      }),
-    },
-    from: (_table: string) => ({
-      select: () => ({
-        eq: () => ({
-          maybeSingle: async () => ({ data: fakeAgent }),
-          limit: () => ({
-            maybeSingle: async () => ({ data: { id: 'ws-123' } }),
-          }),
-        }),
-      }),
-    }),
-  }),
+const fakeAuthState = vi.hoisted(() => ({
+  workspaceId: 'ws-123' as string | null,
 }));
 
 describe('M-7 Auth Callback Security', () => {
   const origEnv = process.env.NEXT_PUBLIC_PLATFORM_HOSTS;
+  let fetchSpy: any;
 
   beforeEach(() => {
     process.env.NEXT_PUBLIC_PLATFORM_HOSTS = 'app.zentry.com,zentry.com';
-    fakeSession.user = { id: 'user-123' };
-    fakeAgent.workspace_id = 'ws-123';
+    fakeAuthState.workspaceId = 'ws-123';
+    fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => {
+      return new Response(
+        JSON.stringify({
+          data: {
+            accessToken: 'jwt-access-token',
+            refreshToken: 'jwt-refresh-token',
+            user: {
+              id: 'user-123',
+              email: 'agent@example.com',
+              name: 'Agent',
+              role: 'owner',
+              workspaceId: fakeAuthState.workspaceId,
+            },
+            workspace: fakeAuthState.workspaceId ? { id: fakeAuthState.workspaceId, name: 'Test WS' } : null,
+          },
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      );
+    });
   });
 
   afterEach(() => {
+    fetchSpy?.mockRestore();
     process.env.NEXT_PUBLIC_PLATFORM_HOSTS = origEnv;
   });
 

@@ -2,6 +2,30 @@ import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { DatabaseService } from '../database/database.service';
 import { UpdateWorkspaceDto } from './dto/update-workspace.dto';
 
+function sanitizeAiSettings(aiSettings: any): any {
+  if (!aiSettings || typeof aiSettings !== 'object') return aiSettings;
+  const copy: Record<string, any> = {};
+  for (const [k, v] of Object.entries(aiSettings)) {
+    if (/(api_?key|secret|token|password)/i.test(k)) {
+      if (typeof v === 'string' && v.trim()) {
+        copy[`has_${k}`] = true;
+        copy[`${k}_last4`] = v.trim().slice(-4);
+      }
+      continue;
+    }
+    copy[k] = v;
+  }
+  return copy;
+}
+
+function sanitizeWorkspaceRow(row: any) {
+  if (!row || typeof row !== 'object') return row;
+  if ('ai_settings' in row) {
+    return { ...row, ai_settings: sanitizeAiSettings(row.ai_settings) };
+  }
+  return row;
+}
+
 @Injectable()
 export class WorkspacesService {
   private readonly logger = new Logger(WorkspacesService.name);
@@ -24,7 +48,7 @@ export class WorkspacesService {
       throw new NotFoundException(`Workspace with ID ${workspaceId} not found.`);
     }
 
-    return result.rows[0];
+    return sanitizeWorkspaceRow(result.rows[0]);
   }
 
   async updateWorkspace(workspaceId: string, dto: UpdateWorkspaceDto) {
@@ -98,7 +122,7 @@ export class WorkspacesService {
     `;
 
     const result = await this.db.query(sql, values);
-    return result.rows[0];
+    return sanitizeWorkspaceRow(result.rows[0]);
   }
 
   async getMembers(workspaceId: string) {

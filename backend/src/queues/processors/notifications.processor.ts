@@ -1,25 +1,57 @@
-import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Processor } from '@nestjs/bullmq';
+import { Logger, Optional } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { QUEUE_NOTIFICATIONS, NotificationPayload } from '../queue.constants';
+import { DatabaseService } from '../../database/database.service';
+import { QueuesService } from '../queues.service';
+import { BaseQueueProcessor } from './base.processor';
 
 @Processor(QUEUE_NOTIFICATIONS, {
   concurrency: 10,
+  lockDuration: 20_000,
 })
-export class NotificationsProcessor extends WorkerHost {
+export class NotificationsProcessor extends BaseQueueProcessor {
   private readonly logger = new Logger(NotificationsProcessor.name);
 
-  async process(job: Job<NotificationPayload>): Promise<any> {
-    const { template, recipientEmail, subject } = job.data;
-    this.logger.log(`Sending notification [${template}] to ${recipientEmail}: "${subject}"`);
+  constructor(
+    @Optional() private readonly db?: DatabaseService,
+    @Optional() queuesService?: QueuesService,
+  ) {
+    super(queuesService);
+  }
 
-    // In production, integrate with SendGrid/SMTP or Resend
+  async process(job: Job<NotificationPayload>): Promise<any> {
+    const { workspaceId, template, recipientEmail, subject, context } = job.data;
+    this.logger.log(`Dispatching notification [${template}] for workspace ${workspaceId}: "${subject}"`);
+
+    if (this.db) {
+      const suppressed = await this.db
+        .query(
+          `SELECT 1 FROM public.email_suppressions WHERE workspace_id = $1 AND email = $2 LIMIT 1`,
+          [workspaceId, recipientEmail.toLowerCase()],
+        )
+        .catch(() => ({ rows: [] }));
+      if (suppressed.rows.length > 0) {
+        return { sent: false, suppressed: true, template };
+      }
+    }
+
+    if (this.queuesService) {
+      await this.queuesService.enqueueEmailProcessing({
+        workspaceId,
+        action: 'send_outbound',
+        to: recipientEmail,
+        subject,
+        text: `[${template}] ${subject}`,
+        metadata: { template, context },
+        idempotencyKey: job.data.idempotencyKey ? `email-${job.data.idempotencyKey}` : undefined,
+      });
+    }
+
     return {
-      sent: true,
-      recipient: recipientEmail,
+      queuedForDelivery: true,
       template,
       timestamp: new Date().toISOString(),
     };
   }
 }
-

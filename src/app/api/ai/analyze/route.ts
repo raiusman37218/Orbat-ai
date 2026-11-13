@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardConversation } from '@/lib/team/route-guard';
 import { providerConfigFrom } from '@/lib/ai/help-answer';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import {
   analyzeVisitorSentiment,
   generateAutoTags,

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
+vi.mock('server-only', () => ({}));
+
 const WS = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const OTHER_WS = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 const CR_ID = 'cccccccc-cccc-4ccc-8ccc-cccccccccccc';
@@ -39,7 +41,7 @@ function builder(table: string) {
   return proxy;
 }
 
-vi.mock('@/lib/supabase/server', () => ({
+vi.mock('@/lib/pg/server', () => ({
   createClient: async () => ({
     from: (table: string) => builder(table),
   }),

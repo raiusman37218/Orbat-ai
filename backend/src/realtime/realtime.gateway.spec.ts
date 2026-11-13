@@ -108,10 +108,19 @@ describe('Realtime Module', () => {
     });
 
     it('should authenticate visitor socket with visitorId and workspaceId', async () => {
+      const visitorUuid = '11111111-1111-4111-8111-111111111456';
+      const workspaceUuid = '22222222-2222-4222-8222-222222222001';
+      mockDb.query.mockResolvedValueOnce({
+        rows: [{ visitor_id: visitorUuid, workspace_id: workspaceUuid }],
+      });
       const mockSocket: any = {
         id: 'sock-2',
         handshake: {
-          auth: { visitorId: 'vis-456', workspaceId: 'ws-1' },
+          auth: {
+            visitorId: visitorUuid,
+            visitorToken: 'vtok_valid_123',
+            workspaceId: workspaceUuid,
+          },
           headers: {},
         },
         data: {},
@@ -122,7 +131,7 @@ describe('Realtime Module', () => {
       await gateway.handleConnection(mockSocket);
 
       expect(mockSocket.data.type).toBe('visitor');
-      expect(mockSocket.data.visitorId).toBe('vis-456');
+      expect(mockSocket.data.visitorId).toBe(visitorUuid);
       expect(mockSocket.disconnect).not.toHaveBeenCalled();
     });
 
@@ -163,6 +172,9 @@ describe('Realtime Module', () => {
         content: 'Hello world',
         sender_type: 'agent',
       };
+      mockDb.query.mockResolvedValueOnce({
+        rows: [{ id: 'conv-1', visitor_id: 'vis-1' }],
+      });
       mockMessagesService.sendMessage.mockResolvedValue(mockMsg);
 
       const mockSocket: any = {
@@ -171,6 +183,7 @@ describe('Realtime Module', () => {
           type: 'agent',
           user: { sub: 'ag-1', email: 'ag@test.com', role: 'agent' },
         },
+        rooms: new Set(),
       };
 
       const res = await gateway.handleSendMessage(mockSocket, {
@@ -190,8 +203,12 @@ describe('Realtime Module', () => {
     });
 
     it('should mark messages as read and broadcast to room', async () => {
+      mockDb.query.mockResolvedValueOnce({
+        rows: [{ id: 'conv-1', visitor_id: 'vis-1' }],
+      });
       const mockSocket: any = {
         data: { workspaceId: 'ws-1', type: 'agent' },
+        rooms: new Set(),
       };
 
       const res = await gateway.handleMessageRead(mockSocket, { conversationId: 'conv-1' });

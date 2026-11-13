@@ -19,7 +19,7 @@
  * Switched-off specialists are not offered. Every decision is logged as
  * `route_assist` in ai_reply_events (no message text).
  */
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { logAiEvent } from './bot-control';
 import { jevRoute, type JevRuntime } from './jev';
 import { chat, isConfigured, type ProviderConfig } from './provider';
@@ -120,8 +120,8 @@ export async function assistRoute(input: AssistInput): Promise<RouteResult> {
       .join('\n');
     const res = await chat(input.providerConfig!, {
       system: [
-        'You route a prop-trading firm\'s support chat to one specialist.',
-        'Customers write fast, in English, Roman Urdu or a mix, with typos and shorthand. Judge what they need, not the words.',
+        'You route a customer support conversation to the best matching specialist.',
+        'Customers write fast, in any language or informal shorthand. Judge what they need, not just keywords.',
         `Reply with exactly one id from this list and nothing else:\n${list}`,
         `If none clearly fits, reply ${route.agent}.`,
       ].join('\n'),

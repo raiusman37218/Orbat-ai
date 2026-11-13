@@ -8,7 +8,7 @@
  * for the auto-responder and the inbox, and records why the bot did or did
  * not answer.
  */
-import type { serviceClient } from '@/lib/supabase/service';
+import type { serviceClient } from '@/lib/pg/service';
 
 type Service = ReturnType<typeof serviceClient>;
 

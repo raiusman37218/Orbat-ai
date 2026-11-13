@@ -10,7 +10,7 @@
  * src/lib/agent/external-agent.ts.
  */
 import { assertAdminUser } from '@/app/actions/admin';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { AgentCallError, callAgent, checkAgentUrl, loadExternalAgent } from '@/lib/agent/external-agent';
 
 export interface ExternalAgentSettings {

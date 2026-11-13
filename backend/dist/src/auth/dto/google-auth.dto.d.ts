@@ -3,4 +3,5 @@ export declare class GoogleAuthDto {
     idToken?: string;
     credential?: string;
     accessToken?: string;
+    redirectUri?: string;
 }

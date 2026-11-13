@@ -9,7 +9,7 @@
  */
 
 import { getWorkspaceAccess } from '@/lib/team/access';
-import { hasServiceRole } from '@/lib/supabase/service';
+import { hasServiceRole } from '@/lib/pg/service';
 import { hasEncryptionKey, randomToken } from '@/lib/channels/crypto';
 import { CHANNEL_CATALOG, getAdapter, isChannelId, type ChannelCatalogEntry } from '@/lib/channels/registry';
 import { deleteSecrets, getConnection, loadConnection, recordConnectionError, saveConnection, updateConnection } from '@/lib/channels/store';
@@ -40,7 +40,7 @@ function fail(err: unknown, fallback: string): { success: false; error: string }
 
 async function guard(workspaceId: string, capability: Capability) {
   const access = await getWorkspaceAccess(workspaceId, capability);
-  if (!hasServiceRole()) throw userError('The server is missing SUPABASE_SERVICE_ROLE_KEY, so channels cannot be managed.');
+  if (!hasServiceRole()) throw userError('The server is missing DATABASE_URL, so channels cannot be managed.');
   if (!hasEncryptionKey()) throw userError('The server is missing CHANNEL_ENCRYPTION_KEY, so channel credentials cannot be stored safely.');
   return access;
 }
@@ -89,7 +89,7 @@ export async function getChannelsOverviewAction(workspaceId: string): Promise<Re
 
     const currentAppUrl = await appUrl();
     const setupProblems: string[] = [];
-    if (!hasServiceRole()) setupProblems.push('SUPABASE_SERVICE_ROLE_KEY is not set on the server.');
+    if (!hasServiceRole()) setupProblems.push('DATABASE_URL is not set on the server.');
     if (!hasEncryptionKey()) setupProblems.push('CHANNEL_ENCRYPTION_KEY is not set (or is not 32 bytes) on the server.');
     if (!currentAppUrl) setupProblems.push('NEXT_PUBLIC_APP_URL is not set, so webhook URLs cannot be shown.');
 

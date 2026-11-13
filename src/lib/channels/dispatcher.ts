@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { getAdapter } from './registry';
 import { processOutboundQueue } from './outbound';
 
@@ -82,10 +82,13 @@ export async function dispatchOutboundMessage(params: DispatchOutboundParams) {
           return { success: false, error: 'Meta Page Access Token missing' };
         }
 
-        const url = `https://graph.facebook.com/v20.0/me/messages?access_token=${integration.meta_page_access_token}`;
+        const url = 'https://graph.facebook.com/v20.0/me/messages';
         const res = await fetch(url, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${integration.meta_page_access_token}`,
+          },
           body: JSON.stringify({
             recipient: { id: recipientId },
             message: { text: content },

@@ -1,5 +1,5 @@
 import { queryRows } from '@/lib/db';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 
 function useNeon(): boolean {
   return !process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL);

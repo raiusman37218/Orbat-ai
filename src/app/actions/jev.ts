@@ -12,7 +12,7 @@
  * how often Jev agreed with DeepSeek before letting it decide.
  */
 import { assertSuperAdmin, recordSuperAdminAudit } from '@/app/actions/platform';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { DEFAULT_JEV_SETTINGS, jevIntent, normalizeJevSettings, type JevSettings } from '@/lib/ai/jev';
 import { errorMessage } from '@/lib/errors/user-error';
 

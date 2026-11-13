@@ -14,9 +14,9 @@ export declare class MessagesController {
         deleted: boolean;
     }>;
     markAsRead(workspaceId: string, conversationId: string): Promise<{
-        markedCount: number;
+        markedCount: number | null;
     }>;
     markAsDelivered(workspaceId: string, conversationId: string): Promise<{
-        markedCount: number;
+        markedCount: number | null;
     }>;
 }

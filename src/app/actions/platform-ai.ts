@@ -1,10 +1,11 @@
 'use server';
 
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { assertSuperAdmin, recordSuperAdminAudit } from '@/app/actions/platform';
 import { testProvider, ProviderConfig, ProviderId, DEFAULT_MODELS } from '@/lib/ai/provider';
 import { PlatformAiSettingsDTO } from '@/types/platform-management';
 import { userError } from '@/lib/errors/user-error';
+import { validateProviderBaseUrl } from '@/lib/security/url-guard';
 
 export interface WorkspaceAiUsageItem {
   workspaceId: string;
@@ -100,6 +101,13 @@ export async function savePlatformAiSettingsAction(input: {
   const adminClient = serviceClient();
 
   try {
+    const cleanedBaseUrl = input.base_url?.trim() || null;
+    if (input.provider === 'compatible' && cleanedBaseUrl) {
+      const urlCheck = validateProviderBaseUrl(cleanedBaseUrl);
+      if (!urlCheck.ok) {
+        return { success: false, error: urlCheck.error || 'Invalid provider base URL.' };
+      }
+    }
     const { data: existing } = await adminClient
       .from('platform_ai_settings')
       .select('api_key')
@@ -111,7 +119,7 @@ export async function savePlatformAiSettingsAction(input: {
 
     const updatePayload = {
       provider: input.provider,
-      base_url: input.base_url?.trim() || null,
+      base_url: input.provider === 'compatible' ? input.base_url?.trim() || null : (input.base_url?.trim() || null),
       model: input.model?.trim() || null,
       api_key: finalApiKey,
       is_enabled: Boolean(input.is_enabled),
@@ -194,6 +202,12 @@ export async function testPlatformAiConnectionAction(override?: {
 
   const model = override?.model?.trim() || stored?.model?.trim() || DEFAULT_MODELS[provider as ProviderId] || null;
   const baseUrl = override?.base_url?.trim() || stored?.base_url?.trim() || null;
+  if (provider === 'compatible' && baseUrl) {
+    const urlCheck = validateProviderBaseUrl(baseUrl);
+    if (!urlCheck.ok) {
+      return { ok: false, error: urlCheck.error || 'Invalid provider base URL.' };
+    }
+  }
 
   const config: ProviderConfig = {
     provider: provider as ProviderId,

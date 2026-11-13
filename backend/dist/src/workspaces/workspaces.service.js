@@ -13,6 +13,30 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.WorkspacesService = void 0;
 const common_1 = require("@nestjs/common");
 const database_service_1 = require("../database/database.service");
+function sanitizeAiSettings(aiSettings) {
+    if (!aiSettings || typeof aiSettings !== 'object')
+        return aiSettings;
+    const copy = {};
+    for (const [k, v] of Object.entries(aiSettings)) {
+        if (/(api_?key|secret|token|password)/i.test(k)) {
+            if (typeof v === 'string' && v.trim()) {
+                copy[`has_${k}`] = true;
+                copy[`${k}_last4`] = v.trim().slice(-4);
+            }
+            continue;
+        }
+        copy[k] = v;
+    }
+    return copy;
+}
+function sanitizeWorkspaceRow(row) {
+    if (!row || typeof row !== 'object')
+        return row;
+    if ('ai_settings' in row) {
+        return { ...row, ai_settings: sanitizeAiSettings(row.ai_settings) };
+    }
+    return row;
+}
 let WorkspacesService = WorkspacesService_1 = class WorkspacesService {
     constructor(db) {
         this.db = db;
@@ -29,7 +53,7 @@ let WorkspacesService = WorkspacesService_1 = class WorkspacesService {
         if (result.rows.length === 0) {
             throw new common_1.NotFoundException(`Workspace with ID ${workspaceId} not found.`);
         }
-        return result.rows[0];
+        return sanitizeWorkspaceRow(result.rows[0]);
     }
     async updateWorkspace(workspaceId, dto) {
         await this.getWorkspace(workspaceId);
@@ -96,7 +120,7 @@ let WorkspacesService = WorkspacesService_1 = class WorkspacesService {
                 widget_position, timezone, language, business_hours, ai_settings, handoff_settings
     `;
         const result = await this.db.query(sql, values);
-        return result.rows[0];
+        return sanitizeWorkspaceRow(result.rows[0]);
     }
     async getMembers(workspaceId) {
         const result = await this.db.query(`SELECT id, name, email, avatar_url, role, status, is_active, max_open_tickets, created_at

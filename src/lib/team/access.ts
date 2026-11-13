@@ -5,11 +5,11 @@
  *
  * Checks PostgreSQL directly first, with fallback to Supabase.
  */
-import { createClient } from '@/lib/supabase/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { createClient } from '@/lib/pg/server';
+import { serviceClient } from '@/lib/pg/service';
 import { type Capability, type Role, isRole, roleCan, ROLE_LABELS } from './permissions';
 import { markUserFacing } from '@/lib/errors/user-error';
-import { sessionUser } from '@/lib/supabase/session-user';
+import { sessionUser } from '@/lib/auth/session-user';
 import { queryRows } from '@/lib/db';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

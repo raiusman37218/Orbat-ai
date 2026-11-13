@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { renderEmail } from '@/lib/email/layout';
 import { guardConversation, guardMember } from '@/lib/team/route-guard';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { getRequestOrigin } from '@/lib/request-origin';
+import { resolveAndVerifyPublicHttpsUrl } from '@/lib/security/url-guard.server';
 
 const RESEND_API_KEY = process.env.RESEND_API_KEY || '';
 
@@ -40,13 +41,23 @@ export async function POST(req: NextRequest) {
     // ──────────────────────────────────────────────────────────────────────────
     if (event === 'test_slack') {
       const { webhook_url } = body;
-      if (!webhook_url) {
+      if (!webhook_url || typeof webhook_url !== 'string') {
         return NextResponse.json({ error: 'Missing webhook_url' }, { status: 400 });
+      }
+
+      const urlCheck = await resolveAndVerifyPublicHttpsUrl(webhook_url);
+      if (!urlCheck.ok) {
+        return NextResponse.json(
+          { error: urlCheck.error || 'Invalid webhook_url' },
+          { status: 400 }
+        );
       }
 
       const res = await fetch(webhook_url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        redirect: 'manual',
+        signal: AbortSignal.timeout(8000),
         body: JSON.stringify({
           text: '🚀 *Zen-try Test Notification*\nYour Slack webhook is connected successfully! New customer conversations will appear here.',
         }),
@@ -82,9 +93,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
       }
 
-      // Look up workspace integrations for Slack
+      // Look up workspace-scoped Slack integration (never fall back to global webhook across tenants)
       const wsId = conv.workspace_id || workspace_id;
-      let slackWebhook = process.env.SLACK_WEBHOOK_URL || '';
+      let slackWebhook = '';
       let slackEnabled = true;
 
       if (wsId) {
@@ -101,6 +112,10 @@ export async function POST(req: NextRequest) {
       }
 
       if (slackWebhook && slackEnabled) {
+        const slackUrlCheck = await resolveAndVerifyPublicHttpsUrl(slackWebhook);
+        if (!slackUrlCheck.ok) {
+          return NextResponse.json({ error: 'Configured workspace Slack URL is unsafe or invalid' }, { status: 400 });
+        }
         const visitorName = conv.visitor?.name || 'Anonymous Visitor';
         const visitorEmail = conv.visitor?.email || 'None';
         const channel = conv.channel || 'web';
@@ -152,6 +167,8 @@ export async function POST(req: NextRequest) {
           await fetch(slackWebhook, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
+            redirect: 'manual',
+            signal: AbortSignal.timeout(8000),
             body: JSON.stringify(slackPayload),
           });
         } catch (sErr) {
@@ -226,7 +243,7 @@ export async function POST(req: NextRequest) {
       const messageSnippet = message.content || 'Sent an attachment';
 
       console.log(
-        `[Email Notification] Disagreeing agent offline (${agent.name} <${agent.email}>, status: ${agent.status}). Dispatching email...`
+        `[Email Notification] Assigned agent offline (agentId=${agent.id}, status=${agent.status}). Dispatching email...`
       );
 
       // If Resend API key is configured, send actual email

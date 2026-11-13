@@ -134,7 +134,7 @@ __decorate([
     __param(2, (0, common_1.Body)('agentId')),
     __param(3, (0, current_user_decorator_1.CurrentUser)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String, String, Object]),
+    __metadata("design:paramtypes", [String, String, Object, Object]),
     __metadata("design:returntype", Promise)
 ], ConversationsController.prototype, "assignConversation", null);
 __decorate([

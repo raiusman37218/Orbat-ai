@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { guardWorkspace } from '@/lib/team/route-guard';
-import { hasServiceRole, serviceClient } from '@/lib/supabase/service';
+import { hasServiceRole, serviceClient } from '@/lib/pg/service';
 import { sendSmtpEmail, unreadReplyEmail } from '@/lib/email/smtp';
 import { loadWorkspaceSmtp } from '@/lib/email/workspace-smtp';
 import type { Workspace } from '@/types/database';
@@ -41,7 +41,7 @@ async function processUnreadNotifications(req: NextRequest) {
     onlyWorkspace = String(workspaceId);
   }
   if (!hasServiceRole()) {
-    return NextResponse.json({ error: 'SUPABASE_SERVICE_ROLE_KEY is not set' }, { status: 500 });
+    return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 });
   }
 
   try {

@@ -8,6 +8,7 @@ export interface AuthenticatedUser {
   role: AgentRole;
   workspaceId: string;
   isSuperAdmin?: boolean;
+  tokenVersion?: number;
 }
 
 export interface TenantContext {

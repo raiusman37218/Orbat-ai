@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { checkRateLimit } from './rate-limit';
 
 const mockRpc = vi.fn();
-vi.mock('@/lib/supabase/service', () => ({
+vi.mock('@/lib/pg/service', () => ({
   serviceClient: () => ({
     rpc: mockRpc,
   }),

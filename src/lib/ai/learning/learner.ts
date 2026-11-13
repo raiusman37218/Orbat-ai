@@ -1,4 +1,4 @@
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 import { chat, isConfigured, type ProviderConfig } from '@/lib/ai/provider';
 import { getPlatformAiConfigServerOnly } from '@/lib/ai/platform-gateway';
 import { generateEmbeddings, hybridSearchBotKnowledge, hybridSearchWorkspaceChunks } from '@/lib/ai/semantic-retrieval';

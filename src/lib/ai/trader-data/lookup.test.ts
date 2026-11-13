@@ -40,7 +40,7 @@ function table(name: string) {
   return q;
 }
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => ({ from: table, rpc: async () => ({ data: true, error: null }) }) }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => ({ from: table, rpc: async () => ({ data: true, error: null }) }) }));
 vi.mock('@/lib/rate-limit', () => ({ checkRateLimit: async () => true }));
 vi.mock('@/lib/email/workspace-smtp', () => ({ loadTeamAlertSmtp: async () => (smtpReady ? { smtp: { host: 'smtp' }, source: 'workspace' } : null) }));
 vi.mock('@/lib/email/smtp', () => ({

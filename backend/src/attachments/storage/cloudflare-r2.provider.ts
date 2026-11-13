@@ -1,4 +1,4 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   S3Client,
@@ -22,7 +22,6 @@ const ALLOWED_MIME_TYPES = new Set([
   'image/png',
   'image/webp',
   'image/gif',
-  'image/svg+xml',
   'application/pdf',
   'text/plain',
   'text/csv',
@@ -96,7 +95,11 @@ export class CloudflareR2StorageProvider implements StorageProvider {
 
     let uploadUrl = `https://mock-r2.orbat.internal/${this.bucketName}/${storageKey}`;
 
-    if (this.s3Client) {
+    if (!this.s3Client) {
+      if (this.config.get<string>('nodeEnv') === 'production') {
+        throw new ServiceUnavailableException('Object storage (Cloudflare R2) is not configured.');
+      }
+    } else {
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: storageKey,
@@ -124,20 +127,23 @@ export class CloudflareR2StorageProvider implements StorageProvider {
     storageKey: string,
     expiresInSeconds: number = 3600,
   ): Promise<string> {
+    if (this.s3Client) {
+      const command = new GetObjectCommand({
+        Bucket: this.bucketName,
+        Key: storageKey,
+      });
+      return getSignedUrl(this.s3Client, command, { expiresIn: expiresInSeconds });
+    }
+
     if (this.publicBaseUrl) {
       return `${this.publicBaseUrl.replace(/\/$/, '')}/${storageKey}`;
     }
 
-    if (!this.s3Client) {
-      return `https://mock-r2.orbat.internal/${this.bucketName}/${storageKey}?mock_token=123`;
+    if (this.config.get<string>('nodeEnv') === 'production') {
+      throw new ServiceUnavailableException('Object storage (Cloudflare R2) is not configured.');
     }
 
-    const command = new GetObjectCommand({
-      Bucket: this.bucketName,
-      Key: storageKey,
-    });
-
-    return getSignedUrl(this.s3Client, command, { expiresIn: expiresInSeconds });
+    return `https://mock-r2.orbat.internal/${this.bucketName}/${storageKey}?mock_token=123`;
   }
 
   async deleteFile(storageKey: string): Promise<boolean> {

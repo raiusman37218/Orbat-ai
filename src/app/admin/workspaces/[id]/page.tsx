@@ -1,6 +1,7 @@
 import React from 'react';
 import { redirect } from 'next/navigation';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/pg/server';
+import { sessionUser } from '@/lib/auth/session-user';
 import { WorkspaceDetailView } from '@/components/admin/WorkspaceDetailView';
 
 interface PageProps {
@@ -14,18 +15,16 @@ export const metadata = {
 
 export default async function WorkspacePage({ params }: PageProps) {
   const { id } = await params;
-  const supabase = await createClient();
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await sessionUser();
 
   if (!user) {
     redirect(`/login?redirect=/admin/workspaces/${id}`);
   }
 
+  const db = await createClient();
+
   // Enforce server-side authorization: only platform super admin
-  const { data: agent } = await supabase
+  const { data: agent } = await db
     .from('agents')
     .select('is_super_admin')
     .eq('id', user.id)

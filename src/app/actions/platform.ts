@@ -1,9 +1,14 @@
 'use server';
 
 import { cookies } from 'next/headers';
-import { createClient } from '@/lib/supabase/server';
-import { serviceClient } from '@/lib/supabase/service';
-import { sessionUser } from '@/lib/supabase/session-user';
+import { createClient } from '@/lib/pg/server';
+import { serviceClient } from '@/lib/pg/service';
+import { sessionUser } from '@/lib/auth/session-user';
+import {
+  createPgAuthUser,
+  getPgPasswordHashForUser,
+  updatePgAuthUser,
+} from '@/lib/auth/postgres-auth';
 import { queryRows } from '@/lib/db';
 import crypto from 'node:crypto';
 import {
@@ -1149,31 +1154,16 @@ async function findOrCreateOwnerAgent(
     return { id: existingAgent.id, email: existingAgent.email };
   }
 
-  // 2. Try inviting or creating in Supabase Auth
+  // 2. Look up or create auth user in pure PostgreSQL
   let targetUserId: string | null = null;
   const displayName = name || normalizedEmail.split('@')[0];
 
   try {
-    const { data: inviteData } = await adminClient.auth.admin.inviteUserByEmail(
-      normalizedEmail,
-      {
-        data: {
-          name: displayName,
-          workspace_id: workspaceId,
-          role: 'owner',
-        },
-      }
-    );
-    if (inviteData?.user?.id) {
-      targetUserId = inviteData.user.id;
-    }
-  } catch (err) {
-    // invite fallback
-  }
-
-  if (!targetUserId) {
-    try {
-      const { data: createData } = await adminClient.auth.admin.createUser({
+    const existingAccount = await findAuthUserByEmail(normalizedEmail);
+    if (existingAccount?.id) {
+      targetUserId = existingAccount.id;
+    } else {
+      const { data: createData } = await createPgAuthUser({
         email: normalizedEmail,
         email_confirm: true,
         user_metadata: {
@@ -1185,9 +1175,9 @@ async function findOrCreateOwnerAgent(
       if (createData?.user?.id) {
         targetUserId = createData.user.id;
       }
-    } catch (err) {
-      // ignore
     }
+  } catch (err) {
+    console.warn('[Platform] Pure PostgreSQL user provisioning note:', (err as Error)?.message || err);
   }
 
   if (!targetUserId) {
@@ -2920,10 +2910,21 @@ export async function getPlatformAccessListAction(): Promise<{
       return { success: false, error: accessErr.message, members: [] };
     }
 
-    // Fetch user details from auth.admin.listUsers() and agents table
-    const { data: listData } = await adminClient.auth.admin.listUsers();
-    const authUsers = listData?.users || [];
-    const authUsersMap = new Map<string, any>(authUsers.map((u) => [u.id, u]));
+    // Fetch user details from pure PostgreSQL auth_accounts + agents table
+    const authAccounts = await queryRows<{
+      id: string;
+      email: string;
+      name: string | null;
+      raw_user_meta_data: Record<string, unknown> | null;
+    }>(
+      'SELECT id, email, name, raw_user_meta_data FROM public.auth_accounts'
+    ).catch(() => []);
+    const authUsersMap = new Map<string, any>(
+      authAccounts.map((u) => [
+        u.id,
+        { id: u.id, email: u.email, user_metadata: u.raw_user_meta_data || (u.name ? { name: u.name } : {}) },
+      ])
+    );
 
     const { data: agentsData } = await adminClient
       .from('agents')
@@ -3042,8 +3043,8 @@ export async function inviteOrGrantAdminAction(input: {
 
   const adminClient = serviceClient();
 
-  // Find existing account in auth.users
-  const existingAuthUser = await findAuthUserByEmail(adminClient, normalizedEmail);
+  // Find existing account in pure PostgreSQL
+  const existingAuthUser = await findAuthUserByEmail(normalizedEmail);
 
   const { data: platformData } = await adminClient
     .from('platform_settings')
@@ -3129,7 +3130,9 @@ export async function inviteOrGrantAdminAction(input: {
         id: newRow.id,
         user_id: existingAuthUser.id,
         email: normalizedEmail,
-        name: existingAuthUser.user_metadata?.name || normalizedEmail.split('@')[0],
+        name:
+          (typeof existingAuthUser.user_metadata?.name === 'string' && existingAuthUser.user_metadata.name) ||
+          normalizedEmail.split('@')[0],
         role: targetRole,
         granted_by: ownerUser.id,
         granted_by_email: ownerUser.email,
@@ -3253,8 +3256,13 @@ export async function getAdminInvitesAction(): Promise<{
       return { success: false, error: fetchErr.message, invites: [] };
     }
 
-    const { data: listData } = await adminClient.auth.admin.listUsers();
-    const usersMap = new Map((listData?.users || []).map((u) => [u.id, u.email]));
+    const [acctRows, agRows] = await Promise.all([
+      queryRows<{ id: string; email: string }>('SELECT id, email FROM public.auth_accounts').catch(() => []),
+      queryRows<{ id: string; email: string }>('SELECT id, email FROM public.agents').catch(() => []),
+    ]);
+    const usersMap = new Map<string, string>();
+    for (const a of acctRows) usersMap.set(a.id, a.email);
+    for (const ag of agRows) usersMap.set(ag.id, ag.email);
 
     const now = new Date();
     const expiredIds: string[] = [];
@@ -3538,13 +3546,13 @@ export async function acceptAdminInviteAction(input: {
   const targetEmail = invite.email.toLowerCase().trim();
   const targetRole = invite.role as PlatformAccessRole;
 
-  // Find or create auth user using service role
-  const existingUser = await findAuthUserByEmail(adminClient, targetEmail);
+  // Find or create auth user in pure PostgreSQL
+  const existingUser = await findAuthUserByEmail(targetEmail);
 
   let userId: string;
 
   if (!existingUser) {
-    const { data: created, error: createErr } = await adminClient.auth.admin.createUser({
+    const { data: created, error: createErr } = await createPgAuthUser({
       email: targetEmail,
       password: password,
       email_confirm: true,
@@ -3557,7 +3565,7 @@ export async function acceptAdminInviteAction(input: {
     userId = created.user.id;
   } else {
     userId = existingUser.id;
-    const { error: updateErr } = await adminClient.auth.admin.updateUserById(userId, {
+    const { error: updateErr } = await updatePgAuthUser(userId, {
       password: password,
       email_confirm: true,
       user_metadata: { name: cleanName },
@@ -3567,6 +3575,8 @@ export async function acceptAdminInviteAction(input: {
       return { success: false, error: updateErr?.message || 'Failed to update user credentials.' };
     }
   }
+
+  const passwordHash = await getPgPasswordHashForUser(userId, targetEmail);
 
   // Insert or update public.agents table: no workspace, no onboarding, admin-only
   const { error: agentErr } = await adminClient.from('agents').upsert(
@@ -3581,6 +3591,8 @@ export async function acceptAdminInviteAction(input: {
       is_super_admin: true,
       is_platform_owner: targetRole === 'owner',
       platform_staff_role: targetRole === 'owner' ? 'owner' : 'support',
+      email_verified: true,
+      ...(passwordHash ? { password_hash: passwordHash } : {}),
     },
     { onConflict: 'id' }
   );

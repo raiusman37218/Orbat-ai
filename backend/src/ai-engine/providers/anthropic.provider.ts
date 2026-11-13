@@ -19,7 +19,8 @@ export class AnthropicProvider implements LlmProvider {
   async generateCompletion(
     request: LlmCompletionRequest,
   ): Promise<LlmCompletionResponse> {
-    if (!this.apiKey) {
+    const apiKey = (request.apiKey || this.apiKey || '').trim();
+    if (!apiKey) {
       throw new Error('ANTHROPIC_API_KEY is not configured.');
     }
 
@@ -36,7 +37,7 @@ export class AnthropicProvider implements LlmProvider {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': this.apiKey,
+        'x-api-key': apiKey,
         'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
@@ -46,6 +47,7 @@ export class AnthropicProvider implements LlmProvider {
         messages: conversationMessages,
         temperature: request.temperature ?? 0.3,
       }),
+      signal: AbortSignal.timeout(request.timeoutMs ?? 25000),
     });
 
     if (!response.ok) {

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * refused), and without a model, or when it fails, the words stand.
  */
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => ({}) }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => ({}) }));
 vi.mock('@/lib/ai/platform-gateway', () => ({ getPlatformAiConfigServerOnly: async () => ({ config: null }) }));
 vi.mock('@/lib/ai/provider', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/ai/provider')>();

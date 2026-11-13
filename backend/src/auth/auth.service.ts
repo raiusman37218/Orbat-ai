@@ -6,7 +6,6 @@ import {
   ForbiddenException,
   BadRequestException,
   Logger,
-  OnModuleInit,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -17,9 +16,10 @@ import { SignupDto } from './dto/signup.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { GoogleAuthDto } from './dto/google-auth.dto';
 import { AuthenticatedUser } from '../common/types/tenant-context';
+import { isOriginAllowed, parseCorsAllowlist } from '../common/security/cors';
 
 @Injectable()
-export class AuthService implements OnModuleInit {
+export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   constructor(
@@ -27,22 +27,6 @@ export class AuthService implements OnModuleInit {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) { }
-
-  async onModuleInit() {
-    // Ensure password_hash column and id default exist on agents table for native auth
-    try {
-      await this.db.query(`
-        ALTER TABLE public.agents ADD COLUMN IF NOT EXISTS password_hash TEXT;
-        ALTER TABLE public.agents ALTER COLUMN id SET DEFAULT gen_random_uuid();
-        ALTER TABLE public.agents DROP CONSTRAINT IF EXISTS agents_id_fkey;
-        CREATE INDEX IF NOT EXISTS idx_agents_email ON public.agents (LOWER(email));
-        ALTER TABLE public.workspaces DROP CONSTRAINT IF EXISTS workspaces_owner_id_fkey;
-      `);
-      this.logger.log('Native auth schema verified (password_hash, id default, and constraints checked).');
-    } catch (err: any) {
-      this.logger.warn(`Could not verify native auth columns on startup: ${err.message}`);
-    }
-  }
 
   async signup(dto: SignupDto) {
     const emailNormalized = dto.email.trim().toLowerCase();
@@ -98,6 +82,7 @@ export class AuthService implements OnModuleInit {
         role: agent.role,
         workspaceId: agent.workspace_id,
         isSuperAdmin: Boolean(agent.is_super_admin),
+        tokenVersion: 1,
       };
 
       const tokens = await this.generateTokens(userPayload);
@@ -120,7 +105,9 @@ export class AuthService implements OnModuleInit {
     // Query agent by email
     const result = await this.db.query(
       `SELECT a.id, a.name, a.email, a.role, a.status, a.workspace_id, a.password_hash,
-              a.is_active, a.is_super_admin, w.name as workspace_name, w.brand_color
+              a.is_active, a.is_super_admin, COALESCE(a.email_verified, true) AS email_verified,
+              COALESCE(a.token_version, 1) AS token_version,
+              w.name as workspace_name, w.brand_color
        FROM public.agents a
        LEFT JOIN public.workspaces w ON w.id = a.workspace_id
        WHERE LOWER(a.email) = $1
@@ -137,6 +124,10 @@ export class AuthService implements OnModuleInit {
     // Check account active status
     if (agent.is_active === false) {
       throw new ForbiddenException('Your account has been deactivated. Please contact your workspace administrator.');
+    }
+
+    if (agent.email_verified === false) {
+      throw new ForbiddenException('Please verify your email address before signing in.');
     }
 
     // Verify password hash
@@ -159,6 +150,7 @@ export class AuthService implements OnModuleInit {
       role: agent.role,
       workspaceId: agent.workspace_id,
       isSuperAdmin: Boolean(agent.is_super_admin),
+      tokenVersion: Number(agent.token_version ?? 1),
     };
 
     const tokens = await this.generateTokens(userPayload);
@@ -185,14 +177,38 @@ export class AuthService implements OnModuleInit {
     let picture: string | null = null;
 
     const token = dto.idToken || dto.credential;
+    const googleClientId = (
+      this.configService.get<string>('google.clientId') ||
+      process.env.GOOGLE_CLIENT_ID ||
+      ''
+    ).trim();
+
+    if (!googleClientId) {
+      throw new UnauthorizedException('Google OAuth client ID is not configured on the backend.');
+    }
+
+    const verifyGoogleIdToken = async (idToken: string) => {
+      const payloadRes = await fetch('https://oauth2.googleapis.com/tokeninfo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ id_token: idToken }).toString(),
+      });
+      if (!payloadRes.ok) {
+        throw new UnauthorizedException('Invalid Google ID token or credential.');
+      }
+      const payload = await payloadRes.json();
+      const audMatches = payload.aud === googleClientId || payload.azp === googleClientId;
+      const emailVerified = payload.email_verified === true || payload.email_verified === 'true';
+      if (!audMatches || !emailVerified) {
+        throw new UnauthorizedException('Google token audience or email verification check failed.');
+      }
+      return payload;
+    };
 
     if (dto.code) {
-      const clientId = this.configService.get<string>('google.clientId') || process.env.GOOGLE_CLIENT_ID;
+      const clientId = googleClientId;
       const clientSecret = this.configService.get<string>('google.clientSecret') || process.env.GOOGLE_CLIENT_SECRET;
-      const callbackUrl =
-        this.configService.get<string>('google.callbackUrl') ||
-        process.env.GOOGLE_CALLBACK_URL ||
-        'http://localhost:3000/auth/callback';
+      const callbackUrl = this.resolveGoogleCallbackUrl(dto.redirectUri);
 
       if (!clientId || !clientSecret) {
         throw new UnauthorizedException(
@@ -220,24 +236,30 @@ export class AuthService implements OnModuleInit {
 
       const tokenData = await tokenRes.json();
       if (tokenData.id_token) {
-        const payloadRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${tokenData.id_token}`);
-        if (payloadRes.ok) {
-          const payload = await payloadRes.json();
-          email = payload.email;
-          name = payload.name;
-          picture = payload.picture;
-        }
+        const payload = await verifyGoogleIdToken(tokenData.id_token);
+        email = payload.email;
+        name = payload.name;
+        picture = payload.picture;
       }
     } else if (token) {
-      const payloadRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${token}`);
-      if (!payloadRes.ok) {
-        throw new UnauthorizedException('Invalid Google ID token or credential.');
-      }
-      const payload = await payloadRes.json();
+      const payload = await verifyGoogleIdToken(token);
       email = payload.email;
       name = payload.name;
       picture = payload.picture;
     } else if (dto.accessToken) {
+      const tokenInfoRes = await fetch('https://oauth2.googleapis.com/tokeninfo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({ access_token: dto.accessToken }).toString(),
+      });
+      if (!tokenInfoRes.ok) {
+        throw new UnauthorizedException('Invalid Google access token.');
+      }
+      const tokenInfo = await tokenInfoRes.json();
+      if (tokenInfo.aud !== googleClientId && tokenInfo.azp !== googleClientId) {
+        throw new UnauthorizedException('Google access token audience mismatch.');
+      }
+
       const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
         headers: { Authorization: `Bearer ${dto.accessToken}` },
       });
@@ -245,6 +267,9 @@ export class AuthService implements OnModuleInit {
         throw new UnauthorizedException('Failed to fetch Google userinfo.');
       }
       const user = await userRes.json();
+      if (user.email_verified !== true && user.email_verified !== 'true') {
+        throw new UnauthorizedException('Google account email is not verified.');
+      }
       email = user.email;
       name = user.name;
       picture = user.picture;
@@ -261,7 +286,8 @@ export class AuthService implements OnModuleInit {
     // Check if agent already exists in Neon PostgreSQL
     const existing = await this.db.query(
       `SELECT a.id, a.name, a.email, a.role, a.status, a.workspace_id, a.is_active,
-              a.is_super_admin, w.name as workspace_name, w.brand_color
+              a.is_super_admin, COALESCE(a.token_version, 1) AS token_version,
+              w.name as workspace_name, w.brand_color
        FROM public.agents a
        LEFT JOIN public.workspaces w ON w.id = a.workspace_id
        WHERE LOWER(a.email) = $1
@@ -282,6 +308,7 @@ export class AuthService implements OnModuleInit {
         role: agent.role,
         workspaceId: agent.workspace_id,
         isSuperAdmin: Boolean(agent.is_super_admin),
+        tokenVersion: Number(agent.token_version ?? 1),
       };
 
       const tokens = await this.generateTokens(userPayload);
@@ -330,6 +357,7 @@ export class AuthService implements OnModuleInit {
         role: agent.role,
         workspaceId: agent.workspace_id,
         isSuperAdmin: Boolean(agent.is_super_admin),
+        tokenVersion: 1,
       };
 
       const tokens = await this.generateTokens(userPayload);
@@ -345,12 +373,54 @@ export class AuthService implements OnModuleInit {
     });
   }
 
-  getGoogleAuthUrl() {
+  private resolveGoogleCallbackUrl(requestedRedirectUri?: string): string {
+    const configuredCallback = (process.env.GOOGLE_CALLBACK_URL || '').trim();
+    const fallbackCallback =
+      configuredCallback ||
+      (() => {
+        const fromConfig = this.configService.get<string>('google.callbackUrl');
+        return fromConfig && /^https?:\/\//i.test(fromConfig)
+          ? fromConfig
+          : 'http://localhost:3000/auth/callback';
+      })();
+
+    if (!requestedRedirectUri) {
+      return fallbackCallback;
+    }
+
+    try {
+      const parsed = new URL(requestedRedirectUri.trim());
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return fallbackCallback;
+      }
+      if (!parsed.pathname.endsWith('/auth/callback')) {
+        return fallbackCallback;
+      }
+
+      const allowlist = parseCorsAllowlist(process.env);
+      let configuredCallbackOrigin: string | null = null;
+      try {
+        configuredCallbackOrigin = new URL(fallbackCallback).origin.toLowerCase();
+      } catch {
+        configuredCallbackOrigin = null;
+      }
+
+      if (
+        isOriginAllowed(parsed.origin, allowlist) ||
+        (configuredCallbackOrigin !== null && parsed.origin.toLowerCase() === configuredCallbackOrigin)
+      ) {
+        return `${parsed.origin}${parsed.pathname}`;
+      }
+    } catch {
+      // Invalid redirectUri falls back to configured callback URL
+    }
+
+    return fallbackCallback;
+  }
+
+  getGoogleAuthUrl(requestedRedirectUri?: string) {
     const clientId = this.configService.get<string>('google.clientId') || process.env.GOOGLE_CLIENT_ID;
-    const callbackUrl =
-      this.configService.get<string>('google.callbackUrl') ||
-      process.env.GOOGLE_CALLBACK_URL ||
-      'http://localhost:3000/auth/callback';
+    const callbackUrl = this.resolveGoogleCallbackUrl(requestedRedirectUri);
 
     if (!clientId) {
       return {
@@ -384,7 +454,9 @@ export class AuthService implements OnModuleInit {
 
       // Verify agent is still active in database
       const result = await this.db.query(
-        'SELECT id, name, email, role, workspace_id, is_active, is_super_admin FROM public.agents WHERE id = $1 LIMIT 1',
+        `SELECT id, name, email, role, workspace_id, is_active, is_super_admin,
+                COALESCE(token_version, 1) AS token_version
+         FROM public.agents WHERE id = $1 LIMIT 1`,
         [payload.sub],
       );
 
@@ -393,6 +465,11 @@ export class AuthService implements OnModuleInit {
       }
 
       const agent = result.rows[0];
+      const currentVersion = Number(agent.token_version ?? 1);
+      if (typeof payload.tv === 'number' && currentVersion !== payload.tv) {
+        throw new UnauthorizedException('Session has been revoked.');
+      }
+
       const userPayload: AuthenticatedUser = {
         id: agent.id,
         email: agent.email,
@@ -400,6 +477,7 @@ export class AuthService implements OnModuleInit {
         role: agent.role,
         workspaceId: agent.workspace_id,
         isSuperAdmin: Boolean(agent.is_super_admin),
+        tokenVersion: currentVersion,
       };
 
       const tokens = await this.generateTokens(userPayload);
@@ -456,6 +534,7 @@ export class AuthService implements OnModuleInit {
     const refreshSecret = this.configService.get<string>('jwt.refreshSecret');
     const refreshExpiresIn = this.configService.get<string>('jwt.refreshExpiresIn');
 
+    const tokenVersion = typeof user.tokenVersion === 'number' ? user.tokenVersion : 1;
     const payload = {
       sub: user.id,
       email: user.email,
@@ -463,6 +542,7 @@ export class AuthService implements OnModuleInit {
       role: user.role,
       workspaceId: user.workspaceId,
       isSuperAdmin: user.isSuperAdmin,
+      tv: tokenVersion,
     };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -471,7 +551,7 @@ export class AuthService implements OnModuleInit {
         expiresIn: jwtExpiresIn,
       }),
       this.jwtService.signAsync(
-        { sub: user.id },
+        { sub: user.id, tv: tokenVersion },
         {
           secret: refreshSecret,
           expiresIn: refreshExpiresIn,

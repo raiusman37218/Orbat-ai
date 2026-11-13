@@ -564,6 +564,7 @@ export interface SMTPSettingsConfig {
   from_email: string;
   from_name: string;
   unread_threshold_minutes?: number;
+  allow_self_signed?: boolean;
 }
 
 export interface PlatformSettings {

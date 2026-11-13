@@ -1,7 +1,7 @@
 import React from 'react';
 import { headers } from 'next/headers';
-import { createClient } from '@/lib/supabase/server';
-import { sessionUser } from '@/lib/supabase/session-user';
+import { createClient } from '@/lib/pg/server';
+import { sessionUser } from '@/lib/auth/session-user';
 import { queryRows } from '@/lib/db';
 import { Agent } from '@/types/database';
 import { SuperAdminShell } from '@/components/admin/SuperAdminShell';

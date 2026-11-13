@@ -153,9 +153,9 @@ export interface JudgeArticle {
 
 export function coverageJudgePrompt(items: { key: string; label: string }[], articles: JudgeArticle[]): { system: string; user: string } {
   const system = [
-    'You audit a prop-trading firm\'s help center. For each topic, name the article that actually states the answer to it, or 0 if none does.',
-    'Firms use their own words: "reward" or "reward share" can mean payout or profit split, "program" can mean challenge or plan, "add-on" can be a paid extra. Judge by meaning.',
-    'Be strict: an article only counts when it states the facts a trader would need for that topic (not when it merely mentions the word). A topic about one thing (e.g. minimum trading days) is not covered by an article about another (e.g. minimum hold time).',
+    'You audit a company\'s help center. For each topic, name the article that actually states the answer to it, or 0 if none does.',
+    'Businesses use their own terminology (e.g., "credits" vs "balance", "plan" vs "tier", "add-on" vs "extension"). Judge by meaning.',
+    'Be strict: an article only counts when it states the concrete facts a customer would need for that topic (not when it merely mentions a related keyword). A topic about one policy is not covered by an article about a different policy.',
     'Reply with JSON only: {"<topic key>": <article number or 0>, ...} covering every topic key.',
   ].join('\n');
   const user = [

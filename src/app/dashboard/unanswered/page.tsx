@@ -2,7 +2,6 @@
 
 import React, { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { createClient } from '@/lib/supabase/client';
 import { Agent, Workspace } from '@/types/database';
 import { UnansweredQuestionsView } from '@/components/dashboard/UnansweredQuestionsView';
 import { ArrowLeft, RefreshCw } from 'lucide-react';
@@ -10,7 +9,6 @@ import Link from 'next/link';
 
 export default function UnansweredQuestionsPage() {
   const router = useRouter();
-  const supabase = createClient();
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [agent, setAgent] = useState<Agent | null>(null);
   const [loading, setLoading] = useState(true);
@@ -18,21 +16,19 @@ export default function UnansweredQuestionsPage() {
   useEffect(() => {
     async function load() {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) {
+        const res = await fetch('/api/auth/session', { cache: 'no-store' });
+        if (res.status === 401 || !res.ok) {
           router.push('/login');
           return;
         }
-
-        const { data: agentData } = await supabase
-          .from('agents')
-          .select('*, workspace:workspaces(*)')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (agentData) {
-          setAgent(agentData);
-          setWorkspace(agentData.workspace || null);
+        const data = await res.json().catch(() => null);
+        if (!data?.authenticated) {
+          router.push('/login');
+          return;
+        }
+        if (data.agent) {
+          setAgent(data.agent);
+          setWorkspace(data.workspace || data.agent.workspace || null);
         }
       } catch (e) {
         console.warn('Failed to load user session:', e);
@@ -41,7 +37,7 @@ export default function UnansweredQuestionsPage() {
       }
     }
     load();
-  }, [router, supabase]);
+  }, [router]);
 
   if (loading) {
     return (

@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
  * fail or answer outside the options.
  */
 
-vi.mock('@/lib/supabase/service', () => ({ serviceClient: () => ({}) }));
+vi.mock('@/lib/pg/service', () => ({ serviceClient: () => ({}) }));
 const events: { reason: string; detail: Record<string, unknown> }[] = [];
 vi.mock('@/lib/ai/bot-control', () => ({
   logAiEvent: async (_s: unknown, e: { reason: string; detail: Record<string, unknown> }) => {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 
 /**
  * Legacy Meta webhook (Settings → Integrations, before the channel framework).

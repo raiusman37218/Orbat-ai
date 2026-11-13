@@ -8,7 +8,7 @@
  * hash leaks nothing useful about how close a guess was.
  */
 import { createHash, randomBytes } from 'node:crypto';
-import { serviceClient } from '@/lib/supabase/service';
+import { serviceClient } from '@/lib/pg/service';
 
 const KEY_PREFIX = 'zk_live_';
 const KEY_SHAPE = /^zk_live_[A-Za-z0-9_-]{43}$/;

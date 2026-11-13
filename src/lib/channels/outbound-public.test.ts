@@ -12,7 +12,7 @@ interface Row {
 let chosen: Row | null = null;
 let recent: Row[] = [];
 
-vi.mock('@/lib/supabase/service', () => {
+vi.mock('@/lib/pg/service', () => {
   const chain = (kind: 'one' | 'list') => {
     const q: Record<string, unknown> = {};
     for (const m of ['select', 'eq', 'order', 'limit']) q[m] = () => q;

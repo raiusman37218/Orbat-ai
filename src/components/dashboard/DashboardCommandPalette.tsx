@@ -5,8 +5,7 @@ import { BarChart2, BookOpen, Inbox, Keyboard, ListFilter, Radio, Settings, Tick
 import { CommandPalette } from '@/components/ui/CommandPalette';
 import { isPaletteShortcut, type PaletteItem } from '@/lib/command-palette';
 import { SYSTEM_VIEWS } from '@/lib/tickets/views';
-import { searchTicketsAction } from '@/app/actions/tickets';
-import { createClient } from '@/lib/supabase/client';
+import { listTicketViewsAction, searchTicketsAction } from '@/app/actions/tickets';
 import { settingsSections, type SectionId } from './SettingsHub';
 import type { View } from './Sidebar';
 
@@ -82,15 +81,9 @@ export function DashboardCommandPalette({
   // Saved views change rarely; refresh them each time the palette opens.
   useEffect(() => {
     if (!open) return;
-    createClient()
-      .from('ticket_views')
-      .select('id, name')
-      .eq('workspace_id', workspaceId)
-      .order('position')
-      .then(({ data, error }: { data: { id: string; name: string }[] | null; error: { message: string } | null }) => {
-        if (error) console.error('[Command Palette] saved views:', error.message);
-        else setSavedViews(data || []);
-      });
+    listTicketViewsAction(workspaceId)
+      .then((data) => setSavedViews(data || []))
+      .catch((error) => console.error('[Command Palette] saved views:', error?.message || error));
   }, [open, workspaceId]);
 
   const items = useMemo<PaletteItem[]>(

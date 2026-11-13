@@ -10,7 +10,7 @@
  */
 
 import { getWorkspaceAccess } from '@/lib/team/access';
-import { hasServiceRole } from '@/lib/supabase/service';
+import { hasServiceRole } from '@/lib/pg/service';
 import { hasEncryptionKey, randomToken } from '@/lib/channels/crypto';
 import { getConnection, saveConnection, updateConnection } from '@/lib/channels/store';
 import { domainOf, forwardingAddressFor, normalizeEmail } from '@/lib/channels/email/addresses';
@@ -34,7 +34,7 @@ function fail(err: unknown, fallback: string): { success: false; error: string }
 
 async function guard(workspaceId: string) {
   const access = await getWorkspaceAccess(workspaceId, 'manage_settings');
-  if (!hasServiceRole()) throw userError('The server is missing SUPABASE_SERVICE_ROLE_KEY, so channels cannot be managed.');
+  if (!hasServiceRole()) throw userError('The server is missing DATABASE_URL, so channels cannot be managed.');
   if (!hasEncryptionKey()) throw userError('The server is missing CHANNEL_ENCRYPTION_KEY, so channel credentials cannot be stored safely.');
   return access;
 }

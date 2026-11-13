@@ -93,5 +93,41 @@ const bcrypt = require("bcryptjs");
             })).rejects.toThrow(common_1.ConflictException);
         });
     });
+    (0, vitest_1.describe)('googleAuth', () => {
+        (0, vitest_1.it)('should reject Google idToken when aud does not match GOOGLE_CLIENT_ID', async () => {
+            mockConfig.get = vitest_1.vi.fn((key) => {
+                if (key === 'google.clientId')
+                    return 'expected-client-id.apps.googleusercontent.com';
+                return 'test_secret';
+            });
+            const fetchSpy = vitest_1.vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    aud: 'attacker-other-app.apps.googleusercontent.com',
+                    email: 'victim@example.com',
+                    email_verified: true,
+                }),
+            });
+            await (0, vitest_1.expect)(service.googleAuth({ idToken: 'fake-google-id-token' })).rejects.toThrow(common_1.UnauthorizedException);
+            fetchSpy.mockRestore();
+        });
+        (0, vitest_1.it)('should reject Google idToken when email_verified is false', async () => {
+            mockConfig.get = vitest_1.vi.fn((key) => {
+                if (key === 'google.clientId')
+                    return 'expected-client-id.apps.googleusercontent.com';
+                return 'test_secret';
+            });
+            const fetchSpy = vitest_1.vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    aud: 'expected-client-id.apps.googleusercontent.com',
+                    email: 'unverified@example.com',
+                    email_verified: false,
+                }),
+            });
+            await (0, vitest_1.expect)(service.googleAuth({ idToken: 'fake-google-id-token' })).rejects.toThrow(common_1.UnauthorizedException);
+            fetchSpy.mockRestore();
+        });
+    });
 });
 //# sourceMappingURL=auth.service.spec.js.map
