@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { LegalLayout } from '@/components/marketing/LegalLayout';
 
 export const metadata = {
-  title: 'Terms of Service | Zen-try',
-  description: 'The terms that apply when you use Zen-try.',
+  title: 'Terms of Service | Orbat AI',
+  description: 'The terms that apply when you use Orbat AI.',
 };
 
 export default function TermsPage() {
@@ -13,7 +13,7 @@ export default function TermsPage() {
       eyebrow="Legal"
       title="Terms of Service"
       updated="October 2026"
-      intro={<p>The agreement between you and Zen-try when you create a workspace or use the service.</p>}
+      intro={<p>The agreement between you and Orbat AI when you create a workspace or use the service.</p>}
       related={{ label: 'Privacy Policy', href: '/privacy' }}
       sections={[
         {
@@ -21,7 +21,7 @@ export default function TermsPage() {
           title: 'Acceptance of terms',
           body: (
             <p>
-              By signing up for an account, accessing, or using Zen-try (&quot;the Service&quot;), you agree to be bound by these
+              By signing up for an account, accessing, or using Orbat AI (&quot;the Service&quot;), you agree to be bound by these
               Terms of Service. If you do not agree to these terms, do not create an account or use the Service.
             </p>
           ),
@@ -42,7 +42,7 @@ export default function TermsPage() {
           title: 'Acceptable use policy',
           body: (
             <p>
-              You agree not to use Zen-try to transmit spam, unlawful, abusive, or malicious content. Automated scraping of
+              You agree not to use Orbat AI to transmit spam, unlawful, abusive, or malicious content. Automated scraping of
               visitor data without consent or interference with widget delivery across subscriber websites is strictly
               prohibited.
             </p>
@@ -53,7 +53,7 @@ export default function TermsPage() {
           title: 'AI features and customer data',
           body: (
             <p>
-              Zen-try offers AI copilot features that process conversations and knowledge notes to provide automated
+              Orbat AI offers AI copilot features that process conversations and knowledge notes to provide automated
               assistance. Your customer conversations are your proprietary data and will never be shared with third parties for
               general model training without explicit consent.
             </p>

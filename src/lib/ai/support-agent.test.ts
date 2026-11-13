@@ -36,6 +36,27 @@ describe('buildSupportAgentPrompt', () => {
     expect(prompt).toContain('Roman Urdu');
   });
 
+  it('adapts persona and glossary for ecommerce domains', () => {
+    const prompt = buildSupportAgentPrompt({ ...base, industry: 'ecommerce' });
+    expect(prompt).toContain('e-commerce brand');
+    expect(prompt).toContain('HOW SHOPPERS TALK');
+    expect(prompt).not.toContain('proprietary trading (prop) firm');
+  });
+
+  it('adapts persona and glossary for saas domains', () => {
+    const prompt = buildSupportAgentPrompt({ ...base, industry: 'saas' });
+    expect(prompt).toContain('software and SaaS platform');
+    expect(prompt).toContain('HOW SOFTWARE USERS TALK');
+    expect(prompt).not.toContain('proprietary trading (prop) firm');
+  });
+
+  it('adapts persona and glossary for generic domains', () => {
+    const prompt = buildSupportAgentPrompt({ ...base, industry: 'generic' });
+    expect(prompt).toContain('senior customer support agent');
+    expect(prompt).toContain('HOW CUSTOMERS TALK');
+    expect(prompt).not.toContain('proprietary trading (prop) firm');
+  });
+
   it('adds the specialist brief and the workspace instructions for it', () => {
     const prompt = buildSupportAgentPrompt({
       ...base,

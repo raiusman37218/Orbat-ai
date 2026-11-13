@@ -28,12 +28,17 @@ CREATE TABLE IF NOT EXISTS article_slug_redirects (
 CREATE INDEX IF NOT EXISTS idx_article_slug_redirects_lookup 
 ON article_slug_redirects(workspace_id, old_slug);
 
--- 3. Seed redirects for the fixed slugs so existing URLs redirect seamlessly
+-- 3. Seed redirects for the fixed slugs so existing URLs redirect seamlessly (when target rows exist)
 INSERT INTO article_slug_redirects (workspace_id, article_id, old_slug)
-VALUES 
-  ('47345f70-4895-4ff6-bcf8-153034225cae', '82a90fa6-09ec-4265-bad4-ce418e8b4035', '1-step-standard1-step-standard'),
-  ('47345f70-4895-4ff6-bcf8-153034225cae', 'cb5a9368-a8a7-4e15-8302-cde1ed34cb1a', '-is-there-an-inactivity-rule'),
-  ('47345f70-4895-4ff6-bcf8-153034225cae', 'aaa22d0f-3f1c-4cf2-8a40-9be78b14e812', '-comparison-summary-table')
+SELECT s.workspace_id, s.article_id, s.old_slug
+FROM (
+  VALUES
+    ('47345f70-4895-4ff6-bcf8-153034225cae'::uuid, '82a90fa6-09ec-4265-bad4-ce418e8b4035'::uuid, '1-step-standard1-step-standard'),
+    ('47345f70-4895-4ff6-bcf8-153034225cae'::uuid, 'cb5a9368-a8a7-4e15-8302-cde1ed34cb1a'::uuid, '-is-there-an-inactivity-rule'),
+    ('47345f70-4895-4ff6-bcf8-153034225cae'::uuid, 'aaa22d0f-3f1c-4cf2-8a40-9be78b14e812'::uuid, '-comparison-summary-table')
+) AS s(workspace_id, article_id, old_slug)
+WHERE EXISTS (SELECT 1 FROM workspaces w WHERE w.id = s.workspace_id)
+  AND EXISTS (SELECT 1 FROM articles a WHERE a.id = s.article_id)
 ON CONFLICT (workspace_id, old_slug) DO NOTHING;
 
 -- 4. Enable RLS on article_slug_redirects

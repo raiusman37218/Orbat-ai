@@ -8,7 +8,7 @@ interface PageProps {
 }
 
 export const metadata = {
-  title: 'Workspace Detail — Zentry Super Admin',
+  title: 'Workspace Detail — Orbat AI Super Admin',
   description: 'Inspect workspace metrics, members, channels, and private platform owner notes.',
 };
 

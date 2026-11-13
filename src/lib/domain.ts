@@ -2,16 +2,16 @@ import { Workspace, PublicWorkspace } from '@/types/database';
 
 /**
  * Platform base domain for zero-setup ready-made help center subdomains.
- * E.g. zentryhelp.com -> <slug>.zentryhelp.com
+ * E.g. orbathelp.com -> <slug>.orbathelp.com
  */
 export const HELP_BASE_DOMAIN =
   process.env.NEXT_PUBLIC_HELP_BASE_DOMAIN ||
   process.env.HELP_BASE_DOMAIN ||
-  'zentryhelp.com';
+  'orbathelp.com';
 
 /**
  * Checks whether a hostname is a subdomain on HELP_BASE_DOMAIN.
- * E.g.: "apex-shoes.zentryhelp.com" -> { isSubdomain: true, slug: "apex-shoes" }
+ * E.g.: "apex-shoes.orbathelp.com" -> { isSubdomain: true, slug: "apex-shoes" }
  */
 export function parseHelpBaseSubdomain(host: string): {
   isSubdomain: boolean;
@@ -43,7 +43,16 @@ export function isHelpBaseHost(host: string): boolean {
   const h = (host || '').toLowerCase().split(':')[0].trim();
   const base = HELP_BASE_DOMAIN.toLowerCase().split(':')[0].trim();
   if (!base || !h) return false;
-  return h === base || h.endsWith(`.${base}`);
+  return (
+    h === base ||
+    h.endsWith(`.${base}`) ||
+    h === 'orbathelp.com' ||
+    h.endsWith('.orbathelp.com') ||
+    h === 'zentryhelp.com' ||
+    h.endsWith('.zentryhelp.com') ||
+    h === 'chatifyhelp.com' ||
+    h.endsWith('.chatifyhelp.com')
+  );
 }
 
 /**
@@ -140,6 +149,10 @@ export function isPlatformHost(host: string): boolean {
     h.startsWith('10.') ||
     h.startsWith('172.') ||
     /^[0-9.]+$/.test(h) ||
+    h === 'orbatai.com' ||
+    h.endsWith('.orbatai.com') ||
+    h === 'orbat.ai' ||
+    h.endsWith('.orbat.ai') ||
     h === 'zen-try.site' ||
     h.endsWith('.zen-try.site') ||
     h === 'zen-try.com' ||
@@ -498,7 +511,7 @@ export function getExpectedDnsRecords(
 }
 
 /** Public production origin that serves widget.js. */
-export const PRODUCTION_APP_ORIGIN = 'https://zen-try.site';
+export const PRODUCTION_APP_ORIGIN = 'https://orbatai.com';
 
 /**
  * Origin used in copy-paste install snippets. Uses the current deployment's

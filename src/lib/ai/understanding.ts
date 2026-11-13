@@ -42,6 +42,11 @@ const PHRASE_MAP: [RegExp, string][] = [
   [/\bbreach\s+ho\s+gaya\b|\bfail\s+ho\s+gaya\b/g, 'breached'],
   [/\bcharge\s+twice\b|\bdouble\s+charge\w*\b/g, 'charged twice'],
   [/\blog\s*in\b/g, 'login'],
+  [/\bcash\s+on\s+delivery\b|\bc\.?o\.?d\b/gi, 'cash on delivery'],
+  [/\btrack(?:ing)?\s+(?:id|no|number)\b/gi, 'tracking number'],
+  [/\border\s+(?:id|no|number)\b/gi, 'order number'],
+  [/\breturn\s+policy\b/gi, 'return policy'],
+  [/\bapi\s+key[s]?\b/gi, 'api key'],
 ];
 
 /** Roman Urdu phrases, put into English. */
@@ -78,6 +83,13 @@ const TERM_MAP: Record<string, string> = {
   staus: 'status', stauts: 'status', satus: 'status', statsu: 'status', sttus: 'status',
   accoutn: 'account', accunt: 'account', acoount: 'account', accont: 'account',
   chek: 'check', chk: 'check', chck: 'check', ordr: 'order', oder: 'order',
+  dlvry: 'delivery', delvry: 'delivery', delvr: 'delivery',
+  trackng: 'tracking', trckng: 'tracking', trck: 'track',
+  shpng: 'shipping', shipng: 'shipping',
+  subscrptn: 'subscription', subscrip: 'subscription',
+  invoce: 'invoice', invc: 'invoice',
+  retun: 'return', retrn: 'return',
+  exchnge: 'exchange', exchng: 'exchange',
   brech: 'breach', breech: 'breach', brach: 'breach',
   affilate: 'affiliate', afiliate: 'affiliate', comission: 'commission', commision: 'commission', refferal: 'referral', referal: 'referral',
   certficate: 'certificate', certifcate: 'certificate',

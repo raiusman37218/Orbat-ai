@@ -247,7 +247,7 @@ export function HelpFooter({ workspace }: { workspace: Workspace }) {
       <div className="mx-auto max-w-6xl px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs hc-muted">
         <span>{workspace.help_center_footer_text || `© ${new Date().getFullYear()} ${title}. All rights reserved.`}</span>
         <span>
-          Powered by <span className="font-medium hc-ink2">Zen-try</span>
+          Powered by <span className="font-medium hc-ink2">Orbat AI</span>
         </span>
       </div>
     </footer>

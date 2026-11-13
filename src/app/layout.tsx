@@ -18,15 +18,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Zen-try — Live chat your customers actually want to use",
+  title: "Orbat AI — Live chat your customers actually want to use",
   description:
     "Real-time human support for any website. See who's browsing, reply in one shared inbox, and ship it with a single line of code.",
   manifest: "/manifest.webmanifest",
-  applicationName: "Zen-try",
+  applicationName: "Orbat AI",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Zen-try",
+    title: "Orbat AI",
   },
   icons: {
     icon: [

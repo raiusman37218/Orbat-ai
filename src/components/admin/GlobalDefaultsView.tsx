@@ -279,7 +279,7 @@ export function GlobalDefaultsView() {
             <input
               type="text"
               className="input input-sm w-full mt-1.5"
-              placeholder="e.g. ZenTry is currently undergoing maintenance."
+              placeholder="e.g. Orbat AI is currently undergoing maintenance."
               value={maintenanceMessage}
               onChange={(e) => setMaintenanceMessage(e.target.value)}
             />

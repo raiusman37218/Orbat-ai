@@ -2,6 +2,8 @@
 
 import { createClient } from '@/lib/supabase/server';
 import { serviceClient } from '@/lib/supabase/service';
+import { sessionUser } from '@/lib/supabase/session-user';
+import { query, queryRows } from '@/lib/db';
 import {
   Workspace,
   Agent,
@@ -14,7 +16,7 @@ import {
   WidgetIconType,
   WorkspaceHandoffSettings,
 } from '@/types/database';
-import { generateUniqueWorkspaceSlug } from '@/lib/slug';
+import { formatWorkspaceSlug, generateUniqueWorkspaceSlug, RESERVED_WORKSPACE_SLUGS } from '@/lib/slug';
 import { getIndustryPreset } from '@/lib/onboarding-presets';
 import { getWorkspaceAccess } from '@/lib/team/access';
 import { assertSettingNotLocked } from '@/lib/settings/precedence';
@@ -687,13 +689,153 @@ export async function createWorkspaceAction(input: {
 }) {
   const supabase = await createClient();
   const {
-    data: { user },
+    data: { user: sbUser },
     error: authErr,
   } = await supabase.auth.getUser();
 
-  if (authErr || !user) {
-    throw userError('Unauthorized: Authentication required.');
+  const nestUser = !sbUser ? await sessionUser(supabase) : null;
+
+  if (!sbUser && !nestUser) {
+    throw userError(authErr?.message || 'Unauthorized: Authentication required.');
   }
+
+  const industry = input.industry?.toLowerCase()?.trim() || 'generic';
+  const preset = getIndustryPreset(industry);
+
+  // Fast native NestJS + Neon creation path (used for Google OAuth onboarding)
+  if (!sbUser && nestUser) {
+    let baseSlug = formatWorkspaceSlug(input.slug || input.businessName);
+    if (!baseSlug || RESERVED_WORKSPACE_SLUGS.has(baseSlug)) {
+      baseSlug = baseSlug ? `${baseSlug}-kb` : 'workspace';
+    }
+    const existingSlugs = await queryRows<{ slug: string | null }>(
+      'SELECT slug FROM public.workspaces WHERE lower(slug) LIKE $1',
+      [`${baseSlug}%`]
+    );
+    const taken = new Set(existingSlugs.map((r) => (r.slug || '').toLowerCase()));
+    let slug = baseSlug;
+    if (taken.has(slug)) {
+      let counter = 2;
+      while (taken.has(`${baseSlug}-${counter}`)) counter++;
+      slug = `${baseSlug}-${counter}`;
+    }
+
+    let customDomain = input.customDomain?.trim() || null;
+    if (customDomain) {
+      const domainTaken = await queryRows(
+        'SELECT 1 FROM public.workspaces WHERE lower(custom_domain) = lower($1) LIMIT 1',
+        [customDomain]
+      );
+      if (domainTaken.length > 0) customDomain = null;
+    }
+
+    const wsRows = await queryRows<Workspace>(
+      `INSERT INTO public.workspaces (
+         name, website_url, brand_color, greeting_title, greeting_message,
+         owner_id, slug, slug_changes_count, slug_changed_at,
+         custom_domain, custom_domain_status, custom_domain_verification_token, industry
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, 0, NULL, $8, $9, $10, $11)
+       RETURNING *`,
+      [
+        input.businessName,
+        input.websiteUrl || null,
+        input.brandColor,
+        input.greetingTitle || preset.greetingTitle,
+        input.greetingMessage || preset.greetingPlaceholder,
+        nestUser.id,
+        slug,
+        customDomain,
+        customDomain ? 'pending' : null,
+        customDomain ? input.verificationToken || null : null,
+        industry,
+      ]
+    );
+
+    const ws = wsRows[0];
+    if (!ws) {
+      throw userError('Failed to create workspace.');
+    }
+
+    const ownerName = nestUser.email?.split('@')[0] || 'Owner';
+    await query(
+      `INSERT INTO public.agents (id, name, email, workspace_id, role, status, is_active)
+       VALUES ($1, $2, $3, $4, 'owner', 'online', true)
+       ON CONFLICT (id) DO UPDATE
+         SET workspace_id = EXCLUDED.workspace_id,
+             role = 'owner',
+             status = 'online',
+             is_active = true`,
+      [nestUser.id, ownerName, nestUser.email || '', ws.id]
+    );
+
+    await query(
+      `INSERT INTO public.canned_responses (workspace_id, title, shortcut, content)
+       VALUES ($1, 'Greeting', 'hello', 'Hi there! Thanks for reaching out. How can I help you today?'),
+              ($1, 'We''re checking', 'checking', 'Thanks for your patience! I''m looking into this for you right now and will update you shortly.')`,
+      [ws.id]
+    );
+
+    try {
+      const sectionRows = await queryRows<{ id: string }>(
+        `INSERT INTO public.help_sections (workspace_id, name, slug, icon, description, order_index)
+         VALUES ($1, $2, $3, $4, $5, 1)
+         RETURNING id`,
+        [ws.id, preset.sectionName, preset.sectionSlug, preset.icon, preset.sectionDescription]
+      );
+      const sectionId = sectionRows[0]?.id;
+      if (sectionId && preset.articles?.length) {
+        for (let idx = 0; idx < preset.articles.length; idx++) {
+          const art = preset.articles[idx];
+          await query(
+            `INSERT INTO public.articles
+               (workspace_id, section_id, title, slug, category, summary, content, status, author_id, views_count, order_index)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, 'published', $8, 0, $9)`,
+            [
+              ws.id,
+              sectionId,
+              art.title,
+              art.slug,
+              preset.sectionName,
+              art.summary,
+              art.content,
+              nestUser.id,
+              idx + 1,
+            ]
+          );
+        }
+      }
+    } catch (seedErr) {
+      console.warn('Could not seed help blueprints (Neon):', seedErr);
+    }
+
+    try {
+      const planRows = await queryRows<{ id: string; slug: string; trial_days: number; version: number }>(
+        `SELECT id, slug, trial_days, version FROM public.platform_plans WHERE is_default = true LIMIT 1`
+      );
+      const defaultPlan = planRows[0];
+      if (defaultPlan) {
+        const trialDays = defaultPlan.trial_days || 14;
+        const now = new Date();
+        const trialEndsAt = new Date(now.getTime() + trialDays * 24 * 60 * 60 * 1000).toISOString();
+        const periodEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+        await query(
+          `INSERT INTO public.workspace_subscriptions
+             (workspace_id, plan_id, plan_version, status, billing_period, current_period_start, current_period_end, trial_ends_at, admin_note)
+           VALUES ($1, $2, $3, 'trialing', 'monthly', $4, $5, $6, 'Initial 14-day trial of Starter plan.')`,
+          [ws.id, defaultPlan.id, defaultPlan.version, now.toISOString(), periodEnd, trialEndsAt]
+        );
+        await query(`UPDATE public.workspaces SET plan = $1 WHERE id = $2`, [defaultPlan.slug, ws.id]);
+        ws.plan = defaultPlan.slug;
+      }
+    } catch (subErr) {
+      console.warn('[Workspace Subscription Init Warning (Neon)]:', subErr);
+    }
+
+    return { success: true, workspace: ws as Workspace };
+  }
+
+  const user = sbUser!;
 
   // Require email verification before the workspace becomes active
   const isEmailConfirmed = Boolean(user.email_confirmed_at || (user as any).confirmed_at);
@@ -706,9 +848,6 @@ export async function createWorkspaceAction(input: {
     supabase,
     input.slug || input.businessName
   );
-
-  const industry = input.industry?.toLowerCase()?.trim() || 'generic';
-  const preset = getIndustryPreset(industry);
 
   // 2. Insert Workspace
   const { data: ws, error: wsError } = await supabase

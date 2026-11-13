@@ -4,7 +4,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ArrowRight, Clock, Hand, Languages, RefreshCw, Search, UserRound } from 'lucide-react';
 import type { Agent, Workspace } from '@/types/database';
 import { createClient } from '@/lib/supabase/client';
-import { friendlyReason, loadHandovers, type HandoverItem, type HandoverState } from '@/lib/inbox/handovers';
+import { isBackendAuthenticated } from '@/lib/api/backend-auth';
+import { friendlyReason, loadHandovers, loadHandoversFromBackend, type HandoverItem, type HandoverState } from '@/lib/inbox/handovers';
 import { cn, formatTimeAgo } from '@/lib/utils';
 import { errorMessage } from '@/lib/errors/user-error';
 import { Avatar } from '@/components/ui/Avatar';
@@ -61,7 +62,9 @@ export function HandoversView({
   const load = useCallback(async () => {
     if (!workspaceId) return;
     try {
-      const next = await loadHandovers(createClient(), workspaceId);
+      const next = isBackendAuthenticated()
+        ? await loadHandoversFromBackend()
+        : await loadHandovers(createClient(), workspaceId);
       setItems(next);
       setError(null);
     } catch (err) {

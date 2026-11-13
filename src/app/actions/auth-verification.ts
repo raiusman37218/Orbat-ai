@@ -151,7 +151,7 @@ export async function sendSignupVerificationCodeAction(params: {
         code,
         name: cleanName,
         platformName: platformData?.platform_name || 'Zen-try',
-        platformUrl: platformData?.platform_url || 'https://zen-try.site',
+        platformUrl: platformData?.platform_url || 'https://orbatai.com',
       });
 
       const sendResult = await sendSmtpEmail(smtpConfig, {

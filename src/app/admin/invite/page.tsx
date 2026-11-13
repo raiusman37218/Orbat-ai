@@ -382,7 +382,7 @@ function InviteAcceptForm() {
               <span>Platform Administrator Account</span>
             </div>
             <p>
-              Your account has full administrative access to the ZenTry platform panel. No workspace or subscription is required.
+              Your account has full administrative access to the Orbat AI platform panel. No workspace or subscription is required.
             </p>
           </div>
 

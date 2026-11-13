@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { ZENTRY_WORKSPACE_ID } from './ZenTryChatSupport';
 
-describe('Zen-try Live Chat Support Integration', () => {
+describe('Orbat AI Live Chat Support Integration', () => {
   it('has the correct official workspace ID for Zen-try support', () => {
     expect(ZENTRY_WORKSPACE_ID).toBe('b2d91676-2e98-46b7-8543-6e0711c78c44');
   });

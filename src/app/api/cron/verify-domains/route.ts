@@ -112,7 +112,7 @@ async function handleDomainVerificationCron(request: Request) {
             try {
               body = await probe.clone().json();
             } catch {}
-            if (body?.app === 'zentry' || body?.app === 'chatify' || body?.workspaceId === ws.id) {
+            if (body?.app === 'orbat' || body?.app === 'zentry' || body?.app === 'chatify' || body?.workspaceId === ws.id) {
               appReachable = true;
             }
           }

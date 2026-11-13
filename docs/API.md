@@ -2,7 +2,7 @@
 
 Put Zentry's chat, with the AI bot and your team behind it, inside any system: a mobile app, a CRM, a WhatsApp gateway of your own, a backend that relays messages. Conversations started through the API appear in the inbox like any other chat; the bot answers them with the same rules as the widget (help center answers, handover to a person, the bot stays quiet once a person takes over).
 
-Base URL: `https://zen-try.site/api/v1`
+Base URL: `https://orbatai.com/api/v1`
 
 ## Authentication
 
@@ -95,7 +95,7 @@ Errors are JSON: `{ "error": { "code": "…", "message": "…" } }`.
 ## Example (Node.js)
 
 ```js
-const API = 'https://zen-try.site/api/v1';
+const API = 'https://orbatai.com/api/v1';
 const headers = { Authorization: `Bearer ${process.env.ZENTRY_API_KEY}`, 'Content-Type': 'application/json' };
 
 const start = await fetch(`${API}/conversations`, {

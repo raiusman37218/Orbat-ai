@@ -36,6 +36,8 @@ import {
 } from '@/lib/visitor-meta';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { createClient } from '@/lib/supabase/client';
+import { isBackendAuthenticated } from '@/lib/api/backend-auth';
+import { getBackendLiveVisitorMeta } from '@/lib/api/backend-client';
 import {
   isVisitorOnline,
   formatTimeOnPage,
@@ -104,6 +106,32 @@ export function LiveVisitorsRadar({
 
     async function loadMeta() {
       try {
+        if (isBackendAuthenticated()) {
+          const { pageHistory, openTickets } = await getBackendLiveVisitorMeta(visitorIds);
+          if (cancelled) return;
+
+          const hMap: Record<string, VisitorPageHistory[]> = {};
+          for (const row of pageHistory || []) {
+            if (!hMap[row.visitor_id]) hMap[row.visitor_id] = [];
+            hMap[row.visitor_id].push(row as VisitorPageHistory);
+          }
+          setPageHistoryMap(hMap);
+
+          const tMap: Record<string, OpenTicketSummary[]> = {};
+          for (const row of openTickets || []) {
+            if (!row.requester_id) continue;
+            if (!tMap[row.requester_id]) tMap[row.requester_id] = [];
+            tMap[row.requester_id].push({
+              id: row.id,
+              number: row.number,
+              subject: row.subject,
+              status: row.status,
+            });
+          }
+          setOpenTicketsMap(tMap);
+          return;
+        }
+
         const [historyRes, ticketsRes] = await Promise.all([
           supabase
             .from('visitor_page_history')
@@ -150,6 +178,14 @@ export function LiveVisitorsRadar({
     }
 
     loadMeta();
+
+    if (isBackendAuthenticated()) {
+      const poll = setInterval(loadMeta, 15_000);
+      return () => {
+        cancelled = true;
+        clearInterval(poll);
+      };
+    }
 
     // Subscribe to realtime updates for page history and tickets in this workspace
     const channel = supabase

@@ -3,6 +3,8 @@
 import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { serviceClient } from '@/lib/supabase/service';
+import { sessionUser } from '@/lib/supabase/session-user';
+import { queryRows } from '@/lib/db';
 import crypto from 'node:crypto';
 import {
   Workspace,
@@ -358,42 +360,55 @@ export interface PlatformCompaniesData {
  * Checks platform_access table as the single source of truth.
  */
 export async function assertSuperAdmin(): Promise<{ user: any; agent: Agent; accessRole: 'owner' | 'admin' }> {
-  // Every admin click runs this. getClaims verifies the session token's
-  // signature locally instead of a round trip to Supabase Auth, and the two
-  // lookups below run together rather than one after the other.
   const supabase = await createClient();
-  // getUser stays as the fallback for clients without getClaims (test mocks).
-  const { data: claimData, error } =
-    typeof supabase.auth.getClaims === 'function'
-      ? await supabase.auth.getClaims()
-      : await supabase.auth.getUser().then(({ data, error: e }) => ({
-          data: data?.user ? { claims: { sub: data.user.id, email: data.user.email, user_metadata: data.user.user_metadata } } : null,
-          error: e,
-        }));
-  const claims = claimData?.claims as { sub?: string; email?: string; user_metadata?: unknown } | undefined;
-  if (error || !claims?.sub) {
+  const resolved = await sessionUser(supabase);
+  if (!resolved?.id) {
     throw userError('401 Unauthorized: Authentication required.');
   }
   const user = {
-    id: claims.sub as string,
-    email: (claims.email as string | undefined) ?? '',
-    user_metadata: (claims.user_metadata as Record<string, unknown> | undefined) ?? {},
+    id: resolved.id,
+    email: resolved.email ?? '',
+    user_metadata: {} as Record<string, unknown>,
   };
 
-  // platform_access is the single source of truth.
-  const adminClient = serviceClient();
-  const [{ data: access, error: accessError }, { data: agent }] = await Promise.all([
-    adminClient.from('platform_access').select('*').eq('user_id', user.id).maybeSingle(),
-    adminClient.from('agents').select('*').eq('id', user.id).maybeSingle(),
-  ]);
+  // platform_access is the single source of truth (Neon primary, Supabase fallback for tests).
+  let access: { role?: string } | null = null;
+  let agent: Agent | null = null;
+  try {
+    const [accessRows, agentRows] = await Promise.all([
+      queryRows<{ role: string }>('SELECT role FROM public.platform_access WHERE user_id = $1 LIMIT 1', [user.id]),
+      queryRows<Agent>('SELECT * FROM public.agents WHERE id = $1 LIMIT 1', [user.id]),
+    ]);
+    access = accessRows[0] || null;
+    agent = agentRows[0] || null;
+  } catch {
+    access = null;
+    agent = null;
+  }
 
-  if (accessError || !access || !['owner', 'admin'].includes(access.role)) {
+  let accessError: any = null;
+  if (!access || !agent) {
+    const adminClient = serviceClient();
+    const [sbAccessRes, sbAgentRes] = await Promise.all([
+      access
+        ? Promise.resolve({ data: access, error: null })
+        : adminClient.from('platform_access').select('*').eq('user_id', user.id).maybeSingle(),
+      agent
+        ? Promise.resolve({ data: agent, error: null })
+        : adminClient.from('agents').select('*').eq('id', user.id).maybeSingle(),
+    ]);
+    accessError = sbAccessRes.error;
+    if (!access) access = sbAccessRes.data || null;
+    if (!agent) agent = (sbAgentRes.data as Agent) || null;
+  }
+
+  if (accessError || !access || !['owner', 'admin'].includes(access.role || '')) {
     throw userError('403 Forbidden: Platform super admin privileges required.');
   }
 
   const currentAgent: Agent = agent || ({
     id: user.id,
-    name: user.user_metadata?.name || user.email?.split('@')[0] || 'Admin',
+    name: (user.user_metadata?.name as string | undefined) || user.email?.split('@')[0] || 'Admin',
     email: user.email || '',
     role: 'owner',
     status: 'online',
@@ -408,7 +423,7 @@ export async function assertSuperAdmin(): Promise<{ user: any; agent: Agent; acc
 }
 
 /**
- * Server-side guard: Ensures caller is the authenticated ZenTry platform owner.
+ * Server-side guard: Ensures caller is the authenticated Orbat AI platform owner.
  * Only the owner can manage platform access.
  */
 export async function assertPlatformOwner(): Promise<{ user: any; agent: Agent; accessRole: 'owner' }> {
@@ -1722,7 +1737,7 @@ export async function getSuperAdminAuditLogsAction(options: {
 }
 
 /**
- * Super Admin Action: Get master platform settings (ZenTry platform email & config)
+ * Super Admin Action: Get master platform settings (Orbat AI platform email & config)
  */
 export async function getPlatformSettingsAction(): Promise<{
   platform_name: string;
@@ -1744,9 +1759,9 @@ export async function getPlatformSettingsAction(): Promise<{
   }
 
   return {
-    platform_name: data?.platform_name || 'ZenTry',
-    platform_url: data?.platform_url || 'https://zen-try.site',
-    support_email: data?.support_email || 'support@zen-try.site',
+    platform_name: data?.platform_name || 'Orbat AI',
+    platform_url: data?.platform_url || 'https://orbatai.com',
+    support_email: data?.support_email || 'support@orbatai.com',
     smtp_settings: data?.smtp_settings || null,
   };
 }
@@ -1768,7 +1783,7 @@ export async function updatePlatformSMTPSettingsAction(smtp: SMTPSettingsConfig)
     port: Number(smtp.port) || 465,
     user: (smtp.user || '').trim(),
     pass: smtp.pass,
-    from_name: (smtp.from_name || 'ZenTry').trim(),
+    from_name: (smtp.from_name || 'Orbat AI').trim(),
     from_email: effectiveFrom,
     secure: Number(smtp.port) === 465,
   };
@@ -1777,9 +1792,9 @@ export async function updatePlatformSMTPSettingsAction(smtp: SMTPSettingsConfig)
     .from('platform_settings')
     .upsert({
       id: 'default',
-      platform_name: 'ZenTry',
-      platform_url: 'https://zen-try.site',
-      support_email: effectiveFrom || 'support@zen-try.site',
+      platform_name: 'Orbat AI',
+      platform_url: 'https://orbatai.com',
+      support_email: effectiveFrom || 'support@orbatai.com',
       smtp_settings: normalizedConfig,
       updated_at: new Date().toISOString(),
     }, { onConflict: 'id' });
@@ -1866,7 +1881,7 @@ export async function testPlatformSMTPSettingsAction(
     }
   }
 
-  return { success: true, message: 'ZenTry platform SMTP connected and verified successfully!' };
+  return { success: true, message: 'Orbat AI platform SMTP connected and verified successfully!' };
 }
 
 /**
@@ -3002,7 +3017,7 @@ async function dispatchPlatformNotificationEmail(options: {
 
 /**
  * 9. Gives admin access or sends an invite link.
- * - If email has an existing Zentry account: grants access immediately and sends notification email.
+ * - If email has an existing Orbat AI account: grants access immediately and sends notification email.
  * - If no account exists: creates a pending invite in admin_invites and emails a secure invite link.
  */
 export async function inviteOrGrantAdminAction(input: {
@@ -3035,10 +3050,10 @@ export async function inviteOrGrantAdminAction(input: {
     .maybeSingle();
 
   const origin = await getRequestOrigin();
-  const appOrigin = origin || getPlatformOrigin() || platformData?.platform_url || 'https://zen-try.site';
+  const appOrigin = origin || getPlatformOrigin() || platformData?.platform_url || 'https://orbatai.com';
   const platformName = platformData?.platform_name || 'ZenTry';
 
-  // CASE A: User ALREADY HAS a Zentry account: grant admin access immediately
+  // CASE A: User ALREADY HAS a Orbat AI account: grant admin access immediately
   if (existingAuthUser) {
     const { data: existingAccess } = await adminClient
       .from('platform_access')
@@ -3324,7 +3339,7 @@ export async function resendAdminInviteAction(inviteId: string): Promise<{
     .maybeSingle();
 
   const origin = await getRequestOrigin();
-  const appOrigin = origin || getPlatformOrigin() || platformData?.platform_url || 'https://zen-try.site';
+  const appOrigin = origin || getPlatformOrigin() || platformData?.platform_url || 'https://orbatai.com';
   const platformName = platformData?.platform_name || 'ZenTry';
   const inviteUrl = `${appOrigin}/admin/invite?token=${rawToken}`;
 

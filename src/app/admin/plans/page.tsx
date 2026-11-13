@@ -2,7 +2,7 @@ import React from 'react';
 import { PlansManagementView } from '@/components/admin/PlansManagementView';
 
 export const metadata = {
-  title: 'Plans, Pricing & Billing — Zentry Super Admin',
+  title: 'Plans, Pricing & Billing — Orbat AI Super Admin',
   description: 'Manage platform subscription tiers, pricing, Lemon Squeezy payment gateway, resource limits, features, and coupons.',
 };
 

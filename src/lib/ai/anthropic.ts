@@ -24,6 +24,8 @@ import {
 } from './memory';
 import { retrieveWorkspaceDemonstrations } from './learning/human-reinforce';
 import {
+  getDomainQuickChips,
+  getDomainWelcome,
   propFirmWelcome,
   routeSubAgent,
   SUB_AGENT_BY_ID,
@@ -374,6 +376,7 @@ interface HelpCenterInput {
   intent: IntentClassificationResult;
   lang: ReplyLanguage;
   brand: string;
+  industry?: string | null;
   botName?: string;
   visitorName?: string | null;
   memoryContext?: string | null;
@@ -828,6 +831,7 @@ async function answerGeneralQuestion({
   conversationMessages: { role: 'user' | 'assistant'; content: string }[];
   lang: ReplyLanguage;
   brand: string;
+  industry?: string | null;
   botName?: string;
   visitorName?: string | null;
   memoryContext?: string | null;
@@ -876,6 +880,7 @@ interface SupportAgentInput {
   intent: IntentClassificationResult;
   lang: ReplyLanguage;
   brand: string;
+  industry?: string | null;
   botName?: string;
   visitorName?: string | null;
   memoryContext?: string | null;
@@ -1033,6 +1038,7 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
   const baseSystem = buildSupportAgentPrompt({
     botName: input.botName || 'Support Agent',
     businessName: brand,
+    industry: input.industry,
     knowledge: knowledge.text,
     lang,
     visitorName: input.visitorName || null,
@@ -1280,6 +1286,7 @@ async function respondToVisitor({
   turns,
   helpCenterUrl,
   workspaceName,
+  industry = null,
   hasHumanReplied = false,
   botFailureCount = 0,
   runningSummary = null,
@@ -1301,6 +1308,7 @@ async function respondToVisitor({
   turns?: { role: 'user' | 'assistant'; content: string }[];
   helpCenterUrl?: string | null;
   workspaceName?: string | null;
+  industry?: string | null;
   /** A human agent has already replied in the current exchange. */
   hasHumanReplied?: boolean;
   botFailureCount?: number;
@@ -1585,6 +1593,7 @@ async function respondToVisitor({
         intent,
         lang,
         brand,
+        industry,
         botName,
         visitorName: effectiveVisitorName,
         memoryContext,
@@ -1627,19 +1636,13 @@ async function respondToVisitor({
       const text = greeting && ongoing
         ? welcomeBackReply(lang)
         : greeting
-        ? cannedGreeting || propFirmWelcome(lang, brand, name)
+        ? cannedGreeting || getDomainWelcome(industry, lang, brand, name)
         : smallTalkReply(intent.smallTalkKind ?? 'greeting', lang, brand, name, null, incomingMessage);
       // Show topic chips on a fresh greeting or when the visitor clicks "❓ Another question"
       // so they can jump to what they need without typing.
       const greetingQuickReplies: Array<{ label: string; value: string }> | null =
         (greeting && !ongoing) || isAnotherQuestion
-          ? [
-              { label: '💰 Pricing & Plans', value: 'What are the challenge prices and account sizes?' },
-              { label: '📋 Trading Rules', value: 'What are the trading rules and drawdown limits?' },
-              { label: '💸 Payouts', value: 'How and when can I request a payout?' },
-              { label: '🔐 Account & KYC', value: 'What documents are required for KYC verification?' },
-              { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
-            ]
+          ? getDomainQuickChips(industry)
           : null;
       return {
         replyText: text,
@@ -1683,6 +1686,7 @@ async function respondToVisitor({
         intent,
         lang,
         brand,
+        industry,
         botName,
         visitorName: effectiveVisitorName,
         memoryContext,
@@ -1790,6 +1794,7 @@ async function respondToVisitor({
         intent,
         lang,
         brand,
+        industry,
         botName,
         visitorName: effectiveVisitorName,
         memoryContext,

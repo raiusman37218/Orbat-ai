@@ -4,7 +4,7 @@ import { headers } from 'next/headers';
  * Resolves the application origin dynamically:
  * 1. From an explicit Request or Headers object (if passed from an API route)
  * 2. From incoming request headers via `headers()` (in Next.js Server Actions / Server Components)
- *    - header `origin` (e.g. "https://zen-try.site")
+ *    - header `origin` (e.g. "https://orbatai.com")
  *    - header `x-forwarded-host` + `x-forwarded-proto` (standard Vercel / reverse proxy)
  *    - header `host` + `x-forwarded-proto`
  *    - header `referer` origin
@@ -13,7 +13,7 @@ import { headers } from 'next/headers';
  *    - APP_URL
  *    - VERCEL_PROJECT_PRODUCTION_URL
  *    - VERCEL_URL
- * 4. Fallback to production platform URL ('https://zen-try.site')
+ * 4. Fallback to production platform URL ('https://orbatai.com')
  */
 export async function getRequestOrigin(req?: Request | Headers | null): Promise<string> {
   // 1. Explicit request or headers object
@@ -98,7 +98,7 @@ export async function getRequestOrigin(req?: Request | Headers | null): Promise<
     return envUrl.replace(/\/+$/, '');
   }
 
-  return 'https://zen-try.site';
+  return 'https://orbatai.com';
 }
 
 /** Synchronous fallback helper for non-async contexts */
@@ -121,5 +121,5 @@ export function getStaticAppOrigin(): string {
   if (envUrl) {
     return envUrl.replace(/\/+$/, '');
   }
-  return 'https://zen-try.site';
+  return 'https://orbatai.com';
 }

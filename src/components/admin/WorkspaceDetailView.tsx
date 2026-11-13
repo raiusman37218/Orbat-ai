@@ -329,7 +329,7 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
                 onClick={() => handleToggleLock('plan_billing', locks['plan_billing'])}
               >
                 {locks['plan_billing'] ? <Unlock className="w-3 h-3 text-warn" /> : <Lock className="w-3 h-3 text-ink-3" />}
-                <span>{locks['plan_billing'] ? 'Unlock Billing' : 'Lock by Zentry'}</span>
+                <span>{locks['plan_billing'] ? 'Unlock Billing' : 'Lock by Orbat AI'}</span>
               </Button>
             </div>
 
@@ -510,7 +510,7 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
               onClick={() => handleToggleLock('usage_limits', locks['usage_limits'])}
             >
               {locks['usage_limits'] ? <Unlock className="w-3 h-3 text-warn" /> : <Lock className="w-3 h-3 text-ink-3" />}
-              <span>{locks['usage_limits'] ? 'Unlock Limits' : 'Lock by Zentry'}</span>
+              <span>{locks['usage_limits'] ? 'Unlock Limits' : 'Lock by Orbat AI'}</span>
             </Button>
           </div>
 
@@ -596,7 +596,7 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
               onClick={() => handleToggleLock('features', locks['features'])}
             >
               {locks['features'] ? <Unlock className="w-3 h-3 text-warn" /> : <Lock className="w-3 h-3 text-ink-3" />}
-              <span>{locks['features'] ? 'Unlock Features' : 'Lock by Zentry'}</span>
+              <span>{locks['features'] ? 'Unlock Features' : 'Lock by Orbat AI'}</span>
             </Button>
           </div>
 
@@ -669,7 +669,7 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
                 onClick={() => handleToggleLock('team', locks['team'])}
               >
                 {locks['team'] ? <Unlock className="w-3 h-3 text-warn" /> : <Lock className="w-3 h-3 text-ink-3" />}
-                <span>{locks['team'] ? 'Unlock Team' : 'Lock by Zentry'}</span>
+                <span>{locks['team'] ? 'Unlock Team' : 'Lock by Orbat AI'}</span>
               </Button>
             </div>
           </div>
@@ -797,7 +797,7 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
                 onClick={() => handleToggleLock('channels', locks['channels'])}
               >
                 {locks['channels'] ? <Unlock className="w-3 h-3 text-warn" /> : <Lock className="w-3 h-3 text-ink-3" />}
-                <span>{locks['channels'] ? 'Unlock Channels' : 'Lock by Zentry'}</span>
+                <span>{locks['channels'] ? 'Unlock Channels' : 'Lock by Orbat AI'}</span>
               </Button>
             </div>
           </div>
@@ -861,7 +861,7 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
               onClick={() => handleToggleLock('ai_settings', locks['ai_settings'])}
             >
               {locks['ai_settings'] ? <Unlock className="w-3 h-3 text-warn" /> : <Lock className="w-3 h-3 text-ink-3" />}
-              <span>{locks['ai_settings'] ? 'Unlock AI' : 'Lock by Zentry'}</span>
+              <span>{locks['ai_settings'] ? 'Unlock AI' : 'Lock by Orbat AI'}</span>
             </Button>
           </div>
 
@@ -960,13 +960,13 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
               onClick={() => handleToggleLock('widget_appearance', locks['widget_appearance'])}
             >
               {locks['widget_appearance'] ? <Unlock className="w-3 h-3 text-warn" /> : <Lock className="w-3 h-3 text-ink-3" />}
-              <span>{locks['widget_appearance'] ? 'Unlock Widget' : 'Lock by Zentry'}</span>
+              <span>{locks['widget_appearance'] ? 'Unlock Widget' : 'Lock by Orbat AI'}</span>
             </Button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="text-xs font-medium text-ink-2">"Powered by Zentry" Policy</label>
+              <label className="text-xs font-medium text-ink-2">"Powered by Orbat AI" Policy</label>
               <select
                 className="input input-sm w-full mt-1.5"
                 value={widgetConfig.forcePoweredBy}
@@ -980,8 +980,8 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
                 }}
               >
                 <option value="inherited">Inherit from Plan (Allow removal if plan includes it)</option>
-                <option value="force_on">Force "Powered by Zentry" Always On</option>
-                <option value="force_off">Force "Powered by Zentry" Always Off</option>
+                <option value="force_on">Force "Powered by Orbat AI" Always On</option>
+                <option value="force_off">Force "Powered by Orbat AI" Always Off</option>
               </select>
             </div>
 
@@ -1021,7 +1021,7 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
               onClick={() => handleToggleLock('help_center', locks['help_center'])}
             >
               {locks['help_center'] ? <Unlock className="w-3 h-3 text-warn" /> : <Lock className="w-3 h-3 text-ink-3" />}
-              <span>{locks['help_center'] ? 'Unlock Help Center' : 'Lock by Zentry'}</span>
+              <span>{locks['help_center'] ? 'Unlock Help Center' : 'Lock by Orbat AI'}</span>
             </Button>
           </div>
 
@@ -1112,7 +1112,7 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
               onClick={() => handleToggleLock('security', locks['security'])}
             >
               {locks['security'] ? <Unlock className="w-3 h-3 text-warn" /> : <Lock className="w-3 h-3 text-ink-3" />}
-              <span>{locks['security'] ? 'Unlock Security' : 'Lock by Zentry'}</span>
+              <span>{locks['security'] ? 'Unlock Security' : 'Lock by Orbat AI'}</span>
             </Button>
           </div>
 

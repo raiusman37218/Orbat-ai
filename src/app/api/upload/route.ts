@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { uploadToCloudinary, isCloudinaryConfigured } from '@/lib/cloudinary';
+import { uploadFileBuffer, isStorageConfigured } from '@/lib/storage';
 import { guardMember } from '@/lib/team/route-guard';
 import { clientIpOf } from '@/lib/geo';
 import { checkRateLimit } from '@/lib/rate-limit';
@@ -94,11 +94,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (!isCloudinaryConfigured()) {
+    if (!isStorageConfigured()) {
       return NextResponse.json(
         {
           error:
-            'Cloudinary credentials are not configured. Please set CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET (or CLOUDINARY_URL) in your .env.local file.',
+            'Storage credentials are not configured. Please set Cloudflare R2 credentials in your environment variables.',
         },
         { status: 503, headers: CORS_HEADERS }
       );
@@ -107,24 +107,23 @@ export async function POST(req: NextRequest) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
-    const isImage = mimeType.startsWith('image/');
-    const result = await uploadToCloudinary(buffer, {
+    const result = await uploadFileBuffer(buffer, {
       folder: 'chat_attachments',
       filename: file.name,
-      resourceType: isImage ? 'image' : 'auto',
+      mimeType,
     });
 
     return NextResponse.json(
       {
-        // HEIC is stored as-is; the .jpg URL makes Cloudinary deliver it as JPEG.
-        url: isImage ? result.secure_url.replace(/\.(heic|heif|avif|bmp|tiff?)$/i, '.jpg') : result.secure_url,
-        publicId: result.public_id,
+        url: result.url,
+        publicId: result.publicId,
         filename: file.name,
-        size: result.bytes || file.size,
+        size: result.size || file.size,
         mimeType,
-        isImage,
+        isImage: result.isImage,
         width: result.width,
         height: result.height,
+        provider: result.provider,
       },
       { headers: CORS_HEADERS }
     );

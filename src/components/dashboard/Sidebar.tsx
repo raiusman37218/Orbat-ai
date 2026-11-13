@@ -317,8 +317,8 @@ export function Sidebar({
           {onOpenMobileInstall && (
             <button
               onClick={onOpenMobileInstall}
-              title="Add Zentry to your phone"
-              aria-label="Add Zentry to your phone"
+              title="Add Orbat AI to your phone"
+              aria-label="Add Orbat AI to your phone"
               className="btn btn-ghost btn-xs btn-icon"
             >
               <Smartphone className="w-3.5 h-3.5" />

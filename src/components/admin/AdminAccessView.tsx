@@ -270,7 +270,7 @@ export function AdminAccessView() {
                 </Badge>
               </h2>
               <p className="text-xs text-ink-3">
-                Manage who has access to the ZenTry platform administration panel. Only the platform owner can send invites or grant access.
+                Manage who has access to the Orbat AI platform administration panel. Only the platform owner can send invites or grant access.
               </p>
             </div>
           </div>
@@ -560,7 +560,7 @@ export function AdminAccessView() {
               </span>
             </h3>
             <p className="text-2xs text-ink-3">
-              Users with direct authorization to access and manage the ZenTry administration panel.
+              Users with direct authorization to access and manage the Orbat AI administration panel.
             </p>
           </div>
         </div>
@@ -780,7 +780,7 @@ export function AdminAccessView() {
         ) : (
           <form onSubmit={handleSendInvite} className="space-y-4">
             <p className="text-xs text-ink-3">
-              Enter an email address and select an administrative role. If the email already has a Zentry account, admin access is granted immediately. If no account exists, a secure 48-hour invite link will be sent to set up their password.
+              Enter an email address and select an administrative role. If the email already has a Orbat AI account, admin access is granted immediately. If no account exists, a secure 48-hour invite link will be sent to set up their password.
             </p>
 
             {grantError && (

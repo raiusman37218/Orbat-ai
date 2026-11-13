@@ -6,6 +6,8 @@ import { sound } from '@/lib/sound';
 import { startTabAlert, stopTabAlert } from '@/lib/favicon';
 import { cn } from '@/lib/utils';
 import { createClient } from '@/lib/supabase/client';
+import { isBackendAuthenticated } from '@/lib/api/backend-auth';
+import { claimBackendHandoff, skipBackendHandoff } from '@/lib/api/backend-client';
 import { useToast } from '@/components/ui/Toast';
 
 export interface RingingHandoffPayload {
@@ -63,7 +65,11 @@ export function RingingHandoffModal({ payload, onClose, onAccepted }: RingingHan
     sound.stopRinging();
     stopTabAlert();
     try {
-      await supabase.rpc('skip_conversation', { p_conversation_id: payload.conversationId });
+      if (isBackendAuthenticated()) {
+        await skipBackendHandoff(payload.conversationId);
+      } else {
+        await supabase.rpc('skip_conversation', { p_conversation_id: payload.conversationId });
+      }
     } catch {
       // Ignore
     }
@@ -77,22 +83,27 @@ export function RingingHandoffModal({ payload, onClose, onAccepted }: RingingHan
     stopTabAlert();
 
     try {
-      const { data, error } = await supabase.rpc('claim_conversation', {
-        p_conversation_id: payload.conversationId,
-      });
+      let res: { ok: boolean; reason?: string; message?: string } | null = null;
+      if (isBackendAuthenticated()) {
+        res = await claimBackendHandoff(payload.conversationId);
+      } else {
+        const { data, error } = await supabase.rpc('claim_conversation', {
+          p_conversation_id: payload.conversationId,
+        });
 
-      if (error) {
-        toast.error('Failed to claim conversation: ' + error.message);
-        onClose();
-        return;
+        if (error) {
+          toast.error('Failed to claim conversation: ' + error.message);
+          onClose();
+          return;
+        }
+        res = data as { ok: boolean; reason?: string; message?: string };
       }
 
-      const res = data as { ok: boolean; reason?: string; message?: string };
-      if (!res.ok) {
-        if (res.reason === 'already_claimed') {
+      if (!res?.ok) {
+        if (res?.reason === 'already_claimed') {
           toast.show(res.message || 'Another agent already took this chat', 'info');
         } else {
-          toast.error(res.message || 'Could not claim chat');
+          toast.error(res?.message || 'Could not claim chat');
         }
         onClose();
         return;
@@ -116,9 +127,13 @@ export function RingingHandoffModal({ payload, onClose, onAccepted }: RingingHan
     stopTabAlert();
 
     try {
-      await supabase.rpc('skip_conversation', {
-        p_conversation_id: payload.conversationId,
-      });
+      if (isBackendAuthenticated()) {
+        await skipBackendHandoff(payload.conversationId);
+      } else {
+        await supabase.rpc('skip_conversation', {
+          p_conversation_id: payload.conversationId,
+        });
+      }
       toast.show('Chat skipped', 'info');
     } catch {
       // Ignore

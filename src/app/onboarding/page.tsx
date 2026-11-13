@@ -18,6 +18,16 @@ import {
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { createWorkspaceAction } from '@/app/actions/admin';
+import {
+  isBackendAuthenticated,
+  backendGetMe,
+  clearAuthSession,
+  refreshBackendSession,
+  saveAuthSession,
+  getAuthToken,
+  getRefreshToken,
+  getStoredUser,
+} from '@/lib/api/backend-auth';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 import { Logo } from '@/components/ui/Logo';
 import { cleanDomain, getDefaultSubdomain } from '@/lib/domain';
@@ -87,6 +97,25 @@ export default function OnboardingPage() {
 
   const verifyUserSession = async () => {
     setRefreshing(true);
+
+    if (isBackendAuthenticated()) {
+      try {
+        const me = await backendGetMe();
+        setUserEmail(me.email || '');
+        if (me.isSuperAdmin && !me.workspaceId) {
+          router.replace('/admin');
+          return;
+        }
+        setEmailUnconfirmed(false);
+        setRefreshing(false);
+        return;
+      } catch {
+        clearAuthSession();
+        router.replace('/login');
+        return;
+      }
+    }
+
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       router.replace('/login');
@@ -151,10 +180,19 @@ export default function OnboardingPage() {
 
     setLoading(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.replace('/login');
-        return;
+      const usingBackend = isBackendAuthenticated();
+      if (usingBackend) {
+        const validToken = getAuthToken() || (await refreshBackendSession());
+        if (!validToken) {
+          router.replace('/login');
+          return;
+        }
+      } else {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          router.replace('/login');
+          return;
+        }
       }
 
       // Generate clean workspace slug (uniqueness enforced by server action)
@@ -165,7 +203,7 @@ export default function OnboardingPage() {
           ? suggested
           : null;
 
-      if (customDomain) {
+      if (customDomain && !usingBackend) {
         // public_workspaces: RLS hides other tenants' rows from `workspaces`.
         const { data: taken } = await supabase
           .from('public_workspaces')
@@ -194,6 +232,32 @@ export default function OnboardingPage() {
         throw new Error('Failed to create workspace');
       }
 
+      if (usingBackend) {
+        const refreshedToken = await refreshBackendSession();
+        const storedUser = getStoredUser();
+        const rtToken = getRefreshToken();
+        if (refreshedToken && rtToken && storedUser) {
+          saveAuthSession({
+            accessToken: refreshedToken,
+            refreshToken: rtToken,
+            tokenType: 'Bearer',
+            expiresIn: '7d',
+            user: {
+              ...storedUser,
+              workspaceId: result.workspace.id,
+              role: 'owner',
+            },
+            workspace: {
+              id: result.workspace.id,
+              name: result.workspace.name,
+              brandColor: result.workspace.brand_color,
+              slug: result.workspace.slug || undefined,
+              logoUrl: result.workspace.logo_url || undefined,
+            },
+          });
+        }
+      }
+
       setCreatedWorkspaceId(result.workspace.id);
       setStep(3);
     } catch (err: any) {
@@ -206,7 +270,7 @@ export default function OnboardingPage() {
 
   const getEmbedSnippet = () => {
     const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || '');
-    return `<!-- Zen-try Live Chat Support -->
+    return `<!-- Orbat AI Live Chat Support -->
 <script
   src="${origin}/widget.js"
   data-workspace-id="${createdWorkspaceId || 'YOUR_WORKSPACE_ID'}"

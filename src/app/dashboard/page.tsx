@@ -30,6 +30,39 @@ import { LoadingState } from '@/components/ui/States';
 import { useTeamInbox } from '@/lib/team-chat/use-team-inbox';
 import type { TeamChatShare } from '@/components/team-chat/TeamChat';
 import type { TeamInboxRow, TeamMessage } from '@/types/database';
+import {
+  getAuthToken,
+  getStoredUser,
+  getStoredWorkspace,
+  backendGetMe,
+  refreshBackendSession,
+  clearAuthSession,
+} from '@/lib/api/backend-auth';
+import {
+  createBackendRealtimeClient,
+  type BackendRealtimeClient,
+} from '@/lib/api/backend-realtime';
+import {
+  isBackendAuthenticated,
+  getBackendToken,
+  getBackendCurrentWorkspace,
+  getBackendMembers,
+  getBackendContacts,
+  getBackendConversations,
+  getBackendConversationById,
+  createBackendConversation,
+  getBackendMessages,
+  sendBackendMessage,
+  editBackendMessage,
+  deleteBackendMessage,
+  updateBackendConversation,
+  bulkUpdateBackendConversations,
+  assignBackendConversation,
+  updateBackendAgentStatus,
+  mapBackendMessage,
+  mapBackendConversation,
+  markBackendMessagesRead,
+} from '@/lib/api/backend-client';
 
 // Views other than the inbox load when first opened. Bundled together they
 // made the dashboard download about 2 MB of script before the inbox could
@@ -148,7 +181,7 @@ export default function DashboardPage() {
   // server's own 15-minute auto-away reads that flag.
   const activitySinceBeatRef = useRef(true);
   useEffect(() => {
-    if (!currentWorkspace?.id || !currentAgent?.id) return;
+    if (!currentWorkspace?.id || !currentAgent?.id || isBackendAuthenticated()) return;
     const markActive = () => {
       activitySinceBeatRef.current = true;
     };
@@ -238,7 +271,7 @@ export default function DashboardPage() {
 
   // Supabase Realtime Presence for workspace agents (Phase 2)
   useEffect(() => {
-    if (!currentWorkspace?.id || !currentAgent?.id) return;
+    if (!currentWorkspace?.id || !currentAgent?.id || isBackendAuthenticated()) return;
     const channelName = `presence:workspace_${currentWorkspace.id}`;
     const chan = supabase.channel(channelName, {
       config: { presence: { key: currentAgent.id } },
@@ -269,7 +302,7 @@ export default function DashboardPage() {
   // because these channels are public; the customer's name, question and the
   // AI summary are read here through RLS.
   useEffect(() => {
-    if (!currentWorkspace?.id || !currentAgent?.id) return;
+    if (!currentWorkspace?.id || !currentAgent?.id || isBackendAuthenticated()) return;
     // Light agents can view but not take chats, so they are never rung.
     if (currentAgent.role === 'light_agent') return;
     const me = currentAgent.id;
@@ -526,7 +559,7 @@ export default function DashboardPage() {
       },
     });
   }, []);
-  const teamInbox = useTeamInbox(supabase, currentWorkspace?.id, onTeamMessage);
+  const teamInbox = useTeamInbox(supabase, isBackendAuthenticated() ? null : currentWorkspace?.id, onTeamMessage);
   const onTeamThreadChange = useCallback((threadId: string | null) => {
     openTeamThreadRef.current = threadId;
   }, []);
@@ -584,180 +617,104 @@ export default function DashboardPage() {
   }, [showShortcutsModal, selectedConversationId]);
 
 
-  // 1. Initial Load & Auth Verification
+  // 1. Initial Load & Auth Verification (NestJS Backend Native Stack)
+  const backendRealtimeRef = useRef<BackendRealtimeClient | null>(null);
   const initializeDashboard = useCallback(async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const nestToken = getAuthToken() || (await refreshBackendSession());
+
+      if (!nestToken) {
         router.replace('/login?redirect=%2Fdashboard');
         return;
       }
 
-      // Fetch or auto-create agent profile
-      let agent: Agent | null = null;
-      // The agent and their workspace in one round trip (the embed follows
-      // agents.workspace_id); if the embed is refused, the plain row still
-      // loads and the workspace is fetched below as before.
-      let joinedWorkspace: Workspace | null = null;
-      const first = await supabase
-        .from('agents')
-        .select('*, workspace:workspaces(*)')
-        .eq('id', session.user.id)
-        .maybeSingle();
-      let agentData = first.data;
-      if (first.error) {
-        ({ data: agentData } = await supabase.from('agents').select('*').eq('id', session.user.id).maybeSingle());
-      } else if (agentData?.workspace) {
-        joinedWorkspace = agentData.workspace as Workspace;
-      }
-      if (agentData) delete (agentData as { workspace?: unknown }).workspace;
+      let parsedUser: any = getStoredUser();
+      let parsedWs: any = getStoredWorkspace();
 
-      if (agentData) {
-        agent = agentData as Agent;
-      } else {
-        const newAgent = {
-          id: session.user.id,
-          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'Agent',
-          email: session.user.email || '',
-          status: 'online' as AgentStatus,
-          role: 'owner',
-        };
-        const { data: inserted } = await supabase.from('agents').upsert(newAgent).select().single();
-        agent = inserted as Agent;
-      }
-
-      // Check if user has a workspace
-      let workspace: Workspace | null = null;
-      let viewingSuperAdmin = false;
-
-      // If user is a super admin, check if they are viewing a switched workspace
-      if (agent?.is_super_admin) {
-        const cookieMatch = typeof document !== 'undefined' ? document.cookie.match(/super_admin_viewing_workspace_id=([^;]+)/) : null;
-        const switchedId = cookieMatch ? decodeURIComponent(cookieMatch[1].trim()) : null;
-        if (switchedId) {
-          const { data: switchedWs } = await supabase
-            .from('workspaces')
-            .select('*')
-            .eq('id', switchedId)
-            .maybeSingle();
-          if (switchedWs) {
-            workspace = switchedWs as Workspace;
-            viewingSuperAdmin = true;
+      if (!parsedUser) {
+        try {
+          parsedUser = await backendGetMe();
+          if (parsedUser?.workspaceId) {
+            parsedWs = {
+              id: parsedUser.workspaceId,
+              name: parsedUser.workspaceName || `${parsedUser.name}'s Workspace`,
+              brandColor: parsedUser.brandColor || '#4f46e5',
+            };
           }
+        } catch (err) {
+          console.warn('[Dashboard] Could not fetch profile from backend:', err);
         }
       }
 
-      // A deactivated agent keeps their account but loses the workspace.
-      if (agent && agent.is_active === false && !agent.is_super_admin) {
-        await supabase.auth.signOut();
-        router.replace(
-          `/login?error=${encodeURIComponent('Your access to this workspace was deactivated. Contact a workspace admin to get it back.')}`
-        );
+      if (parsedUser) {
+        const nestAgent: Agent = {
+          id: parsedUser.id,
+          name: parsedUser.name || 'Agent',
+          email: parsedUser.email || '',
+          avatar_url: parsedUser.avatar_url || parsedUser.avatarUrl || null,
+          role: (parsedUser.role as any) || 'owner',
+          status: 'online',
+          workspace_id: parsedUser.workspaceId || parsedWs?.id || null,
+          is_super_admin: Boolean(parsedUser.isSuperAdmin),
+          created_at: new Date().toISOString(),
+        };
+        setCurrentAgent(nestAgent);
+
+        let ws: Workspace = ({
+          id: parsedWs?.id || parsedUser.workspaceId,
+          name: parsedWs?.name || 'Workspace',
+          brand_color: parsedWs?.brandColor || '#4f46e5',
+          greeting_title: 'Welcome to Orbat AI',
+          greeting_message: 'How can we help you today?',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        } as unknown) as Workspace;
+
+        try {
+          const backendWs = await getBackendCurrentWorkspace();
+          if (backendWs?.id) ws = backendWs;
+        } catch (e) {
+          console.warn('[Dashboard] getBackendCurrentWorkspace failed:', e);
+        }
+        setCurrentWorkspace(ws);
+        currentWorkspaceIdRef.current = ws.id;
+
+        try {
+          const members = await getBackendMembers();
+          setAllAgents(members);
+        } catch (e) {
+          console.warn('[Dashboard] getBackendMembers failed:', e);
+        }
+
+        try {
+          const backendVisitors = await getBackendContacts({ limit: 300 });
+          setVisitors(backendVisitors);
+        } catch (e) {
+          console.warn('[Dashboard] getBackendContacts failed:', e);
+        }
+
+        try {
+          const convs = await getBackendConversations({ status: 'all' });
+          setConversations(convs);
+          if (convs.length > 0) {
+            setSelectedConversationId(convs[0].id);
+            try {
+              const initialMsgs = await getBackendMessages(convs[0].id);
+              setMessages(initialMsgs);
+              messagesCacheRef.current[convs[0].id] = initialMsgs;
+            } catch {}
+          }
+        } catch (e) {
+          console.warn('[Dashboard] getBackendConversations failed:', e);
+        }
+
+        setLoading(false);
         return;
       }
 
-      setIsViewingAsSuperAdmin(viewingSuperAdmin);
-
-      if (!workspace && joinedWorkspace && joinedWorkspace.id === agent?.workspace_id) {
-        workspace = joinedWorkspace;
-      }
-      if (!workspace && agent?.workspace_id) {
-        const { data: wsData } = await supabase
-          .from('workspaces')
-          .select('*')
-          .eq('id', agent.workspace_id)
-          .maybeSingle();
-        workspace = wsData as Workspace;
-      }
-
-      // If still no workspace, check if user owns one
-      if (!workspace) {
-        const { data: ownedWs } = await supabase
-          .from('workspaces')
-          .select('*')
-          .eq('owner_id', session.user.id)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (ownedWs) {
-          workspace = ownedWs as Workspace;
-          // link agent to this workspace
-          await supabase.from('agents').update({ workspace_id: workspace.id }).eq('id', session.user.id);
-          agent.workspace_id = workspace.id;
-        }
-      }
-
-      // If user has NO workspace at all, redirect to Admin if platform admin, else Onboarding
-      if (!workspace) {
-        if (agent?.is_super_admin) {
-          router.replace('/admin');
-          return;
-        }
-        router.replace('/onboarding');
-        return;
-      }
-
-      // If user is not super admin and workspace is suspended or deleted, log out and redirect
-      if (!agent?.is_super_admin) {
-        if (workspace.is_suspended) {
-          await supabase.auth.signOut();
-          router.replace(
-            `/login?error=${encodeURIComponent(
-              workspace.suspension_reason
-                ? `Workspace suspended: ${workspace.suspension_reason}`
-                : 'This workspace is currently suspended. Please contact your platform administrator.'
-            )}`
-          );
-          return;
-        }
-
-        if (workspace.deleted_at) {
-          await supabase.auth.signOut();
-          router.replace(
-            `/login?error=${encodeURIComponent('This workspace has been deactivated/deleted. Please contact support.')}`
-          );
-          return;
-        }
-      }
-
-      setCurrentAgent(agent);
-      setCurrentWorkspace(workspace);
-
-      // Everything below depends only on the workspace, so it loads at once
-      // instead of six round trips one after another.
-      const [{ data: agentsList }, , , { data: cannedList }, { count: artCount }, { count: secCount }] = await Promise.all([
-        supabase.from('agents').select('*').eq('workspace_id', workspace.id),
-        refreshConversations(workspace.id),
-        refreshVisitors(workspace.id),
-        supabase.from('canned_responses').select('*').eq('workspace_id', workspace.id).order('shortcut'),
-        supabase.from('articles').select('id', { count: 'exact', head: true }).eq('workspace_id', workspace.id),
-        supabase.from('help_sections').select('id', { count: 'exact', head: true }).eq('workspace_id', workspace.id),
-      ]);
-      if (agentsList) setAllAgents(agentsList as Agent[]);
-      if (cannedList) setCannedResponses(cannedList as CannedResponse[]);
-      if (artCount !== null && artCount !== undefined) setArticlesCount(artCount);
-      if (secCount !== null && secCount !== undefined) setSectionsCount(secCount);
-
-      // Trigger auto-close rule for stale inactive conversations (light agents cannot change conversations)
-      try {
-        if (agent?.role === 'light_agent') throw new Error('skip');
-        const autoCloseDays = (workspace?.auto_assignment as any)?.auto_close_inactive_days || workspace?.auto_close_days || 7;
-        fetch('/api/conversations/auto-close', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ workspace_id: workspace.id, days: autoCloseDays }),
-        })
-          .then((res) => res.json())
-          .then((data) => {
-            if (data?.closed_count > 0 && workspace?.id) {
-              refreshConversations(workspace.id);
-            }
-          })
-          .catch(() => {});
-      } catch (e) {}
-
-      setLoading(false);
+      clearAuthSession();
+      router.replace('/login?redirect=%2Fdashboard');
+      return;
     } catch (err) {
       console.error('Error initializing dashboard:', err);
       setLoading(false);
@@ -845,6 +802,17 @@ export default function DashboardPage() {
     async (id: string) => {
       setActiveView('inbox');
       setSelectedConversationId(id);
+      if (isBackendAuthenticated()) {
+        try {
+          const backendConv = await getBackendConversationById(id);
+          if (backendConv) {
+            setConversations((prev) => (prev.some((c) => c.id === id) ? prev : [backendConv, ...prev]));
+          }
+        } catch (e) {
+          console.warn('[Dashboard] openLinkedConversation failed:', e);
+        }
+        return;
+      }
       // The inbox loads the 30 most recent conversations; a linked one may be
       // older, so it is fetched on its own and put at the top.
       const { data } = await supabase
@@ -883,6 +851,37 @@ export default function DashboardPage() {
       setIsMessagesLoading(false);
     } else {
       setIsMessagesLoading(true);
+    }
+
+    if (isBackendAuthenticated()) {
+      try {
+        const backendMsgs = await getBackendMessages(conversationId);
+        messagesCacheRef.current[conversationId] = backendMsgs;
+        if (selectedConversationIdRef.current === conversationId) {
+          setMessages(backendMsgs);
+        }
+        try {
+          await markBackendMessagesRead(conversationId);
+        } catch {}
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === conversationId
+              ? {
+                  ...c,
+                  unread_count: 0,
+                  last_message:
+                    c.last_message ||
+                    (backendMsgs.length > 0 ? backendMsgs[backendMsgs.length - 1] : null),
+                }
+              : c
+          )
+        );
+      } catch (err) {
+        console.error('[Dashboard] Backend loadMessages error:', err);
+      } finally {
+        setIsMessagesLoading(false);
+      }
+      return;
     }
 
     // 2. Fetch fresh messages in the background
@@ -944,6 +943,27 @@ export default function DashboardPage() {
         setLoadingMore(true);
       } else {
         setIsRefreshing(true);
+      }
+
+      if (isBackendAuthenticated()) {
+        try {
+          const convs = await getBackendConversations({ status: 'all', page: pageNum + 1, limit: PAGE_SIZE });
+          if (isAppend) {
+            setConversations((prev) => [...prev, ...convs]);
+          } else {
+            setConversations(convs);
+          }
+          setHasMore(convs.length >= PAGE_SIZE);
+          setLastSynced(new Date());
+          setConversationsError(null);
+        } catch (err: any) {
+          console.error('[Dashboard] Backend refreshConversations failed:', err);
+          setConversationsError(err.message || 'Conversations could not be loaded.');
+        } finally {
+          setIsRefreshing(false);
+          setLoadingMore(false);
+        }
+        return;
       }
       try {
         let query = supabase
@@ -1151,10 +1171,14 @@ export default function DashboardPage() {
     async (ids: string[]) => {
       if (ids.length === 0) return;
       const nowIso = new Date().toISOString();
-      await supabase
-        .from('conversations')
-        .update({ status: 'closed', closed_at: nowIso, updated_at: nowIso })
-        .in('id', ids);
+      if (isBackendAuthenticated()) {
+        await bulkUpdateBackendConversations({ ids, action: 'resolve' });
+      } else {
+        await supabase
+          .from('conversations')
+          .update({ status: 'closed', closed_at: nowIso, updated_at: nowIso })
+          .in('id', ids);
+      }
 
       setConversations((prev) =>
         prev.map((c) => (ids.includes(c.id) ? { ...c, status: 'closed', closed_at: nowIso } : c))
@@ -1169,14 +1193,18 @@ export default function DashboardPage() {
       if (ids.length === 0) return;
       const nowIso = new Date().toISOString();
       const assignedAgent = allAgents.find((a) => a.id === agentId) || null;
-      await supabase
-        .from('conversations')
-        .update({
-          assigned_agent_id: agentId,
-          agent_id: agentId,
-          updated_at: nowIso,
-        })
-        .in('id', ids);
+      if (isBackendAuthenticated()) {
+        await bulkUpdateBackendConversations({ ids, action: 'assign', agentId });
+      } else {
+        await supabase
+          .from('conversations')
+          .update({
+            assigned_agent_id: agentId,
+            agent_id: agentId,
+            updated_at: nowIso,
+          })
+          .in('id', ids);
+      }
 
       setConversations((prev) =>
         prev.map((c) =>
@@ -1200,19 +1228,23 @@ export default function DashboardPage() {
     async (ids: string[]) => {
       if (ids.length === 0) return;
       const nowIso = new Date().toISOString();
-      for (const id of ids) {
-        const conv = conversations.find((c) => c.id === id);
-        const curTags = conv?.tags || [];
-        const updatedTags = curTags.includes('Spam') ? curTags : [...curTags, 'Spam'];
-        await supabase
-          .from('conversations')
-          .update({
-            status: 'closed',
-            closed_at: nowIso,
-            tags: updatedTags,
-            updated_at: nowIso,
-          })
-          .eq('id', id);
+      if (isBackendAuthenticated()) {
+        await bulkUpdateBackendConversations({ ids, action: 'spam' });
+      } else {
+        for (const id of ids) {
+          const conv = conversations.find((c) => c.id === id);
+          const curTags = conv?.tags || [];
+          const updatedTags = curTags.includes('Spam') ? curTags : [...curTags, 'Spam'];
+          await supabase
+            .from('conversations')
+            .update({
+              status: 'closed',
+              closed_at: nowIso,
+              tags: updatedTags,
+              updated_at: nowIso,
+            })
+            .eq('id', id);
+        }
       }
 
       setConversations((prev) =>
@@ -1222,7 +1254,7 @@ export default function DashboardPage() {
                 ...c,
                 status: 'closed',
                 closed_at: nowIso,
-                tags: c.tags?.includes('Spam') ? c.tags : [...(c.tags || []), 'Spam'],
+                tags: c.tags?.includes('spam') || c.tags?.includes('Spam') ? c.tags : [...(c.tags || []), 'spam'],
                 updated_at: nowIso,
               }
             : c
@@ -1234,6 +1266,15 @@ export default function DashboardPage() {
 
   // 4. Refresh Visitors
   const refreshVisitors = async (wsId?: string) => {
+    if (isBackendAuthenticated()) {
+      try {
+        const backendVisitors = await getBackendContacts({ limit: 300 });
+        setVisitors(backendVisitors);
+      } catch (e) {
+        console.warn('[Dashboard] refreshVisitors failed:', e);
+      }
+      return;
+    }
     const targetWsId = wsId || currentWorkspaceIdRef.current;
     // The most recently seen visitors only: every site visit creates a row,
     // so "all of them" grows without bound (and PostgREST stops at 1000 anyway).
@@ -1258,6 +1299,9 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (selectedConversationId) {
+      if (isBackendAuthenticated()) {
+        backendRealtimeRef.current?.joinConversation(selectedConversationId);
+      }
       loadMessages(selectedConversationId);
     } else {
       setMessages([]);
@@ -1272,6 +1316,177 @@ export default function DashboardPage() {
   const realtimeWorkspaceId = currentWorkspace?.id;
   useEffect(() => {
     if (!realtimeWorkspaceId) return;
+
+    if (isBackendAuthenticated()) {
+      let cancelled = false;
+      let isSocketConnected = false;
+
+      const rt = createBackendRealtimeClient({
+        onConnect: () => {
+          isSocketConnected = true;
+          if (selectedConversationIdRef.current) {
+            rt?.joinConversation(selectedConversationIdRef.current);
+          }
+        },
+        onDisconnect: () => {
+          isSocketConnected = false;
+        },
+        onMessageNew: (rawMsg: any) => {
+          if (cancelled || !rawMsg?.id) return;
+          const newMsg = mapBackendMessage(rawMsg);
+          const convId = newMsg.conversation_id;
+
+          if (messagesCacheRef.current[convId]) {
+            if (!messagesCacheRef.current[convId].some((m) => m.id === newMsg.id)) {
+              messagesCacheRef.current[convId] = [...messagesCacheRef.current[convId], newMsg];
+            }
+          }
+
+          if (convId === selectedConversationIdRef.current) {
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === newMsg.id)) return prev;
+              return [...prev, newMsg];
+            });
+            if (newMsg.sender_type === 'visitor' && document.hasFocus()) {
+              markBackendMessagesRead(convId).catch(() => {});
+            }
+          }
+
+          let foundConv = false;
+          setConversations((prev) =>
+            prev.map((c) => {
+              if (c.id !== convId) return c;
+              foundConv = true;
+              const isViewing = convId === selectedConversationIdRef.current && document.hasFocus();
+              return {
+                ...c,
+                last_message: newMsg.is_internal ? c.last_message : newMsg,
+                updated_at: newMsg.created_at || new Date().toISOString(),
+                unread_count:
+                  newMsg.sender_type === 'visitor' && !isViewing
+                    ? (c.unread_count || 0) + 1
+                    : c.unread_count || 0,
+              };
+            })
+          );
+
+          if (!foundConv) {
+            void refreshConversations();
+          }
+        },
+        onMessageUpdated: (rawMsg: any) => {
+          if (cancelled || !rawMsg?.id) return;
+          const updatedMsg = mapBackendMessage(rawMsg);
+          const convId = updatedMsg.conversation_id;
+          if (messagesCacheRef.current[convId]) {
+            messagesCacheRef.current[convId] = messagesCacheRef.current[convId].map((m) =>
+              m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m
+            );
+          }
+          if (convId === selectedConversationIdRef.current) {
+            setMessages((prev) =>
+              prev.map((m) => (m.id === updatedMsg.id ? { ...m, ...updatedMsg } : m))
+            );
+          }
+        },
+        onMessageDeleted: (payload) => {
+          if (cancelled || !payload?.id) return;
+          const convId = payload.conversationId;
+          if (convId && messagesCacheRef.current[convId]) {
+            messagesCacheRef.current[convId] = messagesCacheRef.current[convId].filter(
+              (m) => m.id !== payload.id
+            );
+          }
+          if (!convId || convId === selectedConversationIdRef.current) {
+            setMessages((prev) => prev.filter((m) => m.id !== payload.id));
+          }
+        },
+        onMessageRead: (payload: any) => {
+          if (cancelled || !payload?.conversationId) return;
+          if (payload.conversationId === selectedConversationIdRef.current) {
+            const readAt = payload.readAt || new Date().toISOString();
+            setMessages((prev) =>
+              prev.map((m) => (m.read_at ? m : { ...m, read_at: readAt }))
+            );
+          }
+        },
+        onConversationCreated: () => {
+          if (!cancelled) void refreshConversations();
+        },
+        onConversationUpdated: (payload: any) => {
+          if (cancelled) return;
+          const targetId = payload?.conversationId || payload?.id;
+          if (!targetId) {
+            void refreshConversations();
+            return;
+          }
+          let matched = false;
+          setConversations((prev) =>
+            prev.map((c) => {
+              if (c.id !== targetId) return c;
+              matched = true;
+              const nextLast = payload.lastMessage
+                ? mapBackendMessage(payload.lastMessage)
+                : c.last_message;
+              return {
+                ...c,
+                ...(payload.status !== undefined ? { status: payload.status } : {}),
+                ...(payload.priority !== undefined ? { priority: payload.priority } : {}),
+                ...(payload.ai_mode !== undefined ? { ai_mode: payload.ai_mode } : {}),
+                ...(payload.ai_enabled !== undefined ? { ai_enabled: payload.ai_enabled } : {}),
+                ...(payload.ai_paused_reason !== undefined ? { ai_paused_reason: payload.ai_paused_reason } : {}),
+                ...(payload.handoff_status !== undefined ? { handoff_status: payload.handoff_status } : {}),
+                ...(payload.assigned_agent_id !== undefined
+                  ? {
+                      assigned_agent_id: payload.assigned_agent_id,
+                      agent_id: payload.assigned_agent_id,
+                    }
+                  : {}),
+                ...(payload.tags !== undefined ? { tags: payload.tags } : {}),
+                ...(payload.closed_at !== undefined ? { closed_at: payload.closed_at } : {}),
+                ...(payload.updated_at !== undefined ? { updated_at: payload.updated_at } : {}),
+                last_message: nextLast,
+              };
+            })
+          );
+          if (!matched) {
+            void refreshConversations();
+          }
+        },
+      });
+
+      backendRealtimeRef.current = rt;
+
+      // Fallback safety sync only when Socket.IO is disconnected
+      const pollInterval = setInterval(async () => {
+        if (cancelled || document.visibilityState !== 'visible' || isSocketConnected) return;
+        try {
+          await refreshConversations();
+          if (selectedConversationIdRef.current) {
+            const freshMsgs = await getBackendMessages(selectedConversationIdRef.current);
+            setMessages((prev) => {
+              if (
+                freshMsgs.length !== prev.length ||
+                (freshMsgs.length > 0 && freshMsgs[freshMsgs.length - 1]?.id !== prev[prev.length - 1]?.id)
+              ) {
+                return freshMsgs;
+              }
+              return prev;
+            });
+          }
+        } catch {}
+      }, 15000);
+
+      return () => {
+        cancelled = true;
+        clearInterval(pollInterval);
+        rt?.disconnect();
+        if (backendRealtimeRef.current === rt) {
+          backendRealtimeRef.current = null;
+        }
+      };
+    }
+
     const wsFilter = `workspace_id=eq.${realtimeWorkspaceId}`;
     const channelSuffix = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
     let cancelled = false;
@@ -1708,6 +1923,39 @@ export default function DashboardPage() {
       );
     }
 
+    if (isBackendAuthenticated()) {
+      try {
+        const sentMsg = await sendBackendMessage(targetId, {
+          content,
+          isInternal,
+          attachmentUrl,
+          replyToId,
+        });
+        if (sentMsg && sentMsg.conversation_id === selectedConversationIdRef.current) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === sentMsg.id)) return prev;
+            return [...prev, sentMsg];
+          });
+        }
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === targetId
+              ? {
+                  ...c,
+                  last_message: sentMsg,
+                  updated_at: new Date().toISOString(),
+                  ...(shouldAutoAssign ? { agent_id: currentAgent.id, assigned_agent_id: currentAgent.id, agent: currentAgent } : {}),
+                }
+              : c
+          )
+        );
+        return;
+      } catch (err) {
+        console.error('[Dashboard] Backend send message error:', err);
+        throw err;
+      }
+    }
+
     const { data: insertedMsg, error } = await supabase
       .from('messages')
       .insert({
@@ -1858,7 +2106,18 @@ export default function DashboardPage() {
       );
     }
 
-    // 2. Fetch current metadata
+    // 2. Persist edit in NestJS backend or Supabase
+    if (isBackendAuthenticated() && selectedConversationId) {
+      try {
+        await editBackendMessage(selectedConversationId, messageId, newContent);
+      } catch (error) {
+        console.error('Error editing message:', error);
+        loadMessages(selectedConversationId);
+        throw error;
+      }
+      return;
+    }
+
     const { data: existing } = await supabase
       .from('messages')
       .select('metadata')
@@ -1902,7 +2161,19 @@ export default function DashboardPage() {
       ].filter((m) => m.id !== messageId);
     }
 
-    // 2. Delete row from database
+    // 2. Delete row from NestJS backend or Supabase
+    if (isBackendAuthenticated() && selectedConversationId) {
+      try {
+        await deleteBackendMessage(selectedConversationId, messageId);
+      } catch (error) {
+        console.error('Error deleting message:', error);
+        loadMessages(selectedConversationId);
+        throw error;
+      }
+      refreshConversations();
+      return;
+    }
+
     const { error } = await supabase
       .from('messages')
       .delete()
@@ -1922,6 +2193,18 @@ export default function DashboardPage() {
   const handleUpdatePriority = async (priority: ConversationPriority) => {
     if (!selectedConversationId) return;
 
+    if (isBackendAuthenticated()) {
+      try {
+        await updateBackendConversation(selectedConversationId, { priority });
+        setConversations((prev) =>
+          prev.map((c) => (c.id === selectedConversationId ? { ...c, priority, updated_at: new Date().toISOString() } : c))
+        );
+      } catch (e) {
+        console.error('[Dashboard] update priority error:', e);
+      }
+      return;
+    }
+
     const { error } = await supabase
       .from('conversations')
       .update({ priority, updated_at: new Date().toISOString() })
@@ -1940,6 +2223,18 @@ export default function DashboardPage() {
   const handleUpdateTags = async (tags: string[]) => {
     if (!selectedConversationId) return;
 
+    if (isBackendAuthenticated()) {
+      try {
+        await updateBackendConversation(selectedConversationId, { tags });
+        setConversations((prev) =>
+          prev.map((c) => (c.id === selectedConversationId ? { ...c, tags, updated_at: new Date().toISOString() } : c))
+        );
+      } catch (e) {
+        console.error('[Dashboard] update tags error:', e);
+      }
+      return;
+    }
+
     const { error } = await supabase
       .from('conversations')
       .update({ tags, updated_at: new Date().toISOString() })
@@ -1957,6 +2252,18 @@ export default function DashboardPage() {
 
   const handleUpdateStatus = async (status: ConversationStatus) => {
     if (!selectedConversationId) return;
+
+    if (isBackendAuthenticated()) {
+      try {
+        await updateBackendConversation(selectedConversationId, { status });
+        setConversations((prev) =>
+          prev.map((c) => (c.id === selectedConversationId ? { ...c, status, updated_at: new Date().toISOString() } : c))
+        );
+      } catch (e) {
+        console.error('[Dashboard] update status error:', e);
+      }
+      return;
+    }
 
     const currentConv = conversations.find((c) => c.id === selectedConversationId);
     const wasPausedBeforeReopen =
@@ -1995,6 +2302,23 @@ export default function DashboardPage() {
   const handleAssignAgent = async (agentId: string | null) => {
     if (!selectedConversationId) return;
 
+    if (isBackendAuthenticated()) {
+      try {
+        await assignBackendConversation(selectedConversationId, agentId);
+        const assignedAgent = allAgents.find((a) => a.id === agentId) || null;
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === selectedConversationId
+              ? { ...c, agent_id: agentId, assigned_agent_id: agentId, agent: assignedAgent, updated_at: new Date().toISOString() }
+              : c
+          )
+        );
+      } catch (e) {
+        console.error('[Dashboard] assign agent error:', e);
+      }
+      return;
+    }
+
     const { error } = await supabase
       .from('conversations')
       .update({
@@ -2021,6 +2345,16 @@ export default function DashboardPage() {
 
   const handleUpdateAgentStatus = async (status: AgentStatus) => {
     if (!currentAgent) return;
+
+    if (isBackendAuthenticated()) {
+      setCurrentAgent((prev) => (prev ? { ...prev, status } : null));
+      try {
+        await updateBackendAgentStatus(status);
+      } catch (e) {
+        console.warn('[Dashboard] Failed to persist backend agent status:', e);
+      }
+      return;
+    }
 
     // Handoff availability (agent_status) only knows online and away.
     const { error: availabilityErr } = await supabase.rpc('set_agent_status', {
@@ -2071,19 +2405,31 @@ export default function DashboardPage() {
   const handleOpenConversationForVisitor = async (visitorId: string) => {
     let existing = conversations.find((c) => c.visitor_id === visitorId);
     if (!existing) {
-      const { data } = await supabase
-        .from('conversations')
-        .insert({
-          visitor_id: visitorId,
-          workspace_id: currentWorkspace?.id || null,
-          status: 'open',
-        })
-        .select('*, visitor:visitors(*)')
-        .single();
+      if (isBackendAuthenticated()) {
+        try {
+          const created = await createBackendConversation({ visitorId });
+          if (created) {
+            existing = created;
+            setConversations((prev) => [existing!, ...prev]);
+          }
+        } catch (e) {
+          console.error('[Dashboard] createBackendConversation failed:', e);
+        }
+      } else {
+        const { data } = await supabase
+          .from('conversations')
+          .insert({
+            visitor_id: visitorId,
+            workspace_id: currentWorkspace?.id || null,
+            status: 'open',
+          })
+          .select('*, visitor:visitors(*)')
+          .single();
 
-      if (data) {
-        existing = data as Conversation;
-        setConversations((prev) => [existing!, ...prev]);
+        if (data) {
+          existing = data as Conversation;
+          setConversations((prev) => [existing!, ...prev]);
+        }
       }
     }
 
@@ -2094,6 +2440,14 @@ export default function DashboardPage() {
   };
 
   const handleLogout = async () => {
+    if (isBackendAuthenticated()) {
+      backendRealtimeRef.current?.disconnect();
+      backendRealtimeRef.current = null;
+      clearAuthSession();
+      router.replace('/login');
+      return;
+    }
+
     if (currentAgent) {
       const { error: availabilityErr } = await supabase.rpc('set_agent_status', { p_status: 'away' });
       if (availabilityErr) console.warn('[Agent Status]: set_agent_status failed:', availabilityErr.message);
@@ -2375,10 +2729,17 @@ export default function DashboardPage() {
                           ai_paused_reason: 'agent_paused',
                         }),
                   };
-                  await supabase
-                    .from('conversations')
-                    .update(dbUpdates)
-                    .eq('id', selectedConversationId);
+                  if (isBackendAuthenticated()) {
+                    await updateBackendConversation(selectedConversationId, {
+                      aiMode: mode,
+                      handoffStatus: isAutopilot ? 'bot_active' : undefined,
+                    });
+                  } else {
+                    await supabase
+                      .from('conversations')
+                      .update(dbUpdates)
+                      .eq('id', selectedConversationId);
+                  }
 
                   setConversations((prev) =>
                     prev.map((c) =>

@@ -71,7 +71,7 @@ export const SETTINGS_SECTIONS: SettingsSection[] = [
       { id: 'website', label: 'Website widget', description: 'Copy the embed script for your site and check that it is live.', capability: null, keywords: ['install', 'embed', 'script', 'snippet', 'wordpress', 'shopify', 'html', 'nextjs'] },
       { id: 'email', label: 'SMTP', description: 'Your own mail server, used for alerts and for replies to tickets logged by hand. For the email support channel, see Messaging & email channels.', capability: 'manage_settings', keywords: ['smtp', 'email', 'mail', 'gmail', 'outlook', 'zoho', 'unread', 'alerts'] },
       { id: 'social', label: 'Messaging & email channels', description: 'Email support, WhatsApp, Instagram, X, Threads, LinkedIn, TikTok and Slack alerts.', capability: 'manage_settings', keywords: ['email', 'support address', 'forwarding', 'dns', 'dkim', 'whatsapp', 'instagram', 'facebook', 'messenger', 'meta', 'linkedin', 'slack', 'social', 'x', 'twitter', 'threads', 'tiktok', 'comments', 'mentions'] },
-      { id: 'mobile', label: 'Mobile app', description: 'Add Zentry to your phone’s home screen.', capability: null, keywords: ['mobile', 'pwa', 'android', 'iphone', 'ios', 'home screen', 'qr'] },
+      { id: 'mobile', label: 'Mobile app', description: 'Add Orbat AI to your phone’s home screen.', capability: null, keywords: ['mobile', 'pwa', 'android', 'iphone', 'ios', 'home screen', 'qr'] },
     ],
   },
   {

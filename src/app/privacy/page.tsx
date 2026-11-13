@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { LegalLayout } from '@/components/marketing/LegalLayout';
 
 export const metadata = {
-  title: 'Privacy Policy | Zen-try',
-  description: 'How Zen-try collects, uses and protects your data and your visitors’ data.',
+  title: 'Privacy Policy | Orbat AI',
+  description: 'How Orbat AI collects, uses and protects your data and your visitors’ data.',
 };
 
 export default function PrivacyPage() {
@@ -13,7 +13,7 @@ export default function PrivacyPage() {
       eyebrow="Legal"
       title="Privacy Policy"
       updated="October 2026"
-      intro={<p>What we collect when you use Zen-try or chat through the Zen-try widget, why, and who we share it with.</p>}
+      intro={<p>What we collect when you use Orbat AI or chat through the Orbat AI widget, why, and who we share it with.</p>}
       related={{ label: 'Terms of Service', href: '/terms' }}
       sections={[
         {
@@ -22,7 +22,7 @@ export default function PrivacyPage() {
           body: (
             <p>
               When you create an account, we collect your name, business email address, and authentication credentials. For
-              website visitors chatting via the Zen-try widget, we collect session metadata including IP address, browser type,
+              website visitors chatting via the Orbat AI widget, we collect session metadata including IP address, browser type,
               referral URLs, and active page paths to enable live routing.
             </p>
           ),

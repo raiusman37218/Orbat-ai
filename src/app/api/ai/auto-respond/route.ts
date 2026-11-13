@@ -218,7 +218,7 @@ export async function POST(req: NextRequest) {
     const [{ data: workspace }, { data: conv }, { data: recentMessages }] = await Promise.all([
       supabase
         .from('workspaces')
-        .select('name, greeting_title, greeting_message, ai_settings, handoff_settings, slug, custom_domain, custom_domain_status, business_hours, is_suspended, deleted_at')
+        .select('name, industry, greeting_title, greeting_message, ai_settings, handoff_settings, slug, custom_domain, custom_domain_status, business_hours, is_suspended, deleted_at')
         .eq('id', workspace_id)
         .single(),
       supabase
@@ -913,6 +913,7 @@ export async function POST(req: NextRequest) {
           turns: recentTurns,
           helpCenterUrl: helpCenterUrlFor(workspace),
           workspaceName: workspace?.name,
+          industry: (workspace as any)?.industry || null,
           hasHumanReplied: lastHumanAt > -Infinity && lastHumanAt > resolvedAt,
           botFailureCount: (conv as any)?.bot_failure_count || 0,
           runningSummary,

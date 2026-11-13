@@ -224,7 +224,7 @@ export function EmailChannelPanel({ workspaceId, onClose }: { workspaceId: strin
 
                   <div className="card p-4 space-y-3">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h4 className="text-sm font-semibold text-ink">1. Forward your address to Zentry</h4>
+                      <h4 className="text-sm font-semibold text-ink">1. Forward your address to Orbat AI</h4>
                       <Badge tone={overview.settings.forwarding_verified ? 'success' : overview.settings.forwarding_check_sent_at ? 'warn' : 'neutral'} dot>
                         {overview.settings.forwarding_verified ? 'Working' : overview.settings.forwarding_check_sent_at ? 'Waiting for the test' : 'Not checked'}
                       </Badge>

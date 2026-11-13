@@ -687,11 +687,157 @@ export function routeSubAgent(input: RouteInput): RouteResult {
   return { agent: 'general', reason: 'No specific topic', certainty: 'none' };
 }
 
-/** Greeting with what the bot can help with: the Greeting specialist's welcome. */
-export function propFirmWelcome(lang: string, brand: string, name?: string | null): string {
+/** Welcome message adapted to workspace industry/domain. */
+export function getDomainWelcome(
+  industry: string | null | undefined,
+  lang: string = 'en',
+  brand: string = 'our team',
+  name?: string | null
+): string {
   const who = name ? ` ${name}` : '';
+  const ind = (industry || '').toLowerCase().trim();
+
+  if (ind === 'ecommerce' || ind === 'retail' || ind === 'store') {
+    if (lang === 'roman_ur') {
+      return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main products, order tracking, delivery status, returns aur discounts mein aapki madad kar sakta hoon. Bataiye kya poochna chahte hain?`;
+    }
+    return `Hi${who}! 👋 Welcome to ${brand}. I can help with products, order tracking, delivery timelines, returns, and discounts. How can I help you today?`;
+  }
+
+  if (ind === 'saas' || ind === 'software' || ind === 'tech') {
+    if (lang === 'roman_ur') {
+      return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main platform features, API integration, pricing plans, subscriptions aur technical support mein madad kar sakta hoon. Bataiye kya poochna chahte hain?`;
+    }
+    return `Hi${who}! 👋 Welcome to ${brand}. I can help with platform features, API integrations, plans, subscriptions and technical questions. How can I help you today?`;
+  }
+
+  if (ind === 'healthcare' || ind === 'wellness' || ind === 'medical') {
+    if (lang === 'roman_ur') {
+      return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main appointments, clinic timings, patient portal aur insurance policies mein aapki madad kar sakta hoon. Bataiye kya poochna chahte hain?`;
+    }
+    return `Hi${who}! 👋 Welcome to ${brand}. I can help with appointments, clinic hours, patient portal access and insurance guidelines. How can I help you today?`;
+  }
+
+  if (ind === 'agency' || ind === 'consulting') {
+    if (lang === 'roman_ur') {
+      return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main hamari services, project onboarding, packages aur consultations mein aapki madad kar sakta hoon. Bataiye kya jaanna chahte hain?`;
+    }
+    return `Hi${who}! 👋 Welcome to ${brand}. I can help with our services, project onboarding, packages, and consultations. What would you like to know?`;
+  }
+
+  if (ind === 'education' || ind === 'edtech') {
+    if (lang === 'roman_ur') {
+      return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main admissions, courses, fees, installments aur student portal mein madad kar sakta hoon. Bataiye kya jaanna chahte hain?`;
+    }
+    return `Hi${who}! 👋 Welcome to ${brand}. I can help with admissions, courses, tuition, installment options, and portal access. How can I assist you?`;
+  }
+
+  if (ind === 'finance' || ind === 'real_estate' || ind === 'fintech') {
+    if (lang === 'roman_ur') {
+      return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main account verification, KYC, security, transfer limits aur advisory mein madad kar sakta hoon. Bataiye kya poochna chahte hain?`;
+    }
+    return `Hi${who}! 👋 Welcome to ${brand}. I can help with account verification, KYC, security, transfer limits and client advisory. How can I assist you?`;
+  }
+
+  if (ind === 'generic' || ind === 'general') {
+    if (lang === 'roman_ur') {
+      return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main hamari services, pricing, policies aur aam sawalaat mein aapki madad kar sakta hoon. Bataiye kya poochna chahte hain?`;
+    }
+    return `Hi${who}! 👋 Welcome to ${brand}. I can help with our services, pricing, policies and general questions. How can I help you today?`;
+  }
+
+  // Default: Prop-firm welcome (preserves backwards compatibility)
   if (lang === 'roman_ur') {
     return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main challenge prices aur offers, trading rules, payouts, aapke account, platform setup aur KYC mein madad kar sakta hoon. Bataiye kya jaanna chahte hain?`;
   }
   return `Hi${who}! 👋 Welcome to ${brand}. I can help with challenge prices and offers, trading rules, payouts, your account, platform setup and KYC. What would you like to know?`;
+}
+
+/** Suggested quick reply chips for the greeting / welcome screen */
+export function getDomainQuickChips(industry?: string | null): Array<{ label: string; value: string }> {
+  const ind = (industry || '').toLowerCase().trim();
+
+  if (ind === 'ecommerce' || ind === 'retail' || ind === 'store') {
+    return [
+      { label: '🛍️ Products & Orders', value: 'What products and order options do you have?' },
+      { label: '🚚 Shipping & Delivery', value: 'What are your delivery times and shipping costs?' },
+      { label: '🔄 Returns & Refunds', value: 'How do I return an item or request a refund?' },
+      { label: '🏷️ Discounts & Promos', value: 'Are there any active promo codes or discounts?' },
+      { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a customer care agent.' },
+    ];
+  }
+
+  if (ind === 'saas' || ind === 'software' || ind === 'tech') {
+    return [
+      { label: '💳 Plans & Pricing', value: 'What plans and features do you offer?' },
+      { label: '⚡ API & Integrations', value: 'How do I get started with the API and webhooks?' },
+      { label: '👥 Seats & Subscriptions', value: 'How do team seats and subscriptions work?' },
+      { label: '🛠️ Technical Support', value: 'I need help troubleshooting a technical issue.' },
+      { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a technical support specialist.' },
+    ];
+  }
+
+  if (ind === 'healthcare' || ind === 'wellness' || ind === 'medical') {
+    return [
+      { label: '📅 Book Appointment', value: 'How do I schedule or reschedule an appointment?' },
+      { label: '🏥 Services & Care', value: 'What care services and specialties are available?' },
+      { label: '📋 Patient Portal', value: 'How do I access my records or lab results in the portal?' },
+      { label: '💳 Insurance & Billing', value: 'Which insurance plans do you accept?' },
+      { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a care coordinator.' },
+    ];
+  }
+
+  if (ind === 'agency' || ind === 'consulting') {
+    return [
+      { label: '💼 Services & Scope', value: 'What services and solutions do you provide?' },
+      { label: '🚀 Project Onboarding', value: 'How does your project kickoff and delivery work?' },
+      { label: '📅 Book a Consultation', value: 'How can I schedule a discovery call?' },
+      { label: '💵 Pricing & Retainers', value: 'What are your package rates and retainer options?' },
+      { label: '🧑‍💼 Talk to a person', value: 'I want to speak with an account manager.' },
+    ];
+  }
+
+  if (ind === 'education' || ind === 'edtech') {
+    return [
+      { label: '🎓 Courses & Programs', value: 'What courses and programs do you offer?' },
+      { label: '📝 Admissions', value: 'What are the enrollment requirements and deadlines?' },
+      { label: '💵 Tuition & Fees', value: 'What are the tuition rates and payment plans?' },
+      { label: '💻 Student Portal', value: 'How do I log into the student portal?' },
+      { label: '🧑‍💼 Talk to a person', value: 'I want to speak with an admissions counselor.' },
+    ];
+  }
+
+  if (ind === 'finance' || ind === 'real_estate' || ind === 'fintech') {
+    return [
+      { label: '💳 Accounts & Verification', value: 'What documents are needed for KYC verification?' },
+      { label: '🔒 Security & 2FA', value: 'How do you secure accounts and data?' },
+      { label: '💸 Transfers & Fees', value: 'What are your transfer limits and fees?' },
+      { label: '📊 Advisory & Plans', value: 'Tell me more about your plans and advisory services.' },
+      { label: '🧑‍💼 Talk to a person', value: 'I want to speak with an advisor.' },
+    ];
+  }
+
+  if (ind === 'generic' || ind === 'general') {
+    return [
+      { label: '💰 Pricing & Plans', value: 'What pricing plans and services do you offer?' },
+      { label: '❓ Getting Started', value: 'How do I get started with your service?' },
+      { label: '📄 Policies & FAQs', value: 'Where can I read your policies and FAQs?' },
+      { label: '📞 Contact & Support', value: 'What are your support hours and channels?' },
+      { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
+    ];
+  }
+
+  // Default: Prop-firm quick chips (preserves backwards compatibility)
+  return [
+    { label: '💰 Pricing & Plans', value: 'What are the challenge prices and account sizes?' },
+    { label: '📋 Trading Rules', value: 'What are the trading rules and drawdown limits?' },
+    { label: '💸 Payouts', value: 'How and when can I request a payout?' },
+    { label: '🔐 Account & KYC', value: 'What documents are required for KYC verification?' },
+    { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
+  ];
+}
+
+/** Greeting with what the bot can help with: backwards-compatible alias to getDomainWelcome */
+export function propFirmWelcome(lang: string, brand: string, name?: string | null): string {
+  return getDomainWelcome('prop_firm', lang, brand, name);
 }

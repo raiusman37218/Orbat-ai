@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Conversation } from '@/types/database';
+import { getBackendHandovers } from '@/lib/api/backend-client';
 
 /**
  * The questions the bot handed to the team, for the Handovers screen.
@@ -180,6 +181,78 @@ export function sortHandovers(items: HandoverItem[]): HandoverItem[] {
   });
 }
 
+type Embedded<T> = T | T[] | null;
+type RawHandoverRow = {
+  id: string;
+  content: string | null;
+  created_at: string;
+  reply_to_message_id: string | null;
+  metadata: Record<string, unknown> | null;
+  question_content?: string | null;
+  conversation: Embedded<
+    ConversationBits & {
+      id: string;
+      priority: HandoverItem['priority'] | null;
+      channel: string | null;
+      assigned_agent_id: string | null;
+      visitor: Embedded<{ name: string | null; email: string | null }>;
+    }
+  >;
+};
+
+function formatHandoverRows(
+  rows: RawHandoverRow[],
+  questions: Map<string, string>
+): HandoverItem[] {
+  const one = <T,>(v: Embedded<T>): T | null => (Array.isArray(v) ? v[0] ?? null : v);
+  const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
+
+  const items = rows.map((r): HandoverItem => {
+    const conv = one(r.conversation);
+    const visitor = conv ? one(conv.visitor) : null;
+    const meta = r.metadata || {};
+    const note = parseHandoverNote(r.content);
+    const metaPriority = str(meta.priority);
+    const priority =
+      (metaPriority && ['low', 'normal', 'high', 'urgent'].includes(metaPriority) ? metaPriority : conv?.priority) || 'normal';
+    const questionFromMsg =
+      r.question_content ||
+      (r.reply_to_message_id ? questions.get(r.reply_to_message_id) : null);
+    return {
+      id: r.id,
+      conversationId: conv?.id ?? '',
+      at: r.created_at,
+      state: conv ? handoverState(conv, r.created_at) : 'closed',
+      priority: priority as HandoverItem['priority'],
+      question: questionFromMsg || note.question || 'The customer asked for help.',
+      reason: note.reason || str(meta.reason),
+      topic: note.topic,
+      summary: note.summary,
+      earlier: note.earlier,
+      given: note.given,
+      frustrated: note.frustrated,
+      language: note.language,
+      assignedAgentId: conv?.assigned_agent_id ?? str(meta.assigned_agent_id),
+      // The note names who it went to then; the name only matches while they still have it.
+      assignedAgentName: conv?.assigned_agent_id && conv.assigned_agent_id !== str(meta.assigned_agent_id) ? null : str(meta.assigned_agent_name),
+      visitorName: visitor?.name ?? null,
+      visitorEmail: visitor?.email ?? null,
+      channel: conv?.channel ?? null,
+    };
+  });
+  return sortHandovers(items.filter((i) => i.conversationId));
+}
+
+/**
+ * The last `days` of handovers loaded via the NestJS backend + Neon database.
+ */
+export async function loadHandoversFromBackend(
+  { days = 14, limit = 300 }: { days?: number; limit?: number } = {}
+): Promise<HandoverItem[]> {
+  const rows = (await getBackendHandovers(days, limit)) as RawHandoverRow[];
+  return formatHandoverRows(rows || [], new Map());
+}
+
 /**
  * The last `days` of handovers in one workspace, read as the signed-in agent
  * (RLS keeps it to their workspace; the filter says so too). One card per
@@ -204,26 +277,7 @@ export async function loadHandovers(
     .limit(limit);
   if (error) throw error;
 
-  type Embedded<T> = T | T[] | null;
-  type Row = {
-    id: string;
-    content: string | null;
-    created_at: string;
-    reply_to_message_id: string | null;
-    metadata: Record<string, unknown> | null;
-    conversation: Embedded<
-      ConversationBits & {
-        id: string;
-        priority: HandoverItem['priority'] | null;
-        channel: string | null;
-        assigned_agent_id: string | null;
-        visitor: Embedded<{ name: string | null; email: string | null }>;
-      }
-    >;
-  };
-  const one = <T,>(v: Embedded<T>): T | null => (Array.isArray(v) ? v[0] ?? null : v);
-  const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
-  const rows = (data || []) as unknown as Row[];
+  const rows = (data || []) as unknown as RawHandoverRow[];
   const questionIds = Array.from(new Set(rows.map((r) => r.reply_to_message_id).filter(Boolean))) as string[];
   const questions = new Map<string, string>();
   for (let i = 0; i < questionIds.length; i += 100) {
@@ -235,35 +289,5 @@ export async function loadHandovers(
     for (const q of qs || []) questions.set(q.id, q.content || '');
   }
 
-  const items = rows.map((r): HandoverItem => {
-    const conv = one(r.conversation);
-    const visitor = conv ? one(conv.visitor) : null;
-    const meta = r.metadata || {};
-    const note = parseHandoverNote(r.content);
-    const metaPriority = str(meta.priority);
-    const priority =
-      (metaPriority && ['low', 'normal', 'high', 'urgent'].includes(metaPriority) ? metaPriority : conv?.priority) || 'normal';
-    return {
-      id: r.id,
-      conversationId: conv?.id ?? '',
-      at: r.created_at,
-      state: conv ? handoverState(conv, r.created_at) : 'closed',
-      priority: priority as HandoverItem['priority'],
-      question: (r.reply_to_message_id && questions.get(r.reply_to_message_id)) || note.question || 'The customer asked for help.',
-      reason: note.reason || str(meta.reason),
-      topic: note.topic,
-      summary: note.summary,
-      earlier: note.earlier,
-      given: note.given,
-      frustrated: note.frustrated,
-      language: note.language,
-      assignedAgentId: conv?.assigned_agent_id ?? str(meta.assigned_agent_id),
-      // The note names who it went to then; the name only matches while they still have it.
-      assignedAgentName: conv?.assigned_agent_id && conv.assigned_agent_id !== str(meta.assigned_agent_id) ? null : str(meta.assigned_agent_name),
-      visitorName: visitor?.name ?? null,
-      visitorEmail: visitor?.email ?? null,
-      channel: conv?.channel ?? null,
-    };
-  });
-  return sortHandovers(items.filter((i) => i.conversationId));
+  return formatHandoverRows(rows, questions);
 }

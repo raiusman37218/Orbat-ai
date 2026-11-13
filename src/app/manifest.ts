@@ -2,8 +2,8 @@ import type { MetadataRoute } from 'next';
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Zen-try — Live Chat & Customer Support',
-    short_name: 'Zen-try',
+    name: 'Orbat AI — Live Chat & Customer Support',
+    short_name: 'Orbat AI',
     description: 'Real-time human support and live chat inbox on mobile and desktop.',
     start_url: '/dashboard',
     scope: '/',

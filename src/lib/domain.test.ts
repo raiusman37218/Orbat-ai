@@ -10,8 +10,8 @@ describe('isPlatformHost', () => {
   });
 
   it('recognizes production platform domains', () => {
-    expect(isPlatformHost('zen-try.site')).toBe(true);
-    expect(isPlatformHost('www.zen-try.site')).toBe(true);
+    expect(isPlatformHost('orbatai.com')).toBe(true);
+    expect(isPlatformHost('www.orbatai.com')).toBe(true);
     expect(isPlatformHost('zen-try.com')).toBe(true);
     expect(isPlatformHost('app.zen-try.com')).toBe(true);
     expect(isPlatformHost('my-app.vercel.app')).toBe(true);

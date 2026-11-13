@@ -3,7 +3,7 @@ import { assertSuperAdmin } from '@/app/actions/platform';
 import { GlobalDefaultsView } from '@/components/admin/GlobalDefaultsView';
 
 export const metadata = {
-  title: 'Global Defaults & Policies — Zentry Super Admin',
+  title: 'Global Defaults & Policies — Orbat AI Super Admin',
   description: 'Manage platform-wide setting defaults, limits, and fallback policies.',
 };
 

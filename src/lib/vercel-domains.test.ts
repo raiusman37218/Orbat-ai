@@ -88,9 +88,9 @@ describe('checkVercelSetup', () => {
   it('lists the project and its domains', async () => {
     respond({
       '/v9/projects/prj_new': { status: 200, body: { id: 'prj_new', name: 'zen-try-new' } },
-      '/v9/projects/prj_new/domains': { status: 200, body: { domains: [{ name: 'zen-try.site', verified: true }] } },
+      '/v9/projects/prj_new/domains': { status: 200, body: { domains: [{ name: 'orbatai.com', verified: true }] } },
     });
     const s = await checkVercelSetup();
-    expect(s).toMatchObject({ project: { name: 'zen-try-new' }, domains: [{ name: 'zen-try.site', verified: true }], error: null });
+    expect(s).toMatchObject({ project: { name: 'zen-try-new' }, domains: [{ name: 'orbatai.com', verified: true }], error: null });
   });
 });

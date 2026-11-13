@@ -10,12 +10,12 @@ export interface ManagedByZentryProps {
 }
 
 /**
- * Requirement C: Renders a "Managed by Zentry" note on locked settings
+ * Requirement C: Renders a "Managed by Orbat AI" note on locked settings
  * inside the workspace dashboard.
  */
 export function ManagedByZentry({
   className,
-  message = 'Managed by Zentry',
+  message = 'Managed by Orbat AI',
 }: ManagedByZentryProps) {
   return (
     <div
@@ -24,7 +24,7 @@ export function ManagedByZentry({
         'bg-accent/10 text-accent border border-accent/20 select-none tracking-tight',
         className
       )}
-      title="This setting is locked and controlled by Zentry platform administration."
+      title="This setting is locked and controlled by Orbat AI platform administration."
     >
       <Lock className="w-3 h-3 text-accent shrink-0" aria-hidden="true" />
       <span>{message}</span>

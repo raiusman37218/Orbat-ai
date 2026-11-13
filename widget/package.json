@@ -1,7 +1,7 @@
 {
-  "name": "zen-try-widget",
+  "name": "orbat-ai-widget",
   "version": "1.0.0",
-  "description": "Embeddable Live Chat Support Widget for Zen-try",
+  "description": "Embeddable Live Chat Support Widget for Orbat AI",
   "main": "dist/widget.js",
   "scripts": {
     "build": "esbuild src/index.ts --bundle --minify --format=iife --outfile=../public/widget.js --target=es2020",

@@ -8,7 +8,7 @@ import { isChatFirstDesign, isHexColor, isWidgetColorMode, isWidgetDesign, launc
 import { formatMarkdownToHtml } from '../../src/lib/widget/article-markdown';
 import { DEFAULT_BRAND_COLOR } from '../../src/lib/brand';
 
-const DEFAULT_API_URL = 'https://zen-try.site';
+const DEFAULT_API_URL = 'https://orbatai.com';
 /** Hosts that only redirect to DEFAULT_API_URL; API calls go there directly. */
 const LEGACY_API_HOSTS = new Set(['chat-system-wabd.vercel.app']);
 const DEFAULT_SUPABASE_URL ='https://vfjsaynnubxywdbevxtx.supabase.co';
@@ -8132,8 +8132,8 @@ class ZentryWidget {
       const target = e.target as HTMLElement | null;
       if (!target) return;
 
-      // 1. Help tab trigger: [data-zentry-help], [data-chatify-help], .zentry-help-trigger, .chatify-help-trigger
-      const helpTrigger = target.closest('[data-zentry-help], [data-chatify-help], .zentry-help-trigger, .chatify-help-trigger');
+      // 1. Help tab trigger: [data-orbat-help], [data-zentry-help], [data-chatify-help]
+      const helpTrigger = target.closest('[data-orbat-help], [data-zentry-help], [data-chatify-help], .orbat-help-trigger, .zentry-help-trigger, .chatify-help-trigger');
       if (helpTrigger) {
         e.preventDefault();
         if (this.config.showHelpTab === false || this.faqs.length === 0) {
@@ -8143,11 +8143,11 @@ class ZentryWidget {
         return;
       }
 
-      // 2. Open specific article: [data-zentry-article], [data-chatify-article]
-      const articleTrigger = target.closest('[data-zentry-article], [data-chatify-article]');
+      // 2. Open specific article: [data-orbat-article], [data-zentry-article], [data-chatify-article]
+      const articleTrigger = target.closest('[data-orbat-article], [data-zentry-article], [data-chatify-article]');
       if (articleTrigger) {
         e.preventDefault();
-        const articleIdOrSlug = articleTrigger.getAttribute('data-zentry-article') || articleTrigger.getAttribute('data-chatify-article') || '';
+        const articleIdOrSlug = articleTrigger.getAttribute('data-orbat-article') || articleTrigger.getAttribute('data-zentry-article') || articleTrigger.getAttribute('data-chatify-article') || '';
         if (articleIdOrSlug) {
           this.openArticle(articleIdOrSlug);
         } else {
@@ -8156,25 +8156,25 @@ class ZentryWidget {
         return;
       }
 
-      // 3. General open trigger: [data-zentry-open], [data-chatify-open], .zentry-open-trigger, .chatify-open-trigger
-      const openTrigger = target.closest('[data-zentry-open], [data-chatify-open], .zentry-open-trigger, .chatify-open-trigger');
+      // 3. General open trigger: [data-orbat-open], [data-zentry-open], [data-chatify-open]
+      const openTrigger = target.closest('[data-orbat-open], [data-zentry-open], [data-chatify-open], .orbat-open-trigger, .zentry-open-trigger, .chatify-open-trigger');
       if (openTrigger) {
         e.preventDefault();
-        const targetTab = (openTrigger.getAttribute('data-zentry-tab') || openTrigger.getAttribute('data-chatify-tab')) as 'home' | 'messages' | 'help' | null;
+        const targetTab = (openTrigger.getAttribute('data-orbat-tab') || openTrigger.getAttribute('data-zentry-tab') || openTrigger.getAttribute('data-chatify-tab')) as 'home' | 'messages' | 'help' | null;
         this.open(targetTab || 'home');
         return;
       }
 
-      // 4. Close trigger: [data-zentry-close], [data-chatify-close]
-      const closeTrigger = target.closest('[data-zentry-close], [data-chatify-close]');
+      // 4. Close trigger: [data-orbat-close], [data-zentry-close], [data-chatify-close]
+      const closeTrigger = target.closest('[data-orbat-close], [data-zentry-close], [data-chatify-close]');
       if (closeTrigger) {
         e.preventDefault();
         this.close();
         return;
       }
 
-      // 5. Toggle trigger: [data-zentry-toggle], [data-chatify-toggle]
-      const toggleTrigger = target.closest('[data-zentry-toggle], [data-chatify-toggle]');
+      // 5. Toggle trigger: [data-orbat-toggle], [data-zentry-toggle], [data-chatify-toggle]
+      const toggleTrigger = target.closest('[data-orbat-toggle], [data-zentry-toggle], [data-chatify-toggle]');
       if (toggleTrigger) {
         e.preventDefault();
         this.toggle();
@@ -8543,6 +8543,8 @@ if (typeof window !== 'undefined') {
     (window as any).Chatify ||
     makeStub();
 
+  (window as any).OrbatAI = initialStub;
+  (window as any).Orbat = initialStub;
   (window as any).Zentry = initialStub;
   (window as any)['Zen-try'] = initialStub;
   (window as any).Chatify = initialStub;
@@ -8576,6 +8578,8 @@ if (typeof window !== 'undefined') {
       instance: widget,
     };
 
+    (window as any).OrbatAI = api;
+    (window as any).Orbat = api;
     (window as any).Zentry = api;
     (window as any)['Zen-try'] = api;
     (window as any).Chatify = api;

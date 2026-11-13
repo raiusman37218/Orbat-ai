@@ -101,7 +101,7 @@ export async function connectCustomDomainAction(
 
     // 5. Store pending domain in Supabase with status 'connecting'
     const now = new Date().toISOString();
-    const token = `zentry_tok_${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`;
+    const token = `orbat_tok_${Math.random().toString(36).substring(2, 10)}${Date.now().toString(36)}`;
 
     const { data: updated, error: updateErr } = await supabase
       .from('workspaces')
@@ -310,7 +310,7 @@ export async function verifyWorkspaceDomainAction(
           try {
             body = await probe.clone().json();
           } catch {}
-          if (body?.app === 'zentry' || body?.app === 'chatify' || body?.workspaceId === workspaceId) {
+          if (body?.app === 'orbat' || body?.app === 'zentry' || body?.app === 'chatify' || body?.workspaceId === workspaceId) {
             appReachable = true;
           }
         }

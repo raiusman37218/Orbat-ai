@@ -2,7 +2,7 @@ import React from 'react';
 import { PlatformOpsView } from '@/components/admin/PlatformOpsView';
 
 export const metadata = {
-  title: 'Platform Operations & Control — Zentry Super Admin',
+  title: 'Platform Operations & Control — Orbat AI Super Admin',
   description: 'Manage global feature flags, announcements, system settings, email templates, and platform staff.',
 };
 

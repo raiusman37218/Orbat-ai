@@ -221,8 +221,8 @@ export function WebhooksSettings({ workspaceId }: { workspaceId: string }) {
       )}
 
       <p className="text-xs text-ink-3">
-        Each request is a JSON POST with <code className="font-mono">X-Zentry-Event</code> and{' '}
-        <code className="font-mono">X-Zentry-Signature: sha256=…</code>, the HMAC-SHA256 of the raw body keyed with the signing secret. Answer with any
+        Each request is a JSON POST with <code className="font-mono">X-Orbat-Event</code> (or <code className="font-mono">X-Zentry-Event</code>) and{' '}
+        <code className="font-mono">X-Orbat-Signature: sha256=…</code>, the HMAC-SHA256 of the raw body keyed with the signing secret. Answer with any
         2xx status; other answers are retried up to five times, with growing gaps.
       </p>
 
@@ -247,7 +247,7 @@ export function WebhooksSettings({ workspaceId }: { workspaceId: string }) {
               <Input value={draft.name} maxLength={80} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
             </Field>
             <Field label="Endpoint URL" hint="A public https address." error={formError}>
-              <Input value={draft.url} placeholder="https://example.com/zentry-events" autoFocus onChange={(e) => setDraft({ ...draft, url: e.target.value })} />
+              <Input value={draft.url} placeholder="https://example.com/orbat-events" autoFocus onChange={(e) => setDraft({ ...draft, url: e.target.value })} />
             </Field>
             <fieldset className="space-y-2">
               <legend className="field-label">Events</legend>

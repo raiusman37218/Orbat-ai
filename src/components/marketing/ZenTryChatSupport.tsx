@@ -5,13 +5,13 @@ import { useEffect } from 'react';
 import { WidgetLoader } from './WidgetLoader';
 
 /**
- * Zen-try official live support workspace ID.
+ * Orbat AI official live support workspace ID.
  * Workspace: "Zen-try" (owner: zentry385@gmail.com)
  */
 export const ZENTRY_WORKSPACE_ID = 'b2d91676-2e98-46b7-8543-6e0711c78c44';
 
 /**
- * Embeds Zen-try Live Chat Support widget on public visitor pages.
+ * Embeds Orbat AI Live Chat Support widget on public visitor pages.
  *
  * Route exclusions:
  * - /widget: Avoid nested widget recursion.

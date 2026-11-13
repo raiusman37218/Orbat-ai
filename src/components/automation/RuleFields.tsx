@@ -281,9 +281,9 @@ function ActionValue({ action, lookups, macro, label, onChange }: { action: Rule
     case 'webhook':
       return (
         <div className="space-y-2">
-          <Input aria-label={`${label} URL`} inputMode="url" placeholder="https://example.com/hooks/zentry" value={action.url ?? ''} onChange={(e) => onChange({ ...action, url: e.target.value })} />
+          <Input aria-label={`${label} URL`} inputMode="url" placeholder="https://example.com/hooks/orbat" value={action.url ?? ''} onChange={(e) => onChange({ ...action, url: e.target.value })} />
           <Input aria-label={`${label} signing secret`} placeholder="Signing secret (optional)" value={action.secret ?? ''} onChange={(e) => onChange({ ...action, secret: e.target.value })} />
-          <p className="text-2xs text-ink-3">We POST the ticket as JSON. With a secret, the body is signed in the X-Zentry-Signature header (HMAC-SHA256).</p>
+          <p className="text-2xs text-ink-3">We POST the ticket as JSON. With a secret, the body is signed in the X-Orbat-Signature header (HMAC-SHA256).</p>
         </div>
       );
     default:

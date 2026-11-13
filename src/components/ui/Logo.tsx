@@ -32,7 +32,7 @@ export function Logo({
       >
         <img
           src="/logo.png"
-          alt="Zen-try Logo"
+          alt="Orbat AI Logo"
           width={pixelSize}
           height={pixelSize}
           className="w-full h-full object-contain filter drop-shadow-sm"
@@ -44,7 +44,7 @@ export function Logo({
             pixelSize >= 40 ? 'text-lg' : pixelSize >= 32 ? 'text-base' : 'text-md'
           } ${textClassName}`}
         >
-          Zen<span className="text-accent">-try</span>
+          Orbat<span className="text-accent"> AI</span>
         </span>
       )}
     </div>

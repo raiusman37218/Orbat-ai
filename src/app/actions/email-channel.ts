@@ -252,11 +252,11 @@ export async function sendForwardingTestAction(workspaceId: string): Promise<Res
 
     const code = `ZENTRY-CHECK-${randomToken(6)}`;
     const result = await provider.send({
-      from: { email: forwarding, name: settings.from_name || 'Zentry' },
+      from: { email: forwarding, name: settings.from_name || 'Orbat AI' },
       to: [{ email: settings.custom_address }],
-      subject: 'Zentry forwarding check',
-      text: `This is a test message from Zentry.\n\nIf you can read it in the inbox of ${settings.custom_address}, nothing more is needed on your side unless forwarding is not set up yet. Once your forwarding to ${forwarding} works, this message returns to Zentry and the check passes by itself.\n\n${code}`,
-      html: `<p>This is a test message from Zentry.</p><p>Once forwarding from <b>${settings.custom_address}</b> to <b>${forwarding}</b> works, this message returns to Zentry and the check passes by itself.</p><p style="color:#8a94a0">${code}</p>`,
+      subject: 'Orbat AI forwarding check',
+      text: `This is a test message from Orbat AI.\n\nIf you can read it in the inbox of ${settings.custom_address}, nothing more is needed on your side unless forwarding is not set up yet. Once your forwarding to ${forwarding} works, this message returns to Orbat AI and the check passes by itself.\n\n${code}`,
+      html: `<p>This is a test message from Orbat AI.</p><p>Once forwarding from <b>${settings.custom_address}</b> to <b>${forwarding}</b> works, this message returns to Orbat AI and the check passes by itself.</p><p style="color:#8a94a0">${code}</p>`,
       headers: { 'X-Zentry-Mail': '1', 'Auto-Submitted': 'auto-generated' },
     });
     if (!result.ok) throw userError(result.error);

@@ -41,7 +41,7 @@ export async function GET(request: Request) {
 
   return NextResponse.json({
     ok: !!ws,
-    app: 'zentry',
+    app: 'orbat',
     host,
     workspaceId: ws?.id ?? null,
     slug: ws?.slug ?? null,

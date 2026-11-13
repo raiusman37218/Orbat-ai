@@ -1,6 +1,8 @@
 import React from 'react';
 import { headers } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
+import { sessionUser } from '@/lib/supabase/session-user';
+import { queryRows } from '@/lib/db';
 import { Agent } from '@/types/database';
 import { SuperAdminShell } from '@/components/admin/SuperAdminShell';
 import { ToastProvider } from '@/components/ui/Toast';
@@ -17,17 +19,7 @@ export default async function AdminLayout({
   }
 
   const supabase = await createClient();
-
-  // getClaims verifies the session locally; the two lookups run together.
-  const { data: claimData } = await supabase.auth.getClaims();
-  const claims = claimData?.claims;
-  const user = claims?.sub
-    ? {
-        id: claims.sub as string,
-        email: (claims.email as string | undefined) ?? '',
-        user_metadata: (claims.user_metadata as Record<string, string> | undefined) ?? {},
-      }
-    : null;
+  const user = await sessionUser(supabase);
 
   if (!user) {
     return (
@@ -44,7 +36,7 @@ export default async function AdminLayout({
             href="/login?redirect=/admin"
             className="inline-block px-4 py-2 rounded-xl bg-accent text-accent-ink text-xs font-semibold hover:opacity-90 transition-opacity"
           >
-            Sign in to Zentry
+            Sign in to Orbat AI
           </a>
         </div>
       </div>
@@ -52,10 +44,28 @@ export default async function AdminLayout({
   }
 
   // Server-side database verification of platform super admin privilege from platform_access table
-  const [{ data: access }, { data: agent }] = await Promise.all([
-    supabase.from('platform_access').select('role').eq('user_id', user.id).maybeSingle(),
-    supabase.from('agents').select('*').eq('id', user.id).maybeSingle(),
-  ]);
+  let access: { role?: string } | null = null;
+  let agent: Agent | null = null;
+  try {
+    const [accessRows, agentRows] = await Promise.all([
+      queryRows<{ role: string }>('SELECT role FROM public.platform_access WHERE user_id = $1 LIMIT 1', [user.id]),
+      queryRows<Agent>('SELECT * FROM public.agents WHERE id = $1 LIMIT 1', [user.id]),
+    ]);
+    access = accessRows[0] || null;
+    agent = agentRows[0] || null;
+  } catch {
+    access = null;
+    agent = null;
+  }
+
+  if (!access || !agent) {
+    const [{ data: sbAccess }, { data: sbAgent }] = await Promise.all([
+      access ? Promise.resolve({ data: access }) : supabase.from('platform_access').select('role').eq('user_id', user.id).maybeSingle(),
+      agent ? Promise.resolve({ data: agent }) : supabase.from('agents').select('*').eq('id', user.id).maybeSingle(),
+    ]);
+    if (!access) access = sbAccess || null;
+    if (!agent) agent = (sbAgent as Agent) || null;
+  }
 
   if (!access || !['owner', 'admin'].includes(access.role)) {
     return (
@@ -70,7 +80,7 @@ export default async function AdminLayout({
           </p>
           <div className="p-3 rounded-xl bg-surface-2 border border-border-subtle text-xs text-ink-3 space-y-1">
             <p>Signed in as: <strong className="text-ink">{user.email}</strong></p>
-            <p className="text-ink-4">Platform owner access is assigned to <strong className="text-ink">zentry385@gmail.com</strong>.</p>
+            <p className="text-ink-4">Platform owner access is assigned to designated Orbat AI platform administrators.</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 justify-center pt-2">
             <a

@@ -1,0 +1,33 @@
+# ==========================================
+# Multi-stage Dockerfile for Orbat AI BullMQ Background Worker
+# ==========================================
+
+FROM node:20-alpine AS builder
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm ci
+
+COPY tsconfig*.json nest-cli.json ./
+COPY src/ ./src/
+COPY scripts/ ./scripts/
+RUN npm run build
+RUN npm prune --production
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+
+ENV NODE_ENV=production
+ENV IS_WORKER=true
+
+RUN apk add --no-cache dumb-init
+
+USER node
+
+COPY --chown=node:node --from=builder /app/package*.json ./
+COPY --chown=node:node --from=builder /app/node_modules ./node_modules
+COPY --chown=node:node --from=builder /app/dist ./dist
+
+ENTRYPOINT ["dumb-init", "--"]
+CMD ["node", "dist/src/main.js"]
+

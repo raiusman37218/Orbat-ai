@@ -233,7 +233,7 @@ export default function CsatSurveyPage({ params }: { params: Promise<{ ticketId:
 
         {/* Footer */}
         <div className="text-center mt-6 text-2xs text-ink-3">
-          Powered by Zentry Customer Support
+          Powered by Orbat AI Customer Support
         </div>
       </div>
     </main>

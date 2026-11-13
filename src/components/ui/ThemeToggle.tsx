@@ -6,8 +6,8 @@ import { cn } from '@/lib/utils';
 
 type Theme = 'light' | 'dark' | 'system';
 
-const STORAGE_KEY = 'zentry-theme';
-const LEGACY_STORAGE_KEY = 'chatify-theme';
+const STORAGE_KEY = 'orbat-theme';
+const LEGACY_STORAGE_KEYS = ['zentry-theme', 'chatify-theme'];
 
 const OPTIONS: { value: Theme; label: string; Icon: typeof Sun }[] = [
   { value: 'light', label: 'Light', Icon: Sun },
@@ -51,7 +51,10 @@ function subscribe(onChange: () => void) {
 
 function getSnapshot(): Theme {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY) || localStorage.getItem(LEGACY_STORAGE_KEY);
+    const stored =
+      localStorage.getItem(STORAGE_KEY) ||
+      localStorage.getItem(LEGACY_STORAGE_KEYS[0]) ||
+      localStorage.getItem(LEGACY_STORAGE_KEYS[1]);
     return stored === 'light' || stored === 'dark' ? stored : 'system';
   } catch {
     return 'system';

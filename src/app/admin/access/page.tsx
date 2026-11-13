@@ -3,7 +3,7 @@ import { assertPlatformOwner } from '@/app/actions/platform';
 import { AdminAccessView } from '@/components/admin/AdminAccessView';
 
 export const metadata = {
-  title: 'Admin Access — Zentry Super Admin',
+  title: 'Admin Access — Orbat AI Super Admin',
   description: 'Manage platform admin privileges. Only the platform owner can grant or revoke access.',
 };
 

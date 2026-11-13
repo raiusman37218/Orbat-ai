@@ -203,7 +203,10 @@ export function CustomDomainSetup({
             </div>
             <button
               type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('zentry:open-upgrade-modal', { detail: { feature: 'custom_help_center_domain', targetPlan: 'enterprise' } }))}
+              onClick={() => {
+                window.dispatchEvent(new CustomEvent('orbat:open-upgrade-modal', { detail: { feature: 'custom_help_center_domain', targetPlan: 'enterprise' } }));
+                window.dispatchEvent(new CustomEvent('zentry:open-upgrade-modal', { detail: { feature: 'custom_help_center_domain', targetPlan: 'enterprise' } }));
+              }}
               className="btn btn-xs btn-primary shrink-0 self-start sm:self-center font-semibold text-2xs"
             >
               Upgrade to Enterprise
@@ -215,6 +218,7 @@ export function CustomDomainSetup({
           onSubmit={(e) => {
             e.preventDefault();
             if (workspace.plan !== 'enterprise' && workspace.plan !== 'legacy') {
+              window.dispatchEvent(new CustomEvent('orbat:open-upgrade-modal', { detail: { feature: 'custom_help_center_domain', targetPlan: 'enterprise' } }));
               window.dispatchEvent(new CustomEvent('zentry:open-upgrade-modal', { detail: { feature: 'custom_help_center_domain', targetPlan: 'enterprise' } }));
               return;
             }

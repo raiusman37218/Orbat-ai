@@ -151,7 +151,7 @@ export function SetupChecklist({
     {
       id: 'install',
       title: 'Install widget',
-      description: 'Add the Zen-try script tag to your website before the closing </body> tag.',
+      description: 'Add the Orbat AI script tag to your website before the closing </body> tag.',
       done: isWidgetDetected,
       statusBadge: isWidgetDetected ? (
         <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-2xs font-semibold bg-success/15 text-success border border-success/25">
@@ -343,7 +343,7 @@ export function SetupChecklist({
   const origin = getWidgetOrigin();
   const workspaceId = workspace?.id || 'YOUR_WORKSPACE_ID';
 
-  const embedSnippet = `<!-- Zen-try Live Chat Support -->
+  const embedSnippet = `<!-- Orbat AI Live Chat Support -->
 <script
   src="${origin}/widget.js"
   data-workspace-id="${workspaceId}"

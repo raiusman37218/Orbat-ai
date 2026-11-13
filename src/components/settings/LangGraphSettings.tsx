@@ -197,7 +197,7 @@ export function LangGraphSettings({ workspaceId }: { workspaceId: string }) {
           </div>
 
           <Field label="Agent URL" hint="Must be https:// on the public internet. Zentry POSTs each customer message here.">
-            <Input value={url} placeholder="https://my-agent.example.com/zentry" onChange={(e) => setUrl(e.target.value)} inputMode="url" autoComplete="off" />
+            <Input value={url} placeholder="https://my-agent.example.com/orbat" onChange={(e) => setUrl(e.target.value)} inputMode="url" autoComplete="off" />
           </Field>
 
           <Field

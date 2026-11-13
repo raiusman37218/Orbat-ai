@@ -88,6 +88,7 @@ export function SuperAdminShell({ currentAgent, children }: SuperAdminShellProps
     document.documentElement.setAttribute('data-theme', nextTheme);
     try {
       localStorage.setItem('theme', nextTheme);
+      localStorage.setItem('orbat-theme', nextTheme);
       localStorage.setItem('zentry-theme', nextTheme);
     } catch {}
   };
@@ -145,7 +146,7 @@ export function SuperAdminShell({ currentAgent, children }: SuperAdminShellProps
                 <Shield className="w-4 h-4" />
               </div>
               <div className="flex flex-col">
-                <span className="font-bold tracking-tight text-ink text-sm">Zentry</span>
+                <span className="font-bold tracking-tight text-ink text-sm">Orbat AI</span>
                 <span className="text-2xs font-semibold uppercase tracking-wider text-accent -mt-0.5">
                   Platform Admin
                 </span>
@@ -388,7 +389,7 @@ export function SuperAdminShell({ currentAgent, children }: SuperAdminShellProps
                     <Shield className="w-4 h-4" />
                   </div>
                   <div>
-                    <span className="font-bold text-sm block">Zentry</span>
+                    <span className="font-bold text-sm block">Orbat AI</span>
                     <span className="text-2xs text-accent uppercase font-semibold">Super Admin</span>
                   </div>
                 </div>

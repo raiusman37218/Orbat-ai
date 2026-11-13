@@ -512,10 +512,10 @@ export function IntegrationsSettings({
                 <div>
                   <span className="text-2xs font-semibold text-ink-3 uppercase">Verify Token</span>
                   <div className="flex items-center justify-between p-2.5 rounded-xl bg-surface-2 border border-line font-mono text-xs mt-1">
-                    <span className="text-ink">{formData.meta_verify_token || 'zentry_meta_verify_secret'}</span>
+                    <span className="text-ink">{formData.meta_verify_token || 'orbat_meta_verify_secret'}</span>
                     <button
                       type="button"
-                      onClick={() => copyToClipboard(formData.meta_verify_token || 'zentry_meta_verify_secret', 'meta-token')}
+                      onClick={() => copyToClipboard(formData.meta_verify_token || 'orbat_meta_verify_secret', 'meta-token')}
                       className="btn btn-xs btn-ghost text-ink-3 hover:text-ink gap-1"
                     >
                       {copiedField === 'meta-token' ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}

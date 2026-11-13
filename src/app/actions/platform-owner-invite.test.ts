@@ -507,7 +507,7 @@ describe('Requirement 8: Platform Admin Access Security Suite', () => {
     });
   });
 
-  describe('6. Platform owner can grant admin access directly to existing Zentry account', () => {
+  describe('6. Platform owner can grant admin access directly to existing Orbat AI account', () => {
     it('grants admin access immediately and logs audit', async () => {
       fakeState.user = { id: fakeState.OWNER_ID, email: 'zentry385@gmail.com' };
 

@@ -10,7 +10,7 @@ interface GoogleButtonProps {
   className?: string;
 }
 
-export function GoogleIcon({ className = 'w-4 h-4' }: { className?: string }) {
+export function GoogleIcon({ className = 'w-5 h-5' }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" aria-hidden="true">
       <path
@@ -45,17 +45,19 @@ export function GoogleButton({
       type="button"
       onClick={onClick}
       disabled={disabled || loading}
-      className={`relative w-full h-11 px-4 rounded-xl border border-line-2 bg-surface hover:bg-surface-2 active:bg-surface-3 text-ink font-medium text-ui flex items-center justify-center gap-3 transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs hover:border-line-3 ${className}`}
+      className={`group relative w-full h-11 sm:h-12 px-4 rounded-xl border border-line-2 bg-surface hover:bg-surface-2 active:bg-surface-3 text-ink font-semibold text-sm sm:text-base flex items-center justify-center gap-3 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-xs hover:shadow-sm hover:border-line-3 cursor-pointer select-none ${className}`}
     >
       {loading ? (
         <>
-          <span className="w-4 h-4 rounded-full border-2 border-ink-3 border-t-transparent animate-spin" />
-          <span>Connecting to Google…</span>
+          <span className="w-4 h-4 rounded-full border-2 border-[#4285F4] border-t-transparent animate-spin" />
+          <span className="text-ink-2 font-medium">Connecting to Google…</span>
         </>
       ) : (
         <>
-          <GoogleIcon className="w-4 h-4 shrink-0" />
-          <span>{text}</span>
+          <div className="w-5 h-5 flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110">
+            <GoogleIcon className="w-5 h-5" />
+          </div>
+          <span className="tracking-tight">{text}</span>
         </>
       )}
     </button>

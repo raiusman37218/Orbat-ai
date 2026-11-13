@@ -5,7 +5,7 @@ import { PricingView } from '@/components/pricing/PricingView';
 import { getPublicPlansAction } from '@/app/actions/plans';
 
 export const metadata = {
-  title: 'Pricing & Plans — Zen-try',
+  title: 'Pricing & Plans — Orbat AI',
   description:
     'Transparent, predictable plans for modern customer care teams. Omnichannel inbox, AI agent, custom help center, and SLA enforcement.',
 };

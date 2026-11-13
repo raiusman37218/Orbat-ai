@@ -1378,3 +1378,109 @@
 @media (prefers-reduced-motion: reduce) {
   .lx-reveal { opacity: 1; transform: none; }
 }
+
+/* ==========================================================================
+   RESOLVO SOFTWARE TEMPLATE DESIGN SYSTEM UTILITIES
+   ========================================================================== */
+.resolvo-hero-bg {
+  background: radial-gradient(circle at 50% 25%, rgba(79, 70, 229, 0.12) 0%, rgba(155, 149, 255, 0.05) 45%, transparent 70%),
+              linear-gradient(180deg, #f8f7fe 0%, #ffffff 100%);
+}
+
+.resolvo-glow {
+  box-shadow: 0 0 56px 0 rgba(79, 70, 229, 0.14);
+}
+
+.resolvo-card {
+  background-color: #ffffff;
+  border: 1px solid #e5e3fb;
+  border-radius: 1.25rem;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.resolvo-card:hover {
+  border-color: #4f46e5;
+  box-shadow: 0 12px 36px rgba(79, 70, 229, 0.12);
+}
+
+.resolvo-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.3rem 0.85rem;
+  border-radius: 9999px;
+  background-color: #ededfc;
+  border: 1px solid #e0e7ff;
+  color: #4f46e5;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.resolvo-badge-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background-color: #4f46e5;
+}
+
+/* ==========================================================================
+   CHATDECK ANIMATION & COMPONENT UTILITIES (PRESERVING INDIGO PALETTE)
+   ========================================================================== */
+@keyframes logo-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-logo-scroll {
+  display: flex;
+  width: max-content;
+  animation: logo-scroll 30s linear infinite;
+}
+
+.animate-logo-scroll:hover {
+  animation-play-state: paused;
+}
+
+@keyframes marquee-scroll {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes marquee-reverse-scroll {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0); }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee-scroll 45s linear infinite;
+}
+
+.animate-marquee-reverse {
+  display: flex;
+  width: max-content;
+  animation: marquee-reverse-scroll 45s linear infinite;
+}
+
+.animate-marquee:hover,
+.animate-marquee-reverse:hover {
+  animation-play-state: paused;
+}
+
+@keyframes shimmer-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+.animate-shimmer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+  animation: shimmer-slide 2.5s infinite;
+}
+

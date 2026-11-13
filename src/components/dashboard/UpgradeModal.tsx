@@ -51,8 +51,8 @@ const FEATURE_HIGHLIGHTS: Record<string, { title: string; desc: string; plan: st
     icon: Globe,
   },
   remove_branding: {
-    title: 'Remove Zentry Branding',
-    desc: 'Deliver a 100% white-labeled experience by hiding the "Powered by Zentry" badge on your widget and help portal.',
+    title: 'Remove Orbat AI Branding',
+    desc: 'Deliver a 100% white-labeled experience by hiding the "Powered by Orbat AI" badge on your widget and help portal.',
     plan: 'Enterprise',
     slug: 'enterprise',
     icon: Shield,

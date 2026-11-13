@@ -25,24 +25,24 @@ describe('getRequestOrigin', () => {
 
   it('uses x-forwarded-host and proto when origin is not provided', async () => {
     const headers = new Headers({
-      'x-forwarded-host': 'app.zen-try.site',
+      'x-forwarded-host': 'app.orbatai.com',
       'x-forwarded-proto': 'https',
     });
     const origin = await getRequestOrigin(headers);
-    expect(origin).toBe('https://app.zen-try.site');
+    expect(origin).toBe('https://app.orbatai.com');
   });
 
   it('strips trailing slashes from origin', async () => {
-    const headers = new Headers({ origin: 'https://zen-try.site///' });
+    const headers = new Headers({ origin: 'https://orbatai.com///' });
     const origin = await getRequestOrigin(headers);
-    expect(origin).toBe('https://zen-try.site');
+    expect(origin).toBe('https://orbatai.com');
   });
 
   it('prioritizes live request origin over NEXT_PUBLIC_APP_URL localhost config', async () => {
     process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000';
-    const headers = new Headers({ origin: 'https://zen-try.site' });
+    const headers = new Headers({ origin: 'https://orbatai.com' });
     const origin = await getRequestOrigin(headers);
-    expect(origin).toBe('https://zen-try.site');
+    expect(origin).toBe('https://orbatai.com');
   });
 
   it('falls back to non-localhost NEXT_PUBLIC_APP_URL when no request is passed', async () => {
@@ -60,7 +60,7 @@ describe('getRequestOrigin', () => {
 
   it('falls back to default production url when no env is configured', async () => {
     const origin = await getRequestOrigin(null);
-    expect(origin).toBe('https://zen-try.site');
+    expect(origin).toBe('https://orbatai.com');
   });
 
   it('preserves localhost in local dev when explicit localhost header is provided without live fallback', async () => {

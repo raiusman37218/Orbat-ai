@@ -116,7 +116,7 @@ export function ApiKeysPanel({ workspaceId }: { workspaceId: string }) {
     }
   };
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://zen-try.site';
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://orbatai.com';
   const example = `curl -X POST ${origin}/api/v1/conversations \\
   -H "Authorization: Bearer zk_live_..." \\
   -H "Content-Type: application/json" \\

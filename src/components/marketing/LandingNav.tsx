@@ -1,151 +1,139 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Menu, X } from 'lucide-react';
 import { Logo } from '@/components/ui/Logo';
 import { ThemeToggle } from '@/components/ui/ThemeToggle';
 
+const menuItems = [
+  { name: 'Features', href: '#features' },
+  { name: 'Team', href: '#team' },
+  { name: 'Testimonials', href: '#testimonials' },
+  { name: 'Pricing', href: '#pricing' },
+  { name: 'FAQ', href: '#faq' },
+];
+
 export function LandingNav() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      setIsScrolled(window.scrollY > 40);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
-    // data-zentry-no-nav: this nav already links the Help Center and FAQ, so
-    // the embedded widget must not add its own link here.
-    <header className="sticky top-0 z-50 border-b border-line/70 bg-surface/80 backdrop-blur-xl" data-zentry-no-nav="">
-      <div className="u-container h-16 flex items-center justify-between gap-4 sm:gap-6 flex-nowrap">
-        <Link href="/" className="flex items-center min-h-11 shrink-0 whitespace-nowrap">
-          <Logo size={34} />
+    <header className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-6 pt-3 pb-2 transition-all duration-300" data-orbat-no-nav="" data-zentry-no-nav="">
+      <div
+        className={`mx-auto transition-all duration-300 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4 ${
+          isScrolled
+            ? 'max-w-4xl rounded-full bg-white/85 dark:bg-[#060c1c]/85 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.08)]'
+            : 'max-w-6xl rounded-2xl bg-white/70 dark:bg-[#060c1c]/70 backdrop-blur-md border border-slate-200/60 dark:border-white/10 shadow-xs'
+        }`}
+      >
+        {/* Logo */}
+        <Link href="/" className="flex items-center gap-2 select-none shrink-0">
+          <Logo size={32} />
         </Link>
 
-        {/* Desktop Navigation Links: visible at >= 1024px, never wrap to two lines */}
-        <nav className="hidden lg:flex items-center gap-1 text-ui font-medium shrink-0 whitespace-nowrap">
-          {[
-            ['Product', '/#product'],
-            ['Pricing', '/pricing'],
-            ['How it works', '/#how'],
-            ['Install', '/#install'],
-            ['FAQ', '/#faq'],
-          ].map(([label, href]) => (
+        {/* Desktop Navigation Links */}
+        <nav className="hidden md:flex items-center gap-1 sm:gap-2 text-sm font-medium">
+          {menuItems.map((item) => (
             <Link
-              key={href}
-              href={href}
-              className="px-3 py-1.5 rounded-lg text-ink-2 hover:text-ink hover:bg-surface-3 transition-colors shrink-0 whitespace-nowrap"
+              key={item.name}
+              href={item.href}
+              className="px-3.5 py-1.5 rounded-full text-[#596171] hover:text-[#4f46e5] dark:text-slate-300 dark:hover:text-white hover:bg-[#ededfc] dark:hover:bg-white/10 transition-colors"
             >
-              {label}
+              {item.name}
             </Link>
           ))}
-          <Link
-            href="/help"
-            className="px-3 py-1.5 rounded-lg text-ink-2 hover:text-ink hover:bg-surface-3 transition-colors shrink-0 whitespace-nowrap"
-          >
-            Help Center
-          </Link>
           <a
             href="/demo.html"
             target="_blank"
             rel="noreferrer"
-            className="px-3 py-1.5 rounded-lg text-ink-2 hover:text-ink hover:bg-surface-3 transition-colors inline-flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+            className="px-3.5 py-1.5 rounded-full text-[#596171] hover:text-[#4f46e5] dark:text-slate-300 dark:hover:text-white hover:bg-[#ededfc] dark:hover:bg-white/10 transition-colors inline-flex items-center gap-1.5"
           >
-            <span>Live demo</span>
-            <span className="live-dot" />
+            <span>Live Demo</span>
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
           </a>
         </nav>
 
-        {/* Right CTA Actions: never wrap to two lines */}
-        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 whitespace-nowrap flex-nowrap">
-          <ThemeToggle className="hidden sm:inline-flex shrink-0" />
+        {/* Right Actions */}
+        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
+          <ThemeToggle className="inline-flex shrink-0" />
+
           <Link
             href="/login"
-            className="hidden sm:inline-flex btn btn-sm btn-ghost font-semibold text-ink-2 hover:text-ink shrink-0 whitespace-nowrap"
+            className="hidden sm:inline-flex px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-[#596171] hover:text-[#060c1c] dark:text-slate-300 dark:hover:text-white transition-colors"
           >
-            Sign in
+            Sign In
           </Link>
-          <Link href="/signup" className="btn btn-sm btn-primary shadow-xs shrink-0 whitespace-nowrap max-sm:h-11 max-sm:px-4">
-            <span>Get started</span>
+
+          <Link
+            href="/signup"
+            className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-full bg-[#4f46e5] hover:bg-[#4338ca] text-white text-xs sm:text-sm font-semibold shadow-[0_2px_12px_rgba(79,70,229,0.3)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+          >
+            <span>Get Started</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </Link>
 
-          {/* Mobile/Tablet menu trigger below 1024px */}
+          {/* Mobile hamburger trigger */}
           <button
             type="button"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
             aria-label="Toggle navigation menu"
-            className="lg:hidden w-11 h-11 flex items-center justify-center rounded-xl text-ink-2 hover:text-ink hover:bg-surface-2 transition-colors border border-line shrink-0"
+            className="md:hidden w-9 h-9 flex items-center justify-center rounded-full text-[#060c1c] dark:text-white hover:bg-[#ededfc] dark:hover:bg-white/10 transition-colors border border-slate-200 dark:border-white/10"
           >
-            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
-      {/* Mobile/Tablet Menu Dropdown Drawer (below 1024px) */}
+      {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-b border-line bg-surface px-5 py-4 space-y-3 animate-in fade-in slide-in-from-top-2 duration-150 shadow-lg">
+        <div className="md:hidden mt-2 max-w-4xl mx-auto rounded-3xl bg-white/95 dark:bg-[#060c1c]/95 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 p-5 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150">
           <nav className="flex flex-col space-y-1 text-sm font-medium">
-            <Link
-              href="/#product"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 min-h-11 flex items-center rounded-lg text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
-            >
-              Product
-            </Link>
-            <Link
-              href="/pricing"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 min-h-11 flex items-center rounded-lg text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
-            >
-              Pricing
-            </Link>
-            <Link
-              href="/#how"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 min-h-11 flex items-center rounded-lg text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
-            >
-              How it works
-            </Link>
-            <Link
-              href="/#install"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 min-h-11 flex items-center rounded-lg text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
-            >
-              Installation
-            </Link>
-            <Link
-              href="/#faq"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 min-h-11 flex items-center rounded-lg text-ink hover:bg-surface-2 transition-colors whitespace-nowrap"
-            >
-              FAQ
-            </Link>
-            <Link
-              href="/help"
-              onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 min-h-11 flex items-center rounded-lg text-ink hover:bg-surface-2 transition-colors flex items-center justify-between whitespace-nowrap"
-            >
-              <span>Help Center</span>
-            </Link>
+            {menuItems.map((item) => (
+              <Link
+                key={item.name}
+                href={item.href}
+                onClick={() => setMobileMenuOpen(false)}
+                className="px-3.5 py-2.5 rounded-xl text-[#060c1c] dark:text-white hover:bg-[#ededfc] dark:hover:bg-white/10"
+              >
+                {item.name}
+              </Link>
+            ))}
             <a
               href="/demo.html"
               target="_blank"
               rel="noreferrer"
               onClick={() => setMobileMenuOpen(false)}
-              className="px-3 py-2 min-h-11 rounded-lg text-accent font-semibold hover:bg-accent/10 transition-colors flex items-center justify-between whitespace-nowrap"
+              className="px-3.5 py-2.5 rounded-xl text-[#060c1c] dark:text-white hover:bg-[#ededfc] dark:hover:bg-white/10 flex items-center justify-between"
             >
-              <span>Live demo</span>
-              <span className="live-dot" />
+              <span>Live Demo</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             </a>
+            <div className="pt-3 mt-2 border-t border-slate-100 dark:border-white/10 flex flex-col gap-2">
+              <Link
+                href="/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="px-3.5 py-2.5 text-center rounded-xl text-sm font-semibold border border-slate-200 dark:border-white/10 text-[#060c1c] dark:text-white"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/signup"
+                onClick={() => setMobileMenuOpen(false)}
+                className="px-3.5 py-2.5 text-center rounded-xl text-sm font-semibold bg-[#4f46e5] text-white shadow-md"
+              >
+                Get Started
+              </Link>
+            </div>
           </nav>
-
-          <div className="pt-3 border-t border-line flex items-center justify-between gap-3">
-            <ThemeToggle />
-            <Link
-              href="/login"
-              onClick={() => setMobileMenuOpen(false)}
-              className="btn btn-sm btn-secondary flex-1 justify-center whitespace-nowrap max-sm:h-11"
-            >
-              Sign in
-            </Link>
-          </div>
         </div>
       )}
     </header>

@@ -259,11 +259,11 @@ export function TraderDataSettings({ workspaceId }: { workspaceId: string }) {
 
           <Field
             label={isSupabase ? 'Supabase project URL' : 'Endpoint URL'}
-            hint={isSupabase ? 'Supabase → Project Settings → API → Project URL.' : 'Must be https:// on the public internet. Zentry POSTs one request per lookup here.'}
+            hint={isSupabase ? 'Supabase → Project Settings → API → Project URL.' : 'Must be https:// on the public internet. Orbat AI POSTs one request per lookup here.'}
           >
             <Input
               value={url}
-              placeholder={isSupabase ? 'https://abcdefghijklmnop.supabase.co' : 'https://api.yourfirm.com/zentry/lookup'}
+              placeholder={isSupabase ? 'https://abcdefghijklmnop.supabase.co' : 'https://api.yourfirm.com/orbat/lookup'}
               onChange={(e) => setUrl(e.target.value)}
               inputMode="url"
               autoComplete="off"

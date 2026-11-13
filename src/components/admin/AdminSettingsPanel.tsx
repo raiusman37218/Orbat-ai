@@ -215,7 +215,7 @@ const ALL_TIMEZONES: string[] = (() => {
 })();
 
 const COLOR_PRESETS = [
-  DEFAULT_BRAND_COLOR, // Zen-try Blue
+  DEFAULT_BRAND_COLOR, // Orbat AI Blue
   '#0d9488', // Teal
   '#10b981', // Emerald
   '#8b5cf6', // Violet
@@ -941,7 +941,7 @@ export function AdminSettingsPanel({
   const origin = getWidgetOrigin();
   // The widget tracks visits and presence itself; tracker.js is only for
   // pages without the chat (and steps aside where the widget is present).
-  const installSnippetCode = `<!-- Zen-try Live Chat Widget -->
+  const installSnippetCode = `<!-- Orbat AI Live Chat Widget -->
 <script
   src="${origin}/widget.js"
   data-workspace-id="${workspace.id}"
@@ -1075,8 +1075,8 @@ export function AdminSettingsPanel({
     navbarConfig.action === 'redirect'
       ? `<a href="${getWorkspaceHelpCenterUrl(workspace)}" target="_blank" rel="noopener noreferrer">${manualNavLabel}</a>`
       : navbarConfig.action === 'messages'
-      ? `<a href="#" data-zentry-open data-zentry-tab="messages">${manualNavLabel}</a>`
-      : `<a href="#" data-zentry-help>${manualNavLabel}</a>`;
+      ? `<a href="#" data-orbat-open data-orbat-tab="messages">${manualNavLabel}</a>`
+      : `<a href="#" data-orbat-help>${manualNavLabel}</a>`;
 
   const handleSaveNavbarConfig = async () => {
     setSavingNavbar(true);
@@ -1289,7 +1289,7 @@ export function AdminSettingsPanel({
                     </div>
                     <div className="flex flex-wrap items-center gap-2.5">
                       {[
-                        { color: DEFAULT_BRAND_COLOR, label: 'Zen-try Blue' },
+                        { color: DEFAULT_BRAND_COLOR, label: 'Orbat AI Blue' },
                         { color: '#0d9488', label: 'Teal' },
                         { color: '#10b981', label: 'Emerald' },
                         { color: '#8b5cf6', label: 'Violet' },
@@ -2221,7 +2221,7 @@ export function AdminSettingsPanel({
                     type="text"
                     value={helpCenterFooterText}
                     onChange={(e) => setHelpCenterFooterText(e.target.value)}
-                    placeholder={`© ${new Date().getFullYear()} ${workspace.name}. Powered by Zen-try.`}
+                    placeholder={`© ${new Date().getFullYear()} ${workspace.name}. Powered by Orbat AI.`}
                     className="input"
                   />
                   <p className="text-xs text-ink-3 mt-1">
@@ -2421,7 +2421,7 @@ export function AdminSettingsPanel({
 
                 {/* Mock Footer */}
                 <div className="px-4 py-2.5 bg-surface border-t border-line text-center text-2xs text-ink-3">
-                  {helpCenterFooterText || `© ${new Date().getFullYear()} ${workspace.name}. Powered by Zen-try.`}
+                  {helpCenterFooterText || `© ${new Date().getFullYear()} ${workspace.name}. Powered by Orbat AI.`}
                 </div>
               </div>
             </div>
@@ -3918,7 +3918,7 @@ export function AdminSettingsPanel({
                       </span>
                     </div>
                     <p className="text-2xs text-ink-3">
-                      Paste it into your menu yourself; the automatic link then stays away, so there is never a second one. To keep the automatic link off a page, add <code className="font-mono text-ink">&lt;div data-zentry-no-nav&gt;&lt;/div&gt;</code> to it.
+                      Paste it into your menu yourself; the automatic link then stays away, so there is never a second one. To keep the automatic link off a page, add <code className="font-mono text-ink">&lt;div data-orbat-no-nav&gt;&lt;/div&gt;</code> to it.
                     </p>
 
                     <div className="flex items-center gap-2 bg-invert border border-line-3 rounded-lg p-2 font-mono text-xs text-ink-3">
@@ -3995,7 +3995,7 @@ export function AdminSettingsPanel({
                       <Code className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-lg font-bold text-ink">Install Zen-try &amp; Help Center Widget</h3>
+                      <h3 className="text-lg font-bold text-ink">Install Orbat AI &amp; Help Center Widget</h3>
                       <p className="text-xs text-ink-3">
                         Embed live chat, knowledge base search, and custom Help buttons onto any website or app.
                       </p>
@@ -4103,7 +4103,7 @@ export function AdminSettingsPanel({
                     <button
                       type="button"
                       onClick={() => {
-                        const code = `<button data-zentry-help class="help-btn">\n  📖 Help & FAQs\n</button>`;
+                        const code = `<button data-orbat-help class="help-btn">\n  📖 Help & FAQs\n</button>`;
                         navigator.clipboard.writeText(code);
                         showStatus('Help button trigger copied!');
                       }}
@@ -4117,7 +4117,7 @@ export function AdminSettingsPanel({
                     Clicking this element opens the widget directly into the Help tab and focuses the article search bar.
                   </p>
                   <div className="rounded-lg bg-surface-2 p-3 font-mono text-xs text-ink overflow-x-auto">
-                    <code>&lt;button data-zentry-help class=&quot;help-btn&quot;&gt;&#10;  📖 Help &amp; FAQs&#10;&lt;/button&gt;</code>
+                    <code>&lt;button data-orbat-help class=&quot;help-btn&quot;&gt;&#10;  📖 Help &amp; FAQs&#10;&lt;/button&gt;</code>
                   </div>
                 </div>
 
@@ -4128,7 +4128,7 @@ export function AdminSettingsPanel({
                     <button
                       type="button"
                       onClick={() => {
-                        const code = `<button data-zentry-article="your-article-slug">\n  Read Getting Started Guide ↗\n</button>`;
+                        const code = `<button data-orbat-article="your-article-slug">\n  Read Getting Started Guide ↗\n</button>`;
                         navigator.clipboard.writeText(code);
                         showStatus('Article trigger copied!');
                       }}
@@ -4142,7 +4142,7 @@ export function AdminSettingsPanel({
                     Directly opens and expands an article accordion inside the widget using its slug or ID.
                   </p>
                   <div className="rounded-lg bg-surface-2 p-3 font-mono text-xs text-ink overflow-x-auto">
-                    <code>&lt;button data-zentry-article=&quot;your-article-slug&quot;&gt;&#10;  Read Getting Started Guide ↗&#10;&lt;/button&gt;</code>
+                    <code>&lt;button data-orbat-article=&quot;your-article-slug&quot;&gt;&#10;  Read Getting Started Guide ↗&#10;&lt;/button&gt;</code>
                   </div>
                 </div>
 
@@ -4153,7 +4153,7 @@ export function AdminSettingsPanel({
                     <button
                       type="button"
                       onClick={() => {
-                        const code = `<button data-zentry-open data-zentry-tab="messages">\n  Chat with Support\n</button>`;
+                        const code = `<button data-orbat-open data-orbat-tab="messages">\n  Chat with Support\n</button>`;
                         navigator.clipboard.writeText(code);
                         showStatus('Live chat trigger copied!');
                       }}
@@ -4167,7 +4167,7 @@ export function AdminSettingsPanel({
                     Opens the widget straight into the live chat messenger screen.
                   </p>
                   <div className="rounded-lg bg-surface-2 p-3 font-mono text-xs text-ink overflow-x-auto">
-                    <code>&lt;button data-zentry-open data-zentry-tab=&quot;messages&quot;&gt;&#10;  Chat with Support&#10;&lt;/button&gt;</code>
+                    <code>&lt;button data-orbat-open data-orbat-tab=&quot;messages&quot;&gt;&#10;  Chat with Support&#10;&lt;/button&gt;</code>
                   </div>
                 </div>
               </div>
@@ -4181,7 +4181,7 @@ export function AdminSettingsPanel({
                     3
                   </span>
                   <div>
-                    <h4 className="text-sm font-semibold text-ink">JavaScript SDK API (`window.Zentry`)</h4>
+                    <h4 className="text-sm font-semibold text-ink">JavaScript SDK API (`window.OrbatAI` / `window.OrbatAI`)</h4>
                     <p className="text-xs text-ink-3">
                       Control the widget programmatically in your frontend framework (React, Vue, Angular, Next.js).
                     </p>
@@ -4191,7 +4191,7 @@ export function AdminSettingsPanel({
                 <button
                   type="button"
                   onClick={() => {
-                    const jsCode = `// Open Help Center Tab directly\nwindow.Zentry.openHelp();\n\n// Open Live Chat screen\nwindow.Zentry.openMessages();\n\n// Search articles programmatically\nwindow.Zentry.search('billing');\n\n// Open specific article by slug\nwindow.Zentry.openArticle('how-to-reset-password');\n\n// Toggle widget\nwindow.Zentry.toggle();\n\n// Check if widget is open\nconsole.log(window.Zentry.isOpen());`;
+                    const jsCode = `// Open Help Center Tab directly\nwindow.OrbatAI.openHelp();\n\n// Open Live Chat screen\nwindow.OrbatAI.openMessages();\n\n// Search articles programmatically\nwindow.OrbatAI.search('billing');\n\n// Open specific article by slug\nwindow.OrbatAI.openArticle('how-to-reset-password');\n\n// Toggle widget\nwindow.OrbatAI.toggle();\n\n// Check if widget is open\nconsole.log(window.OrbatAI.isOpen());`;
                     navigator.clipboard.writeText(jsCode);
                     showStatus('JavaScript SDK cheat-sheet copied!');
                   }}
@@ -4204,20 +4204,20 @@ export function AdminSettingsPanel({
 
               <div className="rounded-xl border border-line bg-surface-2 p-4 font-mono text-xs text-ink overflow-x-auto leading-relaxed">
                 <pre><code>{`// 1. Open Help Center Tab directly
-window.Zentry.openHelp();
+window.OrbatAI.openHelp();
 
 // 2. Open Live Chat screen
-window.Zentry.openMessages();
+window.OrbatAI.openMessages();
 
 // 3. Search articles programmatically
-window.Zentry.search('billing');
+window.OrbatAI.search('billing');
 
 // 4. Open specific article by slug
-window.Zentry.openArticle('how-to-reset-password');
+window.OrbatAI.openArticle('how-to-reset-password');
 
 // 5. Toggle or close widget
-window.Zentry.toggle();
-window.Zentry.close();`}</code></pre>
+window.OrbatAI.toggle();
+window.OrbatAI.close();`}</code></pre>
               </div>
             </div>
 
