@@ -4,6 +4,7 @@ import { Conversation, Message, Workspace, Agent, Visitor } from '@/types/databa
 import {
   getAuthToken,
   getBackendBaseUrl,
+  isBackendAuthenticated,
   refreshBackendSession,
   clearAuthSession,
 } from './backend-auth';
@@ -12,9 +13,7 @@ export function getBackendToken(): string | null {
   return getAuthToken();
 }
 
-export function isBackendAuthenticated(): boolean {
-  return Boolean(getAuthToken());
-}
+export { isBackendAuthenticated };
 
 async function request<T>(endpoint: string, options: RequestInit = {}, canRetry = true): Promise<T> {
   let token = getAuthToken();

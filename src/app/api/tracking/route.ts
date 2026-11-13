@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { queryRows } from '@/lib/db';
 import { serviceClient } from '@/lib/supabase/service';
 import { clientIpOf, geoFromRequest } from '@/lib/geo';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { looksLikeVisitorId, openVisitorSession, verifyVisitorToken } from '@/lib/widget/visitor-token';
+
+function useNeon(): boolean {
+  return !process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL);
+}
 
 // CORS headers to permit embedding on external websites
 const CORS_HEADERS = {
@@ -56,6 +61,16 @@ export async function POST(req: NextRequest) {
       // Anyone may ask; it only does what the cron does, and never sooner than 60s.
       const staleSeconds = Math.max(60, Number(body.stale_seconds) || 90);
       const thresholdIso = new Date(Date.now() - staleSeconds * 1000).toISOString();
+      if (useNeon()) {
+        const rows = await queryRows<{ id: string }>(
+          `UPDATE public.visitors
+           SET is_online = false
+           WHERE is_online = true AND last_seen_at < $1
+           RETURNING id`,
+          [thresholdIso]
+        );
+        return reply({ success: true, expired_count: rows.length });
+      }
       const { data, error } = await serviceClient()
         .from('visitors')
         .update({ is_online: false })
@@ -85,23 +100,74 @@ export async function POST(req: NextRequest) {
       const country = geo.country || clip(body.ip_location_country, 120);
       const clientIp = req.headers.get('x-forwarded-for')?.split(',')[0].trim() || req.headers.get('x-real-ip') || null;
       const pageUrl = clip(body.current_page_url, 2000);
+      const pageTitle = clip(body.current_page_title, 300);
+      const referrerSource = clip(body.referrer_source, 2000);
+      const timeOnPage = seconds(body.time_on_page);
+      const visitCount = Math.max(1, Math.min(100000, Math.round(Number(body.visit_count) || 1)));
+
+      if (useNeon()) {
+        await queryRows(
+          `UPDATE public.visitors
+           SET current_page_url = $1,
+               current_url = $1,
+               current_page_title = $2,
+               referrer_source = $3,
+               current_page_entered_at = $4,
+               time_on_page_seconds = $5,
+               device = $6,
+               browser = $7,
+               os = $8,
+               ip_location_city = $9,
+               ip_location_country = $10,
+               ip_address = $11,
+               visit_count = $12,
+               is_online = true,
+               last_seen_at = $4,
+               last_seen = $4
+           WHERE id = $13`,
+          [
+            pageUrl || '/',
+            pageTitle,
+            referrerSource,
+            nowIso,
+            timeOnPage,
+            clip(body.device, 60),
+            clip(body.browser, 60),
+            clip(body.os, 60),
+            city || null,
+            country || null,
+            clientIp,
+            visitCount,
+            visitor_id,
+          ]
+        );
+        if (pageUrl) {
+          await queryRows(
+            `INSERT INTO public.visitor_page_history
+               (visitor_id, workspace_id, url, title, referrer, duration_seconds, visited_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [visitor_id, session.workspaceId, pageUrl, pageTitle, referrerSource, timeOnPage, nowIso]
+          );
+        }
+        return reply({ success: true, action: 'registered', visitor_token: session.token });
+      }
 
       const { error: visitorErr } = await supabase
         .from('visitors')
         .update({
           current_page_url: pageUrl || '/',
           current_url: pageUrl || '/',
-          current_page_title: clip(body.current_page_title, 300),
-          referrer_source: clip(body.referrer_source, 2000),
+          current_page_title: pageTitle,
+          referrer_source: referrerSource,
           current_page_entered_at: nowIso,
-          time_on_page_seconds: seconds(body.time_on_page),
+          time_on_page_seconds: timeOnPage,
           device: clip(body.device, 60),
           browser: clip(body.browser, 60),
           os: clip(body.os, 60),
           ip_location_city: city || null,
           ip_location_country: country || null,
           ip_address: clientIp,
-          visit_count: Math.max(1, Math.min(100000, Math.round(Number(body.visit_count) || 1))),
+          visit_count: visitCount,
           is_online: true,
           last_seen_at: nowIso,
           last_seen: nowIso,
@@ -114,9 +180,9 @@ export async function POST(req: NextRequest) {
           visitor_id,
           workspace_id: session.workspaceId,
           url: pageUrl,
-          title: clip(body.current_page_title, 300),
-          referrer: clip(body.referrer_source, 2000),
-          duration_seconds: seconds(body.time_on_page),
+          title: pageTitle,
+          referrer: referrerSource,
+          duration_seconds: timeOnPage,
           visited_at: nowIso,
         });
         if (pageErr) console.error('[Tracker API] Error logging page:', pageErr.message);
@@ -133,13 +199,39 @@ export async function POST(req: NextRequest) {
       case 'pageview': {
         const url = clip(body.url, 2000);
         if (!url) return reply({ error: 'Missing url' }, 400);
+        const pageTitle = clip(body.title, 300);
+        const referrer = clip(body.referrer, 2000);
+
+        if (useNeon()) {
+          await queryRows(
+            `INSERT INTO public.visitor_page_history
+               (visitor_id, workspace_id, url, title, referrer, duration_seconds, visited_at)
+             VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+            [visitor_id, session.workspaceId, url, pageTitle, referrer, seconds(body.duration_seconds), nowIso]
+          );
+          await queryRows(
+            `UPDATE public.visitors
+             SET current_page_url = $1,
+                 current_url = $1,
+                 current_page_title = $2,
+                 current_page_entered_at = $3,
+                 time_on_page_seconds = 0,
+                 last_seen_at = $3,
+                 last_seen = $3,
+                 is_online = true,
+                 referrer_source = COALESCE($4, referrer_source)
+             WHERE id = $5`,
+            [url, pageTitle, nowIso, referrer, visitor_id]
+          );
+          return reply({ success: true, action: 'page_logged' });
+        }
 
         const { error: pageErr } = await supabase.from('visitor_page_history').insert({
           visitor_id,
           workspace_id: session.workspaceId,
           url,
-          title: clip(body.title, 300),
-          referrer: clip(body.referrer, 2000),
+          title: pageTitle,
+          referrer,
           duration_seconds: seconds(body.duration_seconds),
           visited_at: nowIso,
         });
@@ -148,14 +240,13 @@ export async function POST(req: NextRequest) {
         const updates: Record<string, unknown> = {
           current_page_url: url,
           current_url: url,
-          current_page_title: clip(body.title, 300),
+          current_page_title: pageTitle,
           current_page_entered_at: nowIso,
           time_on_page_seconds: 0,
           last_seen_at: nowIso,
           last_seen: nowIso,
           is_online: true,
         };
-        const referrer = clip(body.referrer, 2000);
         if (referrer) updates.referrer_source = referrer;
         await supabase.from('visitors').update(updates).eq('id', visitor_id);
 
@@ -163,20 +254,39 @@ export async function POST(req: NextRequest) {
       }
 
       case 'heartbeat': {
+        const pageUrl = clip(body.current_page_url, 2000);
+        const title = clip(body.current_page_title, 300);
+        const referrer = clip(body.referrer_source, 2000);
+        const duration = seconds(body.time_on_page);
+
+        if (useNeon()) {
+          await queryRows(
+            `UPDATE public.visitors
+             SET last_seen_at = $1,
+                 last_seen = $1,
+                 is_online = true,
+                 time_on_page_seconds = $2,
+                 current_page_url = COALESCE($3, current_page_url),
+                 current_url = COALESCE($3, current_url),
+                 current_page_title = COALESCE($4, current_page_title),
+                 referrer_source = COALESCE($5, referrer_source)
+             WHERE id = $6`,
+            [nowIso, duration, pageUrl, title, referrer, visitor_id]
+          );
+          return reply({ success: true, action: 'heartbeat_received' });
+        }
+
         const updates: Record<string, unknown> = {
           last_seen_at: nowIso,
           last_seen: nowIso,
           is_online: true,
-          time_on_page_seconds: seconds(body.time_on_page),
+          time_on_page_seconds: duration,
         };
-        const pageUrl = clip(body.current_page_url, 2000);
         if (pageUrl) {
           updates.current_page_url = pageUrl;
           updates.current_url = pageUrl;
         }
-        const title = clip(body.current_page_title, 300);
         if (title) updates.current_page_title = title;
-        const referrer = clip(body.referrer_source, 2000);
         if (referrer) updates.referrer_source = referrer;
         await supabase.from('visitors').update(updates).eq('id', visitor_id);
 
@@ -184,6 +294,16 @@ export async function POST(req: NextRequest) {
       }
 
       case 'offline': {
+        if (useNeon()) {
+          await queryRows(
+            `UPDATE public.visitors
+             SET is_online = false, last_seen_at = $1, last_seen = $1
+             WHERE id = $2`,
+            [nowIso, visitor_id]
+          );
+          return reply({ success: true, action: 'marked_offline' });
+        }
+
         await supabase
           .from('visitors')
           .update({ is_online: false, last_seen_at: nowIso, last_seen: nowIso })

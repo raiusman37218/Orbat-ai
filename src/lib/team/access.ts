@@ -72,22 +72,24 @@ export async function getWorkspaceAccess(workspaceId: string, capability: Capabi
   let agent: MemberRow | null = null;
   let workspace: { id: string; owner_id: string | null; is_suspended: boolean; deleted_at: string | null } | null = null;
 
-  try {
-    const [agentRows, wsRows] = await Promise.all([
-      queryRows<MemberRow>(
-        'SELECT id, name, role, workspace_id, is_super_admin, is_active FROM public.agents WHERE id = $1 LIMIT 1',
-        [user.id]
-      ),
-      queryRows<{ id: string; owner_id: string | null; is_suspended: boolean; deleted_at: string | null }>(
-        'SELECT id, owner_id, is_suspended, deleted_at FROM public.workspaces WHERE id = $1 LIMIT 1',
-        [workspaceId]
-      ),
-    ]);
-    agent = agentRows[0] || null;
-    workspace = wsRows[0] || null;
-  } catch {
-    agent = null;
-    workspace = null;
+  if (!process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL)) {
+    try {
+      const [agentRows, wsRows] = await Promise.all([
+        queryRows<MemberRow>(
+          'SELECT id, name, role, workspace_id, is_super_admin, is_active FROM public.agents WHERE id = $1 LIMIT 1',
+          [user.id]
+        ),
+        queryRows<{ id: string; owner_id: string | null; is_suspended: boolean; deleted_at: string | null }>(
+          'SELECT id, owner_id, is_suspended, deleted_at FROM public.workspaces WHERE id = $1 LIMIT 1',
+          [workspaceId]
+        ),
+      ]);
+      agent = agentRows[0] || null;
+      workspace = wsRows[0] || null;
+    } catch {
+      agent = null;
+      workspace = null;
+    }
   }
 
   // Fall back to Supabase client when Neon does not contain the record (e.g., mocked tests or Supabase-only workspaces)
@@ -117,14 +119,16 @@ export async function getWorkspaceAccess(workspaceId: string, capability: Capabi
   }
   if (workspace?.deleted_at || workspace?.is_suspended) {
     let access: { role?: string } | null = null;
-    try {
-      const accessRows = await queryRows<{ role: string }>(
-        'SELECT role FROM public.platform_access WHERE user_id = $1 LIMIT 1',
-        [user.id]
-      );
-      access = accessRows[0] || null;
-    } catch {
-      access = null;
+    if (!process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL)) {
+      try {
+        const accessRows = await queryRows<{ role: string }>(
+          'SELECT role FROM public.platform_access WHERE user_id = $1 LIMIT 1',
+          [user.id]
+        );
+        access = accessRows[0] || null;
+      } catch {
+        access = null;
+      }
     }
     if (!access) {
       const adminClient = serviceClient();

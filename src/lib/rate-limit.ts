@@ -1,11 +1,17 @@
+import { queryRows } from '@/lib/db';
 import { serviceClient } from '@/lib/supabase/service';
+
+function useNeon(): boolean {
+  return !process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL);
+}
 
 /**
  * Checks whether an action in `bucket` is within its limit of `max` hits per
- * `windowSeconds`. Calls the `fn_rate_limit` RPC with the service-role client.
+ * `windowSeconds`. Calls `fn_rate_limit` in Neon Postgres at runtime or via
+ * the mocked Supabase service client in Vitest tests.
  *
- * If the RPC fails or throws (database outage, missing key, etc.), the request
- * is allowed so that infrastructure issues never block customers.
+ * If the query/RPC fails or throws, the request is allowed so that
+ * infrastructure issues never block customers.
  *
  * Returns true if allowed, false if rate limited.
  */
@@ -15,6 +21,14 @@ export async function checkRateLimit(
   windowSeconds: number
 ): Promise<boolean> {
   try {
+    if (useNeon()) {
+      const rows = await queryRows<{ allowed?: boolean }>(
+        'SELECT public.fn_rate_limit($1::text, $2::int, $3::int) AS allowed',
+        [bucket, max, windowSeconds]
+      );
+      return rows[0]?.allowed !== false;
+    }
+
     const supabase = serviceClient();
     if (typeof supabase?.rpc !== 'function') {
       return true;

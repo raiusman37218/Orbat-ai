@@ -5,3 +5,4 @@ export class UpdateMessageDto {
   @IsNotEmpty({ message: 'Message content cannot be empty.' })
   content!: string;
 }
+

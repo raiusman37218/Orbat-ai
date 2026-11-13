@@ -1,4 +1,4 @@
-import { Pool, QueryResult } from 'pg';
+import { Pool, QueryResult, QueryResultRow } from 'pg';
 
 let poolInstance: Pool | null = null;
 
@@ -23,12 +23,12 @@ export function getDbPool(): Pool {
   return poolInstance;
 }
 
-export async function query<T = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
+export async function query<T extends QueryResultRow = any>(text: string, params?: any[]): Promise<QueryResult<T>> {
   const pool = getDbPool();
   return pool.query<T>(text, params);
 }
 
-export async function queryRows<T = any>(text: string, params?: any[]): Promise<T[]> {
+export async function queryRows<T extends QueryResultRow = any>(text: string, params?: any[]): Promise<T[]> {
   const res = await query<T>(text, params);
   return res.rows;
 }

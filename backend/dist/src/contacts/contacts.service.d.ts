@@ -19,4 +19,8 @@ export declare class ContactsService {
     createOrUpsertContact(workspaceId: string, dto: CreateContactDto): Promise<any>;
     updateContact(workspaceId: string, contactId: string, dto: UpdateContactDto): Promise<any>;
     getConversations(workspaceId: string, contactId: string): Promise<any[]>;
+    getLiveVisitorMeta(workspaceId: string, visitorIds: string[]): Promise<{
+        pageHistory: any[];
+        openTickets: any[];
+    }>;
 }

@@ -43,14 +43,16 @@ export async function guardConversation(
   if (!user) return { ok: false, response: NextResponse.json({ error: 'Unauthorized: sign in again.' }, { status: 401 }) };
 
   let workspaceId: string | null = null;
-  try {
-    const convRows = await queryRows<{ workspace_id: string }>(
-      'SELECT workspace_id FROM public.conversations WHERE id = $1 LIMIT 1',
-      [id]
-    );
-    workspaceId = convRows[0]?.workspace_id || null;
-  } catch {
-    workspaceId = null;
+  if (!process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL)) {
+    try {
+      const convRows = await queryRows<{ workspace_id: string }>(
+        'SELECT workspace_id FROM public.conversations WHERE id = $1 LIMIT 1',
+        [id]
+      );
+      workspaceId = convRows[0]?.workspace_id || null;
+    } catch {
+      workspaceId = null;
+    }
   }
 
   if (!workspaceId) {
@@ -75,20 +77,22 @@ export async function guardMember(capability: Capability): Promise<Guarded> {
   if (!user) return { ok: false, response: NextResponse.json({ error: 'Unauthorized: sign in again.' }, { status: 401 }) };
 
   let workspaceId: string | null = null;
-  try {
-    const [agentRows, ownedRows] = await Promise.all([
-      queryRows<{ workspace_id: string | null }>(
-        'SELECT workspace_id FROM public.agents WHERE id = $1 LIMIT 1',
-        [user.id]
-      ),
-      queryRows<{ id: string }>(
-        'SELECT id FROM public.workspaces WHERE owner_id = $1 LIMIT 1',
-        [user.id]
-      ),
-    ]);
-    workspaceId = agentRows[0]?.workspace_id ?? ownedRows[0]?.id ?? null;
-  } catch {
-    workspaceId = null;
+  if (!process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL)) {
+    try {
+      const [agentRows, ownedRows] = await Promise.all([
+        queryRows<{ workspace_id: string | null }>(
+          'SELECT workspace_id FROM public.agents WHERE id = $1 LIMIT 1',
+          [user.id]
+        ),
+        queryRows<{ id: string }>(
+          'SELECT id FROM public.workspaces WHERE owner_id = $1 LIMIT 1',
+          [user.id]
+        ),
+      ]);
+      workspaceId = agentRows[0]?.workspace_id ?? ownedRows[0]?.id ?? null;
+    } catch {
+      workspaceId = null;
+    }
   }
 
   if (!workspaceId) {

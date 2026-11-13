@@ -108,6 +108,32 @@ export class WidgetService {
     );
   }
 
+  async getHelp(workspaceId: string) {
+    const wsId = this.assertUuid(workspaceId, 'workspaceId');
+    const [secRes, artRes] = await Promise.all([
+      this.db.query(
+        `SELECT id, name, description, icon, order_index
+         FROM public.help_sections
+         WHERE workspace_id = $1
+         ORDER BY order_index ASC, created_at ASC`,
+        [wsId],
+      ),
+      this.db.query(
+        `SELECT a.id, a.title, a.slug, a.summary, a.content, a.category, a.section_id, a.order_index,
+                CASE WHEN s.id IS NOT NULL THEN jsonb_build_object('id', s.id, 'name', s.name, 'icon', s.icon) ELSE NULL END AS section
+         FROM public.articles a
+         LEFT JOIN public.help_sections s ON s.id = a.section_id
+         WHERE a.workspace_id = $1 AND a.status = 'published'
+         ORDER BY a.order_index ASC, a.created_at ASC`,
+        [wsId],
+      ),
+    ]);
+    return {
+      sections: secRes.rows,
+      articles: artRes.rows,
+    };
+  }
+
   async createOrVerifySession(body: {
     workspaceId?: string;
     p_workspace_id?: string;
@@ -503,6 +529,17 @@ export class WidgetService {
           body.p_conversation_id ?? body.conversationId,
           body.p_content ?? body.content ?? '',
         );
+      case 'fn_submit_article_feedback': {
+        const articleId = this.assertUuid(body.p_article_id ?? body.articleId, 'articleId');
+        const wsId = this.assertUuid(body.p_workspace_id ?? body.workspaceId, 'workspaceId');
+        const visitorId = String(body.p_visitor_id ?? body.visitorId ?? '');
+        const isHelpful = Boolean(body.p_is_helpful ?? body.isHelpful);
+        const feedbackText = body.p_feedback_text ?? body.feedbackText ?? null;
+        return this.runRpc(
+          'SELECT public.fn_submit_article_feedback($1::uuid, $2::uuid, $3::text, $4::boolean, $5::text) AS data',
+          [articleId, wsId, visitorId, isHelpful, feedbackText],
+        );
+      }
       default:
         throw new BadRequestException(`Unsupported widget RPC function: ${fnName}`);
     }

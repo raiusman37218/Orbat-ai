@@ -119,10 +119,10 @@ let UsersService = UsersService_1 = class UsersService {
             throw new common_1.NotFoundException('Agent not found.');
         }
         const manualStatus = status === 'offline' ? 'away' : status;
-        await this.db.query(`INSERT INTO public.agent_status (agent_id, workspace_id, manual_status, last_heartbeat)
-       VALUES ($1, $2, $3, now())
-       ON CONFLICT (agent_id, workspace_id)
-       DO UPDATE SET manual_status = $3, last_heartbeat = now()`, [agentId, workspaceId, manualStatus]).catch(() => { });
+        await this.db.query(`INSERT INTO public.agent_status (agent_id, workspace_id, manual_status, last_heartbeat, updated_at)
+       VALUES ($1, $2, $3, now(), now())
+       ON CONFLICT (agent_id)
+       DO UPDATE SET workspace_id = $2, manual_status = $3, last_heartbeat = now(), updated_at = now()`, [agentId, workspaceId, manualStatus]).catch(() => { });
         return result.rows[0];
     }
     async deactivateAgent(workspaceId, agentId, actor) {

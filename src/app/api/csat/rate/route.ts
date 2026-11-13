@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { query, queryRows } from '@/lib/db';
 import { serviceClient } from '@/lib/supabase/service';
 import { clientIpOf } from '@/lib/geo';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { verifyCsatToken } from '@/lib/csat/token';
 import { verifyVisitorToken } from '@/lib/widget/visitor-token';
+
+function useNeon(): boolean {
+  return !process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL);
+}
 
 export const dynamic = 'force-dynamic';
 
@@ -30,6 +35,39 @@ export async function GET(req: NextRequest) {
 
     if (!ticketId) {
       return NextResponse.json({ error: 'Missing ticket_id' }, { status: 400, headers: CORS_HEADERS });
+    }
+
+    if (useNeon()) {
+      const ticketRows = await queryRows<any>(
+        `SELECT t.id, t.number, t.subject, t.status, t.workspace_id, t.csat_rating, t.csat_comment, t.csat_rated_at,
+                jsonb_build_object('id', w.id, 'name', w.name, 'logo_url', w.logo_url, 'brand_color', w.brand_color) AS workspace
+         FROM public.tickets t
+         LEFT JOIN public.workspaces w ON w.id = t.workspace_id
+         WHERE t.id = $1
+         LIMIT 1`,
+        [ticketId]
+      );
+      const ticket = ticketRows[0];
+      if (!ticket) {
+        return NextResponse.json({ error: 'Ticket not found' }, { status: 404, headers: CORS_HEADERS });
+      }
+      const validToken = token ? verifyCsatToken(ticket.id, ticket.workspace_id, token) : true;
+      return NextResponse.json(
+        {
+          ticket: {
+            id: ticket.id,
+            number: ticket.number,
+            subject: ticket.subject,
+            status: ticket.status,
+            csat_rating: ticket.csat_rating,
+            csat_comment: ticket.csat_comment,
+            csat_rated_at: ticket.csat_rated_at,
+            workspace: ticket.workspace,
+          },
+          token_valid: validToken,
+        },
+        { headers: CORS_HEADERS }
+      );
     }
 
     const supabase = serviceClient();
@@ -97,6 +135,107 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const trimmedComment = typeof comment === 'string' ? comment.trim().slice(0, 1000) : null;
+    const now = new Date().toISOString();
+
+    if (useNeon()) {
+      let ticket: {
+        id: string;
+        workspace_id: string;
+        conversation_id: string | null;
+        assignee_id: string | null;
+        group_id: string | null;
+        channel: string | null;
+        priority: string | null;
+        tags: string[] | null;
+      } | null = null;
+
+      if (ticket_id) {
+        const rows = await queryRows<any>('SELECT * FROM public.tickets WHERE id = $1 LIMIT 1', [ticket_id]);
+        const data = rows[0];
+        if (!data) {
+          return NextResponse.json({ error: 'Ticket not found' }, { status: 404, headers: CORS_HEADERS });
+        }
+        if (typeof token !== 'string' || !verifyCsatToken(data.id, data.workspace_id, token)) {
+          return NextResponse.json({ error: 'Invalid or expired survey token' }, { status: 403, headers: CORS_HEADERS });
+        }
+        ticket = data;
+      } else {
+        const session = await verifyVisitorToken(visitor_id, visitor_token);
+        const convRows = session
+          ? await queryRows<{ id: string; current_ticket_id: string | null }>(
+              'SELECT id, current_ticket_id FROM public.conversations WHERE id = $1 AND visitor_id = $2 LIMIT 1',
+              [conversation_id, session.visitorId]
+            )
+          : [];
+        const conv = convRows[0];
+        if (!conv) {
+          return NextResponse.json({ error: 'Conversation not found' }, { status: 404, headers: CORS_HEADERS });
+        }
+        const ticketRows = conv.current_ticket_id
+          ? await queryRows<any>('SELECT * FROM public.tickets WHERE id = $1 LIMIT 1', [conv.current_ticket_id])
+          : await queryRows<any>(
+              'SELECT * FROM public.tickets WHERE conversation_id = $1 ORDER BY created_at DESC LIMIT 1',
+              [conv.id]
+            );
+        if (!ticketRows[0]) {
+          return NextResponse.json({ error: 'Ticket not found' }, { status: 404, headers: CORS_HEADERS });
+        }
+        ticket = ticketRows[0];
+      }
+
+      if (!ticket) {
+        return NextResponse.json({ error: 'Ticket not found' }, { status: 404, headers: CORS_HEADERS });
+      }
+
+      await query(
+        `UPDATE public.tickets
+         SET csat_rating = $1,
+             csat_comment = $2,
+             csat_rated_at = $3
+         WHERE id = $4`,
+        [rating, trimmedComment || null, now, ticket.id]
+      );
+
+      if (ticket.conversation_id) {
+        await query(
+          `UPDATE public.conversations
+           SET csat_rating = $1,
+               csat_feedback = $2
+           WHERE id = $3`,
+          [rating === 'good' ? 5 : 1, trimmedComment || null, ticket.conversation_id]
+        );
+      }
+
+      await query(
+        `INSERT INTO public.reporting_events
+           (workspace_id, ticket_id, event_type, occurred_at, agent_id, group_id, channel, priority, tags, csat_rating, csat_comment)
+         VALUES ($1, $2, 'csat_rated', $3, $4, $5, $6, $7, $8, $9, $10)`,
+        [
+          ticket.workspace_id,
+          ticket.id,
+          now,
+          ticket.assignee_id,
+          ticket.group_id,
+          ticket.channel,
+          ticket.priority,
+          ticket.tags || [],
+          rating,
+          trimmedComment || null,
+        ]
+      );
+
+      return NextResponse.json(
+        {
+          success: true,
+          rating,
+          comment: trimmedComment,
+          ticket_id: ticket.id,
+        },
+        { headers: CORS_HEADERS }
+      );
+    }
+
     const supabase = serviceClient();
 
     // 1. Locate the ticket, and check the caller may rate it.
@@ -139,9 +278,6 @@ export async function POST(req: NextRequest) {
     if (!ticket) {
       return NextResponse.json({ error: 'Ticket not found' }, { status: 404, headers: CORS_HEADERS });
     }
-
-    const trimmedComment = typeof comment === 'string' ? comment.trim().slice(0, 1000) : null;
-    const now = new Date().toISOString();
 
     // 3. Update tickets table
     const { error: updateTicketErr } = await supabase

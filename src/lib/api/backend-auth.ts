@@ -21,10 +21,14 @@ export interface BackendWorkspace {
 export interface AuthResponse {
   accessToken: string;
   refreshToken: string;
-  tokenType: string;
-  expiresIn: string;
+  tokenType?: string;
+  expiresIn?: string;
   user: BackendUser;
   workspace: BackendWorkspace | null;
+}
+
+export function isBackendAuthenticated(): boolean {
+  return Boolean(getAuthToken());
 }
 
 export function getBackendBaseUrl(): string {

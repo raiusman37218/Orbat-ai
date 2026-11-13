@@ -444,7 +444,7 @@ class ZentryWidget {
     if (!this.config.workspaceId) return true;
 
     try {
-      const { data, error } = await this.supabase.rpc('fn_get_workspace_config', {
+      const { data, error } = await this.rpcCall('fn_get_workspace_config', {
         p_workspace_id: this.config.workspaceId,
       });
 
@@ -585,24 +585,54 @@ class ZentryWidget {
     }
 
     try {
-      const [secRes, artRes] = await Promise.all([
-        this.supabase
-          .from('help_sections')
-          .select('id, name, description, icon, order_index, slug')
-          .eq('workspace_id', this.config.workspaceId)
-          .order('order_index', { ascending: true })
-          .order('created_at', { ascending: true }),
-        this.supabase
-          .from('articles')
-          .select('id, title, slug, summary, content, category, section_id, order_index, section:help_sections(id, name, icon)')
-          .eq('workspace_id', this.config.workspaceId)
-          .eq('status', 'published')
-          .order('order_index', { ascending: true })
-          .order('created_at', { ascending: true }),
-      ]);
+      let articles: any[] = [];
+      let rawSections: any[] = [];
+      let loadedViaProxy = false;
 
-      const articles = artRes.data || [];
-      const rawSections = secRes.data || [];
+      const apiBase = (this.config.apiUrl || '').replace(/\/$/, '');
+      if (apiBase) {
+        try {
+          const helpRes = await fetch(
+            `${apiBase}/api/widget/help?workspaceId=${encodeURIComponent(this.config.workspaceId)}`,
+            { cache: 'no-store' }
+          );
+          const isProxy = helpRes.headers.get('x-orbat-widget-proxy') === '1';
+          if (helpRes.ok) {
+            const json = await helpRes.json().catch(() => null);
+            const payload = json && typeof json === 'object' && 'data' in json ? json.data : json;
+            if (payload) {
+              articles = payload.articles || [];
+              rawSections = payload.sections || [];
+              loadedViaProxy = true;
+            }
+          } else if (isProxy || helpRes.status !== 404) {
+            loadedViaProxy = true;
+          }
+        } catch {
+          // Fall back to Supabase below
+        }
+      }
+
+      if (!loadedViaProxy) {
+        const [secRes, artRes] = await Promise.all([
+          this.supabase
+            .from('help_sections')
+            .select('id, name, description, icon, order_index, slug')
+            .eq('workspace_id', this.config.workspaceId)
+            .order('order_index', { ascending: true })
+            .order('created_at', { ascending: true }),
+          this.supabase
+            .from('articles')
+            .select('id, title, slug, summary, content, category, section_id, order_index, section:help_sections(id, name, icon)')
+            .eq('workspace_id', this.config.workspaceId)
+            .eq('status', 'published')
+            .order('order_index', { ascending: true })
+            .order('created_at', { ascending: true }),
+        ]);
+
+        articles = artRes.data || [];
+        rawSections = secRes.data || [];
+      }
 
       this.faqs = articles.map((a: any) => ({
         id: a.id,
@@ -1028,7 +1058,7 @@ class ZentryWidget {
 
         if (artId && this.config.workspaceId) {
           try {
-            await this.supabase.rpc('fn_submit_article_feedback', {
+            await this.rpcCall('fn_submit_article_feedback', {
               p_article_id: artId,
               p_workspace_id: this.config.workspaceId,
               p_visitor_id: this.visitorId,
@@ -1076,6 +1106,41 @@ class ZentryWidget {
     return String((error as { message?: string } | null)?.message || error || '');
   }
 
+  private async rpcCall<T = any>(
+    fn: string,
+    args: Record<string, unknown> = {}
+  ): Promise<{ data: T | null; error: any }> {
+    const apiBase = (this.config.apiUrl || '').replace(/\/$/, '');
+    if (apiBase) {
+      try {
+        const res = await fetch(`${apiBase}/api/widget/rpc/${encodeURIComponent(fn)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(args),
+        });
+        const isProxy = res.headers.get('x-orbat-widget-proxy') === '1';
+        const json = await res.json().catch(() => null);
+        if (res.ok) {
+          const unwrapped =
+            json && typeof json === 'object' && 'data' in json ? json.data : json;
+          return { data: (unwrapped ?? null) as T | null, error: null };
+        }
+        if (isProxy || res.status !== 404) {
+          return {
+            data: null,
+            error: {
+              message: json?.message || json?.error || `HTTP ${res.status}`,
+              code: res.status === 429 ? 'P0001' : undefined,
+            },
+          };
+        }
+      } catch {
+        // Network error reaching widget proxy -> fall back to legacy Supabase if configured
+      }
+    }
+    return (await this.supabase.rpc(fn, args)) as { data: T | null; error: any };
+  }
+
   /** Opens (or resumes) this visitor's session; false only when the server could not be reached. */
   private ensureSession(): Promise<boolean> {
     if (this.legacyData || (this.visitorToken && this.sessionTopic)) return Promise.resolve(true);
@@ -1097,7 +1162,7 @@ class ZentryWidget {
       let data: WidgetSession | null = null;
       let error: unknown = null;
       try {
-        const res = await this.supabase.rpc('fn_widget_session', {
+        const res = await this.rpcCall('fn_widget_session', {
           p_workspace_id: this.config.workspaceId,
           p_visitor_id: this.visitorId,
           p_token: this.visitorToken,
@@ -1180,7 +1245,7 @@ class ZentryWidget {
   /** A fn_widget_* call made as this visitor. Throws the database error. */
   private async widgetRpc<T = unknown>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
     if (!(await this.ensureSession())) throw new Error('Chat session unavailable');
-    const { data, error } = await this.supabase.rpc(fn, {
+    const { data, error } = await this.rpcCall(fn, {
       p_visitor_id: this.visitorId,
       p_token: this.visitorToken,
       ...args,
@@ -1660,7 +1725,7 @@ class ZentryWidget {
       if (this.conversationId) {
         await this.syncMessages();
       } else if (!this.forceNewConversation && this.visitorToken) {
-        const { data, error } = await this.supabase.rpc('fn_widget_session', {
+        const { data, error } = await this.rpcCall('fn_widget_session', {
           p_workspace_id: this.config.workspaceId,
           p_visitor_id: this.visitorId,
           p_token: this.visitorToken,
@@ -3411,7 +3476,7 @@ class ZentryWidget {
     if (!this.config.workspaceId || this.agentsPollTimer) return;
     const refresh = async () => {
       if (document.visibilityState === 'hidden') return;
-      const { data, error } = await this.supabase.rpc('fn_widget_agents', { p_workspace_id: this.config.workspaceId });
+      const { data, error } = await this.rpcCall('fn_widget_agents', { p_workspace_id: this.config.workspaceId });
       if (error) {
         if (ZentryWidget.isMissingFunction(error) && this.agentsPollTimer) {
           clearInterval(this.agentsPollTimer);

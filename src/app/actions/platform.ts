@@ -374,16 +374,18 @@ export async function assertSuperAdmin(): Promise<{ user: any; agent: Agent; acc
   // platform_access is the single source of truth (Neon primary, Supabase fallback for tests).
   let access: { role?: string } | null = null;
   let agent: Agent | null = null;
-  try {
-    const [accessRows, agentRows] = await Promise.all([
-      queryRows<{ role: string }>('SELECT role FROM public.platform_access WHERE user_id = $1 LIMIT 1', [user.id]),
-      queryRows<Agent>('SELECT * FROM public.agents WHERE id = $1 LIMIT 1', [user.id]),
-    ]);
-    access = accessRows[0] || null;
-    agent = agentRows[0] || null;
-  } catch {
-    access = null;
-    agent = null;
+  if (!process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL)) {
+    try {
+      const [accessRows, agentRows] = await Promise.all([
+        queryRows<{ role: string }>('SELECT role FROM public.platform_access WHERE user_id = $1 LIMIT 1', [user.id]),
+        queryRows<Agent>('SELECT * FROM public.agents WHERE id = $1 LIMIT 1', [user.id]),
+      ]);
+      access = accessRows[0] || null;
+      agent = agentRows[0] || null;
+    } catch {
+      access = null;
+      agent = null;
+    }
   }
 
   let accessError: any = null;

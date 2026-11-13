@@ -1,4 +1,9 @@
+import { queryRows } from '@/lib/db';
 import { serviceClient } from '@/lib/supabase/service';
+
+function useNeon(): boolean {
+  return !process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL);
+}
 
 /*
  * Server side of the widget's visitor session (docs/AUDIT.md H-3). Routes the
@@ -7,7 +12,7 @@ import { serviceClient } from '@/lib/supabase/service';
  * with fn_widget_auth, the same check every fn_widget_* function makes, so a
  * copied visitor id alone cannot act for someone else.
  *
- * Server only: it uses the service role.
+ * Server only: uses Neon DB directly at runtime or serviceClient in mocked unit tests.
  */
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -25,6 +30,24 @@ export function looksLikeVisitorId(value: unknown): value is string {
 /** The visitor's session when `token` is theirs; null otherwise (or when the check itself failed). */
 export async function verifyVisitorToken(visitorId: unknown, token: unknown): Promise<VisitorSession | null> {
   if (!looksLikeVisitorId(visitorId) || typeof token !== 'string' || !TOKEN_RE.test(token)) return null;
+
+  if (useNeon()) {
+    try {
+      const rows = await queryRows<{ workspace_id?: string | null }>(
+        'SELECT workspace_id FROM public.fn_widget_auth($1::uuid, $2::text) LIMIT 1',
+        [visitorId, token]
+      );
+      if (!rows || rows.length === 0) return null;
+      return { visitorId, workspaceId: rows[0]?.workspace_id ?? null };
+    } catch (err: any) {
+      const msg = String(err?.message || '');
+      if (!/visitor_session_invalid/.test(msg)) {
+        console.error('[Visitor Token Neon Error]:', msg);
+      }
+      return null;
+    }
+  }
+
   const { data, error } = await serviceClient().rpc('fn_widget_auth', { p_visitor_id: visitorId, p_token: token });
   if (error || !data) {
     if (error && !/visitor_session_invalid/.test(error.message || '')) {
@@ -46,10 +69,29 @@ export async function openVisitorSession(
   visitorId: string,
   token: string | null
 ): Promise<{ ok: true; token: string | null; workspaceId: string } | { ok: false; reason: 'invalid' | 'error' }> {
+  const safeToken = token && TOKEN_RE.test(token) ? token : null;
+
+  if (useNeon()) {
+    try {
+      const rows = await queryRows<{ data?: { token?: string | null } | null }>(
+        'SELECT public.fn_widget_session($1::uuid, $2::uuid, $3::text) AS data',
+        [workspaceId, visitorId, safeToken]
+      );
+      return { ok: true, token: rows[0]?.data?.token ?? null, workspaceId };
+    } catch (err: any) {
+      const msg = String(err?.message || '');
+      if (/visitor_session_invalid|workspace_not_found|workspace_unavailable/.test(msg)) {
+        return { ok: false, reason: 'invalid' };
+      }
+      console.error('[Visitor Session Neon Error]:', msg);
+      return { ok: false, reason: 'error' };
+    }
+  }
+
   const { data, error } = await serviceClient().rpc('fn_widget_session', {
     p_workspace_id: workspaceId,
     p_visitor_id: visitorId,
-    p_token: token && TOKEN_RE.test(token) ? token : null,
+    p_token: safeToken,
   });
   if (error) {
     if (/visitor_session_invalid|workspace_not_found/.test(error.message || '')) return { ok: false, reason: 'invalid' };

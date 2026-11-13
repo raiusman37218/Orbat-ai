@@ -163,13 +163,13 @@ export class UsersService {
       throw new NotFoundException('Agent not found.');
     }
 
-    // Sync agent_status table (table constraint allows 'online' or 'away')
+    // Sync agent_status table (table constraint allows 'online' or 'away'; PK is agent_id)
     const manualStatus = status === 'offline' ? 'away' : status;
     await this.db.query(
-      `INSERT INTO public.agent_status (agent_id, workspace_id, manual_status, last_heartbeat)
-       VALUES ($1, $2, $3, now())
-       ON CONFLICT (agent_id, workspace_id)
-       DO UPDATE SET manual_status = $3, last_heartbeat = now()`,
+      `INSERT INTO public.agent_status (agent_id, workspace_id, manual_status, last_heartbeat, updated_at)
+       VALUES ($1, $2, $3, now(), now())
+       ON CONFLICT (agent_id)
+       DO UPDATE SET workspace_id = $2, manual_status = $3, last_heartbeat = now(), updated_at = now()`,
       [agentId, workspaceId, manualStatus],
     ).catch(() => {});
 

@@ -31,4 +31,56 @@ export declare class ConversationsService {
         updatedCount: number;
         items: any[];
     }>;
+    getHandovers(workspaceId: string, days?: number, limit?: number): Promise<{
+        id: any;
+        content: any;
+        created_at: any;
+        reply_to_message_id: any;
+        metadata: any;
+        question_content: any;
+        conversation: {
+            id: any;
+            workspace_id: any;
+            status: any;
+            priority: any;
+            channel: any;
+            ai_paused_reason: any;
+            ai_needs_attention_at: any;
+            channel_metadata: any;
+            assigned_agent_id: any;
+            visitor: {
+                name: any;
+                email: any;
+            };
+        };
+    }[]>;
+    skipHandoff(workspaceId: string, conversationId: string, agent: AuthenticatedUser): Promise<{
+        ok: boolean;
+        reason: string;
+        status: any;
+        broadcast?: undefined;
+        nextAgentId?: undefined;
+        updated?: undefined;
+    } | {
+        ok: boolean;
+        status: string;
+        broadcast: boolean;
+        reason?: undefined;
+        nextAgentId?: undefined;
+        updated?: undefined;
+    } | {
+        ok: boolean;
+        nextAgentId: string;
+        updated: any;
+        reason?: undefined;
+        status?: undefined;
+        broadcast?: undefined;
+    } | {
+        ok: boolean;
+        broadcast: boolean;
+        updated: any;
+        reason?: undefined;
+        status?: undefined;
+        nextAgentId?: undefined;
+    }>;
 }

@@ -29,6 +29,9 @@ let ConversationsController = class ConversationsController {
     async getConversations(workspaceId, query) {
         return this.conversationsService.getConversations(workspaceId, query);
     }
+    async getHandovers(workspaceId, days, limit) {
+        return this.conversationsService.getHandovers(workspaceId, days ? parseInt(days, 10) : undefined, limit ? parseInt(limit, 10) : undefined);
+    }
     async bulkUpdateConversations(workspaceId, dto, actor) {
         return this.conversationsService.bulkUpdate(workspaceId, dto, actor);
     }
@@ -46,6 +49,9 @@ let ConversationsController = class ConversationsController {
     }
     async claimHandoff(workspaceId, conversationId, agent) {
         return this.conversationsService.claimHandoff(workspaceId, conversationId, agent);
+    }
+    async skipHandoff(workspaceId, conversationId, agent) {
+        return this.conversationsService.skipHandoff(workspaceId, conversationId, agent);
     }
     async returnToAi(workspaceId, conversationId, agent) {
         return this.conversationsService.returnToAi(workspaceId, conversationId, agent);
@@ -65,6 +71,17 @@ __decorate([
     __metadata("design:paramtypes", [String, query_conversations_dto_1.QueryConversationsDto]),
     __metadata("design:returntype", Promise)
 ], ConversationsController.prototype, "getConversations", null);
+__decorate([
+    (0, common_1.Get)('handovers'),
+    (0, swagger_1.ApiOperation)({ summary: 'List recent AI handover notes for this workspace' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'List of handover rows.' }),
+    __param(0, (0, current_workspace_decorator_1.CurrentWorkspace)()),
+    __param(1, (0, common_1.Query)('days')),
+    __param(2, (0, common_1.Query)('limit')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, String]),
+    __metadata("design:returntype", Promise)
+], ConversationsController.prototype, "getHandovers", null);
 __decorate([
     (0, common_1.Post)('bulk'),
     (0, swagger_1.ApiOperation)({ summary: 'Bulk resolve, reopen, assign, or mark spam for conversations' }),
@@ -131,6 +148,17 @@ __decorate([
     __metadata("design:paramtypes", [String, String, Object]),
     __metadata("design:returntype", Promise)
 ], ConversationsController.prototype, "claimHandoff", null);
+__decorate([
+    (0, common_1.Post)(':id/skip'),
+    (0, swagger_1.ApiOperation)({ summary: 'Skip waiting handoff conversation and advance ringing queue' }),
+    (0, swagger_1.ApiResponse)({ status: 200, description: 'Conversation skipped.' }),
+    __param(0, (0, current_workspace_decorator_1.CurrentWorkspace)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, current_user_decorator_1.CurrentUser)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, String, Object]),
+    __metadata("design:returntype", Promise)
+], ConversationsController.prototype, "skipHandoff", null);
 __decorate([
     (0, common_1.Post)(':id/return-to-ai'),
     (0, swagger_1.ApiOperation)({ summary: 'Return human-handled conversation back to AI assistant' }),

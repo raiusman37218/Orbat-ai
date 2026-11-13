@@ -4,6 +4,10 @@ export declare class WidgetController {
     constructor(widgetService: WidgetService);
     getConfig(workspaceId: string): Promise<any>;
     getAgents(workspaceId: string): Promise<any>;
+    getHelp(workspaceId: string): Promise<{
+        sections: any[];
+        articles: any[];
+    }>;
     session(body: Record<string, any>): Promise<any>;
     listConversations(visitorId: string, token: string): Promise<any>;
     startConversation(body: Record<string, any>): Promise<any>;

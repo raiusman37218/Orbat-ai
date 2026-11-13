@@ -67,7 +67,7 @@ export default async function AdminLayout({
     if (!agent) agent = (sbAgent as Agent) || null;
   }
 
-  if (!access || !['owner', 'admin'].includes(access.role)) {
+  if (!access || !access.role || !['owner', 'admin'].includes(access.role)) {
     return (
       <div className="flex h-screen w-screen flex-col items-center justify-center bg-canvas text-ink p-6">
         <div className="max-w-md w-full p-8 rounded-2xl border border-danger/30 bg-surface text-center space-y-4 shadow-lg">
@@ -103,7 +103,7 @@ export default async function AdminLayout({
 
   const currentAgent: Agent = agent || ({
     id: user.id,
-    name: user.user_metadata?.name || user.email?.split('@')[0] || 'Admin',
+    name: (user as { user_metadata?: { name?: string } }).user_metadata?.name || user.email?.split('@')[0] || 'Admin',
     email: user.email || '',
     role: 'owner',
     status: 'online',

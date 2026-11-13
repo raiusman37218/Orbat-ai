@@ -27,6 +27,9 @@ let WidgetController = class WidgetController {
     async getAgents(workspaceId) {
         return this.widgetService.getAgents(workspaceId);
     }
+    async getHelp(workspaceId) {
+        return this.widgetService.getHelp(workspaceId);
+    }
     async session(body) {
         return this.widgetService.createOrVerifySession(body);
     }
@@ -99,6 +102,14 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], WidgetController.prototype, "getAgents", null);
+__decorate([
+    (0, common_1.Get)('help'),
+    (0, swagger_1.ApiOperation)({ summary: 'Get published Help Center sections and articles for widget' }),
+    __param(0, (0, common_1.Query)('workspaceId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], WidgetController.prototype, "getHelp", null);
 __decorate([
     (0, common_1.Post)('session'),
     (0, swagger_1.ApiOperation)({ summary: 'Create or verify visitor session token for widget' }),

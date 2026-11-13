@@ -13,3 +13,4 @@ export class BulkUpdateConversationsDto {
   @IsUUID()
   agentId?: string | null;
 }
+

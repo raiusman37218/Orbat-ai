@@ -1,8 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { query } from '@/lib/db';
 import { serviceClient } from '@/lib/supabase/service';
 import { clientIpOf, geoFromRequest } from '@/lib/geo';
 import { checkRateLimit } from '@/lib/rate-limit';
 import { verifyVisitorToken } from '@/lib/widget/visitor-token';
+
+function useNeon(): boolean {
+  return !process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL);
+}
 
 // Called by the embeddable widget from the customer's own site.
 const CORS_HEADERS = {
@@ -41,6 +46,32 @@ export async function POST(req: NextRequest) {
     }
 
     const location = geo.city ? `${geo.city}, ${geo.country}` : geo.country;
+    if (useNeon()) {
+      try {
+        await query(
+          `UPDATE public.visitors
+           SET location = $1,
+               ip_location_city = $2,
+               ip_location_country = $3,
+               ip_address = $4
+           WHERE id = $5`,
+          [location, geo.city, geo.country, clientIpOf(req.headers), visitorId]
+        );
+      } catch {
+        await query(
+          `UPDATE public.visitors
+           SET ip_location_city = $1,
+               ip_location_country = $2
+           WHERE id = $3`,
+          [geo.city, geo.country, visitorId]
+        );
+      }
+      return NextResponse.json(
+        { success: true, city: geo.city, country: geo.country, countryCode: geo.countryCode, location },
+        { headers: CORS_HEADERS }
+      );
+    }
+
     const supabase = serviceClient();
     const { error } = await supabase
       .from('visitors')

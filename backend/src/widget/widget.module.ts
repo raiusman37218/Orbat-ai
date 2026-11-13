@@ -10,3 +10,4 @@ import { RealtimeModule } from '../realtime/realtime.module';
   exports: [WidgetService],
 })
 export class WidgetModule {}
+

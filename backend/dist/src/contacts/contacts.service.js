@@ -161,6 +161,27 @@ let ContactsService = ContactsService_1 = class ContactsService {
        ORDER BY c.updated_at DESC`, [contactId, workspaceId]);
         return result.rows;
     }
+    async getLiveVisitorMeta(workspaceId, visitorIds) {
+        const validIds = visitorIds.filter((id) => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id));
+        if (validIds.length === 0) {
+            return { pageHistory: [], openTickets: [] };
+        }
+        const [historyRes, ticketsRes] = await Promise.all([
+            this.db.query(`SELECT * FROM public.visitor_page_history
+         WHERE workspace_id = $1 AND visitor_id = ANY($2::uuid[])
+         ORDER BY visited_at DESC
+         LIMIT 100`, [workspaceId, validIds]),
+            this.db.query(`SELECT id, number, subject, status, requester_id
+         FROM public.tickets
+         WHERE workspace_id = $1
+           AND status IN ('new', 'open', 'pending', 'on_hold')
+           AND requester_id = ANY($2::uuid[])`, [workspaceId, validIds]),
+        ]);
+        return {
+            pageHistory: historyRes.rows,
+            openTickets: ticketsRes.rows,
+        };
+    }
 };
 exports.ContactsService = ContactsService;
 exports.ContactsService = ContactsService = ContactsService_1 = __decorate([

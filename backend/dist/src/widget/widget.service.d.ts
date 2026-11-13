@@ -12,6 +12,10 @@ export declare class WidgetService {
     private emitConversationEvent;
     getConfig(workspaceId: string): Promise<any>;
     getAgents(workspaceId: string): Promise<any>;
+    getHelp(workspaceId: string): Promise<{
+        sections: any[];
+        articles: any[];
+    }>;
     createOrVerifySession(body: {
         workspaceId?: string;
         p_workspace_id?: string;

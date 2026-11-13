@@ -441,6 +441,115 @@ let ConversationsService = ConversationsService_1 = class ConversationsService {
             items: result.rows,
         };
     }
+    async getHandovers(workspaceId, days = 14, limit = 300) {
+        const safeDays = Number.isFinite(days) && days > 0 ? Math.min(days, 90) : 14;
+        const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(limit, 500) : 300;
+        const since = new Date(Date.now() - safeDays * 86_400_000).toISOString();
+        const result = await this.db.query(`SELECT m.id,
+              m.content,
+              m.created_at,
+              m.reply_to_message_id,
+              m.metadata,
+              q.content AS question_content,
+              c.id AS conversation_id,
+              c.workspace_id,
+              c.status,
+              c.priority,
+              c.channel,
+              c.ai_paused_reason,
+              c.ai_needs_attention_at,
+              c.channel_metadata,
+              c.assigned_agent_id,
+              v.name AS visitor_name,
+              v.email AS visitor_email
+       FROM public.messages m
+       INNER JOIN public.conversations c ON c.id = m.conversation_id
+       LEFT JOIN public.visitors v ON v.id = c.visitor_id
+       LEFT JOIN public.messages q ON q.id = m.reply_to_message_id
+       WHERE m.is_internal = true
+         AND (m.metadata->>'is_handover') = 'true'
+         AND c.workspace_id = $1
+         AND m.created_at >= $2
+       ORDER BY m.created_at DESC
+       LIMIT $3`, [workspaceId, since, safeLimit]);
+        return result.rows.map((r) => ({
+            id: r.id,
+            content: r.content,
+            created_at: r.created_at,
+            reply_to_message_id: r.reply_to_message_id,
+            metadata: r.metadata,
+            question_content: r.question_content || null,
+            conversation: {
+                id: r.conversation_id,
+                workspace_id: r.workspace_id,
+                status: r.status,
+                priority: r.priority,
+                channel: r.channel,
+                ai_paused_reason: r.ai_paused_reason,
+                ai_needs_attention_at: r.ai_needs_attention_at,
+                channel_metadata: r.channel_metadata,
+                assigned_agent_id: r.assigned_agent_id,
+                visitor: r.visitor_name || r.visitor_email ? { name: r.visitor_name, email: r.visitor_email } : null,
+            },
+        }));
+    }
+    async skipHandoff(workspaceId, conversationId, agent) {
+        await this.getConversationById(workspaceId, conversationId);
+        const updated = await this.db.transaction(async (client) => {
+            const convRes = await client.query(`SELECT id, workspace_id, handoff_status, skipped_agent_ids, ring_broadcast
+         FROM public.conversations
+         WHERE id = $1 AND workspace_id = $2
+         FOR UPDATE`, [conversationId, workspaceId]);
+            const conv = convRes.rows[0];
+            if (!conv || conv.handoff_status !== 'waiting_for_agent') {
+                return { ok: false, reason: 'not_waiting', status: conv?.handoff_status || null };
+            }
+            const prevSkipped = Array.isArray(conv.skipped_agent_ids) ? conv.skipped_agent_ids : [];
+            const nextSkipped = Array.from(new Set([...prevSkipped, agent.id]));
+            await client.query(`INSERT INTO public.conversation_events (conversation_id, workspace_id, type, actor_type, actor_id, meta)
+         VALUES ($1, $2, 'skipped', 'agent', $3, $4)`, [conversationId, workspaceId, agent.id, JSON.stringify({ skipped_count: nextSkipped.length })]);
+            if (conv.ring_broadcast) {
+                await client.query(`UPDATE public.conversations
+           SET skipped_agent_ids = $1::uuid[], updated_at = now()
+           WHERE id = $2 AND workspace_id = $3`, [nextSkipped, conversationId, workspaceId]);
+                return { ok: true, status: 'waiting_for_agent', broadcast: true };
+            }
+            let nextAgentId = null;
+            try {
+                const nextRes = await client.query(`SELECT public.fn_pick_next_handoff_agent($1::uuid, $2::uuid[]) AS next_agent`, [workspaceId, nextSkipped]);
+                nextAgentId = nextRes.rows[0]?.next_agent || null;
+            }
+            catch {
+                nextAgentId = null;
+            }
+            if (nextAgentId) {
+                const updRes = await client.query(`UPDATE public.conversations
+           SET skipped_agent_ids = $1::uuid[],
+               ringing_agent_id = $2,
+               ring_started_at = now(),
+               ring_broadcast = false,
+               updated_at = now()
+           WHERE id = $3 AND workspace_id = $4
+           RETURNING id, skipped_agent_ids, ringing_agent_id, ring_broadcast, handoff_status, updated_at`, [nextSkipped, nextAgentId, conversationId, workspaceId]);
+                return { ok: true, nextAgentId, updated: updRes.rows[0] };
+            }
+            const updRes = await client.query(`UPDATE public.conversations
+         SET skipped_agent_ids = $1::uuid[],
+             ringing_agent_id = NULL,
+             ring_broadcast = true,
+             updated_at = now()
+         WHERE id = $2 AND workspace_id = $3
+         RETURNING id, skipped_agent_ids, ringing_agent_id, ring_broadcast, handoff_status, updated_at`, [nextSkipped, conversationId, workspaceId]);
+            return { ok: true, broadcast: true, updated: updRes.rows[0] };
+        });
+        if (updated?.updated) {
+            this.realtime?.emitToWorkspace(workspaceId, 'conversation:updated', {
+                conversationId,
+                ...updated.updated,
+            });
+        }
+        return updated;
+    }
 };
 exports.ConversationsService = ConversationsService;
 exports.ConversationsService = ConversationsService = ConversationsService_1 = __decorate([

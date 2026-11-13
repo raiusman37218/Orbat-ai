@@ -21,6 +21,12 @@ export class WidgetController {
     return this.widgetService.getAgents(workspaceId);
   }
 
+  @Get('help')
+  @ApiOperation({ summary: 'Get published Help Center sections and articles for widget' })
+  async getHelp(@Query('workspaceId') workspaceId: string) {
+    return this.widgetService.getHelp(workspaceId);
+  }
+
   @Post('session')
   @ApiOperation({ summary: 'Create or verify visitor session token for widget' })
   async session(@Body() body: Record<string, any>) {

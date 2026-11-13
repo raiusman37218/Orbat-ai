@@ -14,6 +14,10 @@ export declare class ContactsController {
             totalPages: number;
         };
     }>;
+    getLiveMeta(workspaceId: string, visitorIds?: string): Promise<{
+        pageHistory: any[];
+        openTickets: any[];
+    }>;
     getContactById(workspaceId: string, contactId: string): Promise<any>;
     createContact(workspaceId: string, dto: CreateContactDto): Promise<any>;
     updateContact(workspaceId: string, contactId: string, dto: UpdateContactDto): Promise<any>;
