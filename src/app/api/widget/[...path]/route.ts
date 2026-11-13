@@ -1,4 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import {
+  executeWidgetFallback,
+  isSupabaseConfigured,
+  WidgetFallbackHttpError,
+} from '@/lib/widget/proxy-fallback';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,8 +22,57 @@ function getBackendServerBaseUrl(): string {
   return raw.endsWith('/api/v1') ? raw : `${raw}/api/v1`;
 }
 
+function parseJsonBody(raw: string | undefined): Record<string, any> {
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
 export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS_HEADERS });
+}
+
+async function handleWithFallback(
+  subPath: string,
+  method: 'GET' | 'POST',
+  searchParams: URLSearchParams,
+  rawBody: string | undefined
+) {
+  try {
+    const data = await executeWidgetFallback(
+      subPath,
+      method,
+      searchParams,
+      parseJsonBody(rawBody)
+    );
+    return NextResponse.json(
+      { success: true, data },
+      { status: 200, headers: CORS_HEADERS }
+    );
+  } catch (fallbackErr: any) {
+    if (fallbackErr instanceof WidgetFallbackHttpError) {
+      return NextResponse.json(
+        {
+          statusCode: fallbackErr.status,
+          error: fallbackErr.status === 404 ? 'Not Found' : 'Widget Error',
+          message: fallbackErr.message,
+        },
+        { status: fallbackErr.status, headers: CORS_HEADERS }
+      );
+    }
+    console.error('[Widget Fallback Error]:', fallbackErr);
+    return NextResponse.json(
+      {
+        error: 'backend_unreachable',
+        message: fallbackErr?.message || 'Widget backend unreachable',
+      },
+      { status: 502, headers: CORS_HEADERS }
+    );
+  }
 }
 
 async function forwardRequest(
@@ -26,46 +80,48 @@ async function forwardRequest(
   context: { params: Promise<{ path: string[] }> },
   method: 'GET' | 'POST'
 ) {
+  const { path } = await context.params;
+  const subPath = (path || []).join('/');
+  const search = req.nextUrl.search || '';
+  const targetUrl = `${getBackendServerBaseUrl()}/widget/${subPath}${search}`;
+  const body = method === 'POST' ? await req.text() : undefined;
+
+  const headers: Record<string, string> = {};
+  const contentType = req.headers.get('content-type');
+  if (contentType) headers['Content-Type'] = contentType;
+  const forwardedFor = req.headers.get('x-forwarded-for');
+  if (forwardedFor) headers['x-forwarded-for'] = forwardedFor;
+
   try {
-    const { path } = await context.params;
-    const subPath = (path || []).join('/');
-    const search = req.nextUrl.search || '';
-    const targetUrl = `${getBackendServerBaseUrl()}/widget/${subPath}${search}`;
-
-    const headers: Record<string, string> = {};
-    const contentType = req.headers.get('content-type');
-    if (contentType) headers['Content-Type'] = contentType;
-    const forwardedFor = req.headers.get('x-forwarded-for');
-    if (forwardedFor) headers['x-forwarded-for'] = forwardedFor;
-
-    const body = method === 'POST' ? await req.text() : undefined;
-
     const upstream = await fetch(targetUrl, {
       method,
       headers,
       body: method === 'POST' ? body || '{}' : undefined,
       cache: 'no-store',
+      signal: AbortSignal.timeout(3500),
     });
 
-    const text = await upstream.text();
-    let json: any = null;
-    try {
-      json = text ? JSON.parse(text) : null;
-    } catch {
-      json = { message: text };
+    const shouldTryFallback =
+      upstream.status >= 500 || (upstream.status === 404 && isSupabaseConfigured());
+
+    if (!shouldTryFallback) {
+      const text = await upstream.text();
+      let json: any = null;
+      try {
+        json = text ? JSON.parse(text) : null;
+      } catch {
+        json = { message: text };
+      }
+      return NextResponse.json(json, {
+        status: upstream.status,
+        headers: CORS_HEADERS,
+      });
     }
-
-    return NextResponse.json(json, {
-      status: upstream.status,
-      headers: CORS_HEADERS,
-    });
-  } catch (err: any) {
-    console.error('[Widget Proxy Error]:', err);
-    return NextResponse.json(
-      { error: 'backend_unreachable', message: err?.message || 'Widget backend unreachable' },
-      { status: 502, headers: CORS_HEADERS }
-    );
+  } catch {
+    // NestJS backend unreachable or timed out -> serve directly via PostgreSQL/Supabase fallback
   }
+
+  return handleWithFallback(subPath, method, req.nextUrl.searchParams, body);
 }
 
 export async function GET(req: NextRequest, context: { params: Promise<{ path: string[] }> }) {

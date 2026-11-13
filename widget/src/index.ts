@@ -448,7 +448,20 @@ class ZentryWidget {
         p_workspace_id: this.config.workspaceId,
       });
 
-      if (error || !data) {
+      const errStatus = typeof (error as any)?.status === 'number' ? (error as any).status : undefined;
+      const errMsg = String((error as any)?.message || '');
+      const isConfirmedUnavailable =
+        (!error && !data) ||
+        errStatus === 403 ||
+        errStatus === 404 ||
+        /workspace_unavailable|not_found/i.test(errMsg);
+
+      if (error && !isConfirmedUnavailable) {
+        console.warn('[Zen-try] Temporary error fetching workspace config; keeping launcher visible:', error);
+        return true;
+      }
+
+      if (isConfirmedUnavailable || !data) {
         console.warn('[Zen-try] Workspace is suspended, inactive, or not found. Widget will not load.');
         if (this.container && this.container.parentNode) {
           this.container.parentNode.removeChild(this.container);
@@ -605,7 +618,7 @@ class ZentryWidget {
               rawSections = payload.sections || [];
               loadedViaProxy = true;
             }
-          } else if (isProxy || helpRes.status !== 404) {
+          } else if (isProxy && helpRes.status < 500) {
             loadedViaProxy = true;
           }
         } catch {
@@ -1125,12 +1138,29 @@ class ZentryWidget {
             json && typeof json === 'object' && 'data' in json ? json.data : json;
           return { data: (unwrapped ?? null) as T | null, error: null };
         }
+        if (res.status >= 500) {
+          // Transient proxy/backend failure -> try Supabase fallback before giving up
+          try {
+            const sbRes = (await this.supabase.rpc(fn, args)) as { data: T | null; error: any };
+            if (!sbRes.error && sbRes.data !== null) {
+              return sbRes;
+            }
+          } catch {}
+          return {
+            data: null,
+            error: {
+              message: json?.message || json?.error || `HTTP ${res.status}`,
+              status: res.status,
+            },
+          };
+        }
         if (isProxy || res.status !== 404) {
           return {
             data: null,
             error: {
               message: json?.message || json?.error || `HTTP ${res.status}`,
               code: res.status === 429 ? 'P0001' : undefined,
+              status: res.status,
             },
           };
         }

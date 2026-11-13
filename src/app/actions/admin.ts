@@ -687,13 +687,14 @@ export async function createWorkspaceAction(input: {
   customDomain?: string | null;
   verificationToken?: string | null;
 }) {
+  const nestUser = await sessionUser();
   const supabase = await createClient();
   const {
     data: { user: sbUser },
     error: authErr,
-  } = await supabase.auth.getUser();
-
-  const nestUser = !sbUser ? await sessionUser(supabase) : null;
+  } = nestUser
+    ? { data: { user: null }, error: null }
+    : await supabase.auth.getUser();
 
   if (!sbUser && !nestUser) {
     throw userError(authErr?.message || 'Unauthorized: Authentication required.');
@@ -702,8 +703,8 @@ export async function createWorkspaceAction(input: {
   const industry = input.industry?.toLowerCase()?.trim() || 'generic';
   const preset = getIndustryPreset(industry);
 
-  // Fast native NestJS + Neon creation path (used for Google OAuth onboarding)
-  if (!sbUser && nestUser) {
+  // Fast native NestJS + Neon creation path (preferred whenever NestJS session is active)
+  if (nestUser) {
     let baseSlug = formatWorkspaceSlug(input.slug || input.businessName);
     if (!baseSlug || RESERVED_WORKSPACE_SLUGS.has(baseSlug)) {
       baseSlug = baseSlug ? `${baseSlug}-kb` : 'workspace';
@@ -777,10 +778,10 @@ export async function createWorkspaceAction(input: {
 
     try {
       const sectionRows = await queryRows<{ id: string }>(
-        `INSERT INTO public.help_sections (workspace_id, name, slug, icon, description, order_index)
-         VALUES ($1, $2, $3, $4, $5, 1)
+        `INSERT INTO public.help_sections (workspace_id, name, icon, description, order_index)
+         VALUES ($1, $2, $3, $4, 1)
          RETURNING id`,
-        [ws.id, preset.sectionName, preset.sectionSlug, preset.icon, preset.sectionDescription]
+        [ws.id, preset.sectionName, preset.icon, preset.sectionDescription]
       );
       const sectionId = sectionRows[0]?.id;
       if (sectionId && preset.articles?.length) {

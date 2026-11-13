@@ -957,11 +957,21 @@
     const isQaMode = document.documentElement.classList.contains('qa-mode');
     // Public demo always runs on the Zen-try demo workspace.
     const DEMO_WORKSPACE_ID = 'c0000000-0000-0000-0000-000000000001';
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const rawParamId = (urlParams.get('workspaceId') || urlParams.get('ws') || '').trim();
+    const validParamId = UUID_RE.test(rawParamId) ? rawParamId : '';
+    let storedWorkspaceId = '';
+    try {
+      const candidate = (localStorage.getItem('zentry_active_workspace') || localStorage.getItem('chatify_active_workspace') || '').trim();
+      if (UUID_RE.test(candidate)) storedWorkspaceId = candidate;
+    } catch {}
     const workspaceId = isQaMode
-      ? urlParams.get('workspaceId') || urlParams.get('ws') || localStorage.getItem('zentry_active_workspace') || localStorage.getItem('chatify_active_workspace') || DEMO_WORKSPACE_ID
+      ? validParamId || storedWorkspaceId || DEMO_WORKSPACE_ID
       : DEMO_WORKSPACE_ID;
-    if (isQaMode && workspaceId !== DEMO_WORKSPACE_ID) {
-      localStorage.setItem('zentry_active_workspace', workspaceId);
+    if (isQaMode && validParamId && validParamId !== DEMO_WORKSPACE_ID) {
+      try {
+        localStorage.setItem('zentry_active_workspace', validParamId);
+      } catch {}
     }
     const workspaceName = urlParams.get('name');
 
@@ -1008,7 +1018,10 @@
       // If widget composer input is accessible or via SDK
       setTimeout(() => {
         try {
-          const root = document.querySelector('zentry-widget') || document.querySelector('chatify-widget');
+          const root =
+            document.getElementById('zentry-widget-root') ||
+            document.querySelector('zentry-widget') ||
+            document.querySelector('chatify-widget');
           if (root && root.shadowRoot) {
             const textarea = root.shadowRoot.querySelector('textarea');
             if (textarea) {
