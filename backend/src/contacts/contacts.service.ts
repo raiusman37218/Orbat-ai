@@ -40,7 +40,9 @@ export class ContactsService {
 
     // Paginated list
     const listRes = await this.db.query(
-      `SELECT id, name, email, current_page_url, current_page_title,
+      `SELECT id, name, email, phone, company, segment, tags, plan,
+              lifetime_value_cents, orders_count, marketing_opt_in,
+              current_page_url, current_page_title,
               ip_location_city, ip_location_country, device, browser, os,
               visit_count, is_online, last_seen_at, first_seen_at, channel
        FROM public.visitors
@@ -64,7 +66,9 @@ export class ContactsService {
   async getContactById(workspaceId: string, contactId: string) {
     const [visitorRes, historyRes] = await Promise.all([
       this.db.query(
-        `SELECT id, name, email, current_page_url, current_page_title,
+        `SELECT id, name, email, phone, company, segment, tags, plan,
+                lifetime_value_cents, orders_count, marketing_opt_in,
+                current_page_url, current_page_title,
                 ip_location_city, ip_location_country, device, browser, os,
                 referrer_source, visit_count, is_online, timezone, language,
                 channel, channel_user_id, last_seen_at, first_seen_at
@@ -120,16 +124,23 @@ export class ContactsService {
     // Insert new contact
     const result = await this.db.query(
       `INSERT INTO public.visitors (
-         workspace_id, name, email, current_page_url, current_page_title,
+         workspace_id, name, email, phone, company, segment, tags, plan, marketing_opt_in,
+         current_page_url, current_page_title,
          device, browser, os, ip_location_city, ip_location_country,
          timezone, language, channel, channel_user_id, is_online
        )
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, true)
-       RETURNING id, name, email, current_page_url, is_online, last_seen_at, first_seen_at`,
+       VALUES ($1, $2, $3, $4, $5, $6, $7::text[], $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, true)
+       RETURNING id, name, email, phone, company, segment, tags, plan, marketing_opt_in, current_page_url, is_online, last_seen_at, first_seen_at`,
       [
         workspaceId,
         dto.name?.trim() || null,
         dto.email?.trim().toLowerCase() || null,
+        dto.phone?.trim() || null,
+        dto.company?.trim() || null,
+        dto.segment?.trim().toLowerCase() || 'standard',
+        Array.isArray(dto.tags) ? dto.tags : [],
+        dto.plan?.trim() || null,
+        Boolean(dto.marketingOptIn),
         dto.currentPageUrl || '/',
         dto.currentPageTitle || null,
         dto.device || null,
@@ -162,6 +173,30 @@ export class ContactsService {
       fields.push(`email = $${idx++}`);
       values.push(dto.email.trim().toLowerCase());
     }
+    if (dto.phone !== undefined) {
+      fields.push(`phone = $${idx++}`);
+      values.push(dto.phone.trim() || null);
+    }
+    if (dto.company !== undefined) {
+      fields.push(`company = $${idx++}`);
+      values.push(dto.company.trim() || null);
+    }
+    if (dto.segment !== undefined) {
+      fields.push(`segment = $${idx++}`);
+      values.push(dto.segment.trim().toLowerCase() || 'standard');
+    }
+    if (dto.tags !== undefined) {
+      fields.push(`tags = $${idx++}::text[]`);
+      values.push(Array.isArray(dto.tags) ? dto.tags : []);
+    }
+    if (dto.plan !== undefined) {
+      fields.push(`plan = $${idx++}`);
+      values.push(dto.plan.trim() || null);
+    }
+    if (dto.marketingOptIn !== undefined) {
+      fields.push(`marketing_opt_in = $${idx++}`);
+      values.push(Boolean(dto.marketingOptIn));
+    }
     if (dto.timezone !== undefined) {
       fields.push(`timezone = $${idx++}`);
       values.push(dto.timezone);
@@ -180,7 +215,7 @@ export class ContactsService {
       UPDATE public.visitors
       SET ${fields.join(', ')}
       WHERE id = $${idx++} AND workspace_id = $${idx}
-      RETURNING id, name, email, timezone, language, last_seen_at
+      RETURNING id, name, email, phone, company, segment, tags, plan, marketing_opt_in, timezone, language, last_seen_at
     `;
 
     const result = await this.db.query(sql, values);

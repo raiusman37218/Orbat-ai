@@ -1,0 +1,75 @@
+/* ORBAT Tickets scoped styles */
+
+.orb .o-slideover-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: var(--scrim);
+  display: flex;
+  justify-content: flex-end;
+  animation: o-fade-in 0.16s ease-out;
+}
+
+.orb .o-slideover-panel {
+  width: min(620px, 100vw);
+  height: 100dvh;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-dialog);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  animation: o-slide-left 0.18s ease-out;
+}
+
+.orb .o-filter-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.orb .o-filter-chip:hover {
+  background: var(--surface-2);
+  border-color: var(--border-strong);
+  color: var(--text);
+}
+
+.orb .o-filter-chip[data-active='true'] {
+  background: var(--accent-soft);
+  border-color: transparent;
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.orb .o-internal-note {
+  background: var(--note);
+  border: 1px solid var(--note-border);
+  border-radius: 14px;
+}
+
+.orb .o-priority-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  flex: none;
+}
+
+@keyframes o-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes o-slide-left {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}

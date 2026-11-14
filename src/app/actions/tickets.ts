@@ -203,9 +203,11 @@ export async function getViewCountsAction(workspaceId: string): Promise<Record<s
   return countViews(caller, workspaceId, [...SYSTEM_VIEWS, ...(await savedViews(caller, workspaceId))]);
 }
 
+export type TicketSlaFilter = 'running' | 'at_risk' | 'breached' | 'paused' | 'met';
+
 export async function listTicketsAction(
   workspaceId: string,
-  request: { viewId?: string; filters?: unknown; sort?: unknown; page?: number }
+  request: { viewId?: string; filters?: unknown; sort?: unknown; page?: number; slaStatus?: TicketSlaFilter }
 ): Promise<{ tickets: TicketListItem[]; total: number; view: ViewDefinition | null }> {
   const caller = await assertTicketAccess(workspaceId);
 
@@ -221,7 +223,23 @@ export async function listTicketsAction(
   const sort: TicketSort = request.sort !== undefined ? normalizeSort(request.sort) : view?.sort ?? normalizeSort(null);
   const page = Math.max(0, Math.floor(request.page ?? 0));
 
-  const { data, count, error } = await filteredTickets(caller, workspaceId, filters, LIST_COLUMNS)
+  let query = filteredTickets(caller, workspaceId, filters, LIST_COLUMNS);
+  if (request.slaStatus === 'breached') {
+    query = query.not('sla_breached_at', 'is', null);
+  } else if (request.slaStatus === 'at_risk') {
+    query = query
+      .eq('sla_state', 'running')
+      .is('sla_breached_at', null)
+      .lte('sla_next_warn_at', new Date().toISOString());
+  } else if (request.slaStatus === 'running') {
+    query = query.eq('sla_state', 'running').is('sla_breached_at', null);
+  } else if (request.slaStatus === 'paused') {
+    query = query.eq('sla_state', 'paused');
+  } else if (request.slaStatus === 'met') {
+    query = query.eq('sla_state', 'met');
+  }
+
+  const { data, count, error } = await query
     .order(sortColumn(sort), { ascending: sort.direction === 'asc', nullsFirst: false })
     .order('number', { ascending: false })
     .range(page * PAGE_SIZE, page * PAGE_SIZE + PAGE_SIZE - 1);
@@ -1037,4 +1055,96 @@ export async function listTicketViewsAction(
     .order('position');
   if (error) throw dbError(error, 'Could not load saved views.');
   return (data as { id: string; name: string }[]) || [];
+}
+
+export interface TicketTabCounts {
+  all: number;
+  open: number;
+  pending: number;
+  solved: number;
+  closed: number;
+  unassigned: number;
+  mine: number;
+  priority: number;
+}
+
+/** Counts per status/queue tab for the ORBAT Tickets screen. */
+export async function getTicketTabCountsAction(workspaceId: string): Promise<TicketTabCounts> {
+  const caller = await assertTicketAccess(workspaceId);
+  const defs: Array<[keyof TicketTabCounts, TicketFilters]> = [
+    ['all', {}],
+    ['open', { status: ['new', 'open'] }],
+    ['pending', { status: ['pending', 'on_hold'] }],
+    ['solved', { status: ['solved'] }],
+    ['closed', { status: ['closed'] }],
+    ['unassigned', { assignee: ['none'], status: ['new', 'open', 'pending', 'on_hold'] }],
+    ['mine', { assignee: ['me'], status: ['new', 'open', 'pending', 'on_hold'] }],
+    ['priority', { priority: ['high', 'urgent'], status: ['new', 'open', 'pending', 'on_hold'] }],
+  ];
+  const entries = await Promise.all(
+    defs.map(async ([key, filters]) => {
+      const { count } = await filteredTickets(caller, workspaceId, filters, 'id', true);
+      return [key, count ?? 0] as const;
+    })
+  );
+  return Object.fromEntries(entries) as unknown as TicketTabCounts;
+}
+
+/** Permanently deletes non-closed tickets (closed tickets remain read-only audit records). */
+export async function deleteTicketsAction(
+  workspaceId: string,
+  ticketIds: string[]
+): Promise<{ deleted: number; skipped: { id: string; number: number; reason: string }[] }> {
+  await assertTicketAccess(workspaceId, 'edit_ticket');
+  const uniq = Array.from(new Set((ticketIds || []).filter((id) => UUID.test(id)))).slice(0, 100);
+  if (!uniq.length) return { deleted: 0, skipped: [] };
+
+  const { serviceClient } = await import('@/lib/pg/service');
+  const admin = serviceClient();
+  const { data: rows, error: fetchError } = await admin
+    .from('tickets')
+    .select('id, number, status')
+    .eq('workspace_id', workspaceId)
+    .in('id', uniq);
+  if (fetchError) throw dbError(fetchError, 'Could not inspect tickets.');
+
+  const found = (rows as Array<{ id: string; number: number; status: string }>) || [];
+  const skipped = found
+    .filter((t) => t.status === 'closed')
+    .map((t) => ({ id: t.id, number: t.number, reason: 'Closed tickets are read-only and cannot be deleted.' }));
+  const deletableIds = found.filter((t) => t.status !== 'closed').map((t) => t.id);
+
+  if (deletableIds.length > 0) {
+    const { error: deleteError } = await admin
+      .from('tickets')
+      .delete()
+      .eq('workspace_id', workspaceId)
+      .in('id', deletableIds);
+    if (deleteError) throw dbError(deleteError, 'Could not delete tickets.');
+  }
+
+  return { deleted: deletableIds.length, skipped };
+}
+
+/** Workspace customers/visitors with an email or name for ticket creation picker. */
+export async function listTicketRequestersAction(
+  workspaceId: string,
+  queryText?: string
+): Promise<Array<{ id: string; name: string | null; email: string | null }>> {
+  const caller = await assertTicketAccess(workspaceId);
+  let q = caller.supabase
+    .from('visitors')
+    .select('id, name, email')
+    .eq('workspace_id', workspaceId)
+    .order('last_seen_at', { ascending: false })
+    .limit(40);
+  const clean = (queryText || '').trim().replace(/[%_(),]/g, '');
+  if (clean) {
+    q = q.or(`name.ilike.%${clean}%,email.ilike.%${clean}%`);
+  }
+  const { data, error } = await q;
+  if (error) throw dbError(error, 'Could not load requesters.');
+  return ((data as Array<{ id: string; name: string | null; email: string | null }>) || []).filter(
+    (v) => Boolean(v.email?.trim() || v.name?.trim())
+  );
 }

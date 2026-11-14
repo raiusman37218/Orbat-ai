@@ -104,6 +104,9 @@ describe('ticket actions refuse another workspace before touching its data', () 
     ['searchTicketsAction', () => actions.searchTicketsAction(WS_B, 'refund')],
     ['saveTicketViewAction', () => actions.saveTicketViewAction(WS_B, { name: 'x', filters: {}, sort: {}, shared: false })],
     ['deleteTicketViewAction', () => actions.deleteTicketViewAction(WS_B, T1)],
+    ['getTicketTabCountsAction', () => actions.getTicketTabCountsAction(WS_B)],
+    ['deleteTicketsAction', () => actions.deleteTicketsAction(WS_B, [T1])],
+    ['listTicketRequestersAction', () => actions.listTicketRequestersAction(WS_B)],
     ['setTicketPresenceAction', () => actions.setTicketPresenceAction(WS_B, T1, 'viewing')],
     [
       'createTicketAction',

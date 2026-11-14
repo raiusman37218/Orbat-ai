@@ -19,10 +19,13 @@ Replace the whole frontend with the ORBAT design in `docs/design/design/*.dc.htm
 | Sidebar badges, usage / trial card | Done | `src/components/orbat/shell/Sidebar.tsx` |
 | Inbox (`Inbox.dc.html`, `MobileInbox.dc.html`) | Done | `/app/inbox` (`src/components/orbat/inbox/`, `src/lib/data/inbox.ts`) |
 | Landing (`Landing.dc.html`) | Done | `/` (`src/components/orbat/landing/`, `src/app/(orbat)/page.tsx`) |
-| Every other screen | Not started | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
-| Cut-over (new UI on the real URLs, old UI deleted) | Not started | see "Cut-over" below |
+| Tickets (`Tickets.dc.html`) | Done | `/app/tickets` (`src/components/orbat/tickets/`, `src/lib/data/tickets.ts`, `src/app/actions/tickets.ts`) |
+| Customers (`Customers.dc.html`) | Done | `/app/customers` (`src/components/orbat/customers/`, `src/lib/data/customers.ts`, `src/app/actions/customers.ts`, `backend/src/contacts/`) |
+| Calls / Voice (`Voice.dc.html`) | Done | `/app/calls` (`src/components/orbat/calls/`, `src/lib/data/calls.ts`, `src/app/actions/voice.ts`, `src/app/api/channels/voice/webhook/route.ts`) |
+| Every other screen | In progress (Phase 1 done) | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
+| Cut-over (new UI on the real URLs, old UI deleted) | In progress (Landing cut over; app screens ongoing) | see "Cut-over" below |
 
-Screens left, in order (from REPLACE_PLAN.md): **Tickets** → Customers → Calls → AI Agents → Agent templates → Agent builder → AI quality → Languages → Knowledge → Automation → Journeys → Engagement → Analytics → Team → Schedule → Compliance → Policies → Website audit → Handoff → Channels → CRM connect → Billing → Checkout → Settings → Emails → Profile → Getting started → Trial → States → Super admin → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
+Screens left, in order (from REPLACE_PLAN.md): **AI Agents** → Agent templates → Agent builder → AI quality → Languages → Knowledge → Automation → Journeys → Engagement → Analytics → Team → Schedule → Compliance → Policies → Website audit → Handoff → Channels → CRM connect → Billing → Checkout → Settings → Emails → Profile → Getting started → Trial → States → Super admin → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
 
 ## How the new UI is built
 

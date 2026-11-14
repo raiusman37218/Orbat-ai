@@ -1,6 +1,12 @@
 export declare class CreateContactDto {
     name?: string;
     email?: string;
+    phone?: string;
+    company?: string;
+    segment?: string;
+    tags?: string[];
+    plan?: string;
+    marketingOptIn?: boolean;
     currentPageUrl?: string;
     currentPageTitle?: string;
     device?: string;
