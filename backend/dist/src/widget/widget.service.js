@@ -97,9 +97,37 @@ let WidgetService = WidgetService_1 = class WidgetService {
         catch {
             proactiveMessages = [];
         }
+        let officeHoursStatus = null;
+        let handoffPublic = null;
+        try {
+            const statusRes = await this.db.query(`SELECT
+           public.fn_is_within_office_hours($1::uuid) AS is_open_now,
+           public.fn_next_office_hours_open($1::uuid) AS next_open,
+           w.handoff_settings
+         FROM public.workspaces w
+         WHERE w.id = $1::uuid
+         LIMIT 1`, [wsId]);
+            const row = statusRes.rows[0];
+            if (row) {
+                officeHoursStatus = {
+                    is_open_now: Boolean(row.is_open_now),
+                    next_open: row.next_open ?? null,
+                };
+                const hs = (row.handoff_settings || {});
+                handoffPublic = {
+                    mode: String(hs.handoff_mode || 'on'),
+                    ring_timeout_seconds: Number(hs.ring_timeout_seconds || hs.routing?.ring_timeout_seconds || 45),
+                    offline_expected_reply_text: hs.fallback?.offline_expected_reply_text ?? null,
+                };
+            }
+        }
+        catch {
+        }
         return {
             ...(typeof data === 'object' && data !== null ? data : {}),
             proactive_messages: proactiveMessages,
+            ...(officeHoursStatus ? { office_hours_status: officeHoursStatus } : {}),
+            ...(handoffPublic ? { handoff: handoffPublic } : {}),
         };
     }
     async trackProactiveEvent(workspaceId, messageId, event) {

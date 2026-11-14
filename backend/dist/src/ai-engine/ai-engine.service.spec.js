@@ -92,5 +92,48 @@ const mock_fallback_provider_1 = require("./providers/mock-fallback.provider");
         (0, vitest_1.expect)(blocked.reason).toBe('blocked_topic_handoff');
         (0, vitest_1.expect)(mockConversationsService.requestHandoff).toHaveBeenCalledWith('ws-1', 'conv-1');
     });
+    (0, vitest_1.it)('should redact sensitive patterns matched by enabled compliance_policies before sending AI reply', async () => {
+        vitest_1.vi.spyOn(mockLlm, 'generateCompletion').mockResolvedValueOnce({
+            content: 'Use card 4111 1111 1111 1111 or SSN 123-45-6789 to verify.',
+            provider: 'mock',
+            model: 'mock-model',
+            usage: { promptTokens: 10, completionTokens: 10, totalTokens: 20 },
+            estimatedCostUsd: 0,
+        });
+        mockDb.query
+            .mockResolvedValueOnce({ rows: [] })
+            .mockResolvedValueOnce({ rows: [{ name: 'Acme', ai_settings: {} }] })
+            .mockResolvedValueOnce({
+            rows: [
+                {
+                    id: 'pol-1',
+                    rule_key: 'pii_card',
+                    name: 'Card numbers',
+                    framework: 'PCI DSS',
+                    action_mode: 'redact',
+                    pattern_type: 'builtin',
+                    pattern: 'pii_card',
+                    sentinel_enabled: true,
+                },
+                {
+                    id: 'pol-2',
+                    rule_key: 'pii_ssn',
+                    name: 'SSN numbers',
+                    framework: 'HIPAA',
+                    action_mode: 'redact',
+                    pattern_type: 'builtin',
+                    pattern: 'pii_ssn',
+                    sentinel_enabled: true,
+                },
+            ],
+        })
+            .mockResolvedValue({ rows: [] });
+        const res = await aiService.generateBotResponse('ws-1', 'conv-1', 'Check my verification');
+        (0, vitest_1.expect)(res.replied).toBe(true);
+        (0, vitest_1.expect)(mockMessagesService.sendMessage).toHaveBeenCalledWith('ws-1', 'conv-1', vitest_1.expect.objectContaining({
+            senderType: 'ai',
+            content: 'Use card [CARD •••• 1111] or SSN [SSN •••-6789] to verify.',
+        }));
+    });
 });
 //# sourceMappingURL=ai-engine.service.spec.js.map

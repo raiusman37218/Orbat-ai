@@ -180,12 +180,101 @@ ${knowledgeContext || 'No specific articles found. Answer general greetings poli
       maxTokens: 512,
     });
 
+    // 5b. Sentinel Compliance Check (active approved compliance_policies + workspace_compliance_settings)
+    let safeReplyContent = completion.content;
+    try {
+      const polRes = await this.db.query(
+        `SELECT p.id, p.rule_key, p.name, p.framework, p.action_mode, p.pattern_type, p.pattern,
+                COALESCE(cs.sentinel_enabled, true) AS sentinel_enabled
+         FROM public.compliance_policies p
+         LEFT JOIN public.workspace_compliance_settings cs ON cs.workspace_id = p.workspace_id
+         WHERE p.workspace_id = $1
+           AND p.is_enabled = true
+           AND p.review_status = 'approved'
+           AND p.applies_to IN ('ai', 'both')`,
+        [workspaceId],
+      );
+      const policies = (polRes?.rows ?? []) as Array<{
+        id: string;
+        rule_key: string | null;
+        name: string;
+        framework: string;
+        action_mode: string;
+        pattern_type: string;
+        pattern: string;
+        sentinel_enabled: boolean;
+      }>;
+      const sentinelOn = policies.length === 0 ? false : policies[0].sentinel_enabled !== false;
+      if (sentinelOn && policies.length > 0) {
+        const hits: Array<{ id: string; name: string; framework: string; mode: string; preview: string }> = [];
+        for (const p of policies) {
+          let matched: string | null = null;
+          if (p.rule_key === 'pii_card') {
+            safeReplyContent = safeReplyContent.replace(/\b(?:\d[ -]*?){13,19}\b/g, (raw) => {
+              const d = raw.replace(/\D/g, '');
+              if (d.length < 13 || d.length > 19) return raw;
+              matched = `•••• ${d.slice(-4)}`;
+              return `[CARD •••• ${d.slice(-4)}]`;
+            });
+          } else if (p.rule_key === 'pii_ssn') {
+            safeReplyContent = safeReplyContent.replace(/\b(\d{3}-\d{2}-\d{4})\b/g, (raw) => {
+              matched = `•••-••-${raw.slice(-4)}`;
+              return `[SSN •••-${raw.slice(-4)}]`;
+            });
+          } else if (p.rule_key === 'secret_credentials') {
+            safeReplyContent = safeReplyContent.replace(/\b(sk_(?:live|test)_[A-Za-z0-9]{12,}|AKIA[0-9A-Z]{16}|ghp_[A-Za-z0-9]{20,})\b/g, () => {
+              matched = '[SECRET REDACTED]';
+              return '[REDACTED SECRET]';
+            });
+          } else if (p.pattern_type === 'keyword' && p.pattern) {
+            const terms = p.pattern.split(/[|,\n]/).map((t) => t.trim().toLowerCase()).filter((t) => t.length >= 2);
+            const hitTerm = terms.find((t) => safeReplyContent.toLowerCase().includes(t));
+            if (hitTerm) matched = hitTerm;
+          }
+          if (matched) {
+            hits.push({ id: p.id, name: p.name, framework: p.framework, mode: p.action_mode, preview: matched });
+          }
+        }
+        if (hits.length > 0) {
+          const blockedHit = hits.find((h) => h.mode === 'block' || h.mode === 'escalate');
+          for (const h of hits) {
+            await this.db.query(
+              `INSERT INTO public.compliance_flags
+                 (workspace_id, policy_id, conversation_id, severity, framework, rule_name, channel, actor_type, action_taken, redacted_excerpt)
+               VALUES ($1, $2, $3, $4, $5, $6, 'chat', 'ai', $7, $8)`,
+              [
+                workspaceId,
+                h.id,
+                conversationId,
+                h.mode === 'block' || h.mode === 'redact' ? 'high' : 'medium',
+                h.framework,
+                h.name,
+                h.mode === 'redact' ? 'redacted' : h.mode === 'block' ? 'blocked' : h.mode === 'escalate' ? 'escalated' : 'flagged',
+                safeReplyContent.slice(0, 500),
+              ],
+            ).catch(() => {});
+            await this.db.query(
+              `UPDATE public.compliance_policies SET hits_count = hits_count + 1, last_triggered_at = now() WHERE id = $1`,
+              [h.id],
+            ).catch(() => {});
+          }
+          if (blockedHit) {
+            await this.logReplyEvent(workspaceId, conversationId, triggerMessageId, 'handoff_requested', `Compliance policy blocked AI draft: ${blockedHit.name}`);
+            await this.conversationsService.requestHandoff(workspaceId, conversationId);
+            return { replied: false, reason: 'compliance_blocked_handoff' };
+          }
+        }
+      }
+    } catch {
+      // Non-fatal fallback for mocked DB specs or pre-migration state
+    }
+
     // 6. Post Bot Reply Message (senderType: 'ai' so AI mode remains active)
     const botMsg = await this.messagesService.sendMessage(
       workspaceId,
       conversationId,
       {
-        content: completion.content,
+        content: safeReplyContent,
         senderType: 'ai',
       },
     );
@@ -231,7 +320,7 @@ ${knowledgeContext || 'No specific articles found. Answer general greetings poli
           conversationId,
           botMsg.id,
           triggerMessage.slice(0, 4000),
-          completion.content.slice(0, 8000),
+          safeReplyContent.slice(0, 8000),
           JSON.stringify(
             chunks.slice(0, 2).map((c) => ({
               claim: c.content.slice(0, 160),

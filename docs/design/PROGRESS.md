@@ -32,10 +32,16 @@ Replace the whole frontend with the ORBAT design in `docs/design/design/*.dc.htm
 | Customer Journeys (`Journey.dc.html`) | Done | `/app/automation/journeys` (`/app/journeys` redirects; `src/components/orbat/journeys/JourneysScreen.tsx`, `src/lib/data/journeys.ts`, `src/app/actions/journeys.ts`) |
 | Engagement (`Engagement.dc.html`) | Done | `/app/engagement` (`src/components/orbat/engagement/EngagementScreen.tsx`, `src/lib/data/engagement.ts`, `src/app/actions/engagement.ts`, `backend/src/widget/widget.service.ts`) |
 | Analytics & Reports (`Analytics.dc.html`) | Done | `/app/analytics` (`src/components/orbat/analytics/AnalyticsScreen.tsx`, `src/lib/data/analytics.ts`, `src/app/actions/analytics-studio.ts`) |
-| Every other screen | In progress (Phases 1–3 done) | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
+| Team & Command Center (`Team.dc.html`) | Done | `/app/team` (`src/components/orbat/team/TeamScreen.tsx`, `src/lib/data/team.ts`, `src/app/actions/team-studio.ts`, `src/app/actions/team.ts`) |
+| Office Hours & On-Call Schedule (`Schedule.dc.html`) | Done | `/app/team/schedule` (`src/components/orbat/team/ScheduleScreen.tsx`, `src/lib/data/schedule.ts`, `src/app/actions/schedule.ts`, `src/lib/schedule/hours.ts`) |
+| Compliance Center (`Compliance.dc.html`) | Done | `/app/compliance` (`src/components/orbat/compliance/ComplianceScreen.tsx`, `src/lib/data/compliance.ts`, `src/app/actions/compliance.ts`, `src/lib/compliance/policy-evaluator.ts`, `backend/src/ai-engine/ai-engine.service.ts`) |
+| Policy to Guardrails (`PolicyGuardrail.dc.html`) | Done | `/app/compliance/policies` (`src/components/orbat/compliance/PoliciesScreen.tsx`, `src/app/actions/compliance.ts`) |
+| Website Compliance Audit (`WebsiteAudit.dc.html`) | Done | `/app/compliance/website-audit` (`src/components/orbat/compliance/WebsiteAuditScreen.tsx`, `src/app/actions/website-audit.ts`) |
+| AI to Human Handoff (`Handoff.dc.html`) | Done | `/app/handoff` (`src/components/orbat/handoff/HandoffScreen.tsx`, `src/lib/data/handoff.ts`, `src/app/actions/handoff.ts`, `backend/src/widget/widget.service.ts`) |
+| Every other screen | In progress (Phases 1–4 done) | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
 | Cut-over (new UI on the real URLs, old UI deleted) | In progress (Landing & Auth cut over; app screens ongoing) | see "Cut-over" below |
 
-Screens left, in order (from REPLACE_PLAN.md): **Team** → Schedule → Compliance → Policies → Website audit → Handoff → Channels → CRM connect → Billing → Checkout → Settings → Emails → Profile → Getting started → Trial → States → Super admin → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
+Screens left, in order (from REPLACE_PLAN.md): **Channels** → CRM connect → Billing → Checkout → Settings → Emails → Profile → Getting started → Trial → States → Super admin → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
 
 ## How the new UI is built
 
