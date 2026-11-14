@@ -12,6 +12,12 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["scripts/design/dev-with-mock.mjs"],
       "port": 3001
+    },
+    {
+      "name": "orbat-backend",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "backend", "run", "start:dev"],
+      "port": 4000
     }
   ]
 }

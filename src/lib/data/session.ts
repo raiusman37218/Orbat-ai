@@ -14,7 +14,7 @@ import type { AgentPresence, ShellSession } from './types';
 
 export async function requireShellSession(returnTo: string): Promise<ShellSession> {
   const user = await sessionUser().catch(() => null);
-  if (!user) redirect(`/login?redirect=${encodeURIComponent(returnTo)}`);
+  if (!user) redirect(`/v2/login?redirect=${encodeURIComponent(returnTo)}`);
 
   const db = await createClient();
   const { data: agent, error: agentError } = await db

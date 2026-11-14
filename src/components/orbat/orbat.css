@@ -577,6 +577,10 @@
 .o-state__title { font-size: 16px; font-weight: 700; color: var(--text); }
 .o-state__body { max-width: 360px; font-size: 14px; color: var(--text-2); }
 
+/* ---------- auth ---------- */
+
+.o-auth-fade { animation: o-rise 0.3s ease-out; }
+
 /* ---------- mobile nav drawer ---------- */
 
 .o-drawer {

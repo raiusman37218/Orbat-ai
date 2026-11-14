@@ -44,7 +44,7 @@ export function AppShell({ session, children }: { session: ShellSession; childre
   const closePalette = useCallback(() => setPaletteOpen(false), []);
   const handleSignOut = useCallback(async () => {
     await signOut();
-    router.replace('/login');
+    router.replace('/v2/login');
   }, [router]);
 
   // ⌘K / Ctrl+K anywhere; "?" opens shortcuts when not typing.
