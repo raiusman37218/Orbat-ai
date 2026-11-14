@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/orbat/primitives';
 import { ROLE_LABELS, STATUS_LABELS } from '@/lib/team/permissions';
+import type { ShellCounts, ShellUsage } from '@/lib/data/shell';
 import type { ShellSession } from '@/lib/data/types';
 import type { NavGroup } from './nav';
 
@@ -34,16 +35,26 @@ export function Sidebar({
   activeId,
   session,
   compact = false,
+  live,
   onNavigate,
 }: {
   groups: NavGroup[];
   activeId: string | null;
   session: ShellSession;
   compact?: boolean;
+  /** Badge counts and the usage / trial card; null while loading or not allowed. */
+  live?: { counts: ShellCounts | null; usage: ShellUsage | null };
   /** Called after a link is followed (closes the mobile drawer). */
   onNavigate?: () => void;
 }) {
   const { agent, workspace } = session;
+  const badgeFor = (id: string): number => {
+    if (!live?.counts) return 0;
+    if (id === 'inbox') return live.counts.inbox;
+    if (id === 'tickets') return live.counts.tickets;
+    return 0;
+  };
+  const usage = live?.usage ?? null;
 
   return (
     <nav
@@ -85,13 +96,14 @@ export function Sidebar({
             {g.items.map((item) => {
               const on = item.id === activeId;
               const Icon = item.icon;
+              const badge = badgeFor(item.id);
               return (
                 <Link
                   key={item.id}
                   href={item.href}
                   onClick={onNavigate}
                   aria-current={on ? 'page' : undefined}
-                  aria-label={compact ? item.label : undefined}
+                  aria-label={compact ? (badge ? `${item.label}, ${badge}` : item.label) : undefined}
                   title={compact ? item.label : undefined}
                   className={cn(
                     'relative flex h-11 items-center gap-3.5 rounded-full text-[15.5px] no-underline',
@@ -103,6 +115,20 @@ export function Sidebar({
                 >
                   <Icon size={22} strokeWidth={1.8} aria-hidden="true" className="flex-none" />
                   {!compact ? <span className="flex-1 truncate">{item.label}</span> : null}
+                  {badge > 0 && !compact ? (
+                    <span
+                      className={cn(
+                        'o-num min-w-[26px] rounded-full px-2 py-0.5 text-center text-[12.5px] font-bold text-o-forest',
+                        on ? 'bg-o-surface' : 'bg-o-mint',
+                      )}
+                    >
+                      <span className="sr-only">, </span>
+                      {badge > 99 ? '99+' : badge}
+                    </span>
+                  ) : null}
+                  {badge > 0 && compact ? (
+                    <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-o-forest" aria-hidden="true" />
+                  ) : null}
                 </Link>
               );
             })}
@@ -111,6 +137,7 @@ export function Sidebar({
       </div>
 
       <div className="flex flex-col gap-2.5">
+        {!compact && usage ? <UsageCard usage={usage} onNavigate={onNavigate} /> : null}
         <Link
           href="/app/profile"
           onClick={onNavigate}
@@ -132,5 +159,65 @@ export function Sidebar({
         </Link>
       </div>
     </nav>
+  );
+}
+
+/* Sidebar.dc.html: a forest trial card while trialing, otherwise the AI
+   usage meter. Admins and owners only (see getShellUsage). */
+function UsageCard({ usage, onNavigate }: { usage: ShellUsage; onNavigate?: () => void }) {
+  if (usage.kind === 'trial') {
+    const pct = Math.min(100, Math.round(((usage.trialDays - usage.daysLeft) / usage.trialDays) * 100));
+    return (
+      <Link
+        href="/app/billing"
+        onClick={onNavigate}
+        className="flex flex-col gap-2.5 rounded-[24px] bg-o-forest p-[18px] no-underline"
+      >
+        <span className="flex justify-between text-[14px]">
+          <span className="font-semibold text-o-on-forest">{usage.expired ? 'Trial ended' : 'Free trial'}</span>
+          <span className="o-num text-o-mint">{usage.expired ? 'Choose a plan' : `${usage.daysLeft} days left`}</span>
+        </span>
+        <span className="h-1.5 rounded-full bg-o-on-forest-track" aria-hidden="true">
+          <span className="block h-1.5 rounded-full bg-o-lime" style={{ width: `${pct}%` }} />
+        </span>
+        <span className="grid h-10 place-items-center rounded-full bg-o-lime text-[14.5px] font-semibold text-o-forest">
+          Choose a plan
+        </span>
+      </Link>
+    );
+  }
+  const resets = usage.resets
+    ? new Date(usage.resets).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+    : null;
+  return (
+    <Link
+      href="/app/billing"
+      onClick={onNavigate}
+      className="flex flex-col gap-2.5 rounded-[24px] bg-o-side-2 p-[18px] text-o-text no-underline hover:bg-o-surface-3"
+    >
+      <span className="flex justify-between gap-2 text-[14px]">
+        <span className="font-semibold">{usage.label}</span>
+        <span className="o-num text-o-text-2">
+          {usage.used.toLocaleString()} / {usage.limit.toLocaleString()}
+        </span>
+      </span>
+      <span
+        className="h-1.5 rounded-full bg-o-surface-3"
+        role="progressbar"
+        aria-label={`${usage.label} used this period`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={usage.percentage}
+      >
+        <span
+          className={cn('block h-1.5 rounded-full', usage.percentage >= 80 ? 'bg-o-warn' : 'bg-o-forest')}
+          style={{ width: `${usage.percentage}%` }}
+        />
+      </span>
+      <span className="text-[13px] text-o-text-3">
+        {resets ? `Resets ${resets} · ` : ''}
+        {usage.planName} plan
+      </span>
+    </Link>
   );
 }

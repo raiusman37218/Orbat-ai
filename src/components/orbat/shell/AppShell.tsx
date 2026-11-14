@@ -5,9 +5,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { cn } from '@/lib/utils';
 import { Modal, OrbToastProvider } from '@/components/orbat/primitives';
 import { signOut } from '@/lib/data/auth';
+import { getShellCounts, getShellUsage } from '@/lib/data/shell';
 import type { ShellSession } from '@/lib/data/types';
+import { useData } from '@/lib/data/use-data';
 import { CommandPalette } from './CommandPalette';
 import { activeNavId, breadcrumbFor, usesCompactSidebar, visibleNav } from './nav';
+import { ShellSessionProvider } from './session-context';
 import { Sidebar } from './Sidebar';
 import { Topbar } from './Topbar';
 import { useTheme } from './theme';
@@ -40,6 +43,12 @@ export function AppShell({ session, children }: { session: ShellSession; childre
   const activeId = activeNavId(pathname);
   const crumb = breadcrumbFor(pathname);
   const compact = usesCompactSidebar(pathname);
+
+  // Badges refresh on every navigation; the usage card only once.
+  const wsId = session.workspace.id;
+  const counts = useData(() => getShellCounts(wsId), ['counts', wsId, pathname]);
+  const usage = useData(() => getShellUsage(wsId, session.agent.role), ['usage', wsId, session.agent.role]);
+  const live = { counts: counts.data ?? null, usage: usage.data ?? null };
 
   const closePalette = useCallback(() => setPaletteOpen(false), []);
   const handleSignOut = useCallback(async () => {
@@ -79,6 +88,7 @@ export function AppShell({ session, children }: { session: ShellSession; childre
   }
 
   return (
+    <ShellSessionProvider session={session}>
     <OrbToastProvider>
       <div className="flex min-h-dvh">
         <aside
@@ -87,7 +97,7 @@ export function AppShell({ session, children }: { session: ShellSession; childre
             compact ? 'w-16' : 'w-[272px]',
           )}
         >
-          <Sidebar groups={groups} activeId={activeId} session={session} compact={compact} />
+          <Sidebar groups={groups} activeId={activeId} session={session} compact={compact} live={live} />
         </aside>
 
         <dialog
@@ -104,7 +114,7 @@ export function AppShell({ session, children }: { session: ShellSession; childre
           }}
         >
           {drawerOpen ? (
-            <Sidebar groups={groups} activeId={activeId} session={session} onNavigate={() => setDrawerOpen(false)} />
+            <Sidebar groups={groups} activeId={activeId} session={session} live={live} onNavigate={() => setDrawerOpen(false)} />
           ) : null}
         </dialog>
 
@@ -154,5 +164,6 @@ export function AppShell({ session, children }: { session: ShellSession; childre
         </dl>
       </Modal>
     </OrbToastProvider>
+    </ShellSessionProvider>
   );
 }

@@ -54,6 +54,9 @@
   --bad-soft: #fceaea;
   --bad-hover: #a3241e;
   --on-solid: #ffffff;
+  /* text and tracks on forest-green surfaces (trial card), both themes */
+  --on-forest: #ffffff;
+  --on-forest-track: rgba(255, 255, 255, 0.14);
 
   /* internal notes */
   --note: #fff7e0;
@@ -659,6 +662,8 @@
   --color-o-accent-soft: var(--accent-soft);
   --color-o-accent-text: var(--accent-text);
   --color-o-on-lime: var(--on-lime);
+  --color-o-on-forest: var(--on-forest);
+  --color-o-on-forest-track: var(--on-forest-track);
   --color-o-ai: var(--ai);
   --color-o-ai-soft: var(--ai-soft);
   --color-o-ai-text: var(--ai-text);
