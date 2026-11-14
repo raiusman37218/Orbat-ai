@@ -59,7 +59,7 @@ const TABS: Record<
       'Action limits, like refunds up to $75',
       'Hands off when confidence drops',
     ],
-    href: '/app/ai-agents',
+    href: '/app/agents',
   },
   inbox: {
     label: 'Inbox',
@@ -350,7 +350,7 @@ const FOOTER_COLS = [
     h: 'Product',
     links: [
       { t: 'Inbox', href: '/app/inbox' },
-      { t: 'AI agents', href: '/app/ai-agents' },
+      { t: 'AI agents', href: '/app/agents' },
       { t: 'Voice', href: '/app/calls' },
       { t: 'Pricing', href: '/v2/pricing' },
     ],
@@ -358,10 +358,10 @@ const FOOTER_COLS = [
   {
     h: 'Solutions',
     links: [
-      { t: 'E-commerce', href: '/app/ai-agents/templates' },
-      { t: 'Healthcare', href: '/app/ai-agents/templates' },
-      { t: 'Banking', href: '/app/ai-agents/templates' },
-      { t: 'Education', href: '/app/ai-agents/templates' },
+      { t: 'E-commerce', href: '/app/agents/templates' },
+      { t: 'Healthcare', href: '/app/agents/templates' },
+      { t: 'Banking', href: '/app/agents/templates' },
+      { t: 'Education', href: '/app/agents/templates' },
     ],
   },
   {
@@ -369,7 +369,7 @@ const FOOTER_COLS = [
     links: [
       { t: 'Help center', href: '/v2/help' },
       { t: 'Trust center', href: '/app/compliance' },
-      { t: 'Status', href: '/app/states' },
+      { t: 'Status', href: '/app/getting-started' },
     ],
   },
   {
@@ -409,7 +409,7 @@ export function LandingPage() {
       {/* STICKY HEADER */}
       <header className="o-lp-header">
         <div className="o-lp-wrap o-lp-header-inner">
-          <Link href="/v2" aria-label="ORBAT home" className="o-lp-brand">
+          <Link href="/" aria-label="ORBAT home" className="o-lp-brand">
             <svg width="32" height="32" viewBox="0 0 28 28" aria-hidden="true">
               <rect width="28" height="28" rx="9" fill="#163300" />
               <ellipse
@@ -1725,7 +1725,7 @@ export function LandingPage() {
               <h2 className="o-lp-disp o-lp-d2">Ready for your industry.</h2>
             </div>
             <Link
-              href="/app/ai-agents/templates"
+              href="/app/agents/templates"
               className="o-lp-pill o-lp-p-soft"
               style={{ height: 48 }}
             >
@@ -1743,7 +1743,7 @@ export function LandingPage() {
             {INDUSTRIES.map((i) => (
               <Link
                 key={i.n}
-                href="/app/ai-agents/templates"
+                href="/app/agents/templates"
                 className="o-lp-lift o-lp-box"
                 style={{
                   padding: 28,

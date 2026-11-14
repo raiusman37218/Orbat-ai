@@ -18,7 +18,7 @@ Replace the whole frontend with the ORBAT design in `docs/design/design/*.dc.htm
 | Overview (`Main.dc.html`) | Done | `/app` |
 | Sidebar badges, usage / trial card | Done | `src/components/orbat/shell/Sidebar.tsx` |
 | Inbox (`Inbox.dc.html`, `MobileInbox.dc.html`) | Done | `/app/inbox` (`src/components/orbat/inbox/`, `src/lib/data/inbox.ts`) |
-| Landing (`Landing.dc.html`) | Done | `/v2` (`src/components/orbat/landing/`, `src/app/(orbat)/v2/page.tsx`) |
+| Landing (`Landing.dc.html`) | Done | `/` (`src/components/orbat/landing/`, `src/app/(orbat)/page.tsx`) |
 | Every other screen | Not started | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
 | Cut-over (new UI on the real URLs, old UI deleted) | Not started | see "Cut-over" below |
 

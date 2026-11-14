@@ -1,13 +1,5 @@
-import type { Metadata } from 'next';
-import { LandingPage } from '@/components/orbat/landing/LandingPage';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = {
-  title: 'ORBAT AI — Instant answers. Real people when it matters.',
-  description:
-    'ORBAT’s AI agent resolves most conversations across chat, WhatsApp, email and calls, then hands the rest to your team with the full story.',
-};
-
-/* TEMPORARY /v2 prefix: the old / keeps working until the cut-over. */
-export default function OrbatLandingRoute() {
-  return <LandingPage />;
+export default function OrbatV2IndexRedirect() {
+  redirect('/');
 }
