@@ -1,6 +1,6 @@
 # New UI: progress and handoff
 
-Read this first if you are picking up the ORBAT frontend rebuild (any agent or person). It says what is done, how it is built, how to run it, and exactly what to do next. Last updated 2026-11-14, branch `new-ui`.
+Read this first if you are picking up the ORBAT frontend rebuild (any agent or person). It says what is done, how it is built, how to run it, and exactly what to do next. Last updated 2026-11-14. All work is on `main`.
 
 Also read, in this order: `CLAUDE.md` (repo rules; its "New UI" section takes precedence for UI work), `docs/design/HANDOFF.md` (tokens, typography, screen → route map), `docs/design/REPLACE_PLAN.md` (the overall plan), `docs/design/BACKEND_GAPS.md` (what the backend can't do yet).
 

@@ -193,7 +193,7 @@ Triggers: `fn_auto_assign_conversation_on_create` (least-loaded online agent), `
 
 ## New UI (ORBAT AI design handoff)
 
-The whole frontend is being replaced with the ORBAT AI design (work happens on the `new-ui` branch). For UI work these rules take precedence over the older styling rules under **Coding conventions** below (`docs/DESIGN.md`, the `--ds-*` tokens and the existing `src/components/ui/` look); everything else in this file still applies.
+The whole frontend is being replaced with the ORBAT AI design (work happens on `main`; the new UI lives beside the old one until the cut-over). For UI work these rules take precedence over the older styling rules under **Coding conventions** below (`docs/DESIGN.md`, the `--ds-*` tokens and the existing `src/components/ui/` look); everything else in this file still applies.
 
 **Design source of truth**
 
