@@ -103,5 +103,29 @@ describe('AI Engine & Usage Accounting', () => {
     );
     expect(aiUsage.recordBillableReply).not.toHaveBeenCalled();
   });
+
+  it('should apply active ai_agents prompt, guardrails, and blocked-topic handoffs', async () => {
+    mockDb.query.mockResolvedValueOnce({
+      rows: [
+        {
+          id: 'agent-fin-1',
+          name: 'Fintech Specialist',
+          tone: 'Calm, accurate',
+          system_prompt: 'Always verify KYC before quoting limits.',
+          guardrails: ['Never ask for full PIN or CVV'],
+          escalation_rules: { blockedTopics: ['chargeback fraud'] },
+        },
+      ],
+    });
+
+    const blocked = await aiService.generateBotResponse(
+      'ws-1',
+      'conv-1',
+      'I want to report chargeback fraud immediately',
+    );
+    expect(blocked.replied).toBe(false);
+    expect(blocked.reason).toBe('blocked_topic_handoff');
+    expect(mockConversationsService.requestHandoff).toHaveBeenCalledWith('ws-1', 'conv-1');
+  });
 });
 

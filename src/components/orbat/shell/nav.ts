@@ -114,6 +114,7 @@ function matches(pathname: string, href: string): boolean {
 /* The sidebar item to highlight: the longest matching href wins, so
    /app/agents/templates highlights "Agent templates", not "AI Agents". */
 export function activeNavId(pathname: string): string | null {
+  if (pathname.startsWith('/app/agents/') && pathname !== '/app/agents/templates') return 'builder';
   let best: NavItem | null = null;
   for (const g of NAV) {
     for (const item of g.items) {
@@ -124,6 +125,7 @@ export function activeNavId(pathname: string): string | null {
 }
 
 export function breadcrumbFor(pathname: string): { section: string; page: string } {
+  if (pathname.startsWith('/app/agents/') && pathname !== '/app/agents/templates') return { section: 'AI & Knowledge', page: 'Agent builder' };
   let best: { href: string; label: string; group: string } | null = null;
   const candidates = [
     ...NAV.flatMap((g) => g.items.map((i) => ({ href: i.href, label: i.label, group: g.label }))),

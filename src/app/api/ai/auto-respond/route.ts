@@ -43,6 +43,12 @@ import { checkWorkspaceFeature, checkWorkspaceLimit, incrementWorkspaceUsage } f
 import { recordPolicyOutcome } from '@/lib/ai/learning/policy';
 import { looksLikeImageUrl, messageWithImage, readScreenshot, type ImageReading } from '@/lib/ai/vision';
 import { canAiRespond } from '@/lib/handoff/state-machine';
+import {
+  getActivePrimaryAiAgent,
+  getLanguageConfig,
+  recordAiVerificationLog,
+  verifyReplyClaimsAgainstKnowledge,
+} from '@/lib/ai/agent-runtime';
 import type { HandoffStatus } from '@/types/database';
 import { evaluateHandoffTrigger } from '@/lib/ai/handoff-detect';
 
@@ -879,9 +885,25 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       hasKey: Boolean(platformConfig?.config?.apiKey),
     });
 
-    const botName = aiSettings?.bot_name || workspace?.greeting_title || 'Support Agent';
+    const [activeAiAgent, langConfig] = await Promise.all([
+      getActivePrimaryAiAgent(workspace_id).catch(() => null),
+      getLanguageConfig(workspace_id).catch(() => null),
+    ]);
+
+    const botName = activeAiAgent?.name || aiSettings?.bot_name || workspace?.greeting_title || 'Support Agent';
+    const effectiveSystemPrompt = (() => {
+      if (!activeAiAgent) return aiSettings?.system_prompt || null;
+      const guardrailsBlock = activeAiAgent.guardrails.length
+        ? `\n\n# GUARDRAILS\n${activeAiAgent.guardrails.map((g) => `- ${g}`).join('\n')}`
+        : '';
+      const toneLine = activeAiAgent.tone ? `\nTone: ${activeAiAgent.tone}` : '';
+      return `${activeAiAgent.system_prompt || aiSettings?.system_prompt || ''}${toneLine}${guardrailsBlock}`.trim() || null;
+    })();
+    const effectiveAnswerMode = activeAiAgent?.answer_mode || (aiSettings?.answer_mode === 'strict' ? 'strict' : 'agent');
+
     console.log('[Auto-Respond Step 5] Generating RAG response:', {
       botName,
+      activeAgentId: activeAiAgent?.id ?? null,
       workspace: workspace?.name,
       incomingLength: visitorMsg.content?.length,
     });
@@ -944,7 +966,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
           visitorName: (conv.visitor as { name?: string | null } | null)?.name || undefined,
           botName,
           providerConfig: providerConfigFrom(aiSettings),
-          systemPrompt: aiSettings?.system_prompt || null,
+          systemPrompt: effectiveSystemPrompt,
           history,
           turns: recentTurns,
           helpCenterUrl: helpCenterUrlFor(workspace),
@@ -958,7 +980,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
           humanContext,
           resuming: botState === 'ai_resuming',
           // Agent mode unless the workspace chose the strict path in settings.
-          answerMode: aiSettings?.answer_mode === 'strict' ? 'strict' : 'agent',
+          answerMode: effectiveAnswerMode,
           subAgents: aiSettings?.sub_agents ?? null,
         });
 
@@ -984,6 +1006,16 @@ async function executeAutoRespond(req: NextRequest, body: any) {
 
       result = await Promise.race([generate(), timeoutPromise]);
       pipelineHandover = Boolean(result.shouldHandover);
+
+      const blockedTopics = activeAiAgent?.escalation_rules?.blockedTopics || [];
+      const matchedBlockedTopic = blockedTopics.find((t) =>
+        t.trim() ? visitorText.toLowerCase().includes(t.trim().toLowerCase()) : false,
+      );
+      if (matchedBlockedTopic && !pipelineHandover) {
+        result.shouldHandover = true;
+        result.handoverReason = `Blocked topic policy matched: ${matchedBlockedTopic}`;
+        pipelineHandover = true;
+      }
 
       // Spec C triggers the pipeline does not look for (keywords, repeated
       // questions, anger, refunds and other sensitive topics). They only ever
@@ -1109,21 +1141,24 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       replyLanguageOf(replyBody) === 'roman_ur' ? 'ur' : isLikelyEnglishText(replyBody) ? 'en' : detectLanguage(replyBody).code;
     const providerConfig = providerConfigFrom(aiSettings);
 
-    if (visitorLang.code !== 'en' && replyLang === 'en') {
+    if (langConfig?.reply_style === 'english_only') {
+      replyBody = englishBody;
+    } else if (visitorLang.code !== 'en' && replyLang === 'en') {
       try {
+        const wantRoman = langConfig?.reply_style === 'native_script' ? false : visitorLang.roman;
         const t = await translateAgentReply({
           text: replyBody,
           targetLanguageCode: visitorLang.code,
           sourceLanguageCode: 'en',
           providerConfig,
           businessName: workspace?.name,
-          romanize: visitorLang.roman,
+          romanize: wantRoman,
         });
         const translated = t.translatedText?.trim();
         // A visitor writing Roman Urdu asked for Latin letters; a translator
         // that falls back to Urdu script gives them text in a script they did
         // not write in. The untranslated reply reads better than that.
-        const wrongScript = visitorLang.roman && translated && /[؀-ۿऀ-ॿ]/.test(translated);
+        const wrongScript = wantRoman && translated && /[؀-ۿऀ-ॿ]/.test(translated);
         if (translated && !wrongScript) replyBody = translated;
         else if (wrongScript) console.warn('[Auto-Respond] Translation came back in the wrong script; sending the reply as written.');
       } catch (err) {
@@ -1287,6 +1322,8 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       bot_intent_source: result.intentSource ?? null,
       bot_state: botState,
       bot_engine: result.engine ?? 'built_in',
+      agent_id: activeAiAgent?.id ?? null,
+      agent_name: botName,
       retrieval_confidence: result.retrievalConfidence ?? null,
       cited_article_id: result.citation?.id ?? null,
       cited_article_ids: citedArticleIds,
@@ -1371,6 +1408,73 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       message_id: insertedMsg?.id,
       created_at: insertedMsg?.created_at,
     });
+
+    if (!result.shouldHandover) {
+      logAiEvent(supabase, {
+        workspaceId: workspace_id,
+        conversationId: conversation_id,
+        visitorMessageId: targetVisitorMsgId,
+        event: 'reply_delivered',
+        reason: 'Grounded AI reply delivered',
+        detail: {
+          agent_id: activeAiAgent?.id ?? null,
+          agent_name: botName,
+          channel: conv.channel || 'web',
+          intent: result.intent ?? null,
+          cited_count: citedArticles.length,
+        },
+      }).catch(() => {});
+    }
+
+    const numericConfidence =
+      result.retrievalConfidence === 'high'
+        ? 0.9
+        : result.retrievalConfidence === 'medium'
+          ? 0.7
+          : result.retrievalConfidence === 'low'
+            ? 0.4
+            : null;
+
+    const logVerificationTask = async () => {
+      try {
+        const verif = await verifyReplyClaimsAgainstKnowledge(
+          workspace_id,
+          aiEnglishTranslation,
+          citedArticles[0]?.title ?? null,
+        );
+        await recordAiVerificationLog({
+          workspaceId: workspace_id,
+          agentId: activeAiAgent?.id ?? null,
+          agentName: botName,
+          conversationId: conversation_id,
+          messageId: insertedMsg?.id ? String(insertedMsg.id) : null,
+          channel: conv.channel || 'web',
+          topic: result.intent ?? null,
+          customerQuestion: visitorText,
+          draftReply: aiEnglishTranslation,
+          finalReply: aiResponseText,
+          verdict: result.shouldHandover ? 'blocked_human' : verif.verdict,
+          claims: verif.claims,
+          outcomeNote: result.shouldHandover
+            ? `Escalated (${result.handoverReason || 'handoff triggered'})`
+            : citedArticles.length > 0
+              ? `Verified against ${citedArticles.length} cited source(s)`
+              : 'Grounded reply delivered',
+          confidence: numericConfidence,
+          metadata: {
+            detected_language: detected.code,
+            bot_intent: result.intent ?? null,
+          },
+        });
+      } catch {
+        // Non-fatal verification audit write
+      }
+    };
+    try {
+      after(() => logVerificationTask());
+    } catch {
+      logVerificationTask().catch(() => {});
+    }
 
     // 4b. Someone should take over: offer, queue, or the older direct handover
     // (see handoffAction above).
@@ -1479,6 +1583,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
         // intent: the learner (src/lib/ai/learning/learner.ts) learns only from
         // help-centre questions the team then answered.
         detail: {
+          agent_id: activeAiAgent?.id ?? null,
           disable_ai: Boolean(result.disableAi),
           priority: result.priority || 'high',
           intent: result.intent ?? null,

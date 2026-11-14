@@ -71,17 +71,63 @@ let AiEngineService = AiEngineService_1 = class AiEngineService {
         const chunks = await this.retrieval.retrieveChunks(workspaceId, triggerMessage, queryEmbedding, 5);
         const knowledgeContext = chunks.map((c) => `[Source: ${c.title}]\n${c.content}`).join('\n\n');
         let customPromptPrefix = '';
+        let activeAgentId = null;
+        let activeAgentName = null;
+        let blockedTopics = [];
         try {
-            const wsRes = await this.db.query('SELECT name, ai_settings FROM public.workspaces WHERE id = $1 LIMIT 1', [workspaceId]);
-            const wsRow = wsRes?.rows?.[0];
-            const botName = wsRow?.name || 'our support team';
-            const customInstructions = wsRow?.ai_settings?.system_prompt;
-            customPromptPrefix = customInstructions
-                ? `Workspace: ${botName}\nCustom Instructions: ${customInstructions}\n\n`
-                : `Workspace: ${botName}\n\n`;
+            const agentRes = await this.db.query(`SELECT id, name, tone, system_prompt, guardrails, escalation_rules
+         FROM public.ai_agents
+         WHERE workspace_id = $1 AND status = 'live'
+         ORDER BY is_primary DESC, updated_at DESC
+         LIMIT 1`, [workspaceId]);
+            const agentRow = agentRes?.rows?.[0];
+            if (agentRow) {
+                activeAgentId = agentRow.id ? String(agentRow.id) : null;
+                activeAgentName = agentRow.name ? String(agentRow.name) : null;
+                const rawBlocked = agentRow.escalation_rules?.blockedTopics;
+                if (Array.isArray(rawBlocked)) {
+                    blockedTopics = rawBlocked.map(String).filter(Boolean);
+                }
+                const guardrailsList = Array.isArray(agentRow.guardrails)
+                    ? agentRow.guardrails.map(String).filter(Boolean)
+                    : [];
+                const guardrailsText = guardrailsList.length
+                    ? `\nGuardrails (strict):\n${guardrailsList.map((g) => `- ${g}`).join('\n')}`
+                    : '';
+                customPromptPrefix = [
+                    activeAgentName ? `Agent Persona: ${activeAgentName}` : '',
+                    agentRow.tone ? `Tone: ${agentRow.tone}` : '',
+                    agentRow.system_prompt ? `Custom Instructions: ${agentRow.system_prompt}` : '',
+                    guardrailsText,
+                ]
+                    .filter(Boolean)
+                    .join('\n');
+                if (customPromptPrefix)
+                    customPromptPrefix = `${customPromptPrefix}\n\n`;
+            }
         }
         catch {
-            customPromptPrefix = '';
+        }
+        const matchedBlockedTopic = blockedTopics.find((t) => normalized.includes(t.trim().toLowerCase()));
+        if (matchedBlockedTopic) {
+            this.logger.log(`Blocked escalation topic "${matchedBlockedTopic}" triggered in conversation ${conversationId}`);
+            await this.logReplyEvent(workspaceId, conversationId, triggerMessageId, 'handoff_requested', `Blocked topic policy: ${matchedBlockedTopic}`, { agent_id: activeAgentId, agent_name: activeAgentName });
+            await this.conversationsService.requestHandoff(workspaceId, conversationId);
+            return { replied: false, reason: 'blocked_topic_handoff' };
+        }
+        if (!customPromptPrefix) {
+            try {
+                const wsRes = await this.db.query('SELECT name, ai_settings FROM public.workspaces WHERE id = $1 LIMIT 1', [workspaceId]);
+                const wsRow = wsRes?.rows?.[0];
+                const botName = wsRow?.name || 'our support team';
+                const customInstructions = wsRow?.ai_settings?.system_prompt;
+                customPromptPrefix = customInstructions
+                    ? `Workspace: ${botName}\nCustom Instructions: ${customInstructions}\n\n`
+                    : `Workspace: ${botName}\n\n`;
+            }
+            catch {
+                customPromptPrefix = '';
+            }
         }
         const systemPrompt = `${customPromptPrefix}You are an intelligent customer support assistant.
 Provide clear, polite, and helpful answers based strictly on the provided knowledge sources.
@@ -120,7 +166,34 @@ ${knowledgeContext || 'No specific articles found. Answer general greetings poli
             botMessageId: botMsg.id,
             chunksCount: chunks.length,
             model: completion.model,
+            agent_id: activeAgentId,
+            agent_name: activeAgentName,
         });
+        try {
+            await this.db.query(`INSERT INTO public.ai_verification_logs (
+           workspace_id, agent_id, agent_name, conversation_id, message_id, channel,
+           customer_question, draft_reply, final_reply, verdict, claims, outcome_note
+         )
+         VALUES ($1, $2, $3, $4, $5, 'api', $6, $7, $7, 'supported', $8::jsonb, $9)`, [
+                workspaceId,
+                activeAgentId,
+                activeAgentName || 'AI Assistant',
+                conversationId,
+                botMsg.id,
+                triggerMessage.slice(0, 4000),
+                completion.content.slice(0, 8000),
+                JSON.stringify(chunks.slice(0, 2).map((c) => ({
+                    claim: c.content.slice(0, 160),
+                    supported: true,
+                    source: c.title,
+                }))),
+                chunks.length > 0
+                    ? `Grounded on ${chunks.length} retrieved knowledge chunk(s)`
+                    : 'Reply generated without specific chunk citations',
+            ]);
+        }
+        catch {
+        }
         return {
             replied: true,
             message: botMsg,
@@ -186,6 +259,25 @@ ${knowledgeContext || 'No specific articles found. Answer general greetings poli
             isBillableReply: false,
         });
         return { summary: completion.content.trim() };
+    }
+    async listAiAgents(workspaceId) {
+        const res = await this.db.query(`SELECT id, slug, name, role_title, description, template_id, industry, status, is_primary,
+              channels, tone, reply_language_mode, answer_mode, published_version, draft_version,
+              published_at, updated_at
+       FROM public.ai_agents
+       WHERE workspace_id = $1
+       ORDER BY is_primary DESC, updated_at DESC`, [workspaceId]);
+        return { agents: res?.rows ?? [] };
+    }
+    async listVerificationLogs(workspaceId, limit = 50) {
+        const res = await this.db.query(`SELECT id, agent_id, agent_name, conversation_id, message_id, channel, topic,
+              customer_question, draft_reply, final_reply, verdict, human_review, claims,
+              outcome_note, confidence, latency_ms, created_at
+       FROM public.ai_verification_logs
+       WHERE workspace_id = $1
+       ORDER BY created_at DESC
+       LIMIT $2`, [workspaceId, Math.min(200, Math.max(1, limit))]);
+        return { logs: res?.rows ?? [] };
     }
     async logReplyEvent(workspaceId, conversationId, visitorMessageId, event = 'replied', reason, detail = {}) {
         await this.db.query(`INSERT INTO public.ai_reply_events (

@@ -52,6 +52,11 @@ export function greeting(hour: number): string {
 }
 
 /* A round axis top so gridlines land on tidy numbers. */
+export function fmtPct(n: number): string {
+  if (!Number.isFinite(n)) return '0%';
+  return `${Math.round(n)}%`;
+}
+
 export function niceCeil(max: number): number {
   if (max <= 0) return 4;
   const pow = 10 ** Math.floor(Math.log10(max));

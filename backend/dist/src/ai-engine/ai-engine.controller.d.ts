@@ -30,4 +30,10 @@ export declare class AiEngineController {
         totalTokens: number;
         totalCostUsd: number;
     }>;
+    listAgents(workspaceId: string): Promise<{
+        agents: any[];
+    }>;
+    listVerificationLogs(workspaceId: string): Promise<{
+        logs: any[];
+    }>;
 }

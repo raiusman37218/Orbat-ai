@@ -30,5 +30,11 @@ export declare class AiEngineService {
     summarizeConversation(workspaceId: string, conversationId: string): Promise<{
         summary: string;
     }>;
+    listAiAgents(workspaceId: string): Promise<{
+        agents: any[];
+    }>;
+    listVerificationLogs(workspaceId: string, limit?: number): Promise<{
+        logs: any[];
+    }>;
     private logReplyEvent;
 }

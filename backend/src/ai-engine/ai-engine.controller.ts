@@ -59,5 +59,21 @@ export class AiEngineController {
   ) {
     return this.aiUsage.getWorkspaceAiMetrics(workspaceId);
   }
+
+  @Get('agents')
+  @ApiOperation({ summary: 'List workspace AI agents configured in the builder' })
+  async listAgents(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+  ) {
+    return this.aiService.listAiAgents(workspaceId);
+  }
+
+  @Get('verification-logs')
+  @ApiOperation({ summary: 'List recent AI reply claim verification logs' })
+  async listVerificationLogs(
+    @Param('workspaceId', ParseUUIDPipe) workspaceId: string,
+  ) {
+    return this.aiService.listVerificationLogs(workspaceId);
+  }
 }
 

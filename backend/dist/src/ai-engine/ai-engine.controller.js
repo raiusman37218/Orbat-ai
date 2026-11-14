@@ -35,6 +35,12 @@ let AiEngineController = class AiEngineController {
     async getUsageMetrics(workspaceId) {
         return this.aiUsage.getWorkspaceAiMetrics(workspaceId);
     }
+    async listAgents(workspaceId) {
+        return this.aiService.listAiAgents(workspaceId);
+    }
+    async listVerificationLogs(workspaceId) {
+        return this.aiService.listVerificationLogs(workspaceId);
+    }
 };
 exports.AiEngineController = AiEngineController;
 __decorate([
@@ -72,6 +78,22 @@ __decorate([
     __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", Promise)
 ], AiEngineController.prototype, "getUsageMetrics", null);
+__decorate([
+    (0, common_1.Get)('agents'),
+    (0, swagger_1.ApiOperation)({ summary: 'List workspace AI agents configured in the builder' }),
+    __param(0, (0, common_1.Param)('workspaceId', common_1.ParseUUIDPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], AiEngineController.prototype, "listAgents", null);
+__decorate([
+    (0, common_1.Get)('verification-logs'),
+    (0, swagger_1.ApiOperation)({ summary: 'List recent AI reply claim verification logs' }),
+    __param(0, (0, common_1.Param)('workspaceId', common_1.ParseUUIDPipe)),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String]),
+    __metadata("design:returntype", Promise)
+], AiEngineController.prototype, "listVerificationLogs", null);
 exports.AiEngineController = AiEngineController = __decorate([
     (0, swagger_1.ApiTags)('AI Engine'),
     (0, swagger_1.ApiBearerAuth)(),
