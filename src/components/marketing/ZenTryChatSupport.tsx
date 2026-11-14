@@ -15,7 +15,7 @@ export const ZENTRY_WORKSPACE_ID = 'b2d91676-2e98-46b7-8543-6e0711c78c44';
  *
  * Route exclusions:
  * - /widget: Avoid nested widget recursion.
- * - /dashboard: Avoid overlaying agent workspace controls.
+ * - /dashboard, /app: Avoid overlaying agent workspace controls (old and new UI).
  * - /admin: Avoid overlaying super admin panel.
  * - /help: Customer help centers render their own workspace-specific HelpWidget.
  * - /csat: Customer satisfaction feedback page.
@@ -26,6 +26,8 @@ export function ZenTryChatSupport() {
   const isExcluded =
     pathname.startsWith('/widget') ||
     pathname.startsWith('/dashboard') ||
+    pathname === '/app' ||
+    pathname.startsWith('/app/') ||
     pathname.startsWith('/admin') ||
     pathname.startsWith('/help') ||
     pathname.startsWith('/csat');

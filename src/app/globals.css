@@ -1,4 +1,6 @@
 @import "tailwindcss";
+/* New ORBAT UI tokens and components, scoped to `.orb` (see the file header). */
+@import "../components/orbat/orbat.css";
 
 /* Theming is driven by `data-theme` on <html>, not by a `.dark` class, so
    Tailwind's `dark:` variant has to be taught the same rule. Without this every

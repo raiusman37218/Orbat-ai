@@ -66,7 +66,7 @@ export const viewport: Viewport = {
 const themeBootstrap = `
 (function () {
   var stored = null;
-  try { stored = localStorage.getItem('zentry-theme') || localStorage.getItem('chatify-theme'); } catch (e) {}
+  try { stored = localStorage.getItem('orbat-theme') || localStorage.getItem('zentry-theme') || localStorage.getItem('chatify-theme'); } catch (e) {}
   var theme = stored === 'light' || stored === 'dark'
     ? stored
     : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
