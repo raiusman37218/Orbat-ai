@@ -1,0 +1,70 @@
+/* ORBAT Inbox scoped helpers (always under `.orb` root from AppShell) */
+
+.orb .o-inbox-shell {
+  min-height: calc(100dvh - 65px);
+}
+
+@media (min-width: 1024px) {
+  .orb .o-inbox-shell {
+    height: calc(100dvh - 65px);
+    max-height: calc(100dvh - 65px);
+    overflow: hidden;
+  }
+}
+
+/* Agent reply bubble: forest green in light mode, deeper green in dark mode,
+   always paired with white text for high WCAG contrast in both themes. */
+.orb .o-bubble-agent {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.orb .o-bubble-agent a {
+  color: #ffffff;
+  text-decoration: underline;
+}
+
+.orb .o-bubble-quote-agent {
+  border-color: rgba(255, 255, 255, 0.45);
+  background: rgba(0, 0, 0, 0.16);
+}
+
+.orb .o-bubble-meta-agent {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+/* Keyboard hint keycap matching Design System / Inbox.dc.html */
+.orb .o-kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+/* Unread indicator dot inside conversation list */
+.orb .o-inbox-unread-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 9999px;
+  background: var(--accent-text);
+  flex: none;
+}
+
+/* Hide scrollbars cleanly on horizontal mobile filter chip strips */
+.orb .o-no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.orb .o-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}

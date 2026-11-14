@@ -17,10 +17,11 @@ Replace the whole frontend with the ORBAT design in `docs/design/design/*.dc.htm
 | Auth screens (`Auth.dc.html`) | Done | `/v2/login`, `/v2/signup`, `/v2/forgot`, `/v2/sso` |
 | Overview (`Main.dc.html`) | Done | `/app` |
 | Sidebar badges, usage / trial card | Done | `src/components/orbat/shell/Sidebar.tsx` |
+| Inbox (`Inbox.dc.html`, `MobileInbox.dc.html`) | Done | `/app/inbox` (`src/components/orbat/inbox/`, `src/lib/data/inbox.ts`) |
 | Every other screen | Not started | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
 | Cut-over (new UI on the real URLs, old UI deleted) | Not started | see "Cut-over" below |
 
-Screens left, in order (from REPLACE_PLAN.md): **Inbox** → Tickets → Customers → Calls → AI Agents → Agent templates → Agent builder → AI quality → Languages → Knowledge → Automation → Journeys → Engagement → Analytics → Team → Schedule → Compliance → Policies → Website audit → Handoff → Channels → CRM connect → Billing → Checkout → Settings → Emails → Profile → Getting started → Trial → States → Super admin → Landing → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
+Screens left, in order (from REPLACE_PLAN.md): **Tickets** → Customers → Calls → AI Agents → Agent templates → Agent builder → AI quality → Languages → Knowledge → Automation → Journeys → Engagement → Analytics → Team → Schedule → Compliance → Policies → Website audit → Handoff → Channels → CRM connect → Billing → Checkout → Settings → Emails → Profile → Getting started → Trial → States → Super admin → Landing → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
 
 ## How the new UI is built
 
