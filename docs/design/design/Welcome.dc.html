@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Getting started</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ai-text:#5B2FC2;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--side:#163300;--shadow-card:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.03);font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0B0F1A;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--border-strong:#323B58;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-hover:#3A6E18;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ai-text:#C4B0FF;--ok:#4FC48A;--ok-soft:#10291D;--warn:#F0A54E;--warn-soft:#2C2010;--side:#0B1A00;--shadow-card:none}
+.orb *{box-sizing:border-box}
+.orb button,.orb input{font:inherit;color:inherit}
+.orb button{cursor:pointer;transition:background-color .15s,border-color .15s}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.orb .card{border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:var(--shadow-card)}
+.orb .num{font-variant-numeric:tabular-nums}
+.hov:hover{background:var(--surface-2)!important}
+.bp:hover{background:var(--accent-hover)!important}
+a{color:var(--accent-text);text-decoration:none}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="min-height: 100vh; display: flex; flex-wrap: wrap; background: var(--bg)">
+  <div style="flex: 1 1 232px; background: var(--side); display: flex">
+    <dc-import name="Sidebar" active="overview" trial="true" trial-days="12" hint-size="232px,900px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <div role="status" style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 9px 24px; background: var(--accent-soft); color: var(--accent-text); font-size: 13px">
+      <b style="font-weight: 600">Free trial · 12 days left</b><span style="color: var(--text-2)">All Growth features until Nov 27. No card on file.</span>
+      <a href="Checkout.dc.html" class="bp" style="margin-left: auto; height: 28px; padding: 0 12px; display: grid; place-items: center; border-radius: 7px; background: var(--accent); color: #FFFFFF; font-weight: 500">Choose a plan</a>
+    </div>
+    <dc-import name="Topbar" heading="Getting started" sub="Northwind Health" dark="{{dark}}" on-toggle-theme="{{toggleTheme}}" hint-size="100%,56px"></dc-import>
+    <div style="padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 20px; max-width: 1240px; width: 100%; margin: 0 auto">
+      <div style="display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px">
+        <div style="flex: 1"><div style="font-size: 13px; color: var(--text-3)">Welcome, Jordan</div><h2 style="margin: 2px 0 0; font-size: 24px; font-weight: 600; letter-spacing: -.02em">Let’s get Iris live</h2></div>
+        <div style="display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-2)"><span class="num">{{doneN}} of {{totalN}} done</span><span style="width: 140px; height: 6px; border-radius: 6px; background: var(--surface-3)"><span style="display: block; height: 6px; border-radius: 6px; width: {{pct}}%; background: var(--accent)"></span></span></div>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+        <section class="card" style="flex: 3 1 520px; min-width: 0; overflow: hidden">
+          <sc-for list="{{tasks}}" as="t"><div style="display: flex; gap: 14px; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--border); background: {{t.rowBg}}">
+            <button type="button" onClick="{{t.toggle}}" role="checkbox" aria-checked="{{t.aria}}" aria-label="{{t.t}}" style="flex: none; width: 24px; height: 24px; border-radius: 99px; border: 1.5px solid {{t.bd}}; background: {{t.bg}}; color: #FFFFFF; display: grid; place-items: center; font-size: 12px; font-weight: 700; padding: 0">{{t.tick}}</button>
+            <div style="flex: 1; min-width: 0"><div style="font-weight: 500; font-size: 14px; color: {{t.c}}; text-decoration: {{t.strike}}">{{t.t}}</div><div style="font-size: 12.5px; color: var(--text-3)">{{t.d}}</div></div>
+            <span style="font-size: 12px; color: var(--text-3)">{{t.time}}</span>
+            <sc-if value="{{t.open}}" hint-placeholder-val="{{true}}"><a href="{{t.href}}" class="hov" style="height: 32px; padding: 0 12px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 13px; font-weight: 500">{{t.cta}}</a></sc-if>
+          </div></sc-for>
+        </section>
+
+        <div style="flex: 2 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <section class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 12px">
+            <div style="display: flex; gap: 10px; align-items: center"><span style="width: 34px; height: 34px; border-radius: 9px; background: var(--ai); color: #FFFFFF; display: grid; place-items: center; font-weight: 700">I</span><div style="flex: 1"><div style="font-weight: 600">Iris</div><div style="font-size: 12px; color: var(--text-3)">Draft · 86 pages learned</div></div><span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 99px; background: var(--warn-soft); color: var(--warn)">Not live</span></div>
+            <div style="padding: 10px 12px; border-radius: 10px; background: var(--surface-2); font-size: 13px">Hi! I can book or change appointments and help with forms.</div>
+            <a href="AgentBuilder.dc.html" class="bp" style="height: 36px; display: grid; place-items: center; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">Test Iris</a>
+          </section>
+          <section class="card" style="padding: 18px; display: flex; flex-direction: column; gap: 10px">
+            <h3 style="margin: 0; font-size: 14px; font-weight: 600">Trial usage</h3>
+            <sc-for list="{{usage}}" as="u"><div style="display: flex; flex-direction: column; gap: 6px"><div style="display: flex; justify-content: space-between; font-size: 13px"><span style="color: var(--text-2)">{{u.l}}</span><span class="num">{{u.v}}</span></div><span style="height: 5px; border-radius: 5px; background: var(--surface-3)"><span style="display: block; height: 5px; border-radius: 5px; width: {{u.p}}%; background: var(--accent)"></span></span></div></sc-for>
+            <a href="Pricing.dc.html" style="font-size: 13px; font-weight: 500">Compare plans</a>
+          </section>
+          <section class="card" style="padding: 18px; display: flex; gap: 12px; align-items: center">
+            <div style="flex: 1"><div style="font-weight: 600; font-size: 14px">Need help setting up?</div><div style="font-size: 12.5px; color: var(--text-3)">Book a 20-minute call with our team</div></div>
+            <a href="#book" class="hov" style="height: 32px; padding: 0 12px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; font-weight: 500">Book</a>
+          </section>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":960}}'>
+const T = [
+  ['profile', 'Set up your business profile', 'Northwind Health · Healthcare', 'Done', 'Onboarding.dc.html', 'Edit', true],
+  ['data', 'Connect your business data', 'Shopify connected · 1,284 customers', 'Done', 'CRMConnect.dc.html', 'Manage', true],
+  ['agent', 'Test your AI agent', 'Ask Iris 3 real customer questions', '3 min', 'AgentBuilder.dc.html', 'Test', false],
+  ['widget', 'Install the chat widget', 'One line of code, or the WordPress / Shopify app', '5 min', 'Settings.dc.html', 'Get code', false],
+  ['channels', 'Finish connecting WhatsApp', 'Verify your business number', '4 min', 'Channels.dc.html', 'Connect', false],
+  ['team', 'Invite your team', '1 of 2 invites accepted', '1 min', 'Team.dc.html', 'Invite', false],
+  ['live', 'Go live', 'Turn Iris on for real customers', '1 min', 'AIAgents.dc.html', 'Go live', false]
+];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { dark: null, done: T.reduce((a, t) => ({ ...a, [t[0]]: t[6] }), {}) }; }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const doneN = T.filter((t) => s.done[t[0]]).length;
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', dark, toggleTheme: () => this.setState({ dark: !dark }),
+      doneN, totalN: T.length, pct: Math.round(doneN / T.length * 100),
+      tasks: T.map(([id, t, d, time, href, cta]) => { const on = !!s.done[id]; return { t, d, href, cta, time: on ? '' : time, open: !on, aria: on ? 'true' : 'false', tick: on ? '✓' : '', bd: on ? 'var(--ok)' : 'var(--border-strong)', bg: on ? 'var(--ok)' : 'var(--surface)', c: on ? 'var(--text-3)' : 'var(--text)', strike: on ? 'line-through' : 'none', rowBg: on ? 'var(--surface)' : 'var(--surface)', toggle: () => this.setState({ done: { ...s.done, [id]: !on } }) }; }),
+      usage: [['AI resolutions', '38 / 500', 8], ['Teammates', '2 / 5', 40], ['Channels', '2 / 3', 66]].map(([l, v, p]) => ({ l, v, p }))
+    };
+  }
+}
+</script>
+</body>
+</html>

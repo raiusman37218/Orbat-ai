@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Pricing</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+.pr{font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.5;color:#0E0F0C;background:#FFFFFF;-webkit-font-smoothing:antialiased}
+.pr *{box-sizing:border-box}
+.pr button{font:inherit;color:inherit;cursor:pointer}
+.pr :focus-visible{outline:2px solid #163300;outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.pr .bp:hover{background:#0E2200!important}
+.pr .gh:hover{background:#EDEFEA!important}
+a{color:#163300;text-decoration:none}a:hover{text-decoration:underline}
+/* POLISH v1 */
+.mono{font-family:Inter,system-ui,sans-serif!important;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+code.mono,pre.mono{font-family:'Geist Mono',ui-monospace,monospace!important}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+</style>
+</helmet>
+<div class="pr" style="min-height: 100vh">
+  <header style="border-bottom: 1px solid #ECEEF2">
+    <div style="max-width: 1200px; margin: 0 auto; padding: 0 24px; height: 64px; display: flex; align-items: center; gap: 28px; flex-wrap: wrap">
+      <span style="display: flex; align-items: center; gap: 10px"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#163300"></rect><ellipse cx="14" cy="14" rx="9.5" ry="4.2" fill="none" stroke="#FFFFFF" stroke-width="1.6" transform="rotate(-28 14 14)"></ellipse><circle cx="14" cy="14" r="3.1" fill="#FFFFFF"></circle></svg><b style="letter-spacing: .02em">ORBAT AI</b></span>
+      <nav aria-label="Main" style="display: flex; gap: 22px; font-size: 14px"><a href="#product" style="color: #454745">Product</a><a href="AgentTemplates.dc.html" style="color: #454745">Industries</a><a href="#pricing" style="color: #0E0F0C; font-weight: 600">Pricing</a><a href="HelpCenter.dc.html" style="color: #454745">Help</a></nav>
+      <span style="margin-left: auto; display: flex; gap: 10px; align-items: center"><a href="Auth.dc.html" style="color: #0E0F0C; font-weight: 500">Sign in</a><a href="Auth.dc.html" class="bp" style="height: 38px; padding: 0 16px; display: grid; place-items: center; border-radius: 9px; background: #163300; color: #FFFFFF; font-weight: 600; text-decoration: none">Start free</a></span>
+    </div>
+  </header>
+
+  <section id="pricing" style="max-width: 1200px; margin: 0 auto; padding: 64px 24px 24px; display: flex; flex-direction: column; align-items: center; gap: 18px; text-align: center">
+    <span style="font-size: 12.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #5B2FC2">Pricing</span>
+    <h1 style="margin: 0; font-size: 44px; line-height: 1.1; font-weight: 600; letter-spacing: -0.03em; max-width: 760px; text-wrap: balance">Support pricing that stays flat as your team grows</h1>
+    <p style="margin: 0; font-size: 17px; color: #454745; max-width: 620px">Choose a monthly plan with usage included, or pay only for what you use. Adding teammates never adds seat fees.</p>
+    <div role="radiogroup" aria-label="Billing model" style="display: flex; padding: 4px; gap: 2px; border-radius: 12px; background: #EDEFEA; margin-top: 8px">
+      <sc-for list="{{modes}}" as="m"><button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" style="height: 40px; padding: 0 18px; border: 0; border-radius: 9px; font-weight: 600; font-size: 14px; background: {{m.bg}}; color: {{m.c}}; box-shadow: {{m.sh}}">{{m.label}}</button></sc-for>
+    </div>
+  </section>
+
+  <sc-if value="{{isPlans}}" hint-placeholder-val="{{true}}">
+    <section style="max-width: 1200px; margin: 0 auto; padding: 24px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 16px">
+      <sc-for list="{{plans}}" as="p" hint-placeholder-count="4">
+        <article style="position: relative; padding: 24px; border: 1.5px solid {{p.bd}}; border-radius: 16px; background: #FFFFFF; display: flex; flex-direction: column; gap: 16px; box-shadow: {{p.sh}}">
+          <sc-if value="{{p.badge}}" hint-placeholder-val="{{false}}"><span style="position: absolute; top: -12px; left: 24px; font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px; background: #163300; color: #FFFFFF">{{p.badge}}</span></sc-if>
+          <div><div style="font-weight: 600; font-size: 17px">{{p.n}}</div><div style="font-size: 13px; color: #6A6C6A">{{p.for}}</div></div>
+          <div><span class="mono" style="font-size: 30px; font-weight: 700; letter-spacing: -0.02em">{{p.price}}</span><span style="font-size: 13px; color: #6A6C6A"> {{p.per}}</span></div>
+          <a href="{{p.href}}" class="{{p.cls}}" style="height: 42px; display: grid; place-items: center; border-radius: 10px; font-weight: 600; text-decoration: none; background: {{p.btnBg}}; color: {{p.btnC}}; border: {{p.btnBd}}">{{p.cta}}</a>
+          <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13.5px">
+            <sc-if value="{{p.from}}" hint-placeholder-val="{{false}}"><div style="font-size: 12.5px; font-weight: 600; color: #454745">Everything in {{p.from}}, plus</div></sc-if>
+            <sc-for list="{{p.feats}}" as="f"><div style="display: flex; gap: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1C7C45" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 2px"><path d="M20 6L9 17l-5-5"></path></svg><span>{{f}}</span></div></sc-for>
+          </div>
+        </article>
+      </sc-for>
+    </section>
+  </sc-if>
+
+  <sc-if value="{{isPayg}}" hint-placeholder-val="{{false}}">
+    <section style="max-width: 920px; margin: 0 auto; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+      <div style="padding: 24px; border: 1.5px solid #163300; border-radius: 16px; display: flex; flex-wrap: wrap; gap: 20px; align-items: center">
+        <div style="flex: 1 1 320px"><div style="font-weight: 600; font-size: 17px">Pay as you go</div><div style="font-size: 14px; color: #454745; margin-top: 4px">A small fixed system price covers the platform — inbox, tickets, CRM, knowledge base, widget and channels. AI and paid features are charged only when used.</div></div>
+        <div style="text-align: right"><div class="mono" style="font-size: 30px; font-weight: 700">[SYSTEM PRICE]</div><div style="font-size: 13px; color: #6A6C6A">per month + usage</div></div>
+      </div>
+      <div style="border: 1px solid #E3E5E0; border-radius: 16px; overflow: hidden">
+        <sc-for list="{{rates}}" as="r"><div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 16px 20px; border-bottom: 1px solid #ECEEF2"><div style="flex: 1 1 280px"><div style="font-weight: 600">{{r.n}}</div><div style="font-size: 13px; color: #6A6C6A">{{r.d}}</div></div><span class="mono" style="font-weight: 600">{{r.p}}</span></div></sc-for>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px">
+        <sc-for list="{{wallet}}" as="w"><div style="padding: 16px; border-radius: 12px; background: #F6F7F4"><div style="font-weight: 600; font-size: 14px">{{w.t}}</div><div style="font-size: 13px; color: #454745; margin-top: 4px">{{w.d}}</div></div></sc-for>
+      </div>
+    </section>
+  </sc-if>
+
+  <section style="max-width: 1200px; margin: 0 auto; padding: 40px 24px; display: flex; flex-wrap: wrap; gap: 24px">
+    <div style="flex: 1 1 340px; display: flex; flex-direction: column; gap: 10px"><h2 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">Add-ons</h2><p style="margin: 0; color: #454745">Buy one advanced feature without moving to a higher plan.</p></div>
+    <div style="flex: 2 1 560px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px">
+      <sc-for list="{{addons}}" as="a"><div style="padding: 18px; border: 1px solid #E3E5E0; border-radius: 14px; display: flex; flex-direction: column; gap: 6px"><b>{{a.n}}</b><span style="font-size: 13px; color: #454745">{{a.d}}</span><span class="mono" style="font-size: 13px; font-weight: 600; margin-top: auto">{{a.p}}</span></div></sc-for>
+    </div>
+  </section>
+
+  <section style="background: #F6F7F4">
+    <div style="max-width: 1200px; margin: 0 auto; padding: 56px 24px; display: flex; flex-wrap: wrap; gap: 32px; align-items: center">
+      <div style="flex: 1 1 360px; display: flex; flex-direction: column; gap: 12px"><h2 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.02em">Your bill doesn’t grow with your team</h2><p style="margin: 0; color: #454745; font-size: 15px">Most support platforms charge per agent seat, then again for each AI resolution. ORBAT charges neither, and the model router keeps most conversations on the cheapest model that can answer well.</p></div>
+      <div style="flex: 1 1 440px; padding: 22px; border-radius: 16px; background: #FFFFFF; border: 1px solid #E3E5E0; display: flex; flex-direction: column; gap: 14px">
+        <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; font-weight: 500"><span style="display: flex; justify-content: space-between">Support agents on your team<span class="mono">{{seats}}</span></span><input type="range" min="1" max="40" value="{{seats}}" onInput="{{onSeats}}" style="accent-color: #163300"></label>
+        <div style="display: flex; flex-direction: column; gap: 10px">
+          <div><div style="display: flex; justify-content: space-between; font-size: 13px"><span>Typical per-seat pricing</span><span class="mono">{{seats}} × seat price + per-resolution fees</span></div><div style="height: 10px; border-radius: 6px; background: #EDEFEA; margin-top: 4px"><div style="height: 10px; border-radius: 6px; width: {{seatW}}%; background: #C9CCC5"></div></div></div>
+          <div><div style="display: flex; justify-content: space-between; font-size: 13px"><span style="font-weight: 600">ORBAT</span><span class="mono">same plan at any team size</span></div><div style="height: 10px; border-radius: 6px; background: #EDEFEA; margin-top: 4px"><div style="height: 10px; border-radius: 6px; width: 22%; background: #163300"></div></div></div>
+        </div>
+        <div style="font-size: 12px; color: #6A6C6A">Illustrative only. Final ORBAT prices are set from measured cost per conversation.</div>
+      </div>
+    </div>
+  </section>
+
+  <section style="max-width: 820px; margin: 0 auto; padding: 56px 24px; display: flex; flex-direction: column; gap: 8px">
+    <h2 style="margin: 0 0 12px; font-size: 26px; font-weight: 600; letter-spacing: -0.02em; text-align: center">Questions</h2>
+    <sc-for list="{{faqs}}" as="f"><div style="border-bottom: 1px solid #E3E5E0">
+      <button type="button" onClick="{{f.toggle}}" aria-expanded="{{f.aria}}" class="gh" style="width: 100%; display: flex; justify-content: space-between; gap: 12px; padding: 16px 8px; border: 0; background: transparent; text-align: left; font-weight: 600; font-size: 15px">{{f.q}}<span aria-hidden="true">{{f.sign}}</span></button>
+      <sc-if value="{{f.open}}" hint-placeholder-val="{{false}}"><p style="margin: 0; padding: 0 8px 16px; color: #454745">{{f.a}}</p></sc-if>
+    </div></sc-for>
+  </section>
+
+  <footer style="border-top: 1px solid #ECEEF2"><div style="max-width: 1200px; margin: 0 auto; padding: 24px; display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; font-size: 13px; color: #6A6C6A"><span>© 2026 ORBAT AI</span><span style="display: flex; gap: 18px"><a href="#privacy" style="color: #6A6C6A">Privacy</a><a href="#terms" style="color: #6A6C6A">Terms</a><a href="#security" style="color: #6A6C6A">Security</a></span></div></footer>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":2300}}'>
+const PLANS = [
+  ['Starter', 'A small store, one or two people', 'Free', 'to start', '', '', ['Website chat widget', 'One AI agent', 'Knowledge base', 'Basic inbox', 'One-click install', 'Limited AI conversations'], 'Start free'],
+  ['Growth', 'Growing businesses', '[PRICE]', '/ month', 'Most popular', 'Starter', ['WhatsApp, Instagram, email', 'Roman Urdu, Hinglish, Arabizi and more', 'Human handoff + Copilot', 'Tickets and SLAs', 'Universal CRM', 'Workflows, basic analytics'], 'Start 14-day trial'],
+  ['Business', 'Larger teams, higher volume', '[PRICE]', '/ month', '', 'Growth', ['Multiple AI agents', 'Voice calling', 'Trust Ladder + Verified Answers', 'Journeys and campaigns', 'Command center', 'Advanced analytics, router controls'], 'Start 14-day trial'],
+  ['Compliance', 'Banks, healthcare, fintech, telecom', 'Custom', '', '', 'Business', ['Full Sentinel + Policy-to-Guardrail', 'Website Compliance Auditor', 'Regional packs', 'Evidence pack export', 'SSO and choice of data region', 'Audit log'], 'Talk to us']
+];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { mode: 'plans', seats: 8, faq: 0 }; }
+  renderVals() {
+    const s = this.state;
+    const F = [['Is there a charge per agent seat?', 'No. Seats are not the main charge in either model, so adding agents does not multiply the bill.'], ['What happens if I run out of AI conversations?', 'On a fixed plan, extra usage continues at the pay-as-you-go rate or you upgrade. On pay as you go, AI pauses until you top up — human chat keeps working.'], ['Can I switch between fixed and pay as you go?', 'Yes. Move to pay as you go at the end of a billing period, or to a fixed plan at any time.'], ['Does the compliance plan make us legally compliant?', 'No. Sentinel and the Website Compliance Auditor report readiness and collect evidence. Certification stays with your business and its auditors.']];
+    return {
+      modes: [['plans', 'Fixed plans'], ['payg', 'Pay as you go']].map(([id, label]) => { const on = s.mode === id; return { label, on: on ? 'true' : 'false', bg: on ? '#FFFFFF' : 'transparent', c: on ? '#0E0F0C' : '#6A6C6A', sh: on ? '0 1px 2px rgba(14,20,36,.12)' : 'none', pick: () => this.setState({ mode: id }) }; }),
+      isPlans: s.mode === 'plans', isPayg: s.mode === 'payg',
+      plans: PLANS.map(([n, f, price, per, badge, from, feats, cta]) => { const hl = !!badge; return { n, for: f, price, per, badge: badge || false, from: from || false, feats, cta, href: n === 'Compliance' ? '#contact' : 'Checkout.dc.html', bd: hl ? '#163300' : '#E3E5E0', sh: hl ? '0 18px 40px rgba(22,51,0,.14)' : 'none', btnBg: hl ? '#163300' : '#FFFFFF', btnC: hl ? '#FFFFFF' : '#0E0F0C', btnBd: hl ? '0' : '1px solid #C9CCC5', cls: hl ? 'bp' : 'gh' }; }),
+      rates: [['AI conversation · light tier', 'Greetings, FAQs, order status — most traffic', '[RATE] each'], ['AI conversation · standard tier', 'Multi-step questions and actions', '[RATE] each'], ['AI conversation · advanced tier', 'Sensitive issues, second attempts', '[RATE] each'], ['Voice calling', 'Inbound and outbound', '[RATE] / minute'], ['Verified Answers', 'Claim check before a reply is sent', '[RATE] / reply'], ['Website Compliance Auditor', 'Full outside and admin scan', '[RATE] / scan']].map(([n, d, p]) => ({ n, d, p })),
+      wallet: [['Prepaid credit', 'Add credit to your workspace wallet.'], ['Auto top-up', 'Refill when the balance falls below your amount.'], ['Spending cap', 'A monthly limit the bill can never exceed.'], ['Nothing breaks at zero', 'AI pauses; your team keeps chatting.']].map(([t, d]) => ({ t, d })),
+      addons: [['Voice calling', 'AI answers calls in the customer’s language. From Growth.', '[PRICE] / minute'], ['Website Compliance Auditor', 'Score, issues and fixes for your site. From Growth.', '[PRICE] / month'], ['Extra AI conversations', 'Sold in blocks when you need more.', '[PRICE] / block']].map(([n, d, p]) => ({ n, d, p })),
+      seats: s.seats, onSeats: (e) => this.setState({ seats: Number(e.target.value) }), seatW: Math.min(100, 12 + s.seats * 2.2),
+      faqs: F.map(([q, a], i) => { const open = s.faq === i; return { q, a, open, aria: open ? 'true' : 'false', sign: open ? '−' : '+', toggle: () => this.setState({ faq: open ? -1 : i }) }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

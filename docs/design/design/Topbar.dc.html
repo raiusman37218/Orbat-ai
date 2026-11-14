@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT topbar and command palette</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+</style>
+</helmet>
+<div style="font-family: Inter, Inter, system-ui, sans-serif; color: var(--text, #0E0F0C); font-size: 14px">
+  <header style="min-height: 64px; box-sizing: border-box; display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 10px 32px; border-bottom: 1px solid var(--border, #E3E5E0); background: color-mix(in srgb, var(--surface, #FFFFFF) 92%, transparent); backdrop-filter: saturate(1.4) blur(10px); position: sticky; top: 0; z-index: 30">
+    <div style="flex: 1 1 200px; min-width: 0; display: flex; align-items: center; gap: 8px">
+      <span style="font-size: 14.5px; color: var(--text-3, #6A6C6A)">{{sub}}</span>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-3, #6A6C6A)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+      <h1 style="margin: 0; font-size: 18px; font-weight: 800; letter-spacing: -0.015em; white-space: nowrap">{{heading}}</h1>
+    </div>
+    <button type="button" onClick="{{openPalette}}" aria-label="Open command palette" style="display: flex; align-items: center; gap: 8px; width: 380px; max-width: 100%; height: 42px; padding: 0 10px 0 16px; border: 0; border-radius: 9999px; background: var(--surface-2, #EDEFEA); color: var(--text-3, #6A6C6A); font: inherit; font-size: 14.5px; cursor: pointer; text-align: left">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+      <span style="flex: 1">Search or jump to…</span>
+      <span class="mono" style="font-size: 11px; padding: 2px 6px; border-radius: 5px; border: 1px solid var(--border-strong, #C9CCC5); background: var(--surface, #FFFFFF); color: var(--text-2, #454745)">⌘K</span>
+    </button>
+    <div style="display: flex; align-items: center; gap: 4px">
+      <button type="button" class="hov" onClick="{{toggle}}" aria-label="{{themeLabel}}" title="{{themeLabel}}" style="width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 9999px; background: transparent; color: var(--text-2, #454745); cursor: pointer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{themeIcon}}"></path></svg>
+      </button>
+      <span style="position: relative; display: inline-flex"><button type="button" class="hov" onClick="{{toggleBell}}" aria-expanded="{{bellAria}}" aria-label="Notifications, {{unread}} unread" title="Notifications" style="position: relative; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 9999px; background: transparent; color: var(--text-2, #454745); cursor: pointer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0"></path></svg>
+        <sc-if value="{{hasUnread}}" hint-placeholder-val="{{true}}"><span style="position: absolute; top: 7px; right: 8px; width: 7px; height: 7px; border-radius: 99px; background: var(--bad, #BF2F28); border: 2px solid var(--surface, #FFFFFF)"></span></sc-if>
+      </button>
+      <sc-if value="{{bell}}" hint-placeholder-val="{{false}}">
+        <div role="dialog" aria-label="Notifications" style="position: absolute; right: 0; top: 42px; z-index: 45; width: 380px; max-width: calc(100vw - 32px); border-radius: 12px; background: var(--surface, #FFFFFF); border: 1px solid var(--border, #E3E5E0); box-shadow: 0 18px 48px rgba(8,12,24,0.18); overflow: hidden">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border, #E3E5E0)"><span style="font-weight: 600; font-size: 14px; flex: 1">Notifications</span><button type="button" onClick="{{readAll}}" style="border: 0; background: transparent; font: inherit; font-size: 12.5px; color: var(--accent-text, #163300); cursor: pointer">Mark all read</button></div>
+          <div style="display: flex; gap: 4px; padding: 8px 10px 0"><sc-for list="{{nTabs}}" as="t"><button type="button" onClick="{{t.pick}}" style="height: 28px; padding: 0 10px; border: 0; border-radius: 7px; font: inherit; font-size: 12.5px; font-weight: 500; cursor: pointer; background: {{t.bg}}; color: {{t.c}}">{{t.l}}</button></sc-for></div>
+          <div style="max-height: 360px; overflow: auto; padding: 6px">
+            <sc-for list="{{notes}}" as="n" hint-placeholder-count="4">
+              <a href="{{n.href}}" class="hov" style="display: flex; gap: 10px; padding: 10px; border-radius: 8px; text-decoration: none; color: var(--text, #0E0F0C)">
+                <span style="width: 30px; height: 30px; flex: none; border-radius: 8px; display: grid; place-items: center; background: {{n.bg}}; color: {{n.c}}"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{n.icon}}"></path></svg></span>
+                <span style="flex: 1; min-width: 0"><span style="display: block; font-size: 13px; font-weight: {{n.w}}">{{n.t}}</span><span style="display: block; font-size: 12px; color: var(--text-3, #6A6C6A)">{{n.m}}</span></span>
+                <sc-if value="{{n.unread}}" hint-placeholder-val="{{true}}"><span style="width: 7px; height: 7px; margin-top: 6px; border-radius: 99px; background: var(--accent, #163300); flex: none"></span></sc-if>
+              </a>
+            </sc-for>
+          </div>
+          <a href="Profile.dc.html" style="display: block; padding: 10px 14px; border-top: 1px solid var(--border, #E3E5E0); font-size: 12.5px; color: var(--text-2, #454745); text-decoration: none">Notification preferences</a>
+        </div>
+      </sc-if></span>
+      <button type="button" class="hov" aria-label="Help and keyboard shortcuts" title="Help · press ? for shortcuts" style="width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 9999px; background: transparent; color: var(--text-2, #454745); cursor: pointer">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <sc-if value="{{open}}" hint-placeholder-val="{{false}}">
+    <div onClick="{{close}}" style="position: fixed; inset: 0; z-index: 50; background: rgba(8,12,24,0.45); display: flex; justify-content: center; align-items: flex-start; padding: 96px 16px 16px">
+      <div role="dialog" aria-modal="true" aria-label="Command palette" onClick="{{stop}}" style="width: 640px; max-width: 100%; border-radius: 14px; background: var(--surface, #FFFFFF); border: 1px solid var(--border, #E3E5E0); box-shadow: 0 24px 64px rgba(8,12,24,0.28); overflow: hidden">
+        <div style="display: flex; align-items: center; gap: 10px; padding: 0 16px; border-bottom: 1px solid var(--border, #E3E5E0)">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--text-3, #6A6C6A)" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          <label for="cmdk" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search commands</label>
+          <input id="cmdk" autoFocus="{{true}}" value="{{q}}" onInput="{{onQuery}}" placeholder="Search conversations, customers, tickets, or type a command" style="flex: 1; height: 52px; border: 0; outline: none; background: transparent; font: inherit; font-size: 15px; color: var(--text, #0E0F0C)">
+          <button type="button" onClick="{{close}}" style="font-family: 'Geist Mono', monospace; font-size: 11px; padding: 3px 7px; border-radius: 5px; border: 1px solid var(--border-strong, #C9CCC5); background: var(--surface-2, #EDEFEA); color: var(--text-2, #454745); cursor: pointer">esc</button>
+        </div>
+        <div style="max-height: 400px; overflow: auto; padding: 8px">
+          <sc-for list="{{groups}}" as="g" hint-placeholder-count="3">
+            <div style="padding: 8px 10px 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3, #6A6C6A)">{{g.label}}</div>
+            <sc-for list="{{g.items}}" as="it" hint-placeholder-count="3">
+              <a href="{{it.href}}" class="hov" style="display: flex; align-items: center; gap: 12px; padding: 9px 10px; border-radius: 8px; color: var(--text, #0E0F0C); text-decoration: none">
+                <span style="width: 28px; height: 28px; border-radius: 7px; display: grid; place-items: center; background: var(--surface-2, #EDEFEA); color: var(--text-2, #454745)">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{it.icon}}"></path></svg>
+                </span>
+                <span style="flex: 1; min-width: 0; display: flex; flex-direction: column">
+                  <span style="font-size: 14px; font-weight: 500">{{it.label}}</span>
+                  <span style="font-size: 12px; color: var(--text-3, #6A6C6A)">{{it.hint}}</span>
+                </span>
+                <sc-if value="{{it.kbd}}" hint-placeholder-val="{{false}}"><span class="mono" style="font-size: 11px; color: var(--text-3, #6A6C6A)">{{it.kbd}}</span></sc-if>
+              </a>
+            </sc-for>
+          </sc-for>
+          <sc-if value="{{empty}}" hint-placeholder-val="{{false}}">
+            <div style="padding: 32px 16px; text-align: center; color: var(--text-3, #6A6C6A); font-size: 13px">No matches for “{{q}}”. Try a customer name, ticket ID like TCK-1182, or “settings”.</div>
+          </sc-if>
+        </div>
+        <div style="display: flex; gap: 16px; padding: 10px 16px; border-top: 1px solid var(--border, #E3E5E0); background: var(--surface-2, #EDEFEA); font-size: 12px; color: var(--text-3, #6A6C6A)">
+          <span>↑↓ to move</span><span>↵ to open</span><span>Type &gt; for actions</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"heading":{"editor":"text","default":"Overview"},"sub":{"editor":"text","default":"Workspace"},"dark":{"editor":"boolean","default":false},"onToggleTheme":{"editor":null},"$preview":{"width":1208,"height":64}}'>
+const I = {
+  nav: 'M5 12h14M13 6l6 6-6 6',
+  chat: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
+  user: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  ticket: 'M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z',
+  bolt: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z',
+  gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 12h2M18 12h2M12 4v2M12 18v2'
+};
+const NOTES = [
+  ['handoff', 'Nova handed off Tom Becker', 'Damaged package · needs approval · 2m', 'Handoff.dc.html', 'chat', true],
+  ['sla', 'SLA at risk on TCK-1182', 'First response due in 12 min', 'Tickets.dc.html', 'ticket', true],
+  ['mention', 'Jordan mentioned you', '“Can you take the VIP refund?” · 18m', 'Inbox.dc.html', 'user', true],
+  ['ai', 'Policy check blocked a reply', 'Refund over limit · Compliance · 1h', 'Compliance.dc.html', 'bolt', false],
+  ['ai', '23 new knowledge gaps', 'Shipping to Canada asked 41 times · 3h', 'Knowledge.dc.html', 'bolt', false]
+];
+const ALL = [
+  { label: 'Conversations', items: [
+    { label: 'Sarah Johnson — Where is my order?', hint: 'Website chat · High · Alex Morgan', href: 'Inbox.dc.html', icon: I.chat },
+    { label: 'Tom Becker — Package arrived damaged', hint: 'Email · Handed off by Nova · Jordan Lee', href: 'Inbox.dc.html', icon: I.chat }
+  ] },
+  { label: 'Customers', items: [
+    { label: 'Sarah Johnson', hint: 'sarah@example.com · VIP · $1,284 LTV', href: 'Customers.dc.html', icon: I.user },
+    { label: 'Aisha Rahman', hint: 'aisha.r@example.com · Churn risk', href: 'Customers.dc.html', icon: I.user }
+  ] },
+  { label: 'Tickets', items: [
+    { label: 'TCK-1182 · Double charge on order #ORD-2031', hint: 'Billing · Pending · SLA 2h 10m', href: 'Tickets.dc.html', icon: I.ticket }
+  ] },
+  { label: 'Actions', items: [
+    { label: 'Create ticket', hint: 'Open a new ticket for a customer', href: 'Tickets.dc.html', icon: I.bolt, kbd: 'C' },
+    { label: 'Test an AI agent in the playground', hint: 'Agent builder · Nova', href: 'AgentBuilder.dc.html', icon: I.bolt },
+    { label: 'Review knowledge gaps', hint: '23 unanswered questions this week', href: 'Knowledge.dc.html', icon: I.bolt }
+  ] },
+  { label: 'Go to', items: [
+    { label: 'Inbox', hint: 'Unified inbox', href: 'Inbox.dc.html', icon: I.nav, kbd: 'G I' },
+    { label: 'Analytics', hint: 'Reports and dashboards', href: 'Analytics.dc.html', icon: I.nav, kbd: 'G A' },
+    { label: 'Command center', hint: 'Team load and SLA risk', href: 'Team.dc.html', icon: I.nav, kbd: 'G T' },
+    { label: 'Settings', hint: 'Workspace, AI, security, billing', href: 'Settings.dc.html', icon: I.gear, kbd: 'G S' },
+    { label: 'Email templates', hint: 'Emails sent to customers and teammates', href: 'Emails.dc.html', icon: I.gear },
+    { label: 'My profile', hint: 'Status, languages, notifications', href: 'Profile.dc.html', icon: I.user }
+  ] }
+];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { open: false, q: '', bell: false, read: false, tab: 'all' }; }
+  renderVals() {
+    const dark = this.props.dark ?? false;
+    const q = this.state.q.trim().toLowerCase();
+    const groups = ALL.map((g) => ({ label: g.label, items: g.items.filter((i) => !q || (i.label + ' ' + i.hint).toLowerCase().includes(q)).map((i) => ({ ...i, kbd: i.kbd || false })) })).filter((g) => g.items.length);
+    return {
+      heading: this.props.heading ?? 'Overview',
+      sub: this.props.sub ?? 'Workspace',
+      themeLabel: dark ? 'Switch to light mode' : 'Switch to dark mode',
+      themeIcon: dark ? 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4' : 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
+      bell: this.state.bell, bellAria: this.state.bell ? 'true' : 'false',
+      unread: this.state.read ? 0 : NOTES.filter((n) => n[5]).length, hasUnread: !this.state.read,
+      toggleBell: () => this.setState({ bell: !this.state.bell, open: false }),
+      readAll: () => this.setState({ read: true }),
+      nTabs: [['all', 'All'], ['mention', 'Mentions'], ['handoff', 'Handoffs']].map(([id, l]) => ({ l, bg: this.state.tab === id ? 'var(--surface-2, #EDEFEA)' : 'transparent', c: this.state.tab === id ? 'var(--text, #0E0F0C)' : 'var(--text-3, #6A6C6A)', pick: () => this.setState({ tab: id }) })),
+      notes: NOTES.filter((n) => this.state.tab === 'all' || n[0] === this.state.tab).map(([k, t, m, href, ic, u]) => { const unread = u && !this.state.read; const ai = k === 'ai'; const warn = k === 'sla'; return { t, m, href, icon: I[ic], unread, w: unread ? '600' : '500', bg: ai ? 'var(--ai-soft, #F2EDFD)' : warn ? 'var(--warn-soft, #FDF2E3)' : 'var(--accent-soft, #E2F6D5)', c: ai ? 'var(--ai, #6D3FD6)' : warn ? 'var(--warn, #A4510B)' : 'var(--accent-text, #163300)' }; }),
+      open: this.state.open, q: this.state.q, groups, empty: groups.length === 0,
+      openPalette: () => this.setState({ open: true, q: '', bell: false }),
+      close: () => this.setState({ open: false }),
+      stop: (e) => e.stopPropagation(),
+      onQuery: (e) => this.setState({ q: e.target.value }),
+      toggle: () => { if (this.props.onToggleTheme) this.props.onToggleTheme(); }
+    };
+  }
+}
+</script>
+</body>
+</html>

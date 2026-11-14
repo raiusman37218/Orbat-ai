@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Checkout</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ok:#1C7C45;--ok-soft:#E7F4EC;font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb *{box-sizing:border-box}
+.orb button,.orb input,.orb select{font:inherit;color:inherit}
+.orb button{cursor:pointer;transition:background-color .15s,border-color .15s}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.orb input:focus,.orb select:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)}
+.orb .card{border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:0 1px 2px rgba(16,24,40,.04)}
+.orb .fld{height:40px;width:100%;padding:0 12px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:14px}
+.orb .lbl{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500}
+.orb .num{font-variant-numeric:tabular-nums}
+.bp:hover{background:var(--accent-hover)!important}
+a{color:var(--accent-text);text-decoration:none}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+.orb{zoom:1.06}
+</style>
+</helmet>
+<div class="orb" style="min-height: 100vh; background: var(--bg)">
+  <header style="height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--surface)">
+    <a href="Pricing.dc.html" style="display: flex; align-items: center; gap: 9px; color: var(--text); font-weight: 600; font-size: 15px"><span style="width: 26px; height: 26px; border-radius: 7px; background: #163300; color: #FFFFFF; display: grid; place-items: center; font-size: 12px; font-weight: 700">O</span>ORBAT</a>
+    <span style="margin-left: auto; display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-3)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>Secure checkout</span>
+  </header>
+
+  <sc-if value="{{paying}}" hint-placeholder-val="{{true}}">
+    <div style="max-width: 1080px; margin: 0 auto; padding: 32px 24px 48px; display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+      <div style="flex: 999 1 520px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+        <div><a href="Pricing.dc.html" style="font-size: 13px">← Back to plans</a><h1 style="margin: 8px 0 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em">Upgrade to {{plan}}</h1></div>
+
+        <section class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 12px">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600">Plan</h2>
+          <div role="radiogroup" aria-label="Plan" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); gap: 10px">
+            <sc-for list="{{plans}}" as="p"><button type="button" role="radio" aria-checked="{{p.on}}" onClick="{{p.pick}}" style="padding: 12px 14px; border: 1.5px solid {{p.bd}}; border-radius: 10px; background: {{p.bg}}; text-align: left; display: flex; flex-direction: column; gap: 2px"><span style="font-weight: 600">{{p.n}}</span><span style="font-size: 12.5px; color: var(--text-3)">{{p.d}}</span></button></sc-for>
+          </div>
+          <div role="radiogroup" aria-label="Billing cycle" style="display: flex; padding: 3px; border-radius: 9px; background: var(--surface-2); width: fit-content">
+            <sc-for list="{{cycles}}" as="c"><button type="button" role="radio" aria-checked="{{c.on}}" onClick="{{c.pick}}" style="height: 32px; padding: 0 14px; border: 0; border-radius: 7px; font-size: 13px; font-weight: 500; background: {{c.bg}}; box-shadow: {{c.sh}}">{{c.l}}</button></sc-for>
+          </div>
+          <label class="lbl" style="max-width: 260px">Seats<input class="fld num" type="number" min="1" value="{{seats}}" onInput="{{onSeats}}"></label>
+        </section>
+
+        <section class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 12px">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600">Payment method</h2>
+          <div role="radiogroup" aria-label="Payment method" style="display: flex; flex-wrap: wrap; gap: 8px">
+            <sc-for list="{{methods}}" as="m"><button type="button" role="radio" aria-checked="{{m.on}}" onClick="{{m.pick}}" style="height: 38px; padding: 0 14px; border: 1.5px solid {{m.bd}}; border-radius: 9px; background: {{m.bg}}; font-size: 13.5px; font-weight: 500">{{m.l}}</button></sc-for>
+          </div>
+          <sc-if value="{{isCard}}" hint-placeholder-val="{{true}}">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 12px">
+              <label class="lbl" style="grid-column: 1 / -1">Card number<input class="fld num" inputmode="numeric" placeholder="1234 1234 1234 1234"></label>
+              <label class="lbl">Expiry<input class="fld num" placeholder="MM / YY"></label>
+              <label class="lbl">CVC<input class="fld num" placeholder="123"></label>
+              <label class="lbl">Name on card<input class="fld" placeholder="Full name"></label>
+            </div>
+          </sc-if>
+          <sc-if value="{{isWallet}}" hint-placeholder-val="{{false}}">
+            <label class="lbl" style="max-width: 320px">{{method}} mobile number<input class="fld num" inputmode="tel" placeholder="03XX XXXXXXX"></label>
+            <div style="font-size: 12.5px; color: var(--text-3)">You’ll approve the payment in the {{method}} app.</div>
+          </sc-if>
+          <sc-if value="{{isBank}}" hint-placeholder-val="{{false}}">
+            <div style="padding: 12px 14px; border-radius: 9px; background: var(--surface-2); font-size: 13px; color: var(--text-2); display: grid; grid-template-columns: auto 1fr; gap: 4px 14px"><span>Reference</span><b class="num">ORB-INV-2026-1104</b><span>Account</span><b>[BANK ACCOUNT DETAILS]</b><span>Activation</span><b>When payment clears, usually 1 business day</b></div>
+          </sc-if>
+        </section>
+
+        <section class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 12px">
+          <h2 style="margin: 0; font-size: 15px; font-weight: 600">Billing details</h2>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 12px">
+            <label class="lbl">Company name<input class="fld" value="Lumen Goods"></label>
+            <label class="lbl">Billing email<input class="fld" value="billing@lumengoods.com"></label>
+            <label class="lbl">Country<select class="fld" onChange="{{onCountry}}"><option>United States</option><option>Pakistan</option><option>United Kingdom</option><option>United Arab Emirates</option><option>Germany</option></select></label>
+            <label class="lbl">Tax ID <span style="font-weight: 400; color: var(--text-3)">optional</span><input class="fld" placeholder="{{taxPh}}"></label>
+          </div>
+        </section>
+      </div>
+
+      <aside class="card" style="flex: 1 1 300px; position: sticky; top: 24px; padding: 20px; display: flex; flex-direction: column; gap: 12px">
+        <h2 style="margin: 0; font-size: 15px; font-weight: 600">Summary</h2>
+        <sc-for list="{{lines}}" as="l"><div style="display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; color: var(--text-2)"><span>{{l.k}}</span><span class="num" style="color: var(--text)">{{l.v}}</span></div></sc-for>
+        <div style="display: flex; justify-content: space-between; padding-top: 12px; border-top: 1px solid var(--border); font-weight: 600; font-size: 15px"><span>Due today</span><span class="num">[TOTAL]</span></div>
+        <sc-if value="{{trial}}" hint-placeholder-val="{{false}}"><div style="font-size: 12.5px; color: var(--ok)">14-day trial · first charge on Nov 27</div></sc-if>
+        <button type="button" onClick="{{pay}}" class="bp" style="height: 44px; border: 0; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-size: 14.5px; font-weight: 600">{{payLabel}}</button>
+        <div style="font-size: 12px; color: var(--text-3); line-height: 1.5">Cancel anytime. Prices exclude tax where applicable. By paying you agree to the <a href="#terms">Terms</a>.</div>
+      </aside>
+    </div>
+  </sc-if>
+
+  <sc-if value="{{done}}" hint-placeholder-val="{{false}}">
+    <div style="max-width: 460px; margin: 0 auto; padding: 72px 24px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center">
+      <span style="width: 52px; height: 52px; border-radius: 99px; background: var(--ok-soft); color: var(--ok); display: grid; place-items: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg></span>
+      <h1 style="margin: 0; font-size: 22px; font-weight: 600">You’re on {{plan}}</h1>
+      <div style="font-size: 14px; color: var(--text-2)">{{seats}} seats · {{cycleL}} · receipt sent to billing@lumengoods.com</div>
+      <div style="display: flex; gap: 10px; margin-top: 6px"><a href="Billing.dc.html" style="height: 40px; padding: 0 16px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); color: var(--text); font-weight: 500">View billing</a><a href="Main.dc.html" class="bp" style="height: 40px; padding: 0 16px; display: grid; place-items: center; border-radius: 9px; background: var(--accent); color: #FFFFFF; font-weight: 500">Go to workspace</a></div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1100}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { plan: 'Growth', cycle: 'year', seats: 8, method: 'Card', country: 'United States', done: false }; }
+  renderVals() {
+    const s = this.state;
+    const P = [['Starter', 'Small teams'], ['Growth', 'Most popular'], ['Scale', 'Advanced AI + SSO']];
+    const M = ['Card', 'PayPal', 'JazzCash', 'Easypaisa', 'Bank transfer'];
+    const wallet = s.method === 'JazzCash' || s.method === 'Easypaisa';
+    const pick = (on) => ({ on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : 'var(--border)', bg: on ? 'var(--accent-soft)' : 'var(--surface)' });
+    return {
+      paying: !s.done, done: s.done, plan: s.plan, seats: s.seats, method: s.method,
+      plans: P.map(([n, d]) => ({ n, d, ...pick(n === s.plan), pick: () => this.setState({ plan: n }) })),
+      cycles: [['month', 'Monthly'], ['year', 'Yearly · save [X]%']].map(([id, l]) => { const on = s.cycle === id; return { l, on: on ? 'true' : 'false', bg: on ? 'var(--surface)' : 'transparent', sh: on ? '0 1px 2px rgba(16,24,40,.08)' : 'none', pick: () => this.setState({ cycle: id }) }; }),
+      onSeats: (e) => this.setState({ seats: Math.max(1, Number(e.target.value) || 1) }),
+      methods: M.map((l) => ({ l, ...pick(l === s.method), pick: () => this.setState({ method: l }) })),
+      isCard: s.method === 'Card', isWallet: wallet, isBank: s.method === 'Bank transfer',
+      onCountry: (e) => this.setState({ country: e.target.value }),
+      taxPh: { 'United States': 'EIN', Pakistan: 'NTN', 'United Kingdom': 'VAT number', 'United Arab Emirates': 'TRN', Germany: 'USt-IdNr.' }[s.country],
+      lines: [[s.plan + ' · ' + s.seats + ' seats', '[PRICE] × ' + s.seats], ['AI resolutions included', '[N] / month'], ['Billing', s.cycle === 'year' ? 'Yearly' : 'Monthly'], ['Tax', s.country === 'United States' ? 'Calculated at payment' : '[TAX]']].map(([k, v]) => ({ k, v })),
+      trial: s.plan !== 'Starter',
+      payLabel: s.method === 'Bank transfer' ? 'Get invoice' : (s.plan !== 'Starter' ? 'Start trial' : 'Pay now'),
+      cycleL: s.cycle === 'year' ? 'billed yearly' : 'billed monthly',
+      pay: () => this.setState({ done: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

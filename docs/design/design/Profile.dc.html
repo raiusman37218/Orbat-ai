@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · My profile</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--bad:#BF2F28;--bad-soft:#FCEBEA;--side:#163300;--side-2:#21420C;--side-text:#C8D3BD;--shadow-card:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.03);font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0B0F1A;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--border-strong:#323B58;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-hover:#3A6E18;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ok:#4FC48A;--ok-soft:#10291D;--warn:#F0A54E;--warn-soft:#2C2010;--bad:#F2756C;--bad-soft:#2F1615;--side:#0B1A00;--side-2:#1A3009;--side-text:#9BA3BC;--shadow-card:none}
+.orb *{box-sizing:border-box}
+.orb button,.orb input,.orb select{font:inherit;color:inherit}
+.orb button{cursor:pointer;transition:background-color .15s,border-color .15s}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.orb input:focus,.orb select:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)}
+.orb .card{border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:var(--shadow-card)}
+.orb .fld{height:38px;width:100%;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13.5px;font-weight:400}
+.orb .lbl{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500}
+.hov:hover{background:var(--surface-2)!important}
+.sbi:hover{background:rgba(255,255,255,.07)!important}
+.bp:hover{background:var(--accent-hover)!important}
+a{color:var(--accent-text);text-decoration:none}a:hover{text-decoration:underline}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="min-height: 100vh; display: flex; flex-wrap: wrap; background: var(--bg)">
+  <div style="flex: 1 1 232px; background: var(--side); display: flex">
+    <dc-import name="Sidebar" active="none" hint-size="232px,900px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <dc-import name="Topbar" heading="My profile" sub="Account" dark="{{dark}}" on-toggle-theme="{{toggleTheme}}" hint-size="100%,56px"></dc-import>
+    <div style="padding: 24px 32px 40px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; max-width: 1240px; width: 100%; margin: 0 auto">
+      <aside class="card" style="flex: 1 1 280px; max-width: 320px; padding: 22px; display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center">
+        <div style="position: relative"><span style="width: 88px; height: 88px; border-radius: 99px; display: grid; place-items: center; font-size: 30px; font-weight: 600; background: #E9D8FD; color: #3B1F73">AM</span><span style="position: absolute; right: 2px; bottom: 2px; width: 18px; height: 18px; border-radius: 99px; background: {{statusC}}; border: 3px solid var(--surface)"></span></div>
+        <div><div style="font-size: 18px; font-weight: 600">{{name}}</div><div style="font-size: 13px; color: var(--text-3)">Supervisor · Support, VIP</div></div>
+        <button type="button" class="hov" style="height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px">Change photo</button>
+        <div role="radiogroup" aria-label="Status" style="width: 100%; display: flex; flex-direction: column; gap: 6px; margin-top: 6px; text-align: left">
+          <sc-for list="{{statuses}}" as="st"><button type="button" role="radio" aria-checked="{{st.on}}" onClick="{{st.pick}}" style="display: flex; gap: 10px; align-items: center; padding: 10px 12px; border: 1.5px solid {{st.bd}}; border-radius: 10px; background: {{st.bg}}; text-align: left"><span style="width: 10px; height: 10px; border-radius: 99px; background: {{st.c}}"></span><span style="flex: 1"><span style="display: block; font-weight: 500; font-size: 13.5px">{{st.l}}</span><span style="display: block; font-size: 12px; color: var(--text-3)">{{st.d}}</span></span></button></sc-for>
+        </div>
+      </aside>
+
+      <div style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+        <section class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 14px">
+          <h3 style="margin: 0; font-size: 15px; font-weight: 600">Personal details</h3>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 14px">
+            <label class="lbl">Full name<input class="fld" value="{{name}}" onInput="{{onName}}"></label>
+            <label class="lbl">Name shown to customers<input class="fld" value="Alex"></label>
+            <label class="lbl">Email<input class="fld" value="alex@lumengoods.com" readonly style="background: var(--surface-2); color: var(--text-2)"></label>
+            <label class="lbl">Phone for on-call<input class="fld" value="+1 (512) 555-0182"></label>
+          </div>
+        </section>
+
+        <section class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 12px">
+          <div><h3 style="margin: 0; font-size: 15px; font-weight: 600">Languages I speak</h3><div style="font-size: 12.5px; color: var(--text-3)">Chats in these languages ring you first</div></div>
+          <div style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{langs}}" as="l"><button type="button" onClick="{{l.toggle}}" aria-pressed="{{l.on}}" style="height: 34px; padding: 0 14px; border: 1.5px solid {{l.bd}}; border-radius: 99px; background: {{l.bg}}; color: {{l.c}}; font-size: 13px; font-weight: 500">{{l.n}}</button></sc-for></div>
+        </section>
+
+        <section class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 4px">
+          <h3 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">Workload</h3>
+          <label class="lbl" style="padding: 10px 0; border-top: 1px solid var(--border)"><span style="display: flex; justify-content: space-between">Maximum chats at once<span style="font-variant-numeric: tabular-nums">{{cap}}</span></span><input type="range" min="1" max="15" value="{{cap}}" onInput="{{onCap}}" style="accent-color: var(--accent)"></label>
+          <sc-for list="{{toggles}}" as="t"><div style="display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border)"><div style="flex: 1"><div style="font-weight: 500; font-size: 13.5px">{{t.l}}</div><div style="font-size: 12px; color: var(--text-3)">{{t.h}}</div></div><button type="button" role="switch" aria-checked="{{t.aria}}" aria-label="{{t.l}}" onClick="{{t.toggle}}" style="width: 36px; height: 20px; border: 0; border-radius: 99px; padding: 2px; display: flex; flex: none; background: {{t.track}}; justify-content: {{t.knob}}"><span style="width: 16px; height: 16px; border-radius: 99px; background: #FFFFFF"></span></button></div></sc-for>
+        </section>
+
+        <section class="card" style="padding: 20px; display: flex; flex-direction: column; gap: 4px">
+          <h3 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">Security</h3>
+          <div style="display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border)"><div style="flex: 1"><div style="font-weight: 500; font-size: 13.5px">Password</div><div style="font-size: 12px; color: var(--text-3)">Last changed Sep 3</div></div><button type="button" class="hov" style="height: 32px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px">Change</button></div>
+          <div style="display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border)"><div style="flex: 1"><div style="font-weight: 500; font-size: 13.5px">Two-factor authentication</div><div style="font-size: 12px; color: var(--text-3)">Authenticator app</div></div><span style="font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 99px; background: var(--ok-soft); color: var(--ok)">On</span></div>
+          <div style="padding-top: 10px; border-top: 1px solid var(--border); font-weight: 500; font-size: 13.5px">Signed-in devices</div>
+          <sc-for list="{{sessions}}" as="se"><div style="display: flex; gap: 12px; align-items: center; padding: 8px 0"><div style="flex: 1"><div style="font-size: 13.5px">{{se.d}}</div><div style="font-size: 12px; color: var(--text-3)">{{se.m}}</div></div><sc-if value="{{se.current}}" hint-placeholder-val="{{false}}"><span style="font-size: 12px; color: var(--ok); font-weight: 500">This device</span></sc-if><sc-if value="{{se.other}}" hint-placeholder-val="{{true}}"><button type="button" onClick="{{se.out}}" style="height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 12.5px; color: var(--bad)">Sign out</button></sc-if></div></sc-for>
+        </section>
+        <div style="display: flex; justify-content: flex-end"><button type="button" onClick="{{save}}" class="bp" style="height: 38px; padding: 0 16px; border: 0; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13.5px; font-weight: 500">Save profile</button></div>
+      </div>
+    </div>
+  </main>
+  <sc-if value="{{toast}}" hint-placeholder-val="{{false}}"><div role="status" style="position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; padding: 10px 14px; border-radius: 10px; background: #0E0F0C; color: #FFFFFF; font-size: 13px">{{toast}}</div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { dark: null, status: 'online', name: 'Alex Morgan', langs: { English: true, Spanish: true }, cap: 8, t: { auto: true, ring: true, ping: true }, out: {}, toast: '' }; }
+  flash(t) { this.setState({ toast: t }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 2400); }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const ST = [['online', 'Online', 'Get new chats and calls', 'var(--ok)'], ['away', 'Away', 'No new chats; keep your open ones', 'var(--warn)'], ['dnd', 'Do not disturb', 'Pause all alerts for 1 hour', 'var(--bad)']];
+    const T = [['auto', 'Go Away automatically', 'After 15 minutes without activity'], ['ring', 'Ring me for handoffs', 'Sound, popup and browser push'], ['ping', 'Urgent pings when I’m Away', 'Unassigned chats near SLA breach']];
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', dark, toggleTheme: () => this.setState({ dark: !dark }),
+      name: s.name, onName: (e) => this.setState({ name: e.target.value }),
+      statusC: ST.find((x) => x[0] === s.status)[3],
+      statuses: ST.map(([id, l, d, c]) => { const on = id === s.status; return { l, d, c, on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : 'var(--border)', bg: on ? 'var(--accent-soft)' : 'var(--surface)', pick: () => this.setState({ status: id }) }; }),
+      langs: ['English', 'Spanish', 'Urdu', 'Hindi', 'Arabic', 'French', 'Tagalog'].map((n) => { const on = !!s.langs[n]; return { n, on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : 'var(--border)', bg: on ? 'var(--accent-soft)' : 'var(--surface)', c: on ? 'var(--accent-text)' : 'var(--text-2)', toggle: () => this.setState({ langs: { ...s.langs, [n]: !on } }) }; }),
+      cap: s.cap, onCap: (e) => this.setState({ cap: Number(e.target.value) }),
+      toggles: T.map(([id, l, h]) => { const on = s.t[id]; return { l, h, aria: on ? 'true' : 'false', track: on ? 'var(--ok)' : 'var(--border-strong)', knob: on ? 'flex-end' : 'flex-start', toggle: () => this.setState({ t: { ...s.t, [id]: !on } }) }; }),
+      sessions: [['MacBook Pro · Chrome', 'Austin, US · now', true], ['iPhone · ORBAT app', 'Austin, US · 2 hours ago', false], ['Windows · Edge', 'Dallas, US · Nov 2', false]].filter((x, i) => !s.out[i]).map(([d, m, current], i) => ({ d, m, current, other: !current, out: () => { this.setState({ out: { ...s.out, [i]: true } }); this.flash('Signed out of ' + d); } })),
+      save: () => this.flash('Profile saved'),
+      toast: s.toast || false
+    };
+  }
+}
+</script>
+</body>
+</html>

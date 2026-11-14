@@ -1,0 +1,663 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Inbox</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ai-text:#5B2FC2;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--bad:#BF2F28;--bad-soft:#FCEBEA;--note:#FFF7E0;--note-border:#F1D89A;--side:#163300;--side-2:#21420C;--side-text:#C8D3BD;--shadow:0 1px 2px rgba(14,20,36,.05),0 4px 16px rgba(14,20,36,.06);font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0A0E19;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--border-strong:#323B58;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-hover:#3A6E18;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ai-text:#C2ACFF;--ok:#4FC48A;--ok-soft:#10291D;--warn:#F0A54E;--warn-soft:#2C2010;--bad:#F2756C;--bad-soft:#2F1615;--note:#2A2313;--note-border:#5A4A22;--side:#0B1A00;--side-2:#1A3009;--side-text:#9BA3BC;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35)}
+.orb *{box-sizing:border-box}
+.orb button,.orb input,.orb textarea,.orb select{font:inherit;color:inherit}
+.orb button{cursor:pointer}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.hov:hover{background:var(--surface-2)!important}
+.sbi:hover{background:rgba(255,255,255,.07)!important}
+.bp:hover{background:var(--accent-hover)!important}
+.row:hover{background:var(--surface-2)}
+.scroll{overflow:auto;scrollbar-width:thin}
+a{color:var(--accent-text);text-decoration:none}a:hover{text-decoration:underline}
+/* POLISH v1 */
+/* POLISH v2 */
+.orb main h2 + p{display:none!important}
+.orb main h3 + p{font-size:12.5px!important;color:var(--text-3)!important}
+.orb{--bg:#F6F7F4;--border:#E3E5E0;--shadow-card:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.03);letter-spacing:-0.003em;font-feature-settings:'tnum' 0}
+.orb.dark{--bg:#0B0F1A;--border:#232B44;--shadow-card:none}
+.orb .mono{font-family:Inter,system-ui,sans-serif!important;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.orb code.mono,.orb pre.mono{font-family:'Geist Mono',ui-monospace,monospace!important;letter-spacing:0}
+.orb h1,.orb h2,.orb h3{letter-spacing:-0.015em}
+.orb [style*="border-radius: 12px"][style*="background: var(--surface)"],.orb [style*="border-radius: 14px"][style*="background: var(--surface)"]{box-shadow:var(--shadow-card)}
+.orb thead th{font-size:11.5px!important;font-weight:600!important;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.orb tbody td{vertical-align:middle}
+.orb button,.orb a{transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,color .15s ease,opacity .15s ease}
+.orb button:active{transform:translateY(.5px)}
+.orb input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,.orb select:focus,.orb textarea:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)!important}
+.orb button[style*="border: 1px solid var(--border)"]:hover{border-color:var(--border-strong)!important}
+.orb ::selection{background:var(--accent-soft)}
+.orb *{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+.orb main > div[style*="padding: 2"]{max-width:1480px;width:100%;margin-left:auto;margin-right:auto}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="height: 100vh; display: flex; background: var(--bg); overflow: hidden">
+  <div style="flex: 0 0 64px; background: var(--side); display: flex">
+    <dc-import name="Sidebar" active="inbox" compact="{{true}}" hint-size="64px,900px"></dc-import>
+  </div>
+  <main style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column">
+    <dc-import name="Topbar" heading="{{viewLabel}}" sub="Inbox" dark="{{dark}}" on-toggle-theme="{{toggleTheme}}" hint-size="100%,56px"></dc-import>
+    <div class="scroll" style="flex: 1; min-height: 0; display: flex">
+
+      <!-- Views -->
+      <nav aria-label="Inbox views" class="scroll" style="flex: 0 0 212px; border-right: 1px solid var(--border); background: var(--surface); padding: 14px 10px; display: flex; flex-direction: column; gap: 18px">
+        <div style="display: flex; flex-direction: column; gap: 1px">
+          <sc-for list="{{views}}" as="v" hint-placeholder-count="10">
+            <button type="button" onClick="{{v.pick}}" aria-pressed="{{v.pressed}}" class="hov" style="display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border: 0; border-radius: 7px; text-align: left; font-size: 13.5px; background: {{v.bg}}; color: {{v.color}}; font-weight: {{v.weight}}">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{v.icon}}"></path></svg>
+              <span style="flex: 1">{{v.label}}</span>
+              <span class="mono" style="font-size: 12px; color: var(--text-3)">{{v.count}}</span>
+            </button>
+          </sc-for>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 1px">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding: 0 10px 6px"><span style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3)">Team inboxes</span>
+            <button type="button" aria-label="Add inbox" title="Create a team inbox" class="hov" style="width: 22px; height: 22px; border: 0; border-radius: 5px; background: transparent; color: var(--text-3); display: grid; place-items: center"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button></div>
+          <sc-for list="{{inboxes}}" as="t" hint-placeholder-count="3">
+            <button type="button" class="hov" style="display: flex; align-items: center; gap: 10px; height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; text-align: left; font-size: 13.5px; color: var(--text-2)">
+              <span style="width: 8px; height: 8px; border-radius: 3px; background: {{t.color}}"></span><span style="flex: 1">{{t.label}}</span><span class="mono" style="font-size: 12px; color: var(--text-3)">{{t.count}}</span>
+            </button>
+          </sc-for>
+        </div>
+        <div style="display: flex; flex-direction: column; gap: 1px">
+          <div style="padding: 0 10px 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3)">Saved filters</div>
+          <button type="button" class="hov" style="height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; text-align: left; font-size: 13.5px; color: var(--text-2)">Negative sentiment · 24h</button>
+          <button type="button" class="hov" style="height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; text-align: left; font-size: 13.5px; color: var(--text-2)">AI low confidence</button>
+          <button type="button" class="hov" style="height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; text-align: left; font-size: 13.5px; color: var(--text-2)">Orders over $200</button>
+        </div>
+      </nav>
+
+      <!-- Conversation list -->
+      <section aria-label="Conversations" style="flex: 0 0 340px; border-right: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; min-height: 0">
+        <div style="padding: 12px; display: flex; flex-direction: column; gap: 10px; border-bottom: 1px solid var(--border)">
+          <div style="display: flex; gap: 8px">
+            <label style="flex: 1; display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search conversations</span>
+              <input value="{{q}}" onInput="{{onSearch}}" placeholder="Search name, order, message" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px">
+            </label>
+            <button type="button" class="hov" aria-label="Filters" title="Advanced filters" style="width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); display: grid; place-items: center; color: var(--text-2)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 5h18M6 12h12M10 19h4"></path></svg></button>
+          </div>
+          <div style="display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--text-2)">
+            <label style="display: flex; align-items: center; gap: 8px"><input type="checkbox" checked="{{allChecked}}" onChange="{{toggleAll}}" style="width: 15px; height: 15px; accent-color: var(--accent)">{{listCount}}</label>
+            <button type="button" onClick="{{cycleSort}}" class="hov" title="Change sort order" style="display: flex; align-items: center; gap: 4px; border: 0; background: transparent; padding: 3px 6px; border-radius: 6px; font-size: 12.5px; color: var(--text-2)">{{sortLabel}}<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"></path></svg></button>
+          </div>
+        </div>
+        <sc-if value="{{hasSelection}}" hint-placeholder-val="{{false}}">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px; background: var(--accent-soft); border-bottom: 1px solid var(--border); font-size: 12.5px">
+            <span style="font-weight: 600; color: var(--accent-text); margin-right: auto">{{selCount}} selected</span>
+            <button type="button" onClick="{{bulkResolve}}" style="height: 26px; padding: 0 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); font-size: 12px">Resolve</button>
+            <button type="button" style="height: 26px; padding: 0 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); font-size: 12px">Assign</button>
+            <button type="button" style="height: 26px; padding: 0 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); font-size: 12px">Tag</button>
+            <button type="button" onClick="{{clearSel}}" aria-label="Clear selection" style="height: 26px; width: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--accent-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="display:block;margin:auto"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
+          </div>
+        </sc-if>
+        <div class="scroll" style="flex: 1; min-height: 0">
+          <sc-for list="{{list}}" as="c" hint-placeholder-count="7">
+            <div style="position: relative; display: flex; gap: 10px; padding: 12px 12px 12px 10px; border-bottom: 1px solid var(--border); background: {{c.bg}}; box-shadow: {{c.ring}}">
+              <input type="checkbox" checked="{{c.checked}}" onChange="{{c.check}}" aria-label="Select conversation with {{c.name}}" style="margin-top: 10px; width: 15px; height: 15px; accent-color: var(--accent); flex: none">
+              <button type="button" onClick="{{c.open}}" style="flex: 1; min-width: 0; display: flex; gap: 10px; border: 0; padding: 0; background: transparent; text-align: left">
+                <span style="position: relative; flex: none; width: 34px; height: 34px; border-radius: 99px; display: grid; place-items: center; font-size: 12px; font-weight: 600; {{c.av}}">{{c.ini}}
+                  <span title="{{c.channel}}" style="position: absolute; right: -4px; bottom: -3px; width: 17px; height: 17px; border-radius: 99px; background: var(--surface); border: 1px solid var(--border); display: grid; place-items: center; color: var(--text-2)"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{c.chIcon}}"></path></svg></span>
+                </span>
+                <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px">
+                  <span style="display: flex; align-items: center; gap: 6px">
+                    <span style="flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13.5px; font-weight: {{c.nameWeight}}">{{c.name}}</span>
+                    <sc-if value="{{c.prioFlag}}" hint-placeholder-val="{{false}}"><span title="{{c.priority}} priority" style="font-size: 10.5px; font-weight: 600; padding: 0 6px; border-radius: 4px; {{c.prioTone}}">{{c.priority}}</span></sc-if>
+                    <span class="mono" style="font-size: 11.5px; color: var(--text-3)">{{c.time}}</span>
+                  </span>
+                  <span style="font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{c.subject}}</span>
+                  <span style="font-size: 12.5px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{c.preview}}</span>
+                  <span style="display: flex; align-items: center; gap: 6px; margin-top: 3px; flex-wrap: wrap">
+                    <span style="display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 500; padding: 1px 7px; border-radius: 99px; {{c.handlerTone}}">{{c.handlerLabel}}</span>
+                    <sc-for list="{{c.tags}}" as="tg"><span style="font-size: 11px; padding: 1px 7px; border-radius: 99px; background: var(--surface-2); color: var(--text-2)">{{tg}}</span></sc-for>
+                    <sc-if value="{{c.unread}}" hint-placeholder-val="{{false}}"><span aria-label="Unread" style="margin-left: auto; width: 8px; height: 8px; border-radius: 9px; background: var(--accent)"></span></sc-if>
+                  </span>
+                </span>
+              </button>
+            </div>
+          </sc-for>
+          <sc-if value="{{listEmpty}}" hint-placeholder-val="{{false}}">
+            <div style="padding: 56px 24px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center">
+              <span style="width: 44px; height: 44px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-3)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg></span>
+              <div style="font-weight: 600">{{emptyTitle}}</div>
+              <div style="font-size: 13px; color: var(--text-2); max-width: 240px">{{emptyBody}}</div>
+            </div>
+          </sc-if>
+        </div>
+        <div style="padding: 8px 12px; border-top: 1px solid var(--border); font-size: 11.5px; color: var(--text-3); display: flex; gap: 12px"><span><b class="mono">J</b>/<b class="mono">K</b> move</span><span><b class="mono">R</b> reply</span><span><b class="mono">N</b> note</span><span><b class="mono">E</b> resolve</span></div>
+      </section>
+
+      <!-- Conversation workspace -->
+      <section aria-label="Conversation" style="flex: 1 1 480px; min-width: 420px; display: flex; flex-direction: column; min-height: 0; background: var(--bg)">
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface)">
+          <div style="flex: 1 1 200px; min-width: 0">
+            <div style="display: flex; align-items: center; gap: 8px"><h2 style="margin: 0; font-size: 15px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{cur.subject}}</h2><span style="font-size: 11.5px; font-weight: 500; padding: 1px 8px; border-radius: 99px; {{cur.statusTone}}">{{cur.status}}</span></div>
+            <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 12.5px; color: var(--text-3)"><span>{{cur.name}} · {{cur.channel}} · <span class="mono">{{cur.cid}}</span></span>
+              <sc-if value="{{cur.lang}}" hint-placeholder-val="{{false}}"><span style="font-size: 11.5px; font-weight: 500; padding: 1px 8px; border-radius: 99px; background: var(--accent-soft); color: var(--accent-text)">{{cur.lang}}</span><button type="button" onClick="{{toggleOrig}}" style="border: 0; background: transparent; padding: 0; font-size: 12px; color: var(--accent-text)">{{origLabel}}</button></sc-if>
+              <span title="AI cost for this conversation" style="font-size: 11.5px; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--text-2)">AI <span class="mono">{{cur.costLabel}}</span></span></div>
+          </div>
+          <div role="group" aria-label="Thread view" style="display: flex; padding: 2px; border-radius: 8px; background: var(--surface-3)">
+            <button type="button" onClick="{{showThread}}" aria-pressed="{{threadPressed}}" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; font-size: 12.5px; font-weight: 500; background: {{threadBg}}; color: var(--text)">Messages</button>
+            <button type="button" onClick="{{showTimeline}}" aria-pressed="{{timelinePressed}}" title="Unified AI + human timeline" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; font-size: 12.5px; font-weight: 500; background: {{timelineBg}}; color: var(--text)">Timeline</button>
+          </div>
+          <div style="position: relative; display: flex; gap: 6px">
+            <button type="button" onClick="{{menuAssign}}" class="hov" title="Assign (A)" style="height: 32px; padding: 0 10px; display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px">
+              <span style="width: 18px; height: 18px; border-radius: 99px; display: grid; place-items: center; font-size: 9px; font-weight: 700; {{cur.assAv}}">{{cur.assIni}}</span>{{cur.assignee}}
+            </button>
+            <button type="button" onClick="{{menuPriority}}" class="hov" title="Priority (P)" style="height: 32px; padding: 0 10px; display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="{{cur.prioColor}}" stroke="{{cur.prioColor}}" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M4 22V4M4 4h13l-2 4 2 4H4"></path></svg>{{cur.priority}}
+            </button>
+            <button type="button" aria-label="Snooze" title="Snooze (Z)" class="hov" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); display: grid; place-items: center; color: var(--text-2)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2M5 3L2 6M22 6l-3-3"></path></svg></button>
+            <button type="button" onClick="{{menuMore}}" aria-label="More actions" title="Merge, convert to ticket, tags" class="hov" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); display: grid; place-items: center; color: var(--text-2)"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="1.6"></circle><circle cx="12" cy="12" r="1.6"></circle><circle cx="19" cy="12" r="1.6"></circle></svg></button>
+            <button type="button" onClick="{{resolve}}" class="bp" title="Resolve (E)" style="height: 32px; padding: 0 12px; display: flex; align-items: center; gap: 6px; border: 0; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>{{resolveLabel}}
+            </button>
+            <sc-if value="{{menuOpen}}" hint-placeholder-val="{{false}}">
+              <div role="menu" style="position: absolute; top: 38px; right: 0; z-index: 20; width: 240px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow)">
+                <div style="padding: 6px 8px; font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--text-3)">{{menuTitle}}</div>
+                <sc-for list="{{menuItems}}" as="mi" hint-placeholder-count="4">
+                  <button type="button" role="menuitem" onClick="{{mi.pick}}" class="hov" style="width: 100%; display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; text-align: left; font-size: 13px">
+                    <span style="flex: 1">{{mi.label}}</span><span style="font-size: 12px; color: var(--text-3)">{{mi.hint}}</span>
+                  </button>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+          <button type="button" onClick="{{toggleCtx}}" aria-label="{{ctxLabel}}" title="{{ctxLabel}}" class="hov" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); display: grid; place-items: center; color: var(--text-2)"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"></rect><path d="M15 4v16"></path></svg></button>
+        </div>
+
+        <div class="scroll" style="flex: 1; min-height: 0; padding: 20px 24px; display: flex; flex-direction: column; gap: 14px">
+          <sc-if value="{{isThread}}" hint-placeholder-val="{{true}}">
+            <sc-for list="{{thread}}" as="m" hint-placeholder-count="6">
+              <sc-if value="{{m.isEvent}}" hint-placeholder-val="{{false}}">
+                <div style="display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-3)"><span style="flex: 1; height: 1px; background: var(--border)"></span><span>{{m.text}} · <span class="mono">{{m.time}}</span></span><span style="flex: 1; height: 1px; background: var(--border)"></span></div>
+              </sc-if>
+              <sc-if value="{{m.isHandoff}}" hint-placeholder-val="{{false}}">
+                <div style="border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden">
+                  <div style="display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: var(--ai-soft); color: var(--ai-text); font-size: 13px; font-weight: 600">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14M7 23l-4-4 4-4M21 13v2a4 4 0 0 1-4 4H3"></path></svg>
+                    Smart handoff from Nova<span style="margin-left: auto; font-weight: 500; font-size: 12px" class="mono">{{m.time}}</span>
+                  </div>
+                  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 14px 20px; padding: 14px">
+                    <sc-for list="{{m.fields}}" as="f" hint-placeholder-count="4">
+                      <div><div style="font-size: 11.5px; font-weight: 600; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.04em">{{f.k}}</div><div style="font-size: 13px; margin-top: 3px; color: var(--text)">{{f.v}}</div></div>
+                    </sc-for>
+                  </div>
+                  <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center; padding: 10px 14px; border-top: 1px solid var(--border); background: var(--surface-2)">
+                    <span style="font-size: 12.5px; color: var(--text-2); flex: 1 1 200px"><b style="color: var(--text)">Suggested next step:</b> {{m.next}}</span>
+                    <button type="button" onClick="{{useSuggestion}}" style="height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 12.5px; font-weight: 500">Use suggested reply</button>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{m.isCustomer}}" hint-placeholder-val="{{false}}">
+                <div style="display: flex; gap: 10px; max-width: 78%">
+                  <span style="flex: none; width: 28px; height: 28px; border-radius: 99px; display: grid; place-items: center; font-size: 11px; font-weight: 600; {{cur.av}}">{{cur.ini}}</span>
+                  <div style="display: flex; flex-direction: column; gap: 4px; min-width: 0">
+                    <div style="padding: 10px 13px; border-radius: 4px 12px 12px 12px; background: var(--surface); border: 1px solid var(--border); font-size: 14px; white-space: pre-line">
+                      <sc-if value="{{m.voice}}" hint-placeholder-val="{{false}}"><div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid var(--border)"><button type="button" aria-label="Play voice note" style="width: 28px; height: 28px; border: 0; border-radius: 99px; background: var(--accent); color: #FFFFFF; display: grid; place-items: center"><svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"></path></svg></button><span style="display: flex; align-items: center; gap: 2px; height: 22px"><sc-for list="{{m.bars}}" as="b"><span style="width: 3px; border-radius: 2px; background: var(--border-strong); height: {{b}}px"></span></sc-for></span><span class="mono" style="font-size: 12px; color: var(--text-3)">{{m.voice}}</span><span style="font-size: 11.5px; color: var(--text-3); margin-left: auto">Transcribed</span></div></sc-if>{{m.text}}</div>
+                    <sc-if value="{{m.alt}}" hint-placeholder-val="{{false}}"><div style="font-size: 12px; color: var(--text-3); padding: 0 2px">{{m.altLabel}}: {{m.alt}}</div></sc-if>
+                    <sc-if value="{{m.image}}" hint-placeholder-val="{{false}}">
+                      <div style="width: 240px; height: 150px; border-radius: 10px; border: 1px solid var(--border); background: repeating-linear-gradient(135deg, var(--surface-2) 0 10px, var(--surface-3) 10px 20px); display: grid; place-items: center; font-size: 12px; color: var(--text-2)">{{m.image}}</div>
+                    </sc-if>
+                    <div style="font-size: 11.5px; color: var(--text-3)">{{cur.name}} · <span class="mono">{{m.time}}</span></div>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{m.isOut}}" hint-placeholder-val="{{false}}">
+                <div style="display: flex; gap: 10px; max-width: 78%; align-self: flex-end; flex-direction: row-reverse">
+                  <span style="flex: none; width: 28px; height: 28px; border-radius: {{m.avRadius}}; display: grid; place-items: center; font-size: 11px; font-weight: 600; {{m.avTone}}">{{m.ini}}</span>
+                  <div style="display: flex; flex-direction: column; gap: 4px; align-items: flex-end; min-width: 0">
+                    <div style="padding: 10px 13px; border-radius: 12px 4px 12px 12px; background: {{m.bg}}; color: {{m.fg}}; border: 1px solid {{m.bd}}; font-size: 14px; white-space: pre-line">{{m.text}}</div>
+                    <sc-if value="{{m.alt}}" hint-placeholder-val="{{false}}"><div style="font-size: 12px; color: var(--text-3); padding: 0 2px; text-align: right">{{m.altLabel}}: {{m.alt}}</div></sc-if>
+                    <sc-if value="{{m.sources}}" hint-placeholder-val="{{false}}">
+                      <div style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end">
+                        <sc-for list="{{m.sources}}" as="s"><a href="Knowledge.dc.html" style="display: inline-flex; align-items: center; gap: 4px; font-size: 11.5px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2)"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14z"></path></svg>{{s}}</a></sc-for>
+                      </div>
+                    </sc-if>
+                    <div style="font-size: 11.5px; color: var(--text-3)">{{m.who}} · <span class="mono">{{m.time}}</span> · {{m.delivery}}</div>
+                  </div>
+                </div>
+              </sc-if>
+              <sc-if value="{{m.isNote}}" hint-placeholder-val="{{false}}">
+                <div style="align-self: flex-end; max-width: 78%; display: flex; flex-direction: column; gap: 4px; align-items: flex-end">
+                  <div style="padding: 10px 13px; border-radius: 10px; background: var(--note); border: 1px dashed var(--note-border); font-size: 14px; white-space: pre-line">{{m.text}}</div>
+                  <div style="font-size: 11.5px; color: var(--text-3); display: flex; align-items: center; gap: 4px"><svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>Internal note · {{m.who}} · <span class="mono">{{m.time}}</span></div>
+                </div>
+              </sc-if>
+            </sc-for>
+          </sc-if>
+          <sc-if value="{{isTimeline}}" hint-placeholder-val="{{false}}">
+            <div style="display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 8px 18px">
+              <sc-for list="{{timeline}}" as="t" hint-placeholder-count="8">
+                <div style="display: flex; gap: 14px">
+                  <div style="display: flex; flex-direction: column; align-items: center; padding-top: 12px">
+                    <span style="width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; {{t.tone}}"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.icon}}"></path></svg></span>
+                    <span style="flex: 1; width: 1px; background: var(--border); margin-top: 4px"></span>
+                  </div>
+                  <div style="flex: 1; min-width: 0; padding: 12px 0; border-bottom: 1px solid var(--border)">
+                    <div style="display: flex; gap: 8px; align-items: baseline"><span style="font-size: 12px; font-weight: 600; color: var(--text-2)">{{t.type}}</span><span class="mono" style="margin-left: auto; font-size: 11.5px; color: var(--text-3)">{{t.time}}</span></div>
+                    <div style="font-size: 13.5px; margin-top: 2px">{{t.text}}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+        </div>
+
+        <!-- Composer -->
+        <div style="padding: 0 16px 16px">
+          <sc-if value="{{showCopilot}}" hint-placeholder-val="{{true}}">
+            <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 8px; padding: 9px 12px; border-radius: 10px; background: var(--ai-soft); color: var(--ai-text); font-size: 13px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>
+              <span style="flex: 1 1 240px; min-width: 0"><b>Copilot:</b> {{cur.copilot}}</span>
+              <button type="button" onClick="{{useSuggestion}}" style="height: 26px; padding: 0 10px; border: 0; border-radius: 6px; background: var(--ai); color: #FFFFFF; font-size: 12px; font-weight: 500">Insert reply</button>
+              <button type="button" onClick="{{dismissCopilot}}" aria-label="Dismiss suggestion" style="height: 26px; width: 26px; border: 0; border-radius: 6px; background: transparent; color: var(--ai-text)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="display:block;margin:auto"><path d="M18 6L6 18M6 6l12 12"></path></svg></button>
+            </div>
+          </sc-if>
+          <div style="border: 1px solid {{composerBorder}}; border-radius: 12px; background: {{composerBg}}; box-shadow: var(--shadow)">
+            <div style="display: flex; align-items: center; gap: 4px; padding: 6px 8px 0">
+              <button type="button" onClick="{{modeReply}}" aria-pressed="{{replyPressed}}" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; font-size: 13px; font-weight: 500; background: {{replyBg}}; color: {{replyColor}}">Reply</button>
+              <button type="button" onClick="{{modeNote}}" aria-pressed="{{notePressed}}" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; font-size: 13px; font-weight: 500; background: {{noteBg}}; color: {{noteColor}}">Internal note</button>
+              <span style="margin-left: auto; font-size: 12px; color: var(--text-3)">{{composerHint}}</span>
+            </div>
+            <label for="composer" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message</label>
+            <textarea id="composer" value="{{draft}}" onInput="{{onDraft}}" placeholder="{{placeholder}}" rows="3" style="display: block; width: 100%; resize: none; border: 0; outline: none; background: transparent; padding: 10px 14px; font-size: 14px; line-height: 1.5"></textarea>
+            <sc-if value="{{aiNote}}" hint-placeholder-val="{{false}}">
+              <div style="margin: 0 14px 8px; display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ai-text)"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>{{aiNote}}<button type="button" onClick="{{undoAi}}" style="border: 0; background: transparent; padding: 0; font-size: 12px; font-weight: 600; color: var(--accent-text)">Undo</button></div>
+            </sc-if>
+            <div style="position: relative; display: flex; align-items: center; gap: 2px; padding: 6px 8px; border-top: 1px solid var(--border)">
+              <sc-for list="{{tools}}" as="tl" hint-placeholder-count="5">
+                <button type="button" onClick="{{tl.click}}" class="hov" aria-label="{{tl.label}}" title="{{tl.label}}" style="width: 30px; height: 30px; border: 0; border-radius: 7px; background: transparent; display: grid; place-items: center; color: var(--text-2)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{tl.icon}}"></path></svg></button>
+              </sc-for>
+              <button type="button" onClick="{{toggleAiMenu}}" style="height: 30px; padding: 0 10px; display: flex; align-items: center; gap: 6px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 12.5px; font-weight: 500; color: var(--ai-text)"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg>AI assist</button>
+              <sc-if value="{{aiMenu}}" hint-placeholder-val="{{false}}">
+                <div role="menu" style="position: absolute; bottom: 44px; left: 150px; z-index: 20; width: 230px; padding: 6px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow)">
+                  <sc-for list="{{aiActions}}" as="aa" hint-placeholder-count="6">
+                    <button type="button" role="menuitem" onClick="{{aa.pick}}" class="hov" style="width: 100%; display: flex; justify-content: space-between; height: 32px; align-items: center; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; text-align: left; font-size: 13px"><span>{{aa.label}}</span><span style="font-size: 11.5px; color: var(--text-3)">{{aa.hint}}</span></button>
+                  </sc-for>
+                </div>
+              </sc-if>
+              <span style="margin-left: auto; font-size: 11.5px; color: var(--text-3); margin-right: 8px" class="mono">⌘↵</span>
+              <button type="button" onClick="{{send}}" class="bp" style="height: 32px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">{{sendLabel}}</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Customer context -->
+      <sc-if value="{{ctxOpen}}" hint-placeholder-val="{{true}}">
+        <aside aria-label="Customer context" class="scroll" style="flex: 0 0 316px; border-left: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column">
+          <div style="padding: 18px 18px 14px; display: flex; flex-direction: column; align-items: flex-start; gap: 10px; border-bottom: 1px solid var(--border)">
+            <div style="display: flex; gap: 12px; align-items: center; width: 100%">
+              <span style="width: 44px; height: 44px; border-radius: 99px; display: grid; place-items: center; font-size: 15px; font-weight: 600; {{cur.av}}">{{cur.ini}}</span>
+              <div style="flex: 1; min-width: 0"><a href="Customers.dc.html" style="font-size: 15px; font-weight: 600; color: var(--text)">{{cur.name}}</a><div style="font-size: 12.5px; color: var(--text-3)">{{cu.type}} · {{cu.location}}</div></div>
+            </div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{cu.tags}}" as="tg"><span style="font-size: 11.5px; padding: 2px 8px; border-radius: 99px; background: var(--surface-2); color: var(--text-2)">{{tg}}</span></sc-for></div>
+          </div>
+          <div style="padding: 14px 18px; display: flex; flex-direction: column; gap: 9px; border-bottom: 1px solid var(--border); font-size: 13px">
+            <sc-for list="{{cu.attrs}}" as="at" hint-placeholder-count="6">
+              <div style="display: flex; gap: 10px"><span style="width: 92px; flex: none; color: var(--text-3)">{{at.k}}</span><span style="min-width: 0; overflow-wrap: anywhere">{{at.v}}</span></div>
+            </sc-for>
+          </div>
+          <div style="padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3)">Conversation intelligence<span style="width: 6px; height: 6px; border-radius: 9px; background: var(--ai)"></span></div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+              <sc-for list="{{cu.intel}}" as="ii" hint-placeholder-count="6">
+                <div style="padding: 8px 10px; border-radius: 8px; background: var(--surface-2)"><div style="font-size: 11.5px; color: var(--text-3)">{{ii.k}}</div><div style="font-size: 13px; font-weight: 600; color: {{ii.c}}">{{ii.v}}</div></div>
+              </sc-for>
+            </div>
+          </div>
+          <div style="padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px">
+            <div style="display: flex; justify-content: space-between; align-items: center"><span style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3)">Orders · Shopify</span><span style="font-size: 11.5px; color: var(--ok)">Synced 2m ago</span></div>
+            <sc-for list="{{cu.orders}}" as="o" hint-placeholder-count="2">
+              <div style="padding: 10px; border: 1px solid var(--border); border-radius: 8px; display: flex; flex-direction: column; gap: 3px">
+                <div style="display: flex; justify-content: space-between"><span class="mono" style="font-weight: 600; font-size: 13px">{{o.id}}</span><span class="mono" style="font-size: 13px">{{o.total}}</span></div>
+                <div style="font-size: 12.5px; color: var(--text-2)">{{o.items}}</div>
+                <div style="font-size: 12px; color: {{o.c}}">{{o.status}}</div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="padding: 14px 18px; display: flex; flex-direction: column; gap: 8px">
+            <div style="font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--text-3)">Previous conversations</div>
+            <sc-for list="{{cu.history}}" as="h" hint-placeholder-count="2">
+              <a href="Inbox.dc.html" class="hov" style="display: flex; justify-content: space-between; gap: 8px; padding: 7px 8px; margin: 0 -8px; border-radius: 7px; color: var(--text); font-size: 13px"><span>{{h.s}}</span><span style="color: var(--text-3); font-size: 12px; white-space: nowrap">{{h.d}}</span></a>
+            </sc-for>
+          </div>
+        </aside>
+      </sc-if>
+    </div>
+  </main>
+
+  <sc-if value="{{toast}}" hint-placeholder-val="{{false}}">
+    <div role="status" style="position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; display: flex; align-items: center; gap: 14px; padding: 10px 14px; border-radius: 10px; background: #0E0F0C; color: #FFFFFF; font-size: 13px; box-shadow: 0 10px 30px rgba(0,0,0,.25)">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5FD39A" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg>{{toast}}
+      <button type="button" onClick="{{undoToast}}" style="border: 0; background: transparent; color: #9FE870; font-weight: 600; font-size: 13px; padding: 0">Undo</button>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":920}}'>
+const TONE = { ok: 'background:var(--ok-soft);color:var(--ok)', warn: 'background:var(--warn-soft);color:var(--warn)', bad: 'background:var(--bad-soft);color:var(--bad)', ai: 'background:var(--ai-soft);color:var(--ai-text)', acc: 'background:var(--accent-soft);color:var(--accent-text)', neu: 'background:var(--surface-2);color:var(--text-2)' };
+const AV = { s: 'background:#FAD4E4;color:#6B1238', t: 'background:#D3E8FF;color:#123E6B', m: 'background:#FFE1C7;color:#6B3410', a: 'background:#D2F2E2;color:#0F4D2F', p: 'background:#E9D8FD;color:#3B1F73', d: 'background:#FCE7B2;color:#5C3D00', e: 'background:#CFF1F4;color:#0B4A50', l: 'background:#E3E5E0;color:#2A3142' };
+const AGENTS = { 'Alex Morgan': ['AM', 'background:#E9D8FD;color:#3B1F73'], 'Jordan Lee': ['JL', 'background:#D3E8FF;color:#123E6B'], 'Nina Patel': ['NP', 'background:#FFE1C7;color:#6B3410'], 'Omar Haddad': ['OH', 'background:#D2F2E2;color:#0F4D2F'], 'Chloe Martin': ['CM', 'background:#FAD4E4;color:#6B1238'], 'Nova (AI)': ['N', 'background:var(--ai-soft);color:var(--ai-text)'], 'Atlas (AI)': ['A', 'background:var(--ai-soft);color:var(--ai-text)'], 'Unassigned': ['?', 'background:var(--surface-3);color:var(--text-2)'] };
+const CH = { 'Website chat': 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', 'Email': 'M4 4h16v16H4zM22 6l-10 7L2 6', 'WhatsApp': 'M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z', 'Instagram': 'M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zM16 11.4A4 4 0 1 1 12.6 8 4 4 0 0 1 16 11.4zM17.5 6.5h.01', 'Messenger': 'M12 2C6.5 2 2 6.1 2 11.2c0 2.9 1.4 5.4 3.7 7.1V22l3.4-1.9c.9.3 1.9.4 2.9.4 5.5 0 10-4.1 10-9.2S17.5 2 12 2zM7 13l3-3 3 2 4-4' };
+const CONVOS = [
+  { id: 'c0', cid: 'CNV-88216', name: 'Bilal Ahmed', ini: 'BA', av: AV.e, channel: 'WhatsApp', subject: 'Order kab tak aayega?', preview: 'Voice note · 0:14', time: 'now', assignee: 'Alex Morgan', handler: 'human', handed: true, priority: 'Normal', status: 'Open', unread: true, tags: ['Order status'], ts: 0, lang: 'Roman Urdu', cost: '$0.014 · Lite',
+    copilot: 'Write in English — ORBAT sends your reply in Roman Urdu.',
+    suggestion: 'Bilal, your order is booked for tomorrow 10 AM–1 PM. The rider will call 30 minutes before arriving.',
+    msgs: [
+      ['customer', 'Assalam o alaikum, mera order ORD-2061 abhi tak nahi aaya. Kab tak aayega?', '11:02', null, null, null, 'Hello, my order ORD-2061 hasn’t arrived yet. When will it come?'],
+      ['ai', 'Walaikum assalam Bilal! Aap ka order Lahore pohanch gaya hai aur aaj delivery ke liye nikla hai.', '11:02', 'Nova', ['Delivery times · Pakistan'], null, 'Hi Bilal! Your order has reached Lahore and is out for delivery today.'],
+      ['voice', 'Rider ne call nahi ki, aur main 5 baje ke baad ghar par nahi hoon. Kya kal subah de sakte hain?', '11:05', null, null, null, 'The rider didn’t call, and I’m not home after 5. Can you deliver tomorrow morning?', '0:14'],
+      ['event', 'Nova handed off to Alex Morgan · reschedule needs a person', '11:05'],
+      ['agent', 'Bilal, main ne delivery kal subah 10 se 1 baje ke beech reschedule kar di hai. Rider aane se pehle call karega.', '11:07', 'Alex Morgan', null, null, 'Bilal, I’ve moved delivery to tomorrow between 10 AM and 1 PM. The rider will call before coming.']
+    ],
+    cu: { type: 'Customer', location: 'Lahore, PK', tags: ['Cash on delivery', 'Repeat buyer'], attrs: [['Phone', '+92 300 555 0148'], ['Customer since', 'July 2025'], ['Lifetime value', 'PKR 38,400 · 5 orders'], ['Language', 'Roman Urdu, Urdu'], ['Local time', '9:44 PM PKT'], ['Payment', 'Cash on delivery']],
+      intel: [['Intent', 'Reschedule delivery', 'var(--text)'], ['Sentiment', 'Neutral', 'var(--text-2)'], ['Urgency', 'Normal', 'var(--text-2)'], ['Churn risk', 'Low', 'var(--ok)'], ['Buying intent', 'Medium', 'var(--text-2)'], ['Topic', 'Delivery time', 'var(--text)']],
+      orders: [['#ORD-2061', 'PKR 7,850', 'Cotton Bedsheet Set (King)', 'Out for delivery · Lahore', 'var(--warn)'], ['#ORD-1932', 'PKR 4,200', 'Cushion Covers ×4', 'Delivered Sep 28', 'var(--ok)']], history: [['Return pickup', 'Sep 2']] } },
+  { id: 'c1', cid: 'CNV-88214', name: 'Sarah Johnson', ini: 'SJ', av: AV.s, channel: 'Website chat', subject: 'Where is my order?', preview: 'It still says label created. I need it by Saturday.', time: '2m', assignee: 'Alex Morgan', handler: 'human', handed: true, priority: 'High', status: 'Open', unread: true, tags: ['Order status', 'VIP'], ts: 1,
+    copilot: 'Offer a free express re-ship if UPS shows no scan by Wednesday — Sarah is VIP and the order is over $100.',
+    suggestion: 'Hi Sarah, I’m sorry for the wait — that’s not the experience we want for you. I’ve opened a trace with UPS on order #ORD-2048. If there’s no new scan by Wednesday, I’ll send a replacement by express shipping at no cost so it arrives before Saturday. I’ll update you here either way.',
+    msgs: [
+      ['customer', 'Hi, where is my order #ORD-2048? I ordered it last Tuesday.', '10:31'],
+      ['ai', 'Your order #ORD-2048 has been shipped and is expected to arrive tomorrow. You can follow it here: ups.com/track/1Z84A…', '10:31', 'Nova', ['Shipping & delivery times', 'Order #ORD-2048']],
+      ['customer', 'The tracking still says “label created” and hasn’t moved in 3 days. It’s a birthday gift — I really need it by Saturday.', '10:38'],
+      ['ai', 'I understand, and I’m sorry about the delay. I can’t guarantee a Saturday delivery myself, so I’m bringing in a teammate who can help right away.', '10:38', 'Nova', ['Lost or delayed packages']],
+      ['event', 'Nova handed off to Alex Morgan · confidence 0.42', '10:38'],
+      ['handoff', '', '10:38'],
+      ['note', 'UPS shows no scan since Nov 6 — likely stuck at the Reno facility. Checking re-ship eligibility. @Omar can you approve express?', '10:41', 'Alex Morgan'],
+      ['agent', 'Hi Sarah, this is Alex from Lumen Goods. I’ve got your order details and the full conversation, so no need to repeat anything. Give me two minutes while I check with the carrier.', '10:42', 'Alex Morgan']
+    ],
+    handoff: { fields: [
+      { k: 'Customer intent', v: 'Track order #ORD-2048 · needs delivery by Saturday Nov 14 (gift)' },
+      { k: 'Summary', v: 'Shipped Nov 5 via UPS Ground. No carrier scan since Nov 6. Customer is frustrated but polite.' },
+      { k: 'Already tried', v: 'Shared tracking link · confirmed shipping address · checked carrier status' },
+      { k: 'Knowledge used', v: 'Shipping & delivery times · Lost or delayed packages' },
+      { k: 'Reason for escalation', v: 'Asked for a delivery guarantee Nova isn’t allowed to make. Confidence 0.42 (threshold 0.60).' },
+      { k: 'Customer value', v: 'VIP · 9 orders · $1,284 lifetime · CSAT 5/5 history' }
+    ], next: 'Open a UPS trace and offer free express re-ship if there is no scan by Wednesday.' },
+    cu: { type: 'VIP customer', location: 'Austin, TX', tags: ['VIP', 'Repeat buyer', 'Newsletter'], attrs: [['Email', 'sarah@example.com'], ['Phone', '+1 (512) 555-0148'], ['Customer since', 'March 2024'], ['Lifetime value', '$1,284.60 · 9 orders'], ['Language', 'English'], ['Local time', '10:44 AM CST']],
+      intel: [['Intent', 'Order tracking', 'var(--text)'], ['Sentiment', 'Frustrated', 'var(--warn)'], ['Urgency', 'High', 'var(--bad)'], ['Churn risk', 'Medium', 'var(--warn)'], ['Buying intent', 'Low', 'var(--text-2)'], ['Topic', 'Delayed delivery', 'var(--text)']],
+      orders: [['#ORD-2048', '$148.00', 'Linen Throw (Sand) · Ceramic Mug ×2', 'Shipped Nov 5 · no scan since Nov 6', 'var(--warn)'], ['#ORD-1890', '$86.50', 'Waffle Bath Towel Set', 'Delivered Sep 18', 'var(--ok)']],
+      history: [['Gift wrapping options', 'Sep 12'], ['Change delivery address', 'Jun 3']] } },
+  { id: 'c2', cid: 'CNV-88209', name: 'Tom Becker', ini: 'TB', av: AV.t, channel: 'Email', subject: 'Package arrived damaged', preview: 'Photo attached — the lamp base is cracked.', time: '4m', assignee: 'Jordan Lee', handler: 'human', handed: true, priority: 'Urgent', status: 'Open', unread: true, tags: ['Damage claim'], ts: 2,
+    copilot: 'Damage claims under $150 with a photo qualify for instant replacement — no return needed.',
+    suggestion: 'Hi Tom, thanks for the photo and sorry the lamp arrived cracked. You don’t need to send it back — I’ve started a free replacement that ships today. You’ll get tracking by email within a few hours.',
+    msgs: [
+      ['customer', 'My Arc Table Lamp arrived with a cracked base. Photo attached. Order #ORD-2052.', '10:22', null, null, 'IMG_4471.jpg · 2.1 MB'],
+      ['ai', 'I’m sorry about that, Tom. I’ve found order #ORD-2052. Because this needs a damage review, I’m passing you to our team with the photo attached.', '10:23', 'Nova', ['Damaged or defective items']],
+      ['event', 'Nova handed off to Jordan Lee · policy requires human review', '10:23'],
+      ['handoff', '', '10:23']
+    ],
+    handoff: { fields: [
+      { k: 'Customer intent', v: 'Replacement for damaged item on #ORD-2052' },
+      { k: 'Summary', v: 'Arc Table Lamp ($124) arrived with cracked base. Photo provided.' },
+      { k: 'Already tried', v: 'Verified order and delivery date (Nov 7)' },
+      { k: 'Knowledge used', v: 'Damaged or defective items' },
+      { k: 'Reason for escalation', v: 'Damage claims always need human approval.' },
+      { k: 'Customer value', v: 'First order · $124' }
+    ], next: 'Approve a free replacement — eligible under $150 with photo.' },
+    cu: { type: 'New customer', location: 'Hamburg, DE', tags: ['First order'], attrs: [['Email', 'tom.becker@example.com'], ['Phone', '+49 40 5550 1932'], ['Customer since', 'November 2026'], ['Lifetime value', '$124.00 · 1 order'], ['Language', 'German, English'], ['Local time', '5:44 PM CET']],
+      intel: [['Intent', 'Replacement', 'var(--text)'], ['Sentiment', 'Disappointed', 'var(--warn)'], ['Urgency', 'Urgent', 'var(--bad)'], ['Churn risk', 'High', 'var(--bad)'], ['Buying intent', 'Medium', 'var(--text-2)'], ['Topic', 'Damaged item', 'var(--text)']],
+      orders: [['#ORD-2052', '$124.00', 'Arc Table Lamp (Oak)', 'Delivered Nov 7', 'var(--ok)']], history: [] } },
+  { id: 'c3', cid: 'CNV-88201', name: 'Marco Rossi', ini: 'MR', av: AV.m, channel: 'Instagram', subject: 'Discount code not applying', preview: 'Nova: WELCOME15 applies to full-price items only…', time: '21m', assignee: 'Nova (AI)', handler: 'ai', priority: 'Normal', status: 'Open', unread: false, tags: ['Promo'], ts: 5,
+    copilot: 'Nova is handling this with 0.91 confidence. No action needed unless the customer asks for a person.',
+    suggestion: 'Hi Marco, the WELCOME15 code works on full-price items. Your cart has the sale Linen Throw, so the code skips it — remove that item or I can apply 15% to your other items manually.',
+    msgs: [
+      ['customer', 'Code WELCOME15 says invalid at checkout??', '10:02'],
+      ['ai', 'Thanks Marco! WELCOME15 applies to full-price items only, and the Linen Throw in your cart is already 20% off. If you remove it, the code will apply to the rest of your order.', '10:02', 'Nova', ['Discount codes & promotions']],
+      ['customer', 'ah ok makes sense, thanks', '10:05'],
+      ['event', 'Nova tagged conversation “Promo” · waiting for checkout', '10:05']
+    ],
+    cu: { type: 'Lead', location: 'Milan, IT', tags: ['Instagram lead'], attrs: [['Email', 'marco.rossi@example.com'], ['Instagram', '@marco.rossi.design'], ['Customer since', 'Lead · no orders'], ['Lifetime value', '$0 · cart $212'], ['Language', 'Italian, English'], ['Local time', '5:44 PM CET']],
+      intel: [['Intent', 'Purchase help', 'var(--text)'], ['Sentiment', 'Neutral', 'var(--text-2)'], ['Urgency', 'Low', 'var(--text-2)'], ['Churn risk', 'Low', 'var(--ok)'], ['Buying intent', 'High', 'var(--ok)'], ['Topic', 'Promo code', 'var(--text)']],
+      orders: [['Cart', '$212.00', 'Linen Throw · Oak Side Table', 'Abandoned 18m ago', 'var(--text-3)']], history: [] } },
+  { id: 'c4', cid: 'CNV-88190', name: 'Aisha Rahman', ini: 'AR', av: AV.a, channel: 'Messenger', subject: 'Charged twice for one order', preview: 'I see two charges of $96.40 on my card.', time: '38m', assignee: 'Omar Haddad', handler: 'human', priority: 'High', status: 'Open', unread: false, tags: ['Billing'], ts: 6,
+    copilot: 'Stripe shows one capture and one pending authorization that will drop off in 3–5 days.',
+    suggestion: 'Hi Aisha, I checked with our payment provider: only one charge of $96.40 went through. The second is a temporary hold that your bank will release within 3–5 business days. Sorry for the worry!',
+    msgs: [['customer', 'I see two charges of $96.40 on my card for order #ORD-2031.', '10:06'], ['ai', 'I’m sorry about that. Billing questions go straight to our billing team — Omar will take a look now.', '10:06', 'Nova', []], ['event', 'Routed to Billing team · assigned to Omar Haddad', '10:06']],
+    cu: { type: 'Customer', location: 'Toronto, CA', tags: ['Churn risk'], attrs: [['Email', 'aisha.r@example.com'], ['Phone', '+1 (416) 555-0193'], ['Customer since', 'January 2025'], ['Lifetime value', '$412.80 · 4 orders'], ['Language', 'English'], ['Local time', '11:44 AM EST']],
+      intel: [['Intent', 'Billing dispute', 'var(--text)'], ['Sentiment', 'Negative', 'var(--bad)'], ['Urgency', 'High', 'var(--bad)'], ['Churn risk', 'High', 'var(--bad)'], ['Buying intent', 'Low', 'var(--text-2)'], ['Topic', 'Double charge', 'var(--text)']],
+      orders: [['#ORD-2031', '$96.40', 'Stoneware Dinner Set', 'Paid · Stripe ch_3P…', 'var(--ok)']], history: [['Late delivery', 'Aug 2']] } },
+  { id: 'c5', cid: 'CNV-88187', name: 'Priya Natarajan', ini: 'PN', av: AV.p, channel: 'WhatsApp', subject: 'Is the Linen Throw machine washable?', preview: 'Nova: Yes — cold, gentle cycle, and…', time: '44m', assignee: 'Nova (AI)', handler: 'ai', priority: 'Low', status: 'Resolved', unread: false, tags: ['Product question'], ts: 7,
+    copilot: 'Resolved by Nova. Customer rated the answer helpful.',
+    suggestion: 'Happy to help, Priya! Let us know if you have any other questions.',
+    msgs: [['customer', 'Is the Linen Throw machine washable?', '10:00'], ['ai', 'Yes! Machine wash cold on a gentle cycle and tumble dry low. It softens with every wash.', '10:00', 'Nova', ['Linen care guide']], ['customer', 'Perfect, thank you', '10:01'], ['event', 'Resolved by Nova · rated helpful', '10:02']],
+    cu: { type: 'Customer', location: 'Bengaluru, IN', tags: ['WhatsApp'], attrs: [['Email', 'priya.n@example.com'], ['Phone', '+91 98450 55021'], ['Customer since', 'July 2026'], ['Lifetime value', '$58.00 · 1 order'], ['Language', 'English'], ['Local time', '11:14 PM IST']],
+      intel: [['Intent', 'Product question', 'var(--text)'], ['Sentiment', 'Positive', 'var(--ok)'], ['Urgency', 'Low', 'var(--text-2)'], ['Churn risk', 'Low', 'var(--ok)'], ['Buying intent', 'High', 'var(--ok)'], ['Topic', 'Care instructions', 'var(--text)']],
+      orders: [['#ORD-1702', '$58.00', 'Cotton Pillow Covers ×2', 'Delivered Jul 30', 'var(--ok)']], history: [] } },
+  { id: 'c6', cid: 'CNV-88160', name: 'Daniel Kim', ini: 'DK', av: AV.d, channel: 'Email', subject: 'Refund for order #ORD-1977', preview: 'You: I’ve issued the refund — can you confirm…', time: '1h', assignee: 'Nina Patel', handler: 'human', priority: 'Normal', status: 'Waiting', unread: false, tags: ['Refund'], ts: 8,
+    copilot: 'Waiting on customer for 1h. Atlas can send an automatic follow-up in 24h.',
+    suggestion: 'Hi Daniel, just checking in — did the refund show up on your statement?',
+    msgs: [['customer', 'I returned the side table last week. When will I get my refund?', '9:12'], ['ai', 'Your return was received on Nov 6. Refunds take 5–7 business days after inspection.', '9:12', 'Atlas', ['Refund policy']], ['agent', 'Hi Daniel, I’ve issued the refund of $189.00 today. Can you confirm you see it in a few days?', '9:40', 'Nina Patel']],
+    cu: { type: 'Customer', location: 'Seattle, WA', tags: ['Returns'], attrs: [['Email', 'daniel.kim@example.com'], ['Phone', '+1 (206) 555-0177'], ['Customer since', 'May 2025'], ['Lifetime value', '$540.00 · 5 orders'], ['Language', 'English'], ['Local time', '8:44 AM PST']],
+      intel: [['Intent', 'Refund status', 'var(--text)'], ['Sentiment', 'Neutral', 'var(--text-2)'], ['Urgency', 'Normal', 'var(--text-2)'], ['Churn risk', 'Low', 'var(--ok)'], ['Buying intent', 'Medium', 'var(--text-2)'], ['Topic', 'Refund', 'var(--text)']],
+      orders: [['#ORD-1977', '$189.00', 'Oak Side Table', 'Refunded Nov 9', 'var(--text-2)']], history: [['Assembly question', 'Oct 2']] } },
+  { id: 'c7', cid: 'CNV-88152', name: 'Emily Chen', ini: 'EC', av: AV.e, channel: 'WhatsApp', subject: 'Exchange for a size M', preview: 'Atlas: Your exchange label is ready.', time: '9m', assignee: 'Atlas (AI)', handler: 'ai', priority: 'Normal', status: 'Resolved', unread: false, tags: ['Exchange'], ts: 3,
+    copilot: 'Resolved by Atlas. Exchange label sent and return created in Shopify.',
+    suggestion: 'Glad we could sort that out, Emily!',
+    msgs: [['customer', 'Can I exchange my robe for a size M?', '10:30'], ['ai', 'Of course! I’ve created an exchange for the Waffle Robe in size M and emailed you a prepaid return label.', '10:31', 'Atlas', ['Exchanges & returns']], ['event', 'Atlas created return RMA-5521 in Shopify', '10:31'], ['event', 'Resolved by Atlas', '10:35']],
+    cu: { type: 'Customer', location: 'Vancouver, CA', tags: ['Exchange'], attrs: [['Email', 'emily.chen@example.com'], ['Phone', '+1 (604) 555-0110'], ['Customer since', 'February 2026'], ['Lifetime value', '$214.00 · 2 orders'], ['Language', 'English'], ['Local time', '8:44 AM PST']],
+      intel: [['Intent', 'Exchange', 'var(--text)'], ['Sentiment', 'Positive', 'var(--ok)'], ['Urgency', 'Low', 'var(--text-2)'], ['Churn risk', 'Low', 'var(--ok)'], ['Buying intent', 'Medium', 'var(--text-2)'], ['Topic', 'Sizing', 'var(--text)']],
+      orders: [['#ORD-2019', '$98.00', 'Waffle Robe (S)', 'Exchange in progress', 'var(--accent-text)']], history: [] } },
+  { id: 'c8', cid: 'CNV-88148', name: 'Lucas Ferreira', ini: 'LF', av: AV.l, channel: 'Website chat', subject: 'Can’t log in to my account', preview: 'Reset email never arrives.', time: '12m', assignee: 'Unassigned', handler: 'human', priority: 'Normal', status: 'Open', unread: true, tags: ['Account'], ts: 4,
+    copilot: 'Similar issue resolved 14 times this month: reset emails to Outlook addresses land in Junk.',
+    suggestion: 'Hi Lucas, sorry about that! Reset emails sometimes land in Junk for Outlook addresses. I’ve just sent a new link — could you check there?',
+    msgs: [['customer', 'I can’t log in. The reset email never arrives.', '10:32'], ['ai', 'I’ve sent another reset link to l•••@outlook.com. If it doesn’t arrive in 5 minutes, I’ll get a teammate.', '10:32', 'Nova', ['Account & password help']], ['customer', 'still nothing', '10:38'], ['event', 'Nova moved to Unassigned · waiting for an agent', '10:38']],
+    cu: { type: 'Customer', location: 'São Paulo, BR', tags: ['Account'], attrs: [['Email', 'lucas.f@outlook.com'], ['Phone', '—'], ['Customer since', 'April 2026'], ['Lifetime value', '$72.00 · 1 order'], ['Language', 'Portuguese, English'], ['Local time', '1:44 PM BRT']],
+      intel: [['Intent', 'Account access', 'var(--text)'], ['Sentiment', 'Frustrated', 'var(--warn)'], ['Urgency', 'Normal', 'var(--text-2)'], ['Churn risk', 'Medium', 'var(--warn)'], ['Buying intent', 'Low', 'var(--text-2)'], ['Topic', 'Password reset', 'var(--text)']],
+      orders: [['#ORD-1655', '$72.00', 'Scented Candle Trio', 'Delivered Apr 20', 'var(--ok)']], history: [] } }
+];
+const VIEWS = [
+  ['all', 'All conversations', 'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z', (c) => true],
+  ['mine', 'My conversations', 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', (c) => c.assignee === 'Alex Morgan'],
+  ['unassigned', 'Unassigned', 'M12 8v4M12 16h.01M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', (c) => c.assignee === 'Unassigned'],
+  ['ai', 'AI handled', 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z', (c) => c.handler === 'ai'],
+  ['human', 'Human handled', 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', (c) => c.handler === 'human' && c.assignee !== 'Unassigned'],
+  ['waiting', 'Waiting for reply', 'M12 6v6l4 2M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20z', (c) => c.status === 'Waiting'],
+  ['priority', 'Priority', 'M4 22V4M4 4h13l-2 4 2 4H4', (c) => c.priority === 'High' || c.priority === 'Urgent'],
+  ['snoozed', 'Snoozed', 'M12 13m-8 0a8 8 0 1 0 16 0 8 8 0 1 0-16 0M5 3L2 6M22 6l-3-3', (c) => c.status === 'Snoozed'],
+  ['resolved', 'Resolved', 'M20 6L9 17l-5-5', (c) => c.status === 'Resolved'],
+  ['archived', 'Archived', 'M21 8v13H3V8M1 3h22v5H1zM10 12h4', (c) => c.status === 'Archived']
+];
+const PRIOS = ['Urgent', 'High', 'Normal', 'Low'];
+const PRIO_C = { Urgent: 'var(--bad)', High: 'var(--warn)', Normal: 'var(--text-3)', Low: 'var(--text-3)' };
+const STATUS_T = { Open: TONE.acc, Waiting: TONE.neu, Snoozed: TONE.neu, Resolved: TONE.ok, Archived: TONE.neu };
+const SORTS = ['Newest first', 'Oldest first', 'Priority'];
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    this.state = { dark: null, view: 'all', sel: 'c1', q: '', sort: 0, checked: [], over: {}, extra: {}, mode: 'reply', draft: '', prevDraft: null, aiNote: '', aiMenu: false, menu: null, ctx: true, timeline: false, copilotOff: {}, toast: '', undo: null };
+  }
+  convo(c) { return { ...c, ...(this.state.over[c.id] || {}) }; }
+  patch(id, p, toast) {
+    const prev = this.state.over;
+    this.setState({ over: { ...prev, [id]: { ...(prev[id] || {}), ...p } }, menu: null, toast: toast || '', undo: toast ? prev : null });
+    if (toast) { clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 4000); }
+  }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const all = CONVOS.map((c) => this.convo(c));
+    const vdef = VIEWS.find((v) => v[0] === s.view);
+    const q = s.q.trim().toLowerCase();
+    let list = all.filter((c) => (s.view === 'all' ? c.status !== 'Archived' : vdef[3](c)) && (!q || (c.name + c.subject + c.preview + c.cid + JSON.stringify(c.cu.orders)).toLowerCase().includes(q)));
+    if (s.sort === 0) list.sort((a, b) => a.ts - b.ts);
+    if (s.sort === 1) list.sort((a, b) => b.ts - a.ts);
+    if (s.sort === 2) list.sort((a, b) => PRIOS.indexOf(a.priority) - PRIOS.indexOf(b.priority));
+    const cur0 = all.find((c) => c.id === s.sel) || all[0];
+    const ass = AGENTS[cur0.assignee] || AGENTS.Unassigned;
+    const nAi = cur0.msgs.filter((m) => m[0] === 'ai').length;
+    const cur = { ...cur0, statusTone: STATUS_T[cur0.status], assIni: ass[0], assAv: ass[1], prioColor: PRIO_C[cur0.priority], lang: cur0.lang || false, costLabel: cur0.cost || ('$' + (nAi * 0.006).toFixed(3) + (nAi > 1 ? ' · Standard' : ' · Lite')) };
+    const extra = s.extra[cur.id] || [];
+    const msgs = cur0.msgs.concat(extra);
+    const showOrig = !!s.orig;
+    const thread = msgs.map(([kind0, text0, time, who, sources, image, tr, voice]) => {
+      const kind = kind0 === 'voice' ? 'customer' : kind0;
+      const text = tr && !showOrig ? tr : text0;
+      const alt = tr ? (showOrig ? tr : text0) : false;
+      const isAi = kind === 'ai';
+      return {
+        isEvent: kind === 'event', isHandoff: kind === 'handoff', isCustomer: kind === 'customer', isNote: kind === 'note', isOut: isAi || kind === 'agent',
+        text, time, who: isAi ? who + ' · AI agent' : (who || 'Alex Morgan'), image: image || false, alt, altLabel: showOrig ? 'English' : (kind === 'customer' ? 'Original' : 'Sent as'), voice: voice || false, bars: voice ? [6, 12, 18, 10, 20, 14, 8, 16, 22, 12, 6, 14, 18, 10, 8, 16, 12, 6] : [],
+        sources: sources && sources.length ? sources : false,
+        ini: isAi ? who[0] : (AGENTS[who || 'Alex Morgan'] || AGENTS['Alex Morgan'])[0],
+        avTone: isAi ? 'background:var(--ai);color:#FFFFFF' : (AGENTS[who || 'Alex Morgan'] || AGENTS['Alex Morgan'])[1],
+        avRadius: isAi ? '8px' : '99px',
+        bg: isAi ? 'var(--ai-soft)' : 'var(--accent)', fg: isAi ? 'var(--text)' : '#FFFFFF', bd: isAi ? 'transparent' : 'var(--accent)',
+        delivery: isAi ? 'Delivered' : 'Seen',
+        fields: kind === 'handoff' ? cur0.handoff.fields : [], next: kind === 'handoff' ? cur0.handoff.next : ''
+      };
+    });
+    const TL = { customer: ['Customer message', 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', TONE.neu], ai: ['AI response', 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z', TONE.ai], src: ['Knowledge source used', 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14z', TONE.ai], event: ['AI action', 'M13 2L3 14h9l-1 8 10-12h-9l1-8z', TONE.ai], handoff: ['Human takeover', 'M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14', TONE.warn], note: ['Internal note', 'M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z', TONE.warn], voice: ['Voice note (transcribed)', 'M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3zM19 10v2a7 7 0 0 1-14 0v-2M12 19v4', TONE.neu], agent: ['Agent reply', 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', TONE.acc] };
+    const timeline = [];
+    msgs.forEach(([kind, text, time, who, sources]) => {
+      const d = TL[kind];
+      if (kind === 'handoff') { timeline.push({ type: d[0], icon: d[1], tone: d[2], time, text: 'Smart handoff prepared: intent, summary, steps tried, sources, reason and suggested next step.' }); return; }
+      if (kind === 'event' && /Resolved/.test(text)) { timeline.push({ type: 'Resolution', icon: 'M20 6L9 17l-5-5', tone: TONE.ok, time, text }); return; }
+      timeline.push({ type: d[0], icon: d[1], tone: d[2], time, text: (who && kind !== 'ai' ? who + ': ' : (kind === 'ai' ? who + ': ' : '')) + text });
+      if (sources && sources.length) timeline.push({ type: TL.src[0], icon: TL.src[1], tone: TL.src[2], time, text: sources.join(' · ') });
+    });
+    const views = VIEWS.map(([id, label, icon, f]) => {
+      const on = id === s.view;
+      const n = all.filter((c) => (id === 'all' ? c.status !== 'Archived' : f(c))).length;
+      return { label, icon, count: n, pressed: on ? 'true' : 'false', bg: on ? 'var(--accent-soft)' : 'transparent', color: on ? 'var(--accent-text)' : 'var(--text-2)', weight: on ? 600 : 450, pick: () => this.setState({ view: id, checked: [] }) };
+    });
+    const checked = s.checked;
+    const items = list.map((c) => {
+      const on = c.id === cur.id;
+      return {
+        ...c, chIcon: CH[c.channel], tags: c.tags,
+        bg: on ? 'var(--accent-soft)' : 'transparent', ring: on ? 'inset 3px 0 0 var(--accent)' : 'none',
+        nameWeight: c.unread ? 700 : 500,
+        prioFlag: c.priority === 'High' || c.priority === 'Urgent', prioTone: c.priority === 'Urgent' ? TONE.bad : TONE.warn,
+        handlerLabel: c.handler === 'ai' ? c.assignee : (c.handed ? 'AI → ' + c.assignee : c.assignee),
+        handlerTone: c.handler === 'ai' ? TONE.ai : (c.assignee === 'Unassigned' ? TONE.warn : TONE.neu),
+        checked: checked.includes(c.id),
+        check: () => this.setState({ checked: checked.includes(c.id) ? checked.filter((x) => x !== c.id) : checked.concat(c.id) }),
+        open: () => this.setState({ sel: c.id, over: { ...s.over, [c.id]: { ...(s.over[c.id] || {}), unread: false } }, draft: '', aiNote: '', menu: null, aiMenu: false })
+      };
+    });
+    const menus = {
+      assign: { title: 'Assign to', items: ['Alex Morgan', 'Jordan Lee', 'Nina Patel', 'Omar Haddad', 'Nova (AI)', 'Unassigned'].map((a) => ({ label: a, hint: a === 'Jordan Lee' ? '8/8' : (a === 'Nina Patel' ? 'Away' : (a === 'Nova (AI)' ? 'AI' : '')), pick: () => this.patch(cur.id, { assignee: a, handler: a.includes('(AI)') ? 'ai' : 'human' }, 'Assigned to ' + a) })) },
+      priority: { title: 'Priority', items: PRIOS.map((p) => ({ label: p, hint: p === cur.priority ? 'Current' : '', pick: () => this.patch(cur.id, { priority: p }, 'Priority set to ' + p) })) },
+      more: { title: 'Conversation', items: [
+        { label: 'Convert to ticket', hint: 'T', pick: () => this.patch(cur.id, {}, 'Ticket TCK-1190 created from this conversation') },
+        { label: 'Merge with…', hint: 'M', pick: () => this.setState({ menu: null }) },
+        { label: 'Add tag', hint: '#', pick: () => this.setState({ menu: null }) },
+        { label: 'Assign team · Billing', hint: '', pick: () => this.patch(cur.id, {}, 'Moved to Billing team') },
+        { label: 'Snooze until tomorrow', hint: 'Z', pick: () => this.patch(cur.id, { status: 'Snoozed' }, 'Snoozed until tomorrow 9:00 AM') },
+        { label: 'Mark as waiting', hint: '', pick: () => this.patch(cur.id, { status: 'Waiting' }, 'Marked as waiting for customer') }
+      ].map((x) => ({ hint: '', ...x })) }
+    };
+    const m = s.menu ? menus[s.menu] : null;
+    const isNote = s.mode === 'note';
+    const draft = s.draft;
+    const first = cur.name.split(' ')[0];
+    const setAi = (text, note) => this.setState({ prevDraft: draft, draft: text, aiNote: note, aiMenu: false });
+    const base = draft || cur.suggestion;
+    const aiActions = [
+      { label: 'Write a reply', hint: 'from context', pick: () => setAi(cur.suggestion, 'Copilot drafted a reply from the conversation and order data') },
+      { label: 'Rewrite', hint: 'clearer', pick: () => setAi(base.replace('I’m sorry for the wait — that’s not the experience we want for you.', 'Thanks for your patience, and sorry this is taking longer than it should.'), 'Rewritten for clarity') },
+      { label: 'Improve grammar', hint: '', pick: () => setAi(base.charAt(0).toUpperCase() + base.slice(1).replace(/\s+/g, ' ').replace(/([^.!?])$/, '$1.'), 'Grammar and punctuation fixed') },
+      { label: 'Change tone · friendlier', hint: '', pick: () => setAi('Hi ' + first + '! ' + base.replace(/^Hi [^,]+, /, ''), 'Tone changed to friendlier') },
+      { label: 'Translate', hint: 'detected: EN', pick: () => setAi('Hola ' + first + ', siento mucho la espera. He abierto una investigación con el transportista y te mantendré informada aquí.', 'Translated to Spanish · customer sees this language') },
+      { label: 'Summarize conversation', hint: 'as note', pick: () => this.setState({ mode: 'note', prevDraft: draft, draft: 'Summary: ' + (cur0.handoff ? cur0.handoff.fields[1].v + ' Next: ' + cur0.handoff.next : cur.preview), aiNote: 'Summary added as an internal note', aiMenu: false }) }
+    ];
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', dark, toggleTheme: () => this.setState({ dark: !dark }),
+      viewLabel: vdef[1], views,
+      inboxes: [{ label: 'Billing', count: 6, color: '#1C7C45' }, { label: 'Returns & refunds', count: 11, color: '#A4510B' }, { label: 'VIP customers', count: 3, color: '#6D3FD6' }],
+      q: s.q, onSearch: (e) => this.setState({ q: e.target.value }),
+      sortLabel: SORTS[s.sort], cycleSort: () => this.setState({ sort: (s.sort + 1) % 3 }),
+      list: items, listEmpty: items.length === 0, listCount: items.length + ' conversations',
+      emptyTitle: q ? 'No conversations match “' + s.q + '”' : (s.view === 'archived' ? 'Nothing archived' : 'You’re all caught up'),
+      emptyBody: q ? 'Try a customer name, an order number like ORD-2048, or clear the search.' : (s.view === 'archived' ? 'Conversations are archived automatically 30 days after they’re resolved.' : 'New conversations in this view will show up here.'),
+      allChecked: items.length > 0 && items.every((c) => checked.includes(c.id)),
+      toggleAll: () => this.setState({ checked: items.every((c) => checked.includes(c.id)) ? [] : items.map((c) => c.id) }),
+      hasSelection: checked.length > 0, selCount: checked.length, clearSel: () => this.setState({ checked: [] }),
+      bulkResolve: () => { const over = { ...s.over }; checked.forEach((id) => { over[id] = { ...(over[id] || {}), status: 'Resolved' }; }); this.setState({ over, checked: [], toast: checked.length + ' conversations resolved', undo: s.over }); },
+      toggleOrig: () => this.setState({ orig: !s.orig }), origLabel: showOrig ? 'Show in English' : 'Show original',
+      cur, cu: { ...cur0.cu, attrs: cur0.cu.attrs.map(([k, v]) => ({ k, v })), intel: cur0.cu.intel.map(([k, v, c]) => ({ k, v, c })), orders: cur0.cu.orders.map(([id, total, it, st, c]) => ({ id, total, items: it, status: st, c })), history: cur0.cu.history.length ? cur0.cu.history.map(([s2, d]) => ({ s: s2, d })) : [{ s: 'No previous conversations', d: '' }] },
+      isThread: !s.timeline, isTimeline: s.timeline, thread, timeline,
+      showThread: () => this.setState({ timeline: false }), showTimeline: () => this.setState({ timeline: true }),
+      threadPressed: s.timeline ? 'false' : 'true', timelinePressed: s.timeline ? 'true' : 'false',
+      threadBg: s.timeline ? 'transparent' : 'var(--surface)', timelineBg: s.timeline ? 'var(--surface)' : 'transparent',
+      menuOpen: !!m, menuTitle: m ? m.title : '', menuItems: m ? m.items : [],
+      menuAssign: () => this.setState({ menu: s.menu === 'assign' ? null : 'assign' }),
+      menuPriority: () => this.setState({ menu: s.menu === 'priority' ? null : 'priority' }),
+      menuMore: () => this.setState({ menu: s.menu === 'more' ? null : 'more' }),
+      resolveLabel: cur.status === 'Resolved' ? 'Reopen' : 'Resolve',
+      resolve: () => this.patch(cur.id, { status: cur.status === 'Resolved' ? 'Open' : 'Resolved' }, cur.status === 'Resolved' ? 'Conversation reopened' : 'Conversation resolved'),
+      ctxOpen: s.ctx, toggleCtx: () => this.setState({ ctx: !s.ctx }), ctxLabel: s.ctx ? 'Hide customer panel' : 'Show customer panel',
+      showCopilot: !s.copilotOff[cur.id] && !isNote, dismissCopilot: () => this.setState({ copilotOff: { ...s.copilotOff, [cur.id]: true } }),
+      useSuggestion: () => this.setState({ mode: 'reply', prevDraft: draft, draft: cur.suggestion, aiNote: 'Copilot drafted a reply — review before sending' }),
+      modeReply: () => this.setState({ mode: 'reply' }), modeNote: () => this.setState({ mode: 'note' }),
+      replyPressed: isNote ? 'false' : 'true', notePressed: isNote ? 'true' : 'false',
+      replyBg: isNote ? 'transparent' : 'var(--surface-2)', replyColor: isNote ? 'var(--text-2)' : 'var(--text)',
+      noteBg: isNote ? 'var(--warn-soft)' : 'transparent', noteColor: isNote ? 'var(--warn)' : 'var(--text-2)',
+      composerBg: isNote ? 'var(--note)' : 'var(--surface)', composerBorder: isNote ? 'var(--note-border)' : 'var(--border)',
+      composerHint: isNote ? 'Only your team can see notes · @ to mention' : 'Replying via ' + cur.channel,
+      placeholder: isNote ? 'Write an internal note… use @ to mention a teammate' : 'Reply to ' + first + '… type / for saved replies',
+      draft, onDraft: (e) => this.setState({ draft: e.target.value }),
+      aiNote: s.aiNote || false, undoAi: () => this.setState({ draft: s.prevDraft || '', aiNote: '' }),
+      aiMenu: s.aiMenu, toggleAiMenu: () => this.setState({ aiMenu: !s.aiMenu }), aiActions,
+      tools: [
+        { label: 'Saved replies (/)', icon: 'M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z', click: () => this.setState({ draft: 'Hi ' + first + ', thanks for reaching out! ' }) },
+        { label: 'Attach file', icon: 'M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5', click: () => {} },
+        { label: 'Emoji', icon: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01', click: () => {} },
+        { label: 'Bold', icon: 'M6 4h8a4 4 0 0 1 0 8H6zM6 12h9a4 4 0 0 1 0 8H6z', click: () => {} },
+        { label: 'Insert article link', icon: 'M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7', click: () => {} }
+      ],
+      sendLabel: isNote ? 'Add note' : 'Send',
+      send: () => {
+        if (!draft.trim()) return;
+        const now = '10:4' + (5 + extra.length % 5);
+        const msg = isNote ? ['note', draft, now, 'Alex Morgan'] : ['agent', draft, now, 'Alex Morgan'];
+        this.setState({ extra: { ...s.extra, [cur.id]: extra.concat([msg]) }, draft: '', aiNote: '' });
+      },
+      toast: s.toast || false,
+      undoToast: () => this.setState({ over: s.undo || s.over, toast: '' })
+    };
+  }
+}
+</script>
+</body>
+</html>

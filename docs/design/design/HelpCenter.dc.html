@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lumen Goods Help Center</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@700;800;900&family=Noto+Nastaliq+Urdu:wght@400;600&display=swap">
+<style>
+body{margin:0}
+.hc{--ink:#0E0F0C;--ink-2:#454745;--ink-3:#6A6C6A;--line:#E3E5E0;--soft:#F4F5F1;--lime:#9FE870;--lime-h:#CDFFAD;--forest:#163300;--forest-2:#21420C;--mint:#E2F6D5;--violet:#6D3FD6;--violet-s:#F1ECFD;--warn:#8A4B00;--warn-s:#FFF4D6;--ok:#1C7C45;font-family:Inter,system-ui,-apple-system,sans-serif;color:var(--ink);background:#FFFFFF;-webkit-font-smoothing:antialiased;font-size:16px;line-height:1.5}
+.hc *{box-sizing:border-box}
+.hc a{color:inherit;text-decoration:none}
+.hc button,.hc input,.hc select,.hc textarea{font:inherit;color:inherit}
+.hc button{cursor:pointer;border:0;background:none}
+.hc :focus-visible{outline:2px solid var(--forest);outline-offset:3px}
+.hc input:focus,.hc textarea:focus,.hc select:focus{outline:none;box-shadow:0 0 0 2px var(--forest)!important}
+.wrap{max-width:1180px;margin:0 auto;padding:0 32px}
+.disp{font-family:'Inter Tight',Inter,sans-serif;font-weight:900;text-transform:uppercase;line-height:.88;letter-spacing:-.01em;margin:0}
+.ttl{font-family:'Inter Tight',Inter,sans-serif;font-weight:800;letter-spacing:-.02em;margin:0}
+.pill{height:46px;padding:0 20px;border-radius:9999px;font-size:15.5px;font-weight:600;display:inline-flex;align-items:center;justify-content:center;gap:8px;transition:transform .15s,background-color .15s;white-space:nowrap}
+.pill:hover{transform:scale(1.03)}.pill:active{transform:scale(.97)}
+.hc .pill.p-lime,.hc .p-lime{background:var(--lime);color:var(--forest)}.hc .p-lime:hover{background:var(--lime-h)}
+.hc .p-soft{background:rgba(22,51,0,.08)}.hc .p-soft:hover{background:rgba(22,51,0,.13)}
+.hc .p-dark{background:var(--forest);color:#FFFFFF}
+.card{border-radius:24px;box-shadow:0 0 0 1px rgba(14,15,12,.10);background:#FFFFFF}
+.lift{transition:transform .18s ease,box-shadow .18s ease}.lift:hover{transform:translateY(-3px);box-shadow:0 0 0 1px rgba(14,15,12,.14),0 18px 40px -18px rgba(22,51,0,.25)}
+.row{display:flex;align-items:center;gap:14px;padding:16px 4px;border-top:1px solid var(--line);transition:padding .15s}
+.row:hover{padding-left:10px}.row:hover .arr{transform:translateX(3px);color:var(--forest)}
+.arr{transition:transform .15s;color:var(--ink-3)}
+.fld{width:100%;height:50px;padding:0 16px;border-radius:14px;border:0;box-shadow:0 0 0 1px var(--line);background:#FFFFFF;font-size:16px}
+.lbl{display:flex;flex-direction:column;gap:8px;font-size:14px;font-weight:600}
+.hc .chip{height:36px;padding:0 14px;border-radius:99px;font-size:14px;font-weight:500;background:var(--soft);display:inline-flex;align-items:center;gap:6px;transition:background-color .15s}
+.hc .chip:hover{background:var(--mint)}
+.prose p{margin:0 0 16px;font-size:17.5px;line-height:1.7;color:var(--ink-2)}
+@keyframes pop{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+@keyframes dots{0%,100%{opacity:.25}50%{opacity:1}}
+@keyframes floaty{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+@keyframes blink{0%,93%,100%{transform:scaleY(1)}96%{transform:scaleY(.12)}}
+.pop{animation:pop .28s ease both}
+.dot{width:6px;height:6px;border-radius:99px;background:var(--violet);display:inline-block;animation:dots 1s infinite}.dot:nth-child(2){animation-delay:.15s}.dot:nth-child(3){animation-delay:.3s}
+.floaty{animation:floaty 4.5s ease-in-out infinite}
+.blink{transform-box:fill-box;transform-origin:center;animation:blink 4s infinite}
+.ur{font-family:'Noto Nastaliq Urdu',Inter,sans-serif;text-transform:none!important;line-height:1.6!important}
+@media (prefers-reduced-motion: reduce){.pop,.dot,.floaty,.blink{animation:none!important}}
+</style>
+</helmet>
+<div class="hc" dir="{{dir}}">
+
+  <!-- notice -->
+  <sc-if value="{{notice}}" hint-placeholder-val="{{true}}">
+    <div role="status" style="background: var(--warn-s); color: var(--warn); font-size: 14px">
+      <div class="wrap" style="display: flex; align-items: center; gap: 12px; min-height: 44px"><span style="width: 8px; height: 8px; border-radius: 99px; background: #E3A008; flex: none"></span><span style="flex: 1"><b style="font-weight: 600">Heads up:</b> Karachi deliveries may take 1–2 extra days this week because of weather.</span><button type="button" onClick="{{hideNotice}}" aria-label="Dismiss notice" style="width: 30px; height: 30px; border-radius: 99px; color: var(--warn)">✕</button></div>
+    </div>
+  </sc-if>
+
+  <!-- header -->
+  <header style="background: var(--forest); color: #FFFFFF">
+    <div class="wrap" style="height: 72px; display: flex; align-items: center; gap: 22px">
+      <button type="button" onClick="{{home}}" aria-label="Help center home" style="display: flex; align-items: baseline; gap: 10px; color: #FFFFFF"><b style="font-family: 'Inter Tight', Inter, sans-serif; font-weight: 900; letter-spacing: .14em; font-size: 20px">LUMEN</b><span style="font-size: 15px; color: #CFE0C2">Help Center</span></button>
+      <nav aria-label="Help" style="margin-inline-start: auto; display: flex; align-items: center; gap: 6px; font-size: 15px">
+        <button type="button" onClick="{{goContact}}" style="padding: 8px 14px; border-radius: 99px; color: #FFFFFF">Contact us</button>
+        <a href="CustomerPortal.dc.html" style="padding: 8px 14px; border-radius: 99px">My requests</a>
+        <label style="display: flex; align-items: center"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Language</span><select value="{{lang}}" onChange="{{onLang}}" style="height: 38px; padding: 0 12px; border-radius: 99px; border: 0; background: rgba(255,255,255,.12); color: #FFFFFF"><option value="en" style="color: #0E0F0C">English</option><option value="ur" style="color: #0E0F0C">اردو</option><option value="es" style="color: #0E0F0C">Español</option></select></label>
+        <a href="#store" class="pill p-lime" style="height: 40px; padding: 0 16px; font-size: 14.5px">Back to store</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ===== HOME ===== -->
+  <sc-if value="{{isHome}}" hint-placeholder-val="{{true}}">
+    <section style="background: var(--forest); color: #FFFFFF; padding: 56px 0 120px; position: relative; overflow: hidden">
+      <div aria-hidden="true" style="position: absolute; right: -140px; top: -160px; width: 520px; height: 520px; border-radius: 50%; border: 2px solid rgba(159,232,112,.14)"></div>
+      <div aria-hidden="true" style="position: absolute; right: -40px; top: -60px; width: 320px; height: 320px; border-radius: 50%; border: 2px solid rgba(159,232,112,.14)"></div>
+      <div class="wrap" style="position: relative; display: flex; flex-direction: column; align-items: center; gap: 26px; text-align: center">
+        <h1 class="disp {{urCls}}" style="font-size: 92px; color: #FFFFFF">{{t.hello}}</h1>
+        <label style="position: relative; width: 760px; max-width: 100%">
+          <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search the help center</span>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#163300" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="position: absolute; inset-inline-start: 22px; top: 21px"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+          <input value="{{q}}" onInput="{{onQ}}" placeholder="{{t.ph}}" style="width: 100%; height: 64px; padding-inline: 60px 130px; border-radius: 99px; border: 0; background: #FFFFFF; font-size: 18px; color: #0E0F0C; box-shadow: 0 20px 50px -20px rgba(0,0,0,.5)">
+          <span style="position: absolute; inset-inline-end: 8px; top: 8px; height: 48px; padding: 0 18px; border-radius: 99px; background: var(--lime); color: var(--forest); font-weight: 700; font-size: 15px; display: grid; place-items: center">Search</span>
+        </label>
+        <div style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center"><span style="font-size: 14px; color: #CFE0C2">{{t.try}}</span><sc-for list="{{suggest}}" as="g"><button type="button" onClick="{{g.pick}}" style="height: 34px; padding: 0 14px; border-radius: 99px; background: rgba(255,255,255,.1); color: #FFFFFF; font-size: 14px">{{g.t}}</button></sc-for></div>
+      </div>
+    </section>
+
+    <div class="wrap" style="margin-top: -72px; position: relative; display: flex; flex-direction: column; gap: 64px; padding-bottom: 96px">
+
+      <!-- search results -->
+      <sc-if value="{{searching}}" hint-placeholder-val="{{false}}">
+        <div class="card pop" style="padding: 28px; display: flex; flex-direction: column; gap: 18px">
+          <div style="display: flex; gap: 14px; align-items: flex-start; padding: 20px; border-radius: 20px; background: var(--violet-s)">
+            <svg aria-hidden="true" class="floaty" width="44" height="44" viewBox="0 0 120 120" style="flex: none"><circle cx="60" cy="60" r="50" fill="#6D3FD6"></circle><g class="blink"><ellipse cx="46" cy="56" rx="7" ry="9" fill="#FFFFFF"></ellipse><ellipse cx="74" cy="56" rx="7" ry="9" fill="#FFFFFF"></ellipse></g><path d="M44 76q16 12 32 0" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"></path></svg>
+            <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px">
+              <div style="font-size: 13px; font-weight: 700; color: var(--violet)">Answer from Nova · based on our articles</div>
+              <sc-if value="{{hasAnswer}}" hint-placeholder-val="{{true}}"><div style="font-size: 17px; line-height: 1.6">{{answer}}</div>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center"><span style="font-size: 13px; color: var(--ink-3)">Sources</span><sc-for list="{{cites}}" as="c"><button type="button" onClick="{{c.open}}" style="height: 30px; padding: 0 12px; border-radius: 99px; background: #FFFFFF; font-size: 13px; font-weight: 600">{{c.t}}</button></sc-for></div>
+              </sc-if>
+              <sc-if value="{{noAnswer}}" hint-placeholder-val="{{false}}"><div style="font-size: 17px">I couldn’t find that in our articles. A teammate can help — usually within a few minutes.</div><button type="button" onClick="{{openChat}}" class="pill p-dark" style="align-self: flex-start; height: 40px">Chat with us</button></sc-if>
+            </div>
+          </div>
+          <sc-if value="{{hasAnswer}}" hint-placeholder-val="{{true}}"><div style="font-size: 14px; font-weight: 600; color: var(--ink-3)">{{resultsLabel}}</div>
+            <div><sc-for list="{{results}}" as="r"><button type="button" onClick="{{r.open}}" class="row" style="width: 100%; text-align: start"><span style="flex: 1"><span style="display: block; font-weight: 600; font-size: 17px">{{r.t}}</span><span style="display: block; font-size: 14.5px; color: var(--ink-3)">{{r.col}} · {{r.d}}</span></span><span class="arr" aria-hidden="true">→</span></button></sc-for></div>
+          </sc-if>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{notSearching}}" hint-placeholder-val="{{true}}">
+        <!-- quick actions -->
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 14px">
+          <sc-for list="{{actions}}" as="a"><button type="button" onClick="{{a.go}}" class="card lift" style="padding: 22px; text-align: start; display: flex; flex-direction: column; gap: 12px; background: {{a.bg}}">
+            <span style="width: 46px; height: 46px; border-radius: 14px; background: {{a.ibg}}; color: {{a.ic}}; display: grid; place-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{a.icon}}"></path></svg></span>
+            <span style="font-weight: 700; font-size: 18px">{{a.t}}</span><span style="font-size: 14.5px; color: var(--ink-2)">{{a.d}}</span>
+          </button></sc-for>
+        </div>
+
+        <!-- order tracker -->
+        <sc-if value="{{tracking}}" hint-placeholder-val="{{false}}">
+          <div id="track" class="card pop" style="padding: 32px; display: flex; flex-wrap: wrap; gap: 32px">
+            <div style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 14px">
+              <h2 class="ttl" style="font-size: 30px">Track your order</h2>
+              <div style="font-size: 15.5px; color: var(--ink-2)">No account needed. Use the number from your confirmation email.</div>
+              <label class="lbl">Order number<input class="fld" value="{{orderNo}}" onInput="{{onOrder}}" placeholder="e.g. ORD-2048"></label>
+              <label class="lbl">Email or phone<input class="fld" value="sarah@example.com"></label>
+              <button type="button" onClick="{{findOrder}}" class="pill p-lime" style="align-self: flex-start">Find my order</button>
+            </div>
+            <div style="flex: 1 1 380px; border-radius: 20px; background: var(--soft); padding: 24px; display: flex; flex-direction: column; gap: 14px">
+              <sc-if value="{{orderShown}}" hint-placeholder-val="{{true}}">
+                <div style="display: flex; justify-content: space-between; align-items: center"><div><div style="font-weight: 700; font-size: 17px">#{{orderLabel}}</div><div style="font-size: 14px; color: var(--ink-3)">Linen Throw (Sand) · Ceramic Mug ×2</div></div><span style="font-size: 13px; font-weight: 700; padding: 4px 12px; border-radius: 99px; background: var(--warn-s); color: var(--warn)">Delayed</span></div>
+                <ol style="list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column">
+                  <sc-for list="{{steps}}" as="s"><li style="display: flex; gap: 14px"><span style="display: flex; flex-direction: column; align-items: center"><span style="width: 20px; height: 20px; border-radius: 99px; background: {{s.c}}; box-shadow: 0 0 0 4px {{s.ring}}"></span><span style="width: 2px; flex: 1; min-height: 26px; background: {{s.line}}"></span></span><span style="padding-bottom: 14px"><span style="display: block; font-weight: 600; font-size: 15px">{{s.t}}</span><span style="display: block; font-size: 13.5px; color: var(--ink-3)">{{s.d}}</span></span></li></sc-for>
+                </ol>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px"><button type="button" onClick="{{openChat}}" class="pill p-dark" style="height: 40px">Ask about this order</button><a href="CustomerPortal.dc.html" class="pill p-soft" style="height: 40px">View all orders</a></div>
+              </sc-if>
+              <sc-if value="{{orderHidden}}" hint-placeholder-val="{{false}}"><div style="flex: 1; display: grid; place-items: center; text-align: center; color: var(--ink-3); font-size: 15px; min-height: 220px">Your delivery timeline will show here.</div></sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <!-- collections -->
+        <section style="display: flex; flex-direction: column; gap: 24px">
+          <div style="display: flex; justify-content: space-between; align-items: flex-end; gap: 16px"><h2 class="disp {{urCls}}" style="font-size: 48px">{{t.browse}}</h2><span style="font-size: 14.5px; color: var(--ink-3)">48 articles · updated weekly</span></div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 14px">
+            <sc-for list="{{collections}}" as="c"><button type="button" onClick="{{c.pick}}" class="card lift" style="padding: 24px; text-align: start; display: flex; gap: 16px; align-items: flex-start">
+              <span style="width: 50px; height: 50px; flex: none; border-radius: 16px; background: var(--mint); color: var(--forest); display: grid; place-items: center"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{c.icon}}"></path></svg></span>
+              <span style="flex: 1"><span style="display: block; font-weight: 700; font-size: 18px">{{c.n}}</span><span style="display: block; font-size: 14.5px; color: var(--ink-2); margin-top: 2px">{{c.d}}</span><span style="display: block; font-size: 13px; color: var(--ink-3); margin-top: 10px">{{c.count}} articles</span></span>
+            </button></sc-for>
+          </div>
+        </section>
+
+        <!-- popular + trending -->
+        <section style="display: flex; flex-wrap: wrap; gap: 48px">
+          <div style="flex: 3 1 480px">
+            <h2 class="disp {{urCls}}" style="font-size: 48px; margin-bottom: 18px">{{t.popular}}</h2>
+            <sc-for list="{{popular}}" as="p"><button type="button" onClick="{{p.open}}" class="row" style="width: 100%; text-align: start"><span style="width: 36px; height: 36px; flex: none; border-radius: 12px; background: var(--soft); display: grid; place-items: center; font-family: 'Inter Tight', Inter, sans-serif; font-weight: 900; color: var(--forest)">{{p.n}}</span><span style="flex: 1"><span style="display: block; font-weight: 600; font-size: 17px">{{p.t}}</span><span style="display: block; font-size: 14px; color: var(--ink-3)">{{p.col}} · {{p.read}} min read</span></span><span class="arr" aria-hidden="true">→</span></button></sc-for>
+          </div>
+          <aside style="flex: 2 1 320px; display: flex; flex-direction: column; gap: 14px">
+            <div style="border-radius: 24px; background: var(--forest); color: #FFFFFF; padding: 28px; display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; align-items: center; gap: 12px"><svg aria-hidden="true" class="floaty" width="48" height="48" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="#6D3FD6"></circle><g class="blink"><ellipse cx="46" cy="56" rx="7" ry="9" fill="#FFFFFF"></ellipse><ellipse cx="74" cy="56" rx="7" ry="9" fill="#FFFFFF"></ellipse></g><path d="M44 76q16 12 32 0" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"></path></svg><div><div style="font-weight: 700; font-size: 18px">Ask Nova</div><div style="font-size: 13.5px; color: #CFE0C2">Answers in seconds, any language</div></div></div>
+              <div style="font-size: 15px; color: #E5EEDC">Nova can track orders, start returns and hand you to a person anytime.</div>
+              <button type="button" onClick="{{openChat}}" class="pill p-lime" style="align-self: flex-start">Start a chat</button>
+            </div>
+            <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 10px">
+              <div style="font-weight: 700">Response times</div>
+              <sc-for list="{{times}}" as="x"><div style="display: flex; justify-content: space-between; font-size: 15px"><span style="color: var(--ink-2)">{{x.c}}</span><b style="font-weight: 600">{{x.v}}</b></div></sc-for>
+            </div>
+          </aside>
+        </section>
+      </sc-if>
+    </div>
+  </sc-if>
+
+  <!-- ===== ARTICLE ===== -->
+  <sc-if value="{{isArticle}}" hint-placeholder-val="{{false}}">
+    <div style="background: var(--soft); border-bottom: 1px solid var(--line)">
+      <div class="wrap" style="display: flex; align-items: center; gap: 16px; min-height: 64px">
+        <nav aria-label="Breadcrumb" style="flex: 1; font-size: 14.5px; color: var(--ink-3)"><button type="button" onClick="{{home}}" style="color: var(--forest); font-weight: 600">Help Center</button> / {{art.col}} / <span style="color: var(--ink)">{{art.t}}</span></nav>
+        <label style="position: relative; width: 320px"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search</span><input value="{{q}}" onInput="{{onQSearch}}" placeholder="Search articles" style="width: 100%; height: 42px; padding: 0 16px; border-radius: 99px; border: 0; background: #FFFFFF; box-shadow: 0 0 0 1px var(--line); font-size: 15px"></label>
+      </div>
+    </div>
+    <div class="wrap" style="display: flex; gap: 48px; padding-top: 48px; padding-bottom: 96px; align-items: flex-start">
+      <nav aria-label="{{art.col}} articles" style="flex: 0 0 220px; position: sticky; top: 24px; display: flex; flex-direction: column; gap: 4px">
+        <div style="font-size: 13px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; padding: 0 12px 8px">In this collection</div>
+        <sc-for list="{{side}}" as="x"><button type="button" onClick="{{x.open}}" aria-current="{{x.cur}}" style="text-align: start; padding: 10px 12px; border-radius: 12px; font-size: 15px; font-weight: {{x.w}}; background: {{x.bg}}; color: {{x.c}}">{{x.t}}</button></sc-for>
+      </nav>
+      <article style="flex: 1; min-width: 0; max-width: 700px">
+        <h1 class="ttl" style="font-size: 48px; line-height: 1.05">{{art.t}}</h1>
+        <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 18px 0 28px; font-size: 14.5px; color: var(--ink-3)"><span style="width: 32px; height: 32px; border-radius: 99px; background: #D2F2E2; color: #0F4D2F; display: grid; place-items: center; font-weight: 700; font-size: 12px">OH</span><span>Omar Haddad</span><span>·</span><span>Updated {{art.upd}}</span><span>·</span><span>{{art.read}} min read</span><button type="button" style="margin-inline-start: auto; display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 12px; border-radius: 99px; background: var(--soft); font-size: 13.5px; font-weight: 600"><svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4l13 8-13 8z"></path></svg>Listen</button></div>
+        <div class="prose">
+          <sc-for list="{{art.blocks}}" as="b">
+            <sc-if value="{{b.p}}" hint-placeholder-val="{{true}}"><p>{{b.text}}</p></sc-if>
+            <sc-if value="{{b.h}}" hint-placeholder-val="{{false}}"><h2 class="ttl" style="font-size: 26px; margin: 32px 0 14px">{{b.text}}</h2></sc-if>
+            <sc-if value="{{b.li}}" hint-placeholder-val="{{false}}"><div style="display: flex; gap: 12px; margin: 0 0 10px; font-size: 17px; color: var(--ink-2)"><span style="flex: none; width: 8px; height: 8px; border-radius: 99px; background: var(--lime); box-shadow: 0 0 0 2px var(--forest); margin-top: 9px"></span><span>{{b.text}}</span></div></sc-if>
+            <sc-if value="{{b.step}}" hint-placeholder-val="{{false}}"><div style="display: flex; gap: 14px; margin: 0 0 12px; font-size: 17px; color: var(--ink-2); align-items: flex-start"><span style="flex: none; width: 30px; height: 30px; border-radius: 99px; background: var(--forest); color: var(--lime); display: grid; place-items: center; font-weight: 800; font-size: 14px">{{b.n}}</span><span style="padding-top: 3px">{{b.text}}</span></div></sc-if>
+            <sc-if value="{{b.note}}" hint-placeholder-val="{{false}}"><div style="display: flex; gap: 12px; margin: 20px 0; padding: 18px 20px; border-radius: 18px; background: var(--mint); color: var(--forest); font-size: 16px"><b style="font-weight: 700">Tip</b><span>{{b.text}}</span></div></sc-if>
+          </sc-for>
+        </div>
+
+        <div style="margin-top: 40px; padding: 24px; border-radius: 24px; background: var(--soft); display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px"><span style="flex: 1; font-weight: 700; font-size: 17px">{{helpQ}}</span>
+            <sc-if value="{{notVoted}}" hint-placeholder-val="{{true}}"><button type="button" onClick="{{voteYes}}" class="pill p-lime" style="height: 40px">Yes</button><button type="button" onClick="{{voteNo}}" class="pill" style="height: 40px; background: #FFFFFF">No</button></sc-if>
+          </div>
+          <sc-if value="{{votedNo}}" hint-placeholder-val="{{false}}"><div style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{reasons}}" as="r"><button type="button" onClick="{{r.pick}}" class="chip" style="background: {{r.bg}}">{{r.t}}</button></sc-for></div></sc-if>
+        </div>
+
+        <div style="margin-top: 40px; display: flex; flex-direction: column; gap: 6px">
+          <div style="font-weight: 700; font-size: 17px; margin-bottom: 6px">Related articles</div>
+          <sc-for list="{{related}}" as="r"><button type="button" onClick="{{r.open}}" class="row" style="width: 100%; text-align: start"><span style="flex: 1; font-weight: 600; font-size: 16px">{{r.t}}</span><span class="arr" aria-hidden="true">→</span></button></sc-for>
+        </div>
+      </article>
+      <aside style="flex: 0 0 240px; position: sticky; top: 24px; display: flex; flex-direction: column; gap: 16px">
+        <div style="display: flex; flex-direction: column; gap: 4px"><div style="font-size: 13px; font-weight: 700; color: var(--ink-3); text-transform: uppercase; letter-spacing: .06em; padding-bottom: 8px">On this page</div><sc-for list="{{art.toc}}" as="x"><span style="padding: 6px 0 6px 12px; border-inline-start: 2px solid {{x.bd}}; font-size: 14.5px; color: {{x.c}}">{{x.t}}</span></sc-for></div>
+        <div style="border-radius: 24px; background: var(--forest); color: #FFFFFF; padding: 22px; display: flex; flex-direction: column; gap: 10px"><div style="font-weight: 700; font-size: 17px">Still stuck?</div><div style="font-size: 14px; color: #CFE0C2">We reply in about a minute.</div><button type="button" onClick="{{openChat}}" class="pill p-lime" style="height: 42px">Chat with us</button></div>
+      </aside>
+    </div>
+  </sc-if>
+
+  <!-- ===== CONTACT ===== -->
+  <sc-if value="{{isContact}}" hint-placeholder-val="{{false}}">
+    <div class="wrap" style="padding-top: 56px; padding-bottom: 96px; display: flex; flex-direction: column; gap: 40px">
+      <div style="display: flex; flex-direction: column; gap: 14px"><button type="button" onClick="{{home}}" style="align-self: flex-start; font-size: 14.5px; font-weight: 600; color: var(--forest)">← Help Center</button><h1 class="disp" style="font-size: 80px">Get in touch</h1><div style="font-size: 19px; color: var(--ink-2)">Pick what’s easiest. Every channel reaches the same team.</div></div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(250px, 100%), 1fr)); gap: 14px">
+        <sc-for list="{{channels}}" as="c"><button type="button" onClick="{{c.go}}" class="card lift" style="padding: 24px; text-align: start; display: flex; flex-direction: column; gap: 10px">
+          <span style="display: flex; justify-content: space-between; align-items: center"><span style="width: 46px; height: 46px; border-radius: 14px; background: var(--mint); color: var(--forest); display: grid; place-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{c.icon}}"></path></svg></span><span style="font-size: 12.5px; font-weight: 700; padding: 4px 10px; border-radius: 99px; background: {{c.sbg}}; color: {{c.sc}}">{{c.s}}</span></span>
+          <span style="font-weight: 700; font-size: 18px">{{c.n}}</span><span style="font-size: 14.5px; color: var(--ink-2)">{{c.d}}</span>
+        </button></sc-for>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 32px; align-items: flex-start">
+        <form class="card" onSubmit="{{submit}}" style="flex: 3 1 480px; padding: 32px; display: flex; flex-direction: column; gap: 18px">
+          <sc-if value="{{notSent}}" hint-placeholder-val="{{true}}">
+            <h2 class="ttl" style="font-size: 28px">Send us a request</h2>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); gap: 16px"><label class="lbl">Name<input class="fld" value="Sarah Johnson"></label><label class="lbl">Email<input class="fld" type="email" value="sarah@example.com"></label></div>
+            <div class="lbl">Topic<div style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{topics}}" as="x"><button type="button" onClick="{{x.pick}}" aria-pressed="{{x.on}}" class="chip" style="background: {{x.bg}}; color: {{x.c}}">{{x.t}}</button></sc-for></div></div>
+            <label class="lbl"><span>Order number <span style="font-weight: 400; color: var(--ink-3)">· optional</span></span><input class="fld" placeholder="ORD-2048"></label>
+            <label class="lbl">How can we help?<textarea rows="5" value="{{msg}}" onInput="{{onMsg}}" placeholder="Tell us what happened" style="width: 100%; padding: 14px 16px; border-radius: 14px; border: 0; box-shadow: 0 0 0 1px var(--line); font-size: 16px; resize: vertical"></textarea></label>
+            <sc-if value="{{suggestArt}}" hint-placeholder-val="{{false}}"><div class="pop" style="padding: 14px 16px; border-radius: 16px; background: var(--violet-s); font-size: 15px; display: flex; gap: 10px; align-items: center"><span style="flex: 1">This might answer it: <b>{{suggestT}}</b></span><button type="button" onClick="{{openSuggest}}" style="font-weight: 700; color: var(--violet)">Read →</button></div></sc-if>
+            <div style="display: flex; align-items: center; gap: 12px"><button type="button" class="chip">Attach photos</button><button type="submit" onClick="{{submit}}" class="pill p-lime" style="margin-inline-start: auto">Send request</button></div>
+          </sc-if>
+          <sc-if value="{{sent}}" hint-placeholder-val="{{false}}"><div class="pop" style="display: flex; flex-direction: column; align-items: flex-start; gap: 14px; padding: 20px 0"><span style="width: 56px; height: 56px; border-radius: 99px; background: var(--lime); color: var(--forest); display: grid; place-items: center; font-size: 26px; font-weight: 800">✓</span><h2 class="ttl" style="font-size: 30px">Request received</h2><div style="font-size: 16px; color: var(--ink-2)">Ticket <b>TCK-1191</b>. We’ll reply to sarah@example.com within 4 hours.</div><a href="CustomerPortal.dc.html" class="pill p-dark">Track in My requests</a></div></sc-if>
+        </form>
+        <aside style="flex: 2 1 300px; display: flex; flex-direction: column; gap: 14px">
+          <div class="card" style="padding: 24px; display: flex; flex-direction: column; gap: 10px"><div style="font-weight: 700">Support hours</div><sc-for list="{{hours}}" as="h"><div style="display: flex; justify-content: space-between; font-size: 15px"><span style="color: var(--ink-2)">{{h.d}}</span><b style="font-weight: 600">{{h.v}}</b></div></sc-for><div style="font-size: 13.5px; color: var(--ink-3); padding-top: 6px; border-top: 1px solid var(--line)">Nova answers 24/7, even on holidays.</div></div>
+        </aside>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- footer -->
+  <footer style="border-top: 1px solid var(--line); background: var(--soft)">
+    <div class="wrap" style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: center; min-height: 80px; font-size: 14px; color: var(--ink-3)"><span>© 2026 Lumen Goods · <a href="#privacy" style="text-decoration: underline">Privacy</a> · <a href="#dns" style="text-decoration: underline">Do not sell or share my info</a></span><span style="display: inline-flex; align-items: center; gap: 8px">Powered by <b style="font-family: 'Inter Tight', Inter, sans-serif; font-weight: 900; color: var(--forest)">ORBAT</b></span></div>
+  </footer>
+
+  <!-- chat launcher -->
+  <sc-if value="{{chat}}" hint-placeholder-val="{{false}}">
+    <div role="dialog" aria-label="Chat with Nova" class="pop" style="position: fixed; inset-inline-end: 24px; bottom: 100px; z-index: 50; width: 360px; border-radius: 24px; background: #FFFFFF; box-shadow: 0 0 0 1px rgba(14,15,12,.1), 0 30px 70px -20px rgba(14,15,12,.35); overflow: hidden">
+      <div style="background: var(--forest); color: #FFFFFF; padding: 18px; display: flex; align-items: center; gap: 12px"><svg aria-hidden="true" width="38" height="38" viewBox="0 0 120 120"><circle cx="60" cy="60" r="50" fill="#6D3FD6"></circle><g class="blink"><ellipse cx="46" cy="56" rx="7" ry="9" fill="#FFFFFF"></ellipse><ellipse cx="74" cy="56" rx="7" ry="9" fill="#FFFFFF"></ellipse></g><path d="M44 76q16 12 32 0" fill="none" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"></path></svg><div style="flex: 1"><div style="font-weight: 700">Nova</div><div style="font-size: 13px; color: #CFE0C2">AI assistant · a person is one tap away</div></div><button type="button" onClick="{{closeChat}}" aria-label="Close chat" style="color: #FFFFFF; font-size: 18px">✕</button></div>
+      <div style="padding: 18px; display: flex; flex-direction: column; gap: 10px; background: #FBFBF9"><div style="padding: 12px 14px; border-radius: 4px 16px 16px 16px; background: #FFFFFF; box-shadow: 0 0 0 1px var(--line); font-size: 15px">Hi! I can track an order, start a return or answer a question. What do you need?</div><div style="display: flex; flex-wrap: wrap; gap: 6px"><span class="chip" style="background: #FFFFFF; box-shadow: 0 0 0 1px var(--forest)">Track my order</span><span class="chip" style="background: #FFFFFF; box-shadow: 0 0 0 1px var(--forest)">Start a return</span><span class="chip" style="background: #FFFFFF; box-shadow: 0 0 0 1px var(--forest)">Talk to a person</span></div></div>
+      <div style="padding: 12px; border-top: 1px solid var(--line)"><div style="height: 46px; border-radius: 99px; box-shadow: 0 0 0 1px var(--line); display: flex; align-items: center; padding: 0 6px 0 16px; font-size: 15px; color: var(--ink-3)"><span style="flex: 1">Type your message</span><span style="width: 34px; height: 34px; border-radius: 99px; background: var(--lime); color: var(--forest); display: grid; place-items: center; font-weight: 800">↑</span></div></div>
+    </div>
+  </sc-if>
+  <button type="button" onClick="{{toggleChat}}" aria-label="Open chat" style="position: fixed; inset-inline-end: 24px; bottom: 24px; z-index: 50; width: 60px; height: 60px; border-radius: 99px; background: var(--forest); color: var(--lime); display: grid; place-items: center; box-shadow: 0 14px 30px -10px rgba(22,51,0,.6)"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{launcherIcon}}"></path></svg></button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"view":{"editor":"enum","default":"home","options":["home","article","contact"]},"$preview":{"width":1440,"height":2340}}'>
+const T = {
+  en: { hello: 'How can we help?', ph: 'Search — try “return a gift” or “order kab aayega”', try: 'Popular:', popular: 'Popular articles', browse: 'Browse topics' },
+  ur: { hello: 'ہم آپ کی کیا مدد کر سکتے ہیں؟', ph: 'تلاش کریں — مثلاً “آرڈر کب آئے گا”', try: 'مقبول:', popular: 'مقبول مضامین', browse: 'موضوعات' },
+  es: { hello: '¿Cómo te ayudamos?', ph: 'Busca — p. ej. “devolver un regalo”', try: 'Populares:', popular: 'Artículos populares', browse: 'Explorar temas' }
+};
+const A = [
+  ['ship', 'Shipping & delivery times', 'Shipping', 'How long delivery takes in every region', 'Nov 2', 'kab aayega order delivery shipping time late track tracking', 'Most US orders arrive in 3–5 business days. Delivery time depends on your country and the speed you choose at checkout.\n## Delivery times by region\n- United States: 3–5 business days (express 1–2)\n- Canada: 5–8 business days\n- European Union and UK: 6–10 business days\n- Pakistan: 2–4 business days with PostEx, TCS or Leopards\n## Tracking your order\n1. Open the shipping email we sent you\n2. Tap “Track package”\n3. Or enter your order number on the Help Center home page\n> If tracking hasn’t moved in 3 days, chat with us — we’ll open a trace with the carrier.'],
+  ['ret', 'Returns and exchanges', 'Returns', 'Return unused items within 30 days', 'Oct 30', 'wapas return exchange refund gift size', 'You can return or exchange unused items within 30 days of delivery.\n## How to start a return\n1. Open the chat and say “start a return”, or use the link in your order email\n2. Print the prepaid label\n3. Drop the parcel at any carrier point\n## Refunds\nRefunds go to the original payment method within 5–7 business days after we receive the item.\n> Gifts can be exchanged without the price showing on the receipt.'],
+  ['dmg', 'Damaged or missing items', 'Returns', 'What to do if something arrives broken', 'Nov 6', 'damaged broken cracked missing toota', 'Sorry about that. Send us a photo and we’ll replace it, usually without needing the item back.\n## What to send\n- Your order number\n- A photo of the damage and the box\n> Claims under $150 with a photo are approved instantly.'],
+  ['care', 'Linen care guide', 'Products', 'Keep linen soft for years', 'Sep 20', 'wash dhona care linen iron', 'Machine wash cold on a gentle cycle and tumble dry low. Linen softens with every wash.\n## Do\n- Wash with similar colours\n- Iron while slightly damp\n## Avoid\n- Bleach and fabric softener'],
+  ['cod', 'Cash on delivery', 'Orders', 'Pay when your order arrives (Pakistan)', 'Oct 12', 'cod cash payment jazzcash easypaisa', 'Cash on delivery is available across Pakistan. We call or message to confirm your order before dispatch.\n## Couriers\n- PostEx, TCS and Leopards deliver COD orders\n## Wallets\nYou can also pay with JazzCash or Easypaisa at checkout.'],
+  ['pw', 'Account and password help', 'Account', 'Reset your password and sign in', 'Aug 4', 'password login account reset', 'Use “Forgot password” on the sign-in page.\n> Reset emails sometimes land in Junk for Outlook addresses.']
+];
+const C = [['Orders', 'Track, change or cancel', 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0', 12, 'order'], ['Shipping', 'Times, costs and tracking', 'M1 3h15v13H1zM16 8h4l3 3v5h-7M5.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM18.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z', 9, 'shipping'], ['Returns', 'Returns, exchanges, refunds', 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5', 8, 'return'], ['Products', 'Sizes, materials and care', 'M12 2l9 5v10l-9 5-9-5V7z', 14, 'linen'], ['Payments', 'COD, wallets and cards', 'M2 5h20v14H2zM2 10h20', 6, 'cash'], ['Account', 'Sign-in and settings', 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 5, 'password']];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { view: p && p.view ? p.view : 'home', art: 'ship', q: '', lang: 'en', vote: null, reason: null, chat: false, notice: true, track: false, order: 'ORD-2048', found: true, topic: 'Order', msg: '', sent: false }; }
+  renderVals() {
+    const s = this.state;
+    const t = T[s.lang];
+    const q = s.q.trim().toLowerCase();
+    const open = (id) => () => this.setState({ view: 'article', art: id, vote: null, reason: null, q: '' });
+    const words = q.split(/\s+/).filter((x) => x.length > 2);
+    const score = (a) => words.reduce((n, w) => n + ((a[1] + ' ' + a[3] + ' ' + a[5]).toLowerCase().includes(w) ? 1 : 0), 0);
+    const res = q ? A.map((a) => [a, score(a)]).filter((x) => x[1] > 0).sort((x, y) => y[1] - x[1]).map((x) => x[0]) : [];
+    const a = A.find((x) => x[0] === s.art);
+    const lines = a[6].split('\n');
+    let n = 0;
+    const blocks = lines.map((l) => { const st = /^\d+\. /.test(l); if (st) n += 1; else if (!l.startsWith('- ')) n = 0; return { h: l.startsWith('## '), li: l.startsWith('- '), step: st, note: l.startsWith('> '), p: !/^(## |- |> |\d+\. )/.test(l), n, text: l.replace(/^(## |- |> |\d+\. )/, '') }; });
+    const read = (x) => Math.max(1, Math.round(x[6].split(/\s+/).length / 120));
+    const sug = s.msg.length > 6 ? A.find((x) => score.call(null, x) >= 0 && s.msg.toLowerCase().split(/\s+/).some((w) => w.length > 3 && x[5].includes(w))) : null;
+    const go = (v) => () => this.setState({ view: v, q: '' });
+    const ST = [['Ordered', 'Nov 3, 10:14 AM', 'done'], ['Shipped with UPS', 'Nov 5 · 1Z84A…', 'done'], ['In transit — Reno, NV', 'No scan since Nov 6 · trace opened', 'cur'], ['Out for delivery', 'Expected Friday', ''], ['Delivered', '', '']];
+    return {
+      t, dir: s.lang === 'ur' ? 'rtl' : 'ltr', urCls: s.lang === 'ur' ? 'ur' : '', lang: s.lang, onLang: (e) => this.setState({ lang: e.target.value }),
+      notice: s.notice, hideNotice: () => this.setState({ notice: false }),
+      isHome: s.view === 'home', isArticle: s.view === 'article', isContact: s.view === 'contact', home: go('home'), goContact: go('contact'),
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }), onQSearch: (e) => this.setState({ q: e.target.value, view: 'home' }),
+      suggest: ['Track my order', 'Return a gift', 'Cash on delivery', 'Damaged item'].map((x) => ({ t: x, pick: () => this.setState({ q: x }) })),
+      searching: !!q, notSearching: !q, hasAnswer: res.length > 0, noAnswer: !!q && res.length === 0,
+      answer: res[0] ? res[0][6].split('\n')[0] : '', cites: res.slice(0, 2).map((x) => ({ t: x[1], open: open(x[0]) })),
+      results: res.map((x) => ({ t: x[1], d: x[3], col: x[2], open: open(x[0]) })), resultsLabel: res.length + (res.length === 1 ? ' article' : ' articles') + ' for “' + s.q + '”',
+      actions: [
+        ['Track an order', 'See where your parcel is, no login needed', 'M1 3h15v13H1zM16 8h4l3 3v5h-7', () => this.setState({ track: !s.track }), 'var(--lime)', 'var(--forest)', '#FFFFFF'],
+        ['Start a return', 'Free returns within 30 days', 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5', open('ret'), 'var(--mint)', 'var(--forest)', '#FFFFFF'],
+        ['Chat with us', 'Nova replies instantly, people in ~1 min', 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', () => this.setState({ chat: true }), 'var(--violet-s)', 'var(--violet)', '#FFFFFF'],
+        ['My requests', 'Check replies on your tickets', 'M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11', () => {}, 'var(--soft)', 'var(--forest)', '#FFFFFF']
+      ].map(([tt, d, icon, g, ibg, ic, bg]) => ({ t: tt, d, icon, go: g, ibg, ic, bg })),
+      tracking: s.track, orderNo: s.order, onOrder: (e) => this.setState({ order: e.target.value, found: false }), findOrder: () => this.setState({ found: true }),
+      orderShown: s.found, orderHidden: !s.found, orderLabel: (s.order || 'ORD-2048').replace(/^#/, '').toUpperCase(),
+      steps: ST.map(([tt, d, k], i) => ({ t: tt, d, c: k === 'done' ? 'var(--forest)' : (k === 'cur' ? '#E3A008' : '#D3D6CF'), ring: k === 'cur' ? 'rgba(227,160,8,.2)' : 'transparent', line: i === ST.length - 1 ? 'transparent' : (k === 'done' ? 'var(--forest)' : '#D3D6CF') })),
+      collections: C.map(([nn, d, icon, count, key]) => ({ n: nn, d, icon, count, pick: () => this.setState({ q: key }) })),
+      popular: A.slice(0, 5).map((x, i) => ({ n: String(i + 1), t: x[1], col: x[2], read: read(x), open: open(x[0]) })),
+      times: [['Nova (AI)', 'Instant'], ['Live chat', '~1 min'], ['WhatsApp', '~5 min'], ['Email', 'Within 4 hours']].map(([c, v]) => ({ c, v })),
+      art: { t: a[1], col: a[2], upd: a[4], read: read(a), blocks, toc: [{ t: 'Overview' }].concat(lines.filter((l) => l.startsWith('## ')).map((l) => ({ t: l.slice(3) }))).map((x, i) => ({ t: x.t, bd: i === 0 ? 'var(--forest)' : 'var(--line)', c: i === 0 ? 'var(--ink)' : 'var(--ink-3)' })) },
+      side: A.filter((x) => x[2] === a[2] || x[0] === s.art).concat(A.filter((x) => x[2] !== a[2]).slice(0, 3)).map((x) => { const cur = x[0] === s.art; return { t: x[1], open: open(x[0]), cur: cur ? 'page' : 'false', w: cur ? 700 : 500, bg: cur ? 'var(--mint)' : 'transparent', c: cur ? 'var(--forest)' : 'var(--ink-2)' }; }),
+      related: A.filter((x) => x[0] !== s.art).slice(0, 3).map((x) => ({ t: x[1], open: open(x[0]) })),
+      notVoted: !s.vote, votedNo: s.vote === 'no' && !s.reason,
+      helpQ: s.vote ? (s.vote === 'yes' ? 'Thanks — glad it helped!' : (s.reason ? 'Thanks. We’ll improve this article.' : 'What went wrong?')) : 'Did this answer your question?',
+      voteYes: () => this.setState({ vote: 'yes' }), voteNo: () => this.setState({ vote: 'no' }),
+      reasons: ['Didn’t answer my question', 'Hard to understand', 'Out of date', 'Missing steps'].map((r) => ({ t: r, bg: '#FFFFFF', pick: () => this.setState({ reason: r }) })),
+      channels: [
+        ['Chat with Nova', 'Instant answers, hand-off to a person anytime', 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', 'Online', () => this.setState({ chat: true })],
+        ['WhatsApp', '+1 (512) 555-0100 · same team, same history', 'M3 21l1.7-5A9 9 0 1 1 8 19.3z', '~5 min', () => {}],
+        ['Call us', 'Mon–Sat, 9 AM–8 PM · AI answers after hours', 'M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3l2 5-2.5 1.5a11 11 0 0 0 5 5L13 11l5 2z', 'Open', () => {}],
+        ['Email', 'support@lumengoods.com', 'M4 4h16v16H4zM22 6l-10 7L2 6', '< 4 hours', () => {}]
+      ].map(([nn, d, icon, st, g]) => ({ n: nn, d, icon, s: st, go: g, sbg: st === 'Online' || st === 'Open' ? 'var(--mint)' : 'var(--soft)', sc: st === 'Online' || st === 'Open' ? 'var(--ok)' : 'var(--ink-2)' })),
+      topics: ['Order', 'Return', 'Damaged item', 'Payment', 'Account', 'Other'].map((x) => { const on = s.topic === x; return { t: x, on: on ? 'true' : 'false', bg: on ? 'var(--forest)' : 'var(--soft)', c: on ? '#FFFFFF' : 'var(--ink)', pick: () => this.setState({ topic: x }) }; }),
+      msg: s.msg, onMsg: (e) => this.setState({ msg: e.target.value }), suggestArt: !!sug, suggestT: sug ? sug[1] : '', openSuggest: sug ? open(sug[0]) : () => {},
+      notSent: !s.sent, sent: s.sent, submit: (e) => { if (e && e.preventDefault) e.preventDefault(); this.setState({ sent: true }); },
+      hours: [['Mon – Fri', '9 AM – 8 PM'], ['Saturday', '10 AM – 6 PM'], ['Sunday', 'AI only']].map(([d, v]) => ({ d, v })),
+      chat: s.chat, openChat: () => this.setState({ chat: true }), closeChat: () => this.setState({ chat: false }), toggleChat: () => this.setState({ chat: !s.chat }),
+      launcherIcon: s.chat ? 'M18 6L6 18M6 6l12 12' : 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'
+    };
+  }
+}
+</script>
+</body>
+</html>

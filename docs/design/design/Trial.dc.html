@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Trial ending</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+.tr{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-soft:#E2F6D5;--accent-text:#163300;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--bad:#BF2F28;--bad-soft:#FCEBEA;font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.tr *{box-sizing:border-box}
+.tr button{font:inherit;color:inherit;cursor:pointer}
+.tr :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.bp:hover{background:#0E2200!important}
+.hov:hover{background:var(--surface-2)!important}
+.num{font-variant-numeric:tabular-nums}
+a{color:var(--accent-text);text-decoration:none}
+.sk{border-radius:6px;background:var(--surface-3)}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+.tr{zoom:1.06}
+</style>
+</helmet>
+<div class="tr" style="min-height: 100vh; background: var(--bg); padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 18px">
+  <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center">
+    <h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.02em; flex: 1">Trial ending</h1>
+    <div role="tablist" aria-label="Moment" style="display: flex; padding: 3px; border-radius: 9px; background: var(--surface-3)"><sc-for list="{{tabs}}" as="t"><button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="height: 32px; padding: 0 14px; border: 0; border-radius: 7px; font-size: 13px; font-weight: 500; background: {{t.bg}}">{{t.l}}</button></sc-for></div>
+  </div>
+
+  <div style="position: relative; border: 1px solid var(--border); border-radius: 14px; overflow: hidden; min-height: 720px; background: var(--surface); display: flex">
+    <div aria-hidden="true" style="width: 220px; background: #163300; padding: 18px 14px; display: flex; flex-direction: column; gap: 10px"><span style="height: 22px; width: 90px; border-radius: 6px; background: rgba(255,255,255,.15)"></span><sc-for list="{{fake}}" as="f"><span style="height: 12px; width: {{f}}%; border-radius: 4px; background: rgba(255,255,255,.08)"></span></sc-for></div>
+    <div aria-hidden="true" style="flex: 1; padding: 24px; display: flex; flex-direction: column; gap: 14px"><span class="sk" style="height: 18px; width: 220px"></span><div style="display: flex; gap: 12px"><span class="sk" style="flex: 1; height: 90px"></span><span class="sk" style="flex: 1; height: 90px"></span><span class="sk" style="flex: 1; height: 90px"></span></div><span class="sk" style="height: 260px"></span></div>
+
+    <div style="position: absolute; inset: 0; background: rgba(8,12,24,.42); display: grid; place-items: center; padding: 24px">
+      <sc-if value="{{isSoon}}" hint-placeholder-val="{{true}}">
+        <div role="dialog" aria-label="Trial ends soon" style="width: 480px; max-width: 100%; border-radius: 16px; background: var(--surface); box-shadow: 0 24px 64px rgba(8,12,24,.3); overflow: hidden">
+          <div style="padding: 22px 24px; display: flex; flex-direction: column; gap: 12px">
+            <span style="align-self: flex-start; font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 99px; background: var(--warn-soft); color: var(--warn)">3 days left</span>
+            <h2 style="margin: 0; font-size: 20px; font-weight: 600; letter-spacing: -.01em">Your trial ends on Nov 27</h2>
+            <div style="color: var(--text-2); font-size: 13.5px">Pick a plan to keep Iris answering customers without a break.</div>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 4px"><sc-for list="{{stats}}" as="st"><div style="padding: 12px; border-radius: 10px; background: var(--surface-2)"><div class="num" style="font-size: 20px; font-weight: 600">{{st.v}}</div><div style="font-size: 12px; color: var(--text-3)">{{st.l}}</div></div></sc-for></div>
+          </div>
+          <div style="padding: 14px 24px; border-top: 1px solid var(--border); background: var(--surface-2); display: flex; gap: 8px; justify-content: flex-end">
+            <button type="button" class="hov" style="height: 38px; padding: 0 14px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); font-size: 13.5px">Remind me tomorrow</button>
+            <a href="Checkout.dc.html" class="bp" style="height: 38px; padding: 0 16px; display: grid; place-items: center; border-radius: 9px; background: var(--accent); color: #FFFFFF; font-size: 13.5px; font-weight: 600">Choose a plan</a>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isEnded}}" hint-placeholder-val="{{false}}">
+        <div role="dialog" aria-label="Trial ended" style="width: 760px; max-width: 100%; border-radius: 16px; background: var(--surface); box-shadow: 0 24px 64px rgba(8,12,24,.3); padding: 26px; display: flex; flex-direction: column; gap: 18px">
+          <div><h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.02em">Your free trial has ended</h2><div style="margin-top: 4px; color: var(--text-2); font-size: 13.5px">Iris is paused. Customer messages still arrive and are saved for 30 days.</div></div>
+          <div role="radiogroup" aria-label="Plan" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 10px">
+            <sc-for list="{{plans}}" as="p"><button type="button" role="radio" aria-checked="{{p.on}}" onClick="{{p.pick}}" style="padding: 16px; border: 1.5px solid {{p.bd}}; border-radius: 12px; background: {{p.bg}}; text-align: left; display: flex; flex-direction: column; gap: 6px">
+              <span style="display: flex; justify-content: space-between; align-items: center"><span style="font-weight: 600">{{p.n}}</span><sc-if value="{{p.rec}}" hint-placeholder-val="{{false}}"><span style="font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 99px; background: var(--accent); color: #FFFFFF">Fits your usage</span></sc-if></span>
+              <span class="num" style="font-size: 18px; font-weight: 600">[PRICE]<span style="font-size: 12.5px; font-weight: 400; color: var(--text-3)"> / month</span></span>
+              <span style="font-size: 12.5px; color: var(--text-2)">{{p.d}}</span>
+            </button></sc-for>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center">
+            <a href="Checkout.dc.html" class="bp" style="height: 42px; padding: 0 18px; display: grid; place-items: center; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600">Continue with {{plan}}</a>
+            <button type="button" onClick="{{extend}}" class="hov" style="height: 42px; padding: 0 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-weight: 500">{{extendL}}</button>
+            <span style="margin-left: auto; font-size: 12.5px; color: var(--text-3)">Data kept 30 days · <a href="Settings.dc.html">Export data</a></span>
+          </div>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":860}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { t: 'soon', plan: 'Growth', ext: false }; }
+  renderVals() {
+    const s = this.state;
+    return {
+      tabs: [['soon', '3 days before'], ['ended', 'Trial ended']].map(([id, l]) => ({ l, on: s.t === id ? 'true' : 'false', bg: s.t === id ? 'var(--surface)' : 'transparent', pick: () => this.setState({ t: id }) })),
+      isSoon: s.t === 'soon', isEnded: s.t === 'ended',
+      fake: [80, 60, 70, 55, 75, 50, 65, 60],
+      stats: [['412', 'Chats handled'], ['71%', 'Solved by AI'], ['38h', 'Team time saved']].map(([v, l]) => ({ v, l })),
+      plans: [['Starter', '1 AI agent · 3 seats'], ['Growth', 'Unlimited agents · 10 seats · WhatsApp'], ['Scale', 'Voice AI · SSO · audit export']].map(([n, d]) => { const on = s.plan === n; return { n, d, rec: n === 'Growth', on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : 'var(--border)', bg: on ? 'var(--accent-soft)' : 'var(--surface)', pick: () => this.setState({ plan: n }) }; }),
+      plan: s.plan, extendL: s.ext ? 'Request sent · we’ll reply by email' : 'Need more time? Ask for 7 days', extend: () => this.setState({ ext: true })
+    };
+  }
+}
+</script>
+</body>
+</html>

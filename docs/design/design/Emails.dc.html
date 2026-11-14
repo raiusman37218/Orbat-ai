@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Email templates</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ai-text:#5B2FC2;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--side:#163300;--shadow-card:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.03);font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0B0F1A;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--border-strong:#323B58;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-hover:#3A6E18;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ai-text:#C4B0FF;--ok:#4FC48A;--ok-soft:#10291D;--warn:#F0A54E;--warn-soft:#2C2010;--side:#0B1A00;--shadow-card:none}
+.orb *{box-sizing:border-box}
+.orb button,.orb input,.orb select,.orb textarea{font:inherit;color:inherit}
+.orb button{cursor:pointer;transition:background-color .15s,border-color .15s}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.orb input:focus,.orb select:focus,.orb textarea:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)}
+.orb .card{border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:var(--shadow-card)}
+.orb .fld{height:36px;width:100%;padding:0 10px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:13.5px}
+.orb .lbl{display:flex;flex-direction:column;gap:6px;font-size:12.5px;font-weight:500;color:var(--text-2)}
+.hov:hover{background:var(--surface-2)!important}
+.bp:hover{background:var(--accent-hover)!important}
+.var{font-family:'Geist Mono',monospace;font-size:12px;padding:1px 6px;border-radius:5px;background:var(--accent-soft);color:var(--accent-text)}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="min-height: 100vh; display: flex; flex-wrap: wrap; background: var(--bg)">
+  <div style="flex: 1 1 232px; background: var(--side); display: flex">
+    <dc-import name="Sidebar" active="settings" hint-size="232px,900px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <dc-import name="Topbar" heading="Email templates" sub="Settings" dark="{{dark}}" on-toggle-theme="{{toggleTheme}}" hint-size="100%,56px"></dc-import>
+    <div style="padding: 24px 32px 40px; display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+      <nav aria-label="Templates" class="card" style="flex: 1 1 260px; max-width: 300px; padding: 8px; display: flex; flex-direction: column; gap: 2px">
+        <sc-for list="{{groups}}" as="g">
+          <div style="padding: 10px 10px 4px; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3)">{{g.l}}</div>
+          <sc-for list="{{g.items}}" as="t"><button type="button" onClick="{{t.pick}}" aria-current="{{t.cur}}" class="hov" style="display: flex; align-items: center; gap: 8px; padding: 8px 10px; border: 0; border-radius: 8px; background: {{t.bg}}; text-align: left"><span style="flex: 1; min-width: 0"><span style="display: block; font-size: 13.5px; font-weight: {{t.w}}; color: {{t.c}}">{{t.n}}</span><span style="display: block; font-size: 12px; color: var(--text-3)">{{t.trig}}</span></span><span style="width: 7px; height: 7px; border-radius: 99px; flex: none; background: {{t.dot}}"></span></button></sc-for>
+        </sc-for>
+      </nav>
+
+      <section class="card" style="flex: 2 1 380px; min-width: 0; padding: 20px; display: flex; flex-direction: column; gap: 14px">
+        <div style="display: flex; align-items: center; gap: 10px">
+          <h2 style="margin: 0; font-size: 16px; font-weight: 600; flex: 1">{{tpl.n}}</h2>
+          <span style="font-size: 12.5px; color: var(--text-3)">Active</span>
+          <button type="button" role="switch" aria-checked="{{onAria}}" aria-label="Template active" onClick="{{toggleOn}}" style="width: 36px; height: 20px; border: 0; border-radius: 99px; padding: 2px; display: flex; background: {{track}}; justify-content: {{knob}}"><span style="width: 16px; height: 16px; border-radius: 99px; background: #FFFFFF"></span></button>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(160px, 100%), 1fr)); gap: 12px">
+          <label class="lbl">Sends when<input class="fld" value="{{tpl.trig}}" readonly style="background: var(--surface-2)"></label>
+          <label class="lbl">Language<select class="fld" onChange="{{onLang}}"><option>English</option><option>Urdu</option><option>Arabic</option><option>Spanish</option></select></label>
+        </div>
+        <label class="lbl">Subject<input class="fld" value="{{subject}}" onInput="{{onSubject}}"></label>
+        <label class="lbl">Message<textarea rows="9" value="{{body}}" onInput="{{onBody}}" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13.5px; line-height: 1.55; resize: vertical"></textarea></label>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px; align-items: center"><span style="font-size: 12.5px; color: var(--text-3)">Insert</span><sc-for list="{{vars}}" as="v"><button type="button" onClick="{{v.add}}" class="var" style="border: 0">{{v.l}}</button></sc-for></div>
+        <div style="display: flex; gap: 8px; justify-content: flex-end; padding-top: 4px; border-top: 1px solid var(--border)">
+          <button type="button" onClick="{{test}}" class="hov" style="height: 36px; padding: 0 14px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px; font-weight: 500">Send test</button>
+          <button type="button" onClick="{{save}}" class="bp" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">Save</button>
+        </div>
+      </section>
+
+      <section aria-label="Preview" style="flex: 2 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; align-items: center; gap: 8px"><span style="font-size: 13px; font-weight: 600; flex: 1">Preview</span>
+          <div role="group" aria-label="Device" style="display: flex; padding: 2px; border-radius: 8px; background: var(--surface-3)"><sc-for list="{{devices}}" as="d"><button type="button" onClick="{{d.pick}}" aria-pressed="{{d.on}}" style="height: 28px; padding: 0 10px; border: 0; border-radius: 6px; font-size: 12.5px; font-weight: 500; background: {{d.bg}}">{{d.l}}</button></sc-for></div></div>
+        <div style="padding: 20px; border-radius: 12px; background: #EEF0F4; display: flex; justify-content: center">
+          <div style="width: {{pw}}; max-width: 100%; background: #FFFFFF; color: #0E0F0C; border-radius: 10px; overflow: hidden; border: 1px solid #E3E5E0">
+            <div style="padding: 14px 20px; border-bottom: 1px solid #ECEEF2; font-size: 12px; color: #6A6C6A">From Lumen Goods Support &lt;support@lumengoods.com&gt;<br><b style="color: #0E0F0C; font-size: 13.5px">{{subjectOut}}</b></div>
+            <div style="padding: 24px 20px; display: flex; flex-direction: column; gap: 14px">
+              <div style="font-weight: 700; font-size: 16px; letter-spacing: -.01em">Lumen Goods</div>
+              <sc-for list="{{paras}}" as="p"><div style="font-size: 14px; line-height: 1.6; color: #2A3142">{{p}}</div></sc-for>
+              <sc-if value="{{tpl.code}}" hint-placeholder-val="{{false}}"><div style="font-family: 'Geist Mono', monospace; font-size: 26px; letter-spacing: .3em; font-weight: 600; padding: 12px 0; text-align: center; background: #EDEFEA; border-radius: 8px">482 913</div></sc-if>
+              <sc-if value="{{tpl.cta}}" hint-placeholder-val="{{true}}"><span style="align-self: flex-start; padding: 10px 16px; border-radius: 8px; background: #163300; color: #FFFFFF; font-size: 14px; font-weight: 600">{{tpl.cta}}</span></sc-if>
+              <sc-if value="{{tpl.csat}}" hint-placeholder-val="{{false}}"><div style="display: flex; gap: 8px"><sc-for list="{{faces}}" as="f"><span style="flex: 1; padding: 10px 0; text-align: center; border: 1px solid #E3E5E0; border-radius: 8px; font-size: 12.5px; color: #454745">{{f}}</span></sc-for></div></sc-if>
+            </div>
+            <div style="padding: 14px 20px; border-top: 1px solid #ECEEF2; font-size: 11.5px; color: #8A90A2">Lumen Goods · 201 Congress Ave, Austin, TX · Reply to this email to continue the conversation.</div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+  <sc-if value="{{toast}}" hint-placeholder-val="{{false}}"><div role="status" style="position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; padding: 10px 14px; border-radius: 10px; background: #0E0F0C; color: #FFFFFF; font-size: 13px">{{toast}}</div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":960}}'>
+const T = [
+  ['Conversations', 'missed', 'Missed chat follow-up', 'Customer left before a reply', 'We got your message', 'Hi {first_name},\n\nSorry we missed you. Our team has your question about {topic} and will reply here within {reply_time}.\n\nYou can also reply to this email — it goes straight into the same conversation.', 'Continue the conversation', 0, 0],
+  ['Conversations', 'transcript', 'Chat transcript', 'Customer asks for a copy', 'Your conversation with Lumen Goods', 'Hi {first_name},\n\nHere’s a copy of your conversation from {date}. Reply anytime if you need anything else.', 'View conversation', 0, 0],
+  ['Tickets', 'reply', 'Ticket reply', 'Agent replies to a ticket', 'Re: {ticket_subject} [{ticket_id}]', 'Hi {first_name},\n\n{agent_reply}\n\n{agent_name}\nLumen Goods Support', 'View your request', 0, 0],
+  ['Tickets', 'solved', 'Ticket solved + rating', 'Ticket marked solved', 'How did we do? [{ticket_id}]', 'Hi {first_name},\n\nWe’ve marked your request as solved. How was your experience?', false, 0, 1],
+  ['Security', 'otp', 'Verification code', 'Before a refund or account change', 'Your verification code', 'Hi {first_name},\n\nUse this code to confirm it’s you. It expires in 10 minutes.\n\nIf you didn’t ask for this, you can ignore this email.', false, 1, 0],
+  ['Security', 'invite', 'Team invite', 'Admin invites a teammate', '{inviter} invited you to Lumen Goods on ORBAT', 'Hi,\n\n{inviter} invited you to join the Lumen Goods support team as {role}.', 'Accept invite', 0, 0],
+  ['Compliance', 'dsr', 'Data request received', 'Customer asks to access or delete data', 'We received your data request', 'Hi {first_name},\n\nWe received your request to {request_type} your data on {date}. We’ll complete it by {deadline} and email you when it’s done.', false, 0, 0]
+];
+const VARS = ['{first_name}', '{ticket_id}', '{agent_name}', '{order_id}', '{reply_time}'];
+const FILL = { '{first_name}': 'Sarah', '{topic}': 'order #ORD-2048', '{reply_time}': '2 hours', '{date}': 'Nov 12', '{ticket_subject}': 'Double charge on order', '{ticket_id}': 'TCK-1182', '{agent_reply}': 'I checked with our payment provider — only one charge went through. The second is a hold your bank will release in 3–5 days.', '{agent_name}': 'Omar Haddad', '{inviter}': 'Maya Lin', '{role}': 'Agent', '{request_type}': 'delete', '{deadline}': 'Dec 12', '{order_id}': '#ORD-2048' };
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { dark: null, sel: 'missed', edits: {}, off: { transcript: true }, device: 'desk', toast: '' }; }
+  flash(t) { this.setState({ toast: t }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 2400); }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const row = T.find((t) => t[1] === s.sel);
+    const [, id, n, trig, subj0, body0, cta, code, csat] = row;
+    const e = s.edits[id] || {};
+    const subject = e.subject ?? subj0, body = e.body ?? body0;
+    const fill = (x) => x.replace(/\{[a-z_]+\}/g, (m) => FILL[m] || m);
+    const set = (k, v) => this.setState({ edits: { ...s.edits, [id]: { ...e, [k]: v } } });
+    const on = !s.off[id];
+    const groups = [...new Set(T.map((t) => t[0]))].map((g) => ({ l: g, items: T.filter((t) => t[0] === g).map((t) => { const cur = t[1] === s.sel; return { n: t[2], trig: t[3], cur: cur ? 'page' : 'false', bg: cur ? 'var(--accent-soft)' : 'transparent', c: cur ? 'var(--accent-text)' : 'var(--text)', w: cur ? 600 : 500, dot: s.off[t[1]] ? 'var(--border-strong)' : 'var(--ok)', pick: () => this.setState({ sel: t[1] }) }; }) }));
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', dark, toggleTheme: () => this.setState({ dark: !dark }),
+      groups, tpl: { n, trig, cta: cta || false, code: !!code, csat: !!csat },
+      onAria: on ? 'true' : 'false', track: on ? 'var(--ok)' : 'var(--border-strong)', knob: on ? 'flex-end' : 'flex-start',
+      toggleOn: () => this.setState({ off: { ...s.off, [id]: on } }),
+      subject, body, onSubject: (ev) => set('subject', ev.target.value), onBody: (ev) => set('body', ev.target.value), onLang: () => {},
+      vars: VARS.map((l) => ({ l, add: () => set('body', body + ' ' + l) })),
+      subjectOut: fill(subject), paras: fill(body).split(/\n\n+/).map((p) => p.trim()).filter(Boolean),
+      faces: ['Bad', 'Okay', 'Good', 'Great'],
+      devices: [['desk', 'Desktop'], ['mob', 'Mobile']].map(([k, l]) => ({ l, on: s.device === k ? 'true' : 'false', bg: s.device === k ? 'var(--surface)' : 'transparent', pick: () => this.setState({ device: k }) })),
+      pw: s.device === 'mob' ? '340px' : '560px',
+      test: () => this.flash('Test sent to owner@orbat.ai'), save: () => this.flash('“' + n + '” saved'),
+      toast: s.toast || false
+    };
+  }
+}
+</script>
+</body>
+</html>

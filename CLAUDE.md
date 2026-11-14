@@ -177,6 +177,32 @@ Triggers: `fn_auto_assign_conversation_on_create` (least-loaded online agent), `
 
 ---
 
+## New UI (ORBAT AI design handoff)
+
+The whole frontend is being replaced with the ORBAT AI design (work happens on the `new-ui` branch). For UI work these rules take precedence over the older styling rules under **Coding conventions** below (`docs/DESIGN.md`, the `--ds-*` tokens and the existing `src/components/ui/` look); everything else in this file still applies.
+
+**Design source of truth**
+
+- The design lives in `docs/design/`. Read `docs/design/HANDOFF.md` before any UI work, and follow `docs/design/REPLACE_PLAN.md` for the order of work.
+- Each screen has a reference file in `docs/design/design/<Screen>.dc.html`. Match its layout, spacing, sizes, colours and states.
+- The `.dc.html` files are references only. Never import or ship them; rebuild them with our own components.
+- Sample data in the design files (names, orders, numbers) is fake. Always use real data from our backend.
+
+**Rules**
+
+- Use the design tokens (CSS variables). Never hard-code colours.
+- Lime (`--lime`) is for primary actions and active states. Violet (`--ai`) is only for AI.
+- Buttons are pills. Cards use radius 20–24px. Inputs use radius 12px.
+- Fonts: Inter Tight for page titles and display, Inter for everything else.
+- Do NOT change backend code (database, migrations, API routes, server actions' logic, auth, `src/proxy.ts`) unless the user explicitly asks.
+- Screens get data only through `src/lib/data/`. Use the existing backend where it exists; otherwise use typed mocks from `src/lib/mock/` with a `TODO(backend)` comment, and add the gap to `docs/design/BACKEND_GAPS.md`.
+- Every screen needs loading, empty and error states (see `docs/design/design/States.dc.html`).
+- Support light and dark mode, keyboard focus rings and `prefers-reduced-motion`.
+- Before adding database tables or API routes, propose them and wait for approval.
+- Work one screen at a time and keep the app building (`npx tsc --noEmit`, `npm run build`) after each change.
+
+---
+
 ## Coding conventions
 
 Follow the patterns already in the code:

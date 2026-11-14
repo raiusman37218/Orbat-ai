@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Channels and integrations</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ai-text:#5B2FC2;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--bad:#BF2F28;--bad-soft:#FCEBEA;--side:#163300;--side-2:#21420C;--side-text:#C8D3BD;--shadow:0 1px 2px rgba(14,20,36,.05),0 4px 16px rgba(14,20,36,.06);font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0A0E19;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--border-strong:#323B58;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-hover:#3A6E18;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ai-text:#C2ACFF;--ok:#4FC48A;--ok-soft:#10291D;--warn:#F0A54E;--warn-soft:#2C2010;--bad:#F2756C;--bad-soft:#2F1615;--side:#0B1A00;--side-2:#1A3009;--side-text:#9BA3BC;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35)}
+.orb *{box-sizing:border-box}
+.orb button,.orb input,.orb textarea,.orb select{font:inherit;color:inherit}
+.orb button{cursor:pointer}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.hov:hover{background:var(--surface-2)!important}
+.sbi:hover{background:rgba(255,255,255,.07)!important}
+.bp:hover{background:var(--accent-hover)!important}
+.card:hover{border-color:var(--border-strong)!important}
+a{color:var(--accent-text);text-decoration:none}a:hover{text-decoration:underline}
+/* POLISH v1 */
+/* POLISH v2 */
+.orb main h2 + p{display:none!important}
+.orb main h3 + p{font-size:12.5px!important;color:var(--text-3)!important}
+.orb{--bg:#F6F7F4;--border:#E3E5E0;--shadow-card:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.03);letter-spacing:-0.003em;font-feature-settings:'tnum' 0}
+.orb.dark{--bg:#0B0F1A;--border:#232B44;--shadow-card:none}
+.orb .mono{font-family:Inter,system-ui,sans-serif!important;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.orb code.mono,.orb pre.mono{font-family:'Geist Mono',ui-monospace,monospace!important;letter-spacing:0}
+.orb h1,.orb h2,.orb h3{letter-spacing:-0.015em}
+.orb [style*="border-radius: 12px"][style*="background: var(--surface)"],.orb [style*="border-radius: 14px"][style*="background: var(--surface)"]{box-shadow:var(--shadow-card)}
+.orb thead th{font-size:11.5px!important;font-weight:600!important;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.orb tbody td{vertical-align:middle}
+.orb button,.orb a{transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,color .15s ease,opacity .15s ease}
+.orb button:active{transform:translateY(.5px)}
+.orb input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,.orb select:focus,.orb textarea:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)!important}
+.orb button[style*="border: 1px solid var(--border)"]:hover{border-color:var(--border-strong)!important}
+.orb ::selection{background:var(--accent-soft)}
+.orb *{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+.orb main > div[style*="padding: 2"]{max-width:1480px;width:100%;margin-left:auto;margin-right:auto}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="min-height: 100vh; display: flex; flex-wrap: wrap; background: var(--bg)">
+  <div style="flex: 1 1 232px; background: var(--side); display: flex">
+    <dc-import name="Sidebar" active="channels" hint-size="232px,900px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <dc-import name="Topbar" heading="{{tabLabel}}" sub="Admin" dark="{{dark}}" on-toggle-theme="{{toggleTheme}}" hint-size="100%,56px"></dc-import>
+    <div style="padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 18px">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px"><div><h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em">Channels &amp; integrations</h2><p style="margin: 2px 0 0; color: var(--text-2); font-size: 13.5px">Where customers reach you, and the tools ORBAT works with.</p></div><a href="CRMConnect.dc.html" class="bp" style="height: 36px; padding: 0 14px; display: grid; place-items: center; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500; text-decoration: none">Connect your website</a></div>
+      <div role="tablist" style="display: flex; gap: 2px; border-bottom: 1px solid var(--border)">
+        <sc-for list="{{tabs}}" as="t"><button type="button" role="tab" aria-selected="{{t.sel}}" onClick="{{t.pick}}" style="height: 38px; padding: 0 12px; border: 0; background: transparent; font-size: 13.5px; font-weight: {{t.weight}}; color: {{t.color}}; box-shadow: {{t.line}}">{{t.label}}</button></sc-for>
+      </div>
+
+      <sc-if value="{{isChannels}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+          <div style="flex: 1 1 380px; min-width: 0; display: flex; flex-direction: column; gap: 10px">
+            <sc-for list="{{channels}}" as="c" hint-placeholder-count="6">
+              <button type="button" onClick="{{c.pick}}" class="card" aria-pressed="{{c.pressed}}" style="display: flex; gap: 14px; align-items: center; padding: 14px 16px; border: 1px solid {{c.bd}}; border-radius: 12px; background: var(--surface); text-align: left; box-shadow: {{c.ring}}">
+                <span style="width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--surface-2); color: var(--text-2)"><svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{c.icon}}"></path></svg></span>
+                <span style="flex: 1; min-width: 0"><span style="display: block; font-weight: 600">{{c.n}}</span><span style="display: block; font-size: 12.5px; color: var(--text-3)">{{c.sub}}</span></span>
+                <span style="font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 99px; {{c.tone}}">{{c.st}}</span>
+              </button>
+            </sc-for>
+            <button type="button" class="hov" style="height: 44px; border: 1px dashed var(--border-strong); border-radius: 12px; background: transparent; font-size: 13px; color: var(--text-2)">+ Add channel (SMS, Telegram, Slack Connect…)</button>
+          </div>
+          <section style="flex: 1 1 420px; min-width: 0; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 16px">
+            <div style="display: flex; justify-content: space-between; align-items: center"><h3 style="margin: 0; font-size: 16px; font-weight: 600">{{cur.n}}</h3><span style="font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 99px; {{cur.tone}}">{{cur.st}}</span></div>
+            <sc-if value="{{cur.warn}}" hint-placeholder-val="{{false}}"><div style="padding: 10px 12px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); font-size: 13px">{{cur.warn}}</div></sc-if>
+            <sc-if value="{{cur.off}}" hint-placeholder-val="{{false}}"><div style="padding: 16px; border-radius: 10px; background: var(--surface-2); font-size: 13.5px; color: var(--text-2); display: flex; flex-direction: column; gap: 10px; align-items: flex-start">Not connected yet. Connecting takes about 2 minutes and requires admin access to the account.<button type="button" onClick="{{proto}}" class="bp" style="height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">Connect {{cur.n}}</button></div></sc-if>
+            <sc-if value="{{cur.on}}" hint-placeholder-val="{{true}}">
+              <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px"><sc-for list="{{cur.stats}}" as="s"><div style="padding: 10px 12px; border-radius: 8px; background: var(--surface-2)"><div class="mono" style="font-weight: 600">{{s.v}}</div><div style="font-size: 11.5px; color: var(--text-3)">{{s.k}}</div></div></sc-for></div>
+              <sc-for list="{{cur.config}}" as="f"><label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500">{{f.k}}<select style="height: 36px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-weight: 400"><option>{{f.v}}</option></select></label></sc-for>
+              <div style="font-size: 12.5px; color: var(--text-3)">{{cur.note}}</div>
+            </sc-if>
+          </section>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isApps}}" hint-placeholder-val="{{false}}">
+        <div style="display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center">
+            <label style="flex: 0 1 320px; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface)">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg>
+              <span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search integrations</span>
+              <input value="{{q}}" onInput="{{onQ}}" placeholder="Search integrations" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent; font-size: 13px">
+            </label>
+            <sc-for list="{{cats}}" as="c"><button type="button" onClick="{{c.pick}}" aria-pressed="{{c.pressed}}" style="height: 30px; padding: 0 12px; border: 1px solid {{c.bd}}; border-radius: 99px; background: {{c.bg}}; color: {{c.color}}; font-size: 12.5px; font-weight: 500">{{c.label}}</button></sc-for>
+          </div>
+          <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px">
+            <sc-for list="{{apps}}" as="a" hint-placeholder-count="9">
+              <article class="card" style="padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 10px">
+                <div style="display: flex; gap: 12px; align-items: center">
+                  <span class="mono" style="width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-weight: 600; font-size: 14px; background: var(--surface-2); color: var(--text)">{{a.mono}}</span>
+                  <div style="flex: 1; min-width: 0"><div style="font-weight: 600">{{a.n}}</div><div style="font-size: 12px; color: var(--text-3)">{{a.cat}}</div></div>
+                  <sc-if value="{{a.badge}}" hint-placeholder-val="{{false}}"><span style="font-size: 11.5px; font-weight: 500; padding: 2px 8px; border-radius: 99px; {{a.tone}}">{{a.badge}}</span></sc-if>
+                </div>
+                <p style="margin: 0; font-size: 13px; color: var(--text-2); flex: 1">{{a.d}}</p>
+                <button type="button" onClick="{{a.act}}" class="hov" style="height: 32px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px; font-weight: 500; color: {{a.btnC}}">{{a.cta}}</button>
+              </article>
+            </sc-for>
+          </div>
+          <sc-if value="{{noApps}}" hint-placeholder-val="{{false}}"><div style="padding: 40px; text-align: center; color: var(--text-2)">No integrations match “{{q}}”. Use <b>Webhooks</b> or the <b>REST API</b> to connect anything else.</div></sc-if>
+        </div>
+      </sc-if>
+    </div>
+  </main>
+  <sc-if value="{{modal}}" hint-placeholder-val="{{false}}">
+    <div style="position: fixed; inset: 0; z-index: 50; background: rgba(8,12,24,0.45); display: grid; place-items: center; padding: 16px">
+      <div role="dialog" aria-label="Prototype notice" style="width: 440px; max-width: 100%; padding: 22px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px">
+        <h2 style="margin: 0; font-size: 16px; font-weight: 600">Connect {{modal}}</h2>
+        <p style="margin: 0; font-size: 13.5px; color: var(--text-2)">In the live product this opens {{modal}}’s secure sign-in to grant ORBAT access. <b style="color: var(--text)">This is a design prototype — nothing will be connected and no data leaves this page.</b></p>
+        <div style="display: flex; justify-content: flex-end"><button type="button" onClick="{{closeModal}}" class="bp" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">Got it</button></div>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1100}}'>
+const TONE = { ok: 'background:var(--ok-soft);color:var(--ok)', warn: 'background:var(--warn-soft);color:var(--warn)', bad: 'background:var(--bad-soft);color:var(--bad)', neu: 'background:var(--surface-2);color:var(--text-2)' };
+const CH = [
+  ['Website live chat', 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', 'lumengoods.com · widget v3', 'Connected', TONE.ok, [['6,111', 'conversations · 30d'], ['38s', 'first response'], ['71%', 'AI resolved']], [['Route to', 'Support team · Nova first'], ['AI agent', 'Nova'], ['Business hours', 'Mon–Fri 8 AM – 8 PM CST']], 'Widget installed on 3 domains. Last event 12 seconds ago.', ''],
+  ['Email', 'M4 4h16v16H4zM22 6l-10 7L2 6', 'support@lumengoods.com · forwarding', 'Connected', TONE.ok, [['3,279', 'conversations · 30d'], ['2h 14m', 'first response'], ['48%', 'AI resolved']], [['Route to', 'Support team'], ['AI agent', 'Nova (drafts only)'], ['Signature', 'Lumen Goods Support']], 'SPF and DKIM verified for lumengoods.com.', ''],
+  ['WhatsApp', 'M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z', '+1 512 555 0100 · Business API', 'Needs attention', TONE.warn, [['2,832', 'conversations · 30d'], ['51s', 'first response'], ['69%', 'AI resolved']], [['Route to', 'Support team · Nova first'], ['AI agent', 'Nova'], ['Templates', '6 approved']], 'Message template “order_shipped” was rejected — 2 days ago.', 'Template “order_shipped” was rejected by Meta. Edit it to resume shipping notifications.'],
+  ['Instagram', 'M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5zM16 11.4A4 4 0 1 1 12.6 8 4 4 0 0 1 16 11.4z', '@lumengoods · DMs and story replies', 'Connected', TONE.ok, [['1,640', 'conversations · 30d'], ['1m 05s', 'first response'], ['62%', 'AI resolved']], [['Route to', 'Support team'], ['AI agent', 'Nova'], ['Story mentions', 'Create conversation']], 'Comments are not imported. DMs only.', ''],
+  ['Facebook Messenger', 'M12 2C6.5 2 2 6.1 2 11.2c0 2.9 1.4 5.4 3.7 7.1V22l3.4-1.9c.9.3 1.9.4 2.9.4 5.5 0 10-4.1 10-9.2S17.5 2 12 2z', 'Lumen Goods page', 'Connected', TONE.ok, [['1,044', 'conversations · 30d'], ['1m 12s', 'first response'], ['58%', 'AI resolved']], [['Route to', 'Billing team'], ['AI agent', 'Nova']], '', ''],
+  ['SMS', 'M4 4h16v12H5.2L4 17.2V4zM8 9h8M8 12h5', 'Not set up', 'Not connected', TONE.neu, [], [], '', '']
+];
+const APPS = [
+  ['Shopify', 'SH', 'E-commerce', 'Orders, customers, returns and refunds inside every conversation.', 'Connected'],
+  ['WooCommerce', 'WC', 'E-commerce', 'Sync orders and customers from your WordPress store.', ''],
+  ['Stripe', 'ST', 'Payments', 'See charges, refunds and disputes next to the customer.', 'Connected'],
+  ['Slack', 'SL', 'Team chat', 'Get handoff alerts and reply to conversations from Slack.', 'Error'],
+  ['Google Sheets', 'GS', 'Data', 'Send conversation and CSAT data to a sheet on a schedule.', ''],
+  ['HubSpot', 'HS', 'CRM', 'Two-way sync of contacts, companies and deals.', ''],
+  ['Salesforce', 'SF', 'CRM', 'Show account context and create cases from conversations.', ''],
+  ['Klaviyo', 'KL', 'Marketing', 'Use customer segments for proactive messages.', ''],
+  ['Webhooks', '{}', 'Developer', 'Send events like conversation.created to any URL.', 'Connected'],
+  ['REST API', 'API', 'Developer', 'Build your own integrations with full read and write access.', ''],
+  ['Zapier', 'ZP', 'Automation', 'Connect ORBAT to 6,000+ apps without code.', ''],
+  ['Gorgias import', 'GI', 'Migration', 'Import historical tickets and macros in one click.', '']
+];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { dark: null, tab: 'channels', sel: 2, q: '', cat: 'All', modal: '' }; }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const TABS = [['channels', 'Channels'], ['apps', 'Integrations']];
+    const c = CH[s.sel];
+    const CATS = ['All', 'E-commerce', 'Payments', 'CRM', 'Team chat', 'Developer'];
+    const q = s.q.toLowerCase();
+    const apps = APPS.filter((a) => (s.cat === 'All' || a[2] === s.cat) && (!q || (a[0] + a[3]).toLowerCase().includes(q))).map(([n, mono, cat, d, st]) => ({ n, mono, cat, d, badge: st || false, tone: st === 'Connected' ? TONE.ok : TONE.bad, cta: st === 'Connected' ? 'Manage' : (st === 'Error' ? 'Reconnect' : 'Connect'), btnC: st === 'Error' ? 'var(--bad)' : 'var(--text)', act: () => this.setState({ modal: n }) }));
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', dark, toggleTheme: () => this.setState({ dark: !dark }),
+      tabLabel: TABS.find((t) => t[0] === s.tab)[1],
+      tabs: TABS.map(([id, label]) => { const on = s.tab === id; return { label, sel: on ? 'true' : 'false', weight: on ? 600 : 450, color: on ? 'var(--text)' : 'var(--text-2)', line: on ? 'inset 0 -2px 0 var(--accent)' : 'none', pick: () => this.setState({ tab: id }) }; }),
+      isChannels: s.tab === 'channels', isApps: s.tab === 'apps',
+      channels: CH.map((x, i) => ({ n: x[0], icon: x[1], sub: x[2], st: x[3], tone: x[4], pressed: s.sel === i ? 'true' : 'false', bd: s.sel === i ? 'var(--accent)' : 'var(--border)', ring: s.sel === i ? '0 0 0 3px var(--accent-soft)' : 'none', pick: () => this.setState({ sel: i }) })),
+      cur: { n: c[0], st: c[3], tone: c[4], stats: c[5].map(([v, k]) => ({ v, k })), config: c[6].map(([k, v]) => ({ k, v })), note: c[7], warn: c[8] || false, on: c[3] !== 'Not connected', off: c[3] === 'Not connected' },
+      proto: () => this.setState({ modal: c[0] }),
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }),
+      cats: CATS.map((x) => { const on = s.cat === x; return { label: x, pressed: on ? 'true' : 'false', bg: on ? 'var(--text)' : 'var(--surface)', color: on ? 'var(--surface)' : 'var(--text-2)', bd: on ? 'var(--text)' : 'var(--border)', pick: () => this.setState({ cat: x }) }; }),
+      apps, noApps: apps.length === 0,
+      modal: s.modal || false, closeModal: () => this.setState({ modal: '' })
+    };
+  }
+}
+</script>
+</body>
+</html>

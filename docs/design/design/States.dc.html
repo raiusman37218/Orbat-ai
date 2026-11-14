@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · System states</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--bad:#BF2F28;--bad-soft:#FCEBEA;font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0B0F1A;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--border-strong:#323B58;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-hover:#3A6E18;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ok:#4FC48A;--ok-soft:#10291D;--warn:#F0A54E;--warn-soft:#2C2010;--bad:#F2756C;--bad-soft:#2F1615}
+.orb *{box-sizing:border-box}
+.orb button{font:inherit;color:inherit;cursor:pointer;transition:background-color .15s,border-color .15s}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.hov:hover{background:var(--surface-2)!important}
+.bp:hover{background:var(--accent-hover)!important}
+.btn{height:38px;padding:0 16px;border-radius:9px;font-size:13.5px;font-weight:500;display:inline-grid;place-items:center;text-decoration:none}
+.sk{border-radius:6px;background:var(--surface-2)}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+.orb{zoom:1.06}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="min-height: 100vh; background: var(--bg); padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 18px">
+  <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 12px">
+    <h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.02em; flex: 1">System states</h1>
+    <button type="button" onClick="{{toggleTheme}}" class="hov" style="height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px">{{themeL}}</button>
+  </div>
+  <div role="tablist" aria-label="States" style="display: flex; flex-wrap: wrap; gap: 6px">
+    <sc-for list="{{tabs}}" as="t"><button type="button" role="tab" aria-selected="{{t.on}}" onClick="{{t.pick}}" style="height: 34px; padding: 0 13px; border: 1px solid {{t.bd}}; border-radius: 99px; background: {{t.bg}}; color: {{t.c}}; font-size: 13px; font-weight: 500">{{t.l}}</button></sc-for>
+  </div>
+
+  <div style="border: 1px solid var(--border); border-radius: 14px; background: var(--surface); overflow: hidden; min-height: 620px; display: flex; flex-direction: column">
+    <div style="height: 36px; display: flex; align-items: center; gap: 6px; padding: 0 14px; border-bottom: 1px solid var(--border); background: var(--surface-2)"><span style="width: 10px; height: 10px; border-radius: 99px; background: var(--border-strong)"></span><span style="width: 10px; height: 10px; border-radius: 99px; background: var(--border-strong)"></span><span style="width: 10px; height: 10px; border-radius: 99px; background: var(--border-strong)"></span><span class="mono" style="margin-left: 12px; font-family: 'Geist Mono', monospace; font-size: 12px; color: var(--text-3)">{{url}}</span></div>
+
+    <sc-if value="{{is404}}" hint-placeholder-val="{{true}}">
+      <div style="flex: 1; display: grid; place-items: center; padding: 40px"><div style="max-width: 420px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px">
+        <div style="font-family: 'Geist Mono', monospace; font-size: 13px; color: var(--text-3)">404</div>
+        <h2 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -.02em">This page doesn’t exist</h2>
+        <div style="color: var(--text-2)">The link may be old, or the conversation was deleted.</div>
+        <div style="display: flex; gap: 8px; margin-top: 6px"><a href="Inbox.dc.html" class="btn bp" style="background: var(--accent); color: #FFFFFF">Go to inbox</a><a href="HelpCenter.dc.html" class="btn hov" style="border: 1px solid var(--border); color: var(--text)">Help center</a></div>
+      </div></div>
+    </sc-if>
+
+    <sc-if value="{{is403}}" hint-placeholder-val="{{false}}">
+      <div style="flex: 1; display: grid; place-items: center; padding: 40px"><div style="max-width: 420px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px">
+        <span style="width: 44px; height: 44px; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-2)"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></span>
+        <h2 style="margin: 0; font-size: 22px; font-weight: 600">You don’t have access to Billing</h2>
+        <div style="color: var(--text-2)">Your role is Agent. Ask an Owner or Admin for access.</div>
+        <button type="button" onClick="{{requestAccess}}" class="btn bp" style="border: 0; background: var(--accent); color: #FFFFFF; margin-top: 6px">{{accessL}}</button>
+      </div></div>
+    </sc-if>
+
+    <sc-if value="{{isMaint}}" hint-placeholder-val="{{false}}">
+      <div style="flex: 1; display: grid; place-items: center; padding: 40px"><div style="max-width: 460px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px">
+        <h2 style="margin: 0; font-size: 22px; font-weight: 600">Scheduled maintenance</h2>
+        <div style="color: var(--text-2)">ORBAT is being upgraded. Customer chats keep working — the AI answers and saves every message for your team.</div>
+        <div style="display: flex; gap: 24px; margin-top: 8px; padding: 14px 20px; border: 1px solid var(--border); border-radius: 10px"><div><div style="font-size: 12px; color: var(--text-3)">Started</div><div style="font-weight: 600; font-variant-numeric: tabular-nums">02:00 UTC</div></div><div><div style="font-size: 12px; color: var(--text-3)">Back by</div><div style="font-weight: 600; font-variant-numeric: tabular-nums">02:30 UTC</div></div></div>
+        <a href="#status" style="font-size: 13px; color: var(--accent-text)">status.orbat.ai</a>
+      </div></div>
+    </sc-if>
+
+    <sc-if value="{{isApp}}" hint-placeholder-val="{{false}}">
+      <div style="flex: 1; display: flex; flex-direction: column">
+        <sc-if value="{{isOffline}}" hint-placeholder-val="{{false}}"><div role="status" style="display: flex; align-items: center; gap: 10px; padding: 9px 18px; background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 500"><span style="width: 8px; height: 8px; border-radius: 99px; background: var(--warn)"></span>Connection lost · reconnecting in {{sec}}s. Messages you send will go out when you’re back.<button type="button" onClick="{{retry}}" style="margin-left: auto; border: 0; background: transparent; color: var(--warn); font-weight: 600; font-size: 13px">Retry now</button></div></sc-if>
+        <sc-if value="{{isFailover}}" hint-placeholder-val="{{false}}"><div role="alert" style="display: flex; align-items: center; gap: 10px; padding: 9px 18px; background: var(--bad-soft); color: var(--bad); font-size: 13px; font-weight: 500"><span style="width: 8px; height: 8px; border-radius: 99px; background: var(--bad)"></span>AI model unavailable · new chats go straight to your team. 6 waiting.<a href="Inbox.dc.html" style="margin-left: auto; color: var(--bad); font-weight: 600">Open queue</a></div></sc-if>
+        <div style="flex: 1; display: flex; min-height: 0">
+          <div style="width: 300px; border-right: 1px solid var(--border); padding: 14px; display: flex; flex-direction: column; gap: 12px">
+            <sc-if value="{{isEmpty}}" hint-placeholder-val="{{false}}"><div style="font-size: 13px; color: var(--text-3); padding: 6px 2px">No conversations</div></sc-if>
+            <sc-if value="{{showList}}" hint-placeholder-val="{{true}}"><sc-for list="{{rows}}" as="r"><div style="display: flex; gap: 10px; align-items: center"><span class="sk" style="width: 32px; height: 32px; border-radius: 99px"></span><span style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span class="sk" style="height: 10px; width: {{r}}%"></span><span class="sk" style="height: 8px; width: 80%"></span></span></div></sc-for></sc-if>
+          </div>
+          <div style="flex: 1; display: grid; place-items: center; padding: 40px">
+            <sc-if value="{{isEmpty}}" hint-placeholder-val="{{false}}"><div style="max-width: 360px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px">
+              <span style="width: 44px; height: 44px; border-radius: 12px; background: var(--ok-soft); color: var(--ok); display: grid; place-items: center"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg></span>
+              <h2 style="margin: 0; font-size: 19px; font-weight: 600">Inbox zero</h2>
+              <div style="color: var(--text-2); font-size: 13.5px">Nova resolved 42 chats today. New ones will show up here.</div>
+              <a href="Analytics.dc.html" style="font-size: 13px; color: var(--accent-text)">See today’s report</a>
+            </div></sc-if>
+            <sc-if value="{{showList}}" hint-placeholder-val="{{true}}"><div style="width: 100%; max-width: 520px; display: flex; flex-direction: column; gap: 12px"><span class="sk" style="height: 14px; width: 40%"></span><span class="sk" style="height: 54px; width: 70%"></span><span class="sk" style="height: 54px; width: 60%; align-self: flex-end"></span><span class="sk" style="height: 54px; width: 65%"></span></div></sc-if>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isSession}}" hint-placeholder-val="{{false}}">
+      <div style="flex: 1; display: grid; place-items: center; padding: 40px; background: rgba(8,12,24,.04)"><div role="dialog" aria-label="Session expired" style="width: 380px; max-width: 100%; padding: 24px; border: 1px solid var(--border); border-radius: 14px; background: var(--surface); box-shadow: 0 18px 48px rgba(8,12,24,.14); display: flex; flex-direction: column; gap: 12px">
+        <h2 style="margin: 0; font-size: 18px; font-weight: 600">Session expired</h2>
+        <div style="color: var(--text-2); font-size: 13.5px">For security, you were signed out after 12 hours. Your drafts are saved.</div>
+        <a href="Auth.dc.html" class="btn bp" style="background: var(--accent); color: #FFFFFF">Sign in again</a>
+      </div></div>
+    </sc-if>
+
+    <sc-if value="{{isLimit}}" hint-placeholder-val="{{false}}">
+      <div style="flex: 1; display: grid; place-items: center; padding: 40px; background: #EEF0F4"><div style="width: 360px; border-radius: 16px; background: #FFFFFF; color: #0E0F0C; box-shadow: 0 12px 36px rgba(14,20,36,.14); overflow: hidden">
+        <div style="padding: 14px 16px; border-bottom: 1px solid #E3E5E0; font-weight: 600">Lumen Goods</div>
+        <div style="padding: 16px; display: flex; flex-direction: column; gap: 10px">
+          <div style="align-self: flex-end; padding: 9px 12px; border-radius: 14px 14px 4px 14px; background: #163300; color: #FFFFFF; font-size: 13.5px">hello??</div>
+          <div style="align-self: flex-end; padding: 9px 12px; border-radius: 14px 14px 4px 14px; background: #163300; color: #FFFFFF; font-size: 13.5px">hello??</div>
+          <div style="padding: 12px; border-radius: 10px; background: #FDF2E3; color: #7A3D06; font-size: 13px">You’re sending messages quickly. A teammate has already been alerted and will reply here — no need to send again.</div>
+        </div>
+        <div style="padding: 10px 12px; border-top: 1px solid #E3E5E0"><div style="height: 40px; border-radius: 20px; border: 1px solid #E3E5E0; background: #F6F7F4; padding: 0 14px; display: flex; align-items: center; font-size: 13px; color: #8A90A2">You can send again in 20 s</div></div>
+      </div></div>
+    </sc-if>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":860}}'>
+const S = [['404', 'Not found', 'app.orbat.ai/inbox/CNV-00000'], ['403', 'No access', 'app.orbat.ai/billing'], ['maint', 'Maintenance', 'app.orbat.ai'], ['offline', 'Connection lost', 'app.orbat.ai/inbox'], ['failover', 'AI unavailable', 'app.orbat.ai/inbox'], ['loading', 'Loading', 'app.orbat.ai/inbox'], ['empty', 'Inbox empty', 'app.orbat.ai/inbox'], ['session', 'Session expired', 'app.orbat.ai/inbox'], ['limit', 'Customer rate limit', 'lumengoods.com']];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { dark: null, st: '404', asked: false, sec: 8 }; }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const st = s.st;
+    const app = ['offline', 'failover', 'loading', 'empty'].includes(st);
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', themeL: dark ? 'Light mode' : 'Dark mode', toggleTheme: () => this.setState({ dark: !dark }),
+      tabs: S.map(([id, l]) => { const on = id === st; return { l, on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : 'var(--border)', bg: on ? 'var(--accent-soft)' : 'var(--surface)', c: on ? 'var(--accent-text)' : 'var(--text-2)', pick: () => this.setState({ st: id }) }; }),
+      url: S.find((x) => x[0] === st)[2],
+      is404: st === '404', is403: st === '403', isMaint: st === 'maint', isApp: app, isOffline: st === 'offline', isFailover: st === 'failover', isEmpty: st === 'empty', showList: app && st !== 'empty', isSession: st === 'session', isLimit: st === 'limit',
+      rows: [70, 55, 80, 60, 75, 50, 65],
+      accessL: s.asked ? 'Request sent to Maya Lin' : 'Request access', requestAccess: () => this.setState({ asked: true }),
+      sec: s.sec, retry: () => this.setState({ sec: 8 })
+    };
+  }
+}
+</script>
+</body>
+</html>

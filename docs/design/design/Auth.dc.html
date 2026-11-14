@@ -1,0 +1,292 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Sign in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+.au{--text:#0E0F0C;--text-2:#4A5163;--text-3:#6B7285;--border:#DCE0E7;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--bad:#BF2F28;--ok:#1C7C45;font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.5;color:var(--text);-webkit-font-smoothing:antialiased}
+.au *{box-sizing:border-box}
+.au button,.au input,.au select{font:inherit;color:inherit}
+.au button{cursor:pointer}
+.au :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.au .in{height:44px;width:100%;padding:0 13px;border:1px solid var(--border);border-radius:10px;background:#FFFFFF;font-size:14.5px;transition:border-color .15s,box-shadow .15s}
+.au .in:hover{border-color:#C3C8D2}
+.au .in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 4px var(--accent-soft)}
+.au .sso{transition:background .15s,border-color .15s}
+.au .sso:hover{background:#F6F7F4!important;border-color:#C3C8D2!important}
+.au .bp:hover{background:var(--accent-hover)!important}
+.au .ws:hover{border-color:#B9BEF5!important;background:#FAFAFF!important}
+.au .lbl{display:flex;flex-direction:column;gap:7px;font-size:13px;font-weight:500;color:var(--text)}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.fade{animation:fd .3s ease-out}
+@keyframes fd{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.spin{width:16px;height:16px;border-radius:99px;border:2px solid rgba(255,255,255,.45);border-top-color:#FFFFFF;animation:sp .7s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+a{color:var(--accent-text);text-decoration:none;font-weight:500}a:hover{text-decoration:underline}
+/* POLISH v1 */
+.mono{font-family:Inter,system-ui,sans-serif!important;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+code.mono,pre.mono{font-family:'Geist Mono',ui-monospace,monospace!important}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+.au{zoom:1.06}
+</style>
+</helmet>
+<div class="au" style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #FFFFFF">
+
+  <section style="flex: 1 1 560px; min-width: 0; display: flex; flex-direction: column; padding: 32px 48px">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+      <span style="display: flex; align-items: center; gap: 10px"><svg width="30" height="30" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#163300"></rect><ellipse cx="14" cy="14" rx="9.5" ry="4.2" fill="none" stroke="#FFFFFF" stroke-width="1.6" transform="rotate(-28 14 14)"></ellipse><circle cx="14" cy="14" r="3.1" fill="#FFFFFF"></circle><circle cx="21.6" cy="10.2" r="1.5" fill="#C9C5FF"></circle></svg><span style="font-weight: 600; font-size: 16px; letter-spacing: 0.02em">ORBAT AI</span></span>
+      <span style="font-size: 13.5px; color: var(--text-2)">{{topText}} <button type="button" onClick="{{topAction}}" style="border: 0; background: transparent; padding: 0; color: var(--accent-text); font-weight: 600; font-size: 13.5px">{{topLink}}</button></span>
+    </div>
+
+    <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 48px 0">
+      <div style="width: 400px; max-width: 100%; display: flex; flex-direction: column; gap: 24px">
+
+        <sc-if value="{{isSignin}}" hint-placeholder-val="{{true}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 24px">
+            <div><h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">Sign in to ORBAT</h1><p style="margin: 6px 0 0; color: var(--text-2)">Welcome back. Use your work account.</p></div>
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <button type="button" onClick="{{ssoGoogle}}" class="sso" style="height: 44px; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid var(--border); border-radius: 10px; background: #FFFFFF; font-weight: 500"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="9"></circle><path d="M12 12h8"></path></svg>Continue with Google</button>
+              <button type="button" onClick="{{ssoMicrosoft}}" class="sso" style="height: 44px; display: flex; align-items: center; justify-content: center; gap: 10px; border: 1px solid var(--border); border-radius: 10px; background: #FFFFFF; font-weight: 500"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="8" height="8"></rect><rect x="13" y="3" width="8" height="8"></rect><rect x="3" y="13" width="8" height="8"></rect><rect x="13" y="13" width="8" height="8"></rect></svg>Continue with Microsoft</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--text-3)"><span style="flex: 1; height: 1px; background: var(--border)"></span>or<span style="flex: 1; height: 1px; background: var(--border)"></span></div>
+            <div style="display: flex; flex-direction: column; gap: 16px">
+              <label class="lbl">Work email
+                <input class="in" type="email" autoComplete="email" value="{{email}}" onInput="{{onEmail}}" placeholder="you@company.com" aria-invalid="{{emailInvalid}}" style="border-color: {{emailBd}}">
+                <sc-if value="{{emailErr}}" hint-placeholder-val="{{false}}"><span style="font-size: 12.5px; font-weight: 400; color: var(--bad)">{{emailErr}}</span></sc-if>
+              </label>
+              <label class="lbl">
+                <span style="display: flex; justify-content: space-between">Password<button type="button" onClick="{{goForgot}}" style="border: 0; background: transparent; padding: 0; font-size: 13px; font-weight: 500; color: var(--accent-text)">Forgot password?</button></span>
+                <span style="position: relative; display: block">
+                  <input class="in" type="{{pwType}}" autoComplete="current-password" value="{{pw}}" onInput="{{onPw}}" placeholder="Your password" aria-invalid="{{pwInvalid}}" style="padding-right: 64px; border-color: {{pwBd}}">
+                  <button type="button" onClick="{{togglePw}}" aria-label="{{pwToggleLabel}}" style="position: absolute; right: 6px; top: 6px; height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; font-size: 12.5px; font-weight: 500; color: var(--text-2)">{{pwToggle}}</button>
+                </span>
+                <sc-if value="{{pwErr}}" hint-placeholder-val="{{false}}"><span style="font-size: 12.5px; font-weight: 400; color: var(--bad)">{{pwErr}}</span></sc-if>
+              </label>
+              <label style="display: flex; align-items: center; gap: 8px; font-size: 13.5px; color: var(--text-2)"><input type="checkbox" checked="{{remember}}" onChange="{{toggleRemember}}" style="width: 16px; height: 16px; accent-color: var(--accent)">Keep me signed in on this device</label>
+              <button type="button" onClick="{{signin}}" class="bp" style="height: 44px; border: 0; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px"><sc-if value="{{loading}}" hint-placeholder-val="{{false}}"><span class="spin"></span></sc-if>{{signinLabel}}</button>
+              <button type="button" onClick="{{goSso}}" style="align-self: center; border: 0; background: transparent; padding: 0; font-size: 13px; color: var(--text-2); font-weight: 500">Use single sign-on (SAML)</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isSignup}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 22px">
+            <div><h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">Create your workspace</h1><p style="margin: 6px 0 0; color: var(--text-2)">14-day free trial with every Growth feature. No credit card needed.</p></div>
+            <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+              <button type="button" onClick="{{ssoGoogle}}" class="sso" style="height: 44px; border: 1px solid var(--border); border-radius: 10px; background: #FFFFFF; font-weight: 500">Google</button>
+              <button type="button" onClick="{{ssoMicrosoft}}" class="sso" style="height: 44px; border: 1px solid var(--border); border-radius: 10px; background: #FFFFFF; font-weight: 500">Microsoft</button>
+            </div>
+            <div style="display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: var(--text-3)"><span style="flex: 1; height: 1px; background: var(--border)"></span>or with email<span style="flex: 1; height: 1px; background: var(--border)"></span></div>
+            <div style="display: flex; flex-direction: column; gap: 16px">
+              <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px">
+                <label class="lbl">Full name<input class="in" autoComplete="name" value="{{name}}" onInput="{{onName}}" placeholder="Jordan Rivera"></label>
+                <label class="lbl">Company<input class="in" autoComplete="organization" value="{{company}}" onInput="{{onCompany}}" placeholder="Northwind Health"></label>
+              </div>
+              <label class="lbl">Work email<input class="in" type="email" autoComplete="email" value="{{email}}" onInput="{{onEmail}}" placeholder="you@company.com" style="border-color: {{emailBd}}"><sc-if value="{{emailErr}}" hint-placeholder-val="{{false}}"><span style="font-size: 12.5px; font-weight: 400; color: var(--bad)">{{emailErr}}</span></sc-if></label>
+              <label class="lbl">Password
+                <span style="position: relative; display: block"><input class="in" type="{{pwType}}" autoComplete="new-password" value="{{pw}}" onInput="{{onPw}}" placeholder="At least 10 characters" style="padding-right: 64px"><button type="button" onClick="{{togglePw}}" aria-label="{{pwToggleLabel}}" style="position: absolute; right: 6px; top: 6px; height: 32px; padding: 0 10px; border: 0; border-radius: 7px; background: transparent; font-size: 12.5px; font-weight: 500; color: var(--text-2)">{{pwToggle}}</button></span>
+                <span style="display: flex; gap: 4px"><sc-for list="{{strength}}" as="b"><span style="flex: 1; height: 4px; border-radius: 4px; background: {{b}}"></span></sc-for></span>
+                <span style="font-size: 12px; font-weight: 400; color: {{strengthC}}">{{strengthLabel}}</span>
+              </label>
+              <label style="display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text-2)"><input type="checkbox" checked="{{terms}}" onChange="{{toggleTerms}}" style="width: 16px; height: 16px; margin-top: 2px; accent-color: var(--accent)"><span>I agree to the <a href="#terms">Terms</a> and <a href="#privacy">Privacy Policy</a>.</span></label>
+              <sc-if value="{{termsErr}}" hint-placeholder-val="{{false}}"><span style="font-size: 12.5px; color: var(--bad); margin-top: -8px">Please accept the terms to continue.</span></sc-if>
+              <button type="button" onClick="{{signup}}" class="bp" style="height: 44px; border: 0; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 10px"><sc-if value="{{loading}}" hint-placeholder-val="{{false}}"><span class="spin"></span></sc-if>Create workspace</button>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isCode}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 22px">
+            <span style="width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; background: var(--accent-soft); color: var(--accent-text)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{codeIcon}}"></path></svg></span>
+            <div><h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">{{codeTitle}}</h1><p style="margin: 6px 0 0; color: var(--text-2)">{{codeDesc}}</p></div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <label for="otp" style="font-size: 13px; font-weight: 500">6-digit code</label>
+              <div style="position: relative">
+                <div aria-hidden="true" style="display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px"><sc-for list="{{boxes}}" as="bx"><span class="mono" style="height: 54px; border: 1.5px solid {{bx.bd}}; border-radius: 11px; display: grid; place-items: center; font-size: 22px; font-weight: 600; background: #FFFFFF; box-shadow: {{bx.ring}}">{{bx.d}}</span></sc-for></div>
+                <input id="otp" inputMode="numeric" autoComplete="one-time-code" maxLength="6" value="{{code}}" onInput="{{onCode}}" style="position: absolute; inset: 0; width: 100%; opacity: 0; font-size: 22px">
+              </div>
+              <sc-if value="{{codeErr}}" hint-placeholder-val="{{false}}"><span style="font-size: 12.5px; color: var(--bad)">{{codeErr}}</span></sc-if>
+              <span style="font-size: 12.5px; color: var(--text-3)">Didn’t get it? <button type="button" onClick="{{resend}}" style="border: 0; background: transparent; padding: 0; font-size: 12.5px; color: var(--accent-text); font-weight: 500">{{resendLabel}}</button> · Demo: any 6 digits</span>
+            </div>
+            <button type="button" onClick="{{verify}}" class="bp" style="height: 44px; border: 0; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600">{{verifyLabel}}</button>
+            <button type="button" onClick="{{goSignin}}" style="align-self: center; border: 0; background: transparent; font-size: 13.5px; color: var(--text-2)">← Use a different account</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isWorkspaces}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px">
+            <div><h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">Choose a workspace</h1><p style="margin: 6px 0 0; color: var(--text-2)">Signed in as {{emailShown}}</p></div>
+            <div style="display: flex; flex-direction: column; gap: 10px">
+              <sc-for list="{{workspaces}}" as="w"><a href="Main.dc.html" class="ws" style="display: flex; gap: 12px; align-items: center; padding: 14px; border: 1px solid var(--border); border-radius: 12px; background: #FFFFFF; color: var(--text); text-decoration: none; font-weight: 400">
+                <span style="width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; background: {{w.bg}}; color: {{w.c}}">{{w.ini}}</span>
+                <span style="flex: 1; min-width: 0"><span style="display: block; font-weight: 600">{{w.n}}</span><span style="display: block; font-size: 12.5px; color: var(--text-3)">{{w.meta}}</span></span>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg>
+              </a></sc-for>
+            </div>
+            <button type="button" onClick="{{newWs}}" style="height: 44px; border: 1px dashed #C3C8D2; border-radius: 12px; background: #FFFFFF; font-weight: 500; color: var(--text-2)">+ Create a new workspace</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isInvite}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px">
+            <div style="display: flex; align-items: center; gap: 10px"><span style="width: 40px; height: 40px; border-radius: 99px; display: grid; place-items: center; font-weight: 600; background: #FAD4E4; color: #6B1238">ML</span><span style="font-size: 13.5px; color: var(--text-2)"><b style="color: var(--text)">Maya Lin</b> invited you to join</span></div>
+            <div><h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">Lumen Goods on ORBAT</h1><p style="margin: 6px 0 0; color: var(--text-2)">You’ll join as <b style="color: var(--text)">Agent</b> in the Support team. This invite expires in 6 days.</p></div>
+            <label class="lbl">Email<input class="in" value="sam@lumengoods.com" readonly style="background: #F6F7F4; color: var(--text-2)"></label>
+            <label class="lbl">Full name<input class="in" value="{{name}}" onInput="{{onName}}" placeholder="Your name"></label>
+            <label class="lbl">Create password<input class="in" type="password" value="{{pw}}" onInput="{{onPw}}" placeholder="At least 10 characters"></label>
+            <a href="Main.dc.html" class="bp" style="height: 44px; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600; display: grid; place-items: center; text-decoration: none">Accept and join</a>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isForgot}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 22px">
+            <div><h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">Reset your password</h1><p style="margin: 6px 0 0; color: var(--text-2)">We’ll email you a secure link. It expires in 30 minutes.</p></div>
+            <label class="lbl">Work email<input class="in" type="email" value="{{email}}" onInput="{{onEmail}}" placeholder="you@company.com" style="border-color: {{emailBd}}"><sc-if value="{{emailErr}}" hint-placeholder-val="{{false}}"><span style="font-size: 12.5px; font-weight: 400; color: var(--bad)">{{emailErr}}</span></sc-if></label>
+            <button type="button" onClick="{{sendReset}}" class="bp" style="height: 44px; border: 0; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600">Send reset link</button>
+            <button type="button" onClick="{{goSignin}}" style="align-self: center; border: 0; background: transparent; font-size: 13.5px; color: var(--text-2)">← Back to sign in</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isSent}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px">
+            <span style="width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; background: #E7F4EC; color: var(--ok)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4zM22 6l-10 7L2 6"></path></svg></span>
+            <div><h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">Check your inbox</h1><p style="margin: 6px 0 0; color: var(--text-2)">If an account exists for <b style="color: var(--text)">{{emailShown}}</b>, a reset link is on its way.</p></div>
+            <button type="button" onClick="{{goSignin}}" class="bp" style="height: 44px; border: 0; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600">Back to sign in</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isSso}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 22px">
+            <div><h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">Single sign-on</h1><p style="margin: 6px 0 0; color: var(--text-2)">Enter your company’s workspace address.</p></div>
+            <label class="lbl">Workspace<span style="display: flex; align-items: center; border: 1px solid var(--border); border-radius: 10px; overflow: hidden"><input value="{{domain}}" onInput="{{onDomain}}" placeholder="acme" style="flex: 1; height: 44px; padding: 0 13px; border: 0; outline: none; font-size: 14.5px; font-weight: 400"><span class="mono" style="padding: 0 13px; height: 44px; display: grid; place-items: center; background: #F6F7F4; color: var(--text-2); font-size: 13px; border-left: 1px solid var(--border)">.orbat.ai</span></span></label>
+            <sc-if value="{{ssoMsg}}" hint-placeholder-val="{{false}}"><div style="padding: 12px; border-radius: 10px; background: var(--accent-soft); color: var(--accent-text); font-size: 13px">{{ssoMsg}}</div></sc-if>
+            <button type="button" onClick="{{continueSso}}" class="bp" style="height: 44px; border: 0; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600">Continue</button>
+            <button type="button" onClick="{{goSignin}}" style="align-self: center; border: 0; background: transparent; font-size: 13.5px; color: var(--text-2)">← Back to sign in</button>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isDone}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px">
+            <span style="width: 48px; height: 48px; border-radius: 12px; display: grid; place-items: center; background: #E7F4EC; color: var(--ok)"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg></span>
+            <div><h1 style="margin: 0; font-size: 26px; font-weight: 600; letter-spacing: -0.02em">Email verified</h1><p style="margin: 6px 0 0; color: var(--text-2)">Two minutes to set up your business profile, industry and compliance — then your first AI agent is ready to test.</p></div>
+            <a href="Onboarding.dc.html" class="bp" style="height: 44px; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600; display: grid; place-items: center; text-decoration: none">Set up your workspace →</a>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 16px; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--text-3)">
+      <span style="display: flex; gap: 16px"><a href="#privacy" style="color: var(--text-3); font-weight: 400">Privacy</a><a href="#terms" style="color: var(--text-3); font-weight: 400">Terms</a><a href="#status" style="color: var(--text-3); font-weight: 400">Status</a></span>
+      <label style="display: flex; align-items: center; gap: 6px"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Interface language</span><select style="border: 0; background: transparent; font-size: 12.5px; color: var(--text-3)"><option>English</option><option>اردو</option><option>العربية</option><option>हिन्दी</option><option>Español</option></select></label>
+    </div>
+  </section>
+
+  <aside aria-label="About ORBAT" style="flex: 1 1 440px; min-width: 0; background: #F5F6FA; border-left: 1px solid #ECEEF3; display: flex; align-items: center; justify-content: center; padding: 56px 48px">
+    <div style="width: 460px; max-width: 100%; display: flex; flex-direction: column; gap: 32px">
+      <div style="display: flex; flex-direction: column; gap: 12px">
+        <h2 style="margin: 0; font-size: 30px; line-height: 1.2; font-weight: 600; letter-spacing: -0.025em; color: #0E0F0C">Customer support that speaks your customer’s language — and follows your rules.</h2>
+        <p style="margin: 0; font-size: 15px; color: #4A5163">AI agents and your team in one inbox, for any industry.</p>
+      </div>
+      <div style="display: flex; flex-direction: column; gap: 18px">
+        <sc-for list="{{values}}" as="v"><div style="display: flex; gap: 14px">
+          <span style="flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: #FFFFFF; border: 1px solid #E3E5E0; color: #163300"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{v.icon}}"></path></svg></span>
+          <div><div style="font-weight: 600; font-size: 14.5px">{{v.t}}</div><div style="font-size: 13.5px; color: #4A5163">{{v.d}}</div></div>
+        </div></sc-for>
+      </div>
+      <div style="padding: 16px 18px; border-radius: 14px; background: #FFFFFF; border: 1px solid #E3E5E0; display: flex; flex-direction: column; gap: 8px">
+        <div style="font-size: 11px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #6B7285">Understands every way customers write</div>
+        <div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{langs}}" as="l"><span dir="auto" style="font-size: 13px; padding: 4px 10px; border-radius: 99px; background: #F5F6FA; color: #0E0F0C">{{l}}</span></sc-for></div>
+      </div>
+    </div>
+  </aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+const validEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { view: 'signin', email: '', pw: '', name: '', company: '', showPw: false, remember: true, terms: false, tried: false, loading: false, code: '', codeTried: false, resent: false, domain: '', ssoMsg: '', flow: 'signin' }; }
+  componentWillUnmount() { clearTimeout(this._t); }
+  go(view, flow) { this.setState({ view, tried: false, codeTried: false, code: '', loading: false, ssoMsg: '', ...(flow ? { flow } : {}) }); }
+  renderVals() {
+    const s = this.state;
+    const emailBad = !validEmail(s.email);
+    const emailErr = s.tried && ['signin', 'signup', 'forgot'].includes(s.view) ? (!s.email ? 'Enter your work email.' : (emailBad ? 'Enter a full email address, like name@company.com.' : '')) : '';
+    const pwErr = s.tried && s.view === 'signin' && !s.pw ? 'Enter your password.' : '';
+    let score = 0; const p = s.pw;
+    if (p.length >= 10) score++; if (/[A-Z]/.test(p) && /[a-z]/.test(p)) score++; if (/\d/.test(p)) score++; if (/[^A-Za-z0-9]/.test(p)) score++;
+    const SC = ['#E3E5E0', '#BF2F28', '#C27A0E', '#163300', '#1C7C45'];
+    const SL = ['Use 10+ characters with letters, numbers and a symbol', 'Weak', 'Fair', 'Good', 'Strong'];
+    const isSignup = s.view === 'signup';
+    const boxes = Array.from({ length: 6 }, (_, i) => { const active = i === Math.min(s.code.length, 5); return { d: s.code[i] || '', bd: active ? '#163300' : (s.code[i] ? '#9AA0B2' : '#DCE0E7'), ring: active ? '0 0 0 4px #E2F6D5' : 'none' }; });
+    const submit = (needPw, flow) => {
+      if (emailBad || (needPw && !s.pw)) { this.setState({ tried: true }); return; }
+      this.setState({ loading: true, flow });
+      clearTimeout(this._t); this._t = setTimeout(() => this.setState({ loading: false, view: 'code', tried: false, code: '' }), 900);
+    };
+    const fs = s.flow === 'signup';
+    return {
+      isSignin: s.view === 'signin', isSignup, isCode: s.view === 'code', isForgot: s.view === 'forgot', isSent: s.view === 'sent', isSso: s.view === 'sso', isDone: s.view === 'done', isWorkspaces: s.view === 'workspaces', isInvite: s.view === 'invite',
+      topText: isSignup ? 'Already have an account?' : 'New to ORBAT?', topLink: isSignup ? 'Sign in' : 'Create a workspace',
+      topAction: () => this.go(isSignup ? 'signin' : 'signup', isSignup ? 'signin' : 'signup'),
+      email: s.email, onEmail: (e) => this.setState({ email: e.target.value }), emailErr: emailErr || false, emailInvalid: emailErr ? 'true' : 'false', emailBd: emailErr ? '#BF2F28' : '#DCE0E7', emailShown: s.email || 'jordan@northwindhealth.com',
+      pw: s.pw, onPw: (e) => this.setState({ pw: e.target.value }), pwErr: pwErr || false, pwInvalid: pwErr ? 'true' : 'false', pwBd: pwErr ? '#BF2F28' : '#DCE0E7',
+      pwType: s.showPw ? 'text' : 'password', pwToggle: s.showPw ? 'Hide' : 'Show', pwToggleLabel: s.showPw ? 'Hide password' : 'Show password', togglePw: () => this.setState({ showPw: !s.showPw }),
+      remember: s.remember, toggleRemember: () => this.setState({ remember: !s.remember }),
+      loading: s.loading, signinLabel: s.loading ? 'Signing in…' : 'Sign in',
+      signin: () => submit(true, 'signin'),
+      name: s.name, onName: (e) => this.setState({ name: e.target.value }), company: s.company, onCompany: (e) => this.setState({ company: e.target.value }),
+      strength: [1, 2, 3, 4].map((i) => (i <= score ? SC[score] : '#E3E5E0')), strengthLabel: p ? 'Strength: ' + SL[score] : SL[0], strengthC: p ? SC[score] : '#6B7285',
+      terms: s.terms, toggleTerms: () => this.setState({ terms: !s.terms }), termsErr: s.tried && isSignup && !s.terms,
+      signup: () => { if (!s.terms) { this.setState({ tried: true }); return; } submit(false, 'signup'); },
+      ssoGoogle: () => this.go(isSignup ? 'done' : 'workspaces'), ssoMicrosoft: () => this.go(isSignup ? 'done' : 'workspaces'),
+      goSso: () => this.go('sso'), goForgot: () => this.go('forgot'), goSignin: () => this.go('signin', 'signin'),
+      codeTitle: fs ? 'Verify your email' : 'Two-step verification',
+      codeDesc: fs ? 'We sent a 6-digit code to ' + (s.email || 'your email') + '. It expires in 10 minutes.' : 'Enter the code from your authenticator app.',
+      codeIcon: fs ? 'M4 4h16v16H4zM22 6l-10 7L2 6' : 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4',
+      boxes, code: s.code, onCode: (e) => this.setState({ code: e.target.value.replace(/\D/g, '').slice(0, 6), codeTried: false }),
+      codeErr: s.codeTried && s.code.length < 6 ? 'Enter all 6 digits.' : false,
+      resendLabel: s.resent ? 'Sent again' : 'Resend code', resend: () => this.setState({ resent: true }),
+      verifyLabel: fs ? 'Verify email' : 'Verify and continue',
+      verify: () => { if (s.code.length < 6) { this.setState({ codeTried: true }); return; } this.go(fs ? 'done' : 'workspaces'); },
+      sendReset: () => { if (emailBad) { this.setState({ tried: true }); return; } this.go('sent'); },
+      domain: s.domain, onDomain: (e) => this.setState({ domain: e.target.value }), ssoMsg: s.ssoMsg || false,
+      continueSso: () => this.setState({ ssoMsg: s.domain ? 'Redirecting to your identity provider for ' + s.domain + '.orbat.ai… (prototype: no redirect happens)' : 'Enter your workspace address first.' }),
+      workspaces: [['Lumen Goods', 'LG', 'Retail · Growth · Owner', '#E2F6D5', '#163300'], ['Northwind Health', 'NH', 'Healthcare · Compliance · Admin', '#E7F4EC', '#1C7C45'], ['Indus Wallet', 'IW', 'Fintech · Compliance · Compliance officer', '#FDF2E3', '#A4510B']].map(([n, ini, meta, bg, c]) => ({ n, ini, meta, bg, c })),
+      newWs: () => this.go('signup', 'signup'),
+      demo: [['Sign in', 'signin'], ['Sign up', 'signup'], ['Verify code', 'code'], ['Workspace picker', 'workspaces'], ['Accept invite', 'invite'], ['Forgot password', 'forgot'], ['SSO', 'sso']].map(([label, v]) => ({ label, go: () => this.go(v, v === 'signup' ? 'signup' : undefined) })),
+      values: [['M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20', 'Answers in any language and script', 'Native, romanized and mixed — text and voice notes.'], ['M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4', 'Compliance built in', 'Sentinel checks every AI and human reply.'], ['M2 5h20v14H2zM2 10h20', 'No per-seat pricing', 'Fixed plan or pay as you go. Grow your team freely.']].map(([icon, t, d]) => ({ icon, t, d })),
+      langs: ['English', 'اردو', 'Roman Urdu', 'Hinglish', 'العربية', 'Arabizi', 'हिन्दी', 'Taglish', 'Español']
+    };
+  }
+}
+</script>
+</body>
+</html>

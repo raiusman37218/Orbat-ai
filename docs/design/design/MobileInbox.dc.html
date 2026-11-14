@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Mobile inbox</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ai-text:#5B2FC2;--ok:#1C7C45;--warn:#A4510B;--warn-soft:#FDF2E3;--bad:#BF2F28;--bad-soft:#FCEBEA;--note:#FFF7E0;--note-border:#F1D89A;font-family:Inter,system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0A0E19;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--border-strong:#323B58;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ai-text:#C2ACFF;--ok:#4FC48A;--warn:#F0A54E;--warn-soft:#2C2010;--bad:#F2756C;--bad-soft:#2F1615;--note:#2A2313;--note-border:#5A4A22}
+.orb *{box-sizing:border-box}
+.orb button,.orb input{font:inherit;color:inherit}
+.orb button{cursor:pointer}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+/* POLISH v1 */
+/* POLISH v2 */
+.orb main h2 + p{display:none!important}
+.orb main h3 + p{font-size:12.5px!important;color:var(--text-3)!important}
+.orb{--bg:#F6F7F4;--border:#E3E5E0;--shadow-card:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.03);letter-spacing:-0.003em;font-feature-settings:'tnum' 0}
+.orb.dark{--bg:#0B0F1A;--border:#232B44;--shadow-card:none}
+.orb .mono{font-family:Inter,system-ui,sans-serif!important;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.orb code.mono,.orb pre.mono{font-family:'Geist Mono',ui-monospace,monospace!important;letter-spacing:0}
+.orb h1,.orb h2,.orb h3{letter-spacing:-0.015em}
+.orb [style*="border-radius: 12px"][style*="background: var(--surface)"],.orb [style*="border-radius: 14px"][style*="background: var(--surface)"]{box-shadow:var(--shadow-card)}
+.orb thead th{font-size:11.5px!important;font-weight:600!important;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.orb tbody td{vertical-align:middle}
+.orb button,.orb a{transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,color .15s ease,opacity .15s ease}
+.orb button:active{transform:translateY(.5px)}
+.orb input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,.orb select:focus,.orb textarea:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)!important}
+.orb button[style*="border: 1px solid var(--border)"]:hover{border-color:var(--border-strong)!important}
+.orb ::selection{background:var(--accent-soft)}
+.orb *{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+.orb main > div[style*="padding: 2"]{max-width:1480px;width:100%;margin-left:auto;margin-right:auto}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="width: 390px; height: 844px; display: flex; flex-direction: column; background: var(--bg); overflow: hidden">
+  <sc-if value="{{isList}}" hint-placeholder-val="{{true}}">
+    <header style="padding: 20px 16px 10px; background: var(--surface); display: flex; flex-direction: column; gap: 12px; border-bottom: 1px solid var(--border)">
+      <div style="display: flex; align-items: center; gap: 10px">
+        <h1 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; flex: 1">Inbox</h1>
+        <button type="button" onClick="{{toggleDark}}" aria-label="Toggle dark mode" style="width: 44px; height: 44px; border: 0; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-2)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></button>
+        <span style="position: relative; width: 36px; height: 36px; border-radius: 99px; display: grid; place-items: center; font-size: 13px; font-weight: 600; background: #E9D8FD; color: #3B1F73">AM<span style="position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 99px; background: var(--ok); border: 2px solid var(--surface)"></span></span>
+      </div>
+      <div style="display: flex; gap: 8px; overflow-x: auto">
+        <sc-for list="{{chips}}" as="c"><button type="button" onClick="{{c.pick}}" aria-pressed="{{c.pressed}}" style="height: 36px; padding: 0 14px; border: 1px solid {{c.bd}}; border-radius: 99px; background: {{c.bg}}; color: {{c.color}}; font-size: 14px; font-weight: 500; white-space: nowrap">{{c.label}} <span class="mono" style="font-size: 12px; opacity: .75">{{c.n}}</span></button></sc-for>
+      </div>
+    </header>
+    <div style="flex: 1; overflow: auto">
+      <sc-for list="{{list}}" as="c" hint-placeholder-count="6">
+        <button type="button" onClick="{{c.open}}" style="width: 100%; display: flex; gap: 12px; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--border); background: var(--surface); text-align: left; min-height: 76px">
+          <span style="flex: none; width: 42px; height: 42px; border-radius: 99px; display: grid; place-items: center; font-size: 14px; font-weight: 600; {{c.av}}">{{c.ini}}</span>
+          <span style="flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px">
+            <span style="display: flex; gap: 6px; align-items: center"><span style="flex: 1; font-weight: {{c.w}}; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{c.name}}</span><span class="mono" style="font-size: 12px; color: var(--text-3)">{{c.time}}</span></span>
+            <span style="font-size: 14px; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{c.preview}}</span>
+            <span style="display: flex; gap: 6px; margin-top: 4px"><span style="font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 99px; {{c.tone}}">{{c.handler}}</span><sc-if value="{{c.flag}}" hint-placeholder-val="{{false}}"><span style="font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; background: var(--warn-soft); color: var(--warn)">{{c.flag}}</span></sc-if></span>
+          </span>
+        </button>
+      </sc-for>
+    </div>
+    <nav aria-label="App" style="display: flex; border-top: 1px solid var(--border); background: var(--surface); padding: 4px 8px 20px">
+      <sc-for list="{{tabs}}" as="t"><a href="{{t.href}}" style="flex: 1; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11.5px; font-weight: 500; text-decoration: none; color: {{t.color}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.icon}}"></path></svg>{{t.label}}</a></sc-for>
+    </nav>
+  </sc-if>
+
+  <sc-if value="{{isConvo}}" hint-placeholder-val="{{false}}">
+    <header style="display: flex; align-items: center; gap: 6px; padding: 12px 8px 10px; background: var(--surface); border-bottom: 1px solid var(--border)">
+      <button type="button" onClick="{{back}}" aria-label="Back to inbox" style="width: 44px; height: 44px; border: 0; background: transparent; display: grid; place-items: center; color: var(--accent-text)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></button>
+      <span style="width: 36px; height: 36px; border-radius: 99px; display: grid; place-items: center; font-size: 13px; font-weight: 600; {{cur.av}}">{{cur.ini}}</span>
+      <div style="flex: 1; min-width: 0"><div style="font-weight: 600">{{cur.name}}</div><div style="font-size: 12.5px; color: var(--text-3)">{{cur.sub}}</div></div>
+      <button type="button" onClick="{{resolve}}" style="height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-size: 14px; font-weight: 500">{{resolveLabel}}</button>
+    </header>
+    <div style="flex: 1; overflow: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px">
+      <button type="button" onClick="{{toggleSummary}}" aria-expanded="{{summaryAria}}" style="display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border: 0; border-radius: 12px; background: var(--ai-soft); text-align: left">
+        <span style="display: flex; justify-content: space-between; width: 100%; font-size: 13.5px; font-weight: 600; color: var(--ai-text)">Smart handoff from Nova<span>{{summaryCaret}}</span></span>
+        <span style="font-size: 14px; color: var(--text)">{{cur.summary}}</span>
+        <sc-if value="{{summaryOpen}}" hint-placeholder-val="{{false}}"><span style="font-size: 13.5px; color: var(--text-2)"><b style="color: var(--text)">Next step:</b> Open a UPS trace and offer free express re-ship if no scan by Wednesday.</span></sc-if>
+      </button>
+      <sc-for list="{{msgs}}" as="m">
+        <sc-if value="{{m.isIn}}" hint-placeholder-val="{{true}}"><div style="align-self: flex-start; max-width: 82%; padding: 10px 13px; border-radius: 4px 14px 14px 14px; background: var(--surface); border: 1px solid var(--border)">{{m.t}}</div></sc-if>
+        <sc-if value="{{m.isAi}}" hint-placeholder-val="{{false}}"><div style="align-self: flex-end; max-width: 82%; padding: 10px 13px; border-radius: 14px 4px 14px 14px; background: var(--ai-soft)"><div style="font-size: 11.5px; font-weight: 600; color: var(--ai-text); margin-bottom: 2px">Nova · AI</div>{{m.t}}</div></sc-if>
+        <sc-if value="{{m.isOut}}" hint-placeholder-val="{{false}}"><div style="align-self: flex-end; max-width: 82%; padding: 10px 13px; border-radius: 14px 4px 14px 14px; background: var(--accent); color: #FFFFFF">{{m.t}}</div></sc-if>
+        <sc-if value="{{m.isNote}}" hint-placeholder-val="{{false}}"><div style="align-self: flex-end; max-width: 82%; padding: 10px 13px; border-radius: 12px; background: var(--note); border: 1px dashed var(--note-border)"><div style="font-size: 11.5px; font-weight: 600; color: var(--warn); margin-bottom: 2px">Internal note</div>{{m.t}}</div></sc-if>
+      </sc-for>
+    </div>
+    <div style="padding: 8px 10px 22px; background: var(--surface); border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px">
+      <div style="display: flex; gap: 6px">
+        <button type="button" onClick="{{modeReply}}" aria-pressed="{{replyAria}}" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; font-size: 13.5px; font-weight: 500; background: {{replyBg}}">Reply</button>
+        <button type="button" onClick="{{modeNote}}" aria-pressed="{{noteAria}}" style="height: 34px; padding: 0 12px; border: 0; border-radius: 8px; font-size: 13.5px; font-weight: 500; background: {{noteBg}}; color: {{noteC}}">Note</button>
+        <button type="button" onClick="{{suggest}}" style="margin-left: auto; height: 34px; padding: 0 12px; border: 0; border-radius: 8px; font-size: 13.5px; font-weight: 500; background: var(--ai-soft); color: var(--ai-text)">Suggest</button>
+      </div>
+      <div style="display: flex; gap: 8px">
+        <label for="mcomp" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message</label>
+        <input id="mcomp" value="{{draft}}" onInput="{{onDraft}}" placeholder="{{placeholder}}" style="flex: 1; min-width: 0; height: 44px; padding: 0 14px; border: 1px solid var(--border); border-radius: 22px; background: {{inputBg}}; font-size: 15px">
+        <button type="button" onClick="{{send}}" aria-label="Send" style="width: 44px; height: 44px; border: 0; border-radius: 99px; background: var(--accent); color: #FFFFFF; display: grid; place-items: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"></path></svg></button>
+      </div>
+    </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+const L = [
+  ['c1', 'Sarah Johnson', 'SJ', 'background:#FAD4E4;color:#6B1238', 'It still says label created. I need it by Saturday.', '2m', 'AI → You', 'High', 'mine', true],
+  ['c2', 'Tom Becker', 'TB', 'background:#D3E8FF;color:#123E6B', 'Photo attached — the lamp base is cracked.', '4m', 'AI → Jordan', 'Urgent', 'all', true],
+  ['c8', 'Lucas Ferreira', 'LF', 'background:#E3E5E0;color:#2A3142', 'Reset email never arrives.', '12m', 'Unassigned', '', 'unassigned', true],
+  ['c3', 'Marco Rossi', 'MR', 'background:#FFE1C7;color:#6B3410', 'Nova: WELCOME15 applies to full-price items…', '21m', 'Nova · AI', '', 'ai', false],
+  ['c4', 'Aisha Rahman', 'AR', 'background:#CFF1F4;color:#0B4A50', 'I see two charges of $96.40 on my card.', '38m', 'Omar', 'High', 'all', false],
+  ['c7', 'Emily Chen', 'EC', 'background:#E9D8FD;color:#3B1F73', 'Atlas: Your exchange label is ready.', '9m', 'Atlas · AI', '', 'ai', false]
+];
+const TONE = { ai: 'background:var(--ai-soft);color:var(--ai-text)', un: 'background:var(--warn-soft);color:var(--warn)', neu: 'background:var(--surface-2);color:var(--text-2)' };
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { dark: null, view: 'list', filter: 'all', sel: 'c1', mode: 'reply', draft: '', extra: [], summary: false, resolved: false }; }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const F = [['all', 'All'], ['mine', 'Mine'], ['unassigned', 'Unassigned'], ['ai', 'AI']];
+    const match = (r, f) => f === 'all' || r[8] === f;
+    const cur0 = L.find((r) => r[0] === s.sel);
+    const isNote = s.mode === 'note';
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', toggleDark: () => this.setState({ dark: !dark }),
+      isList: s.view === 'list', isConvo: s.view === 'convo',
+      chips: F.map(([id, label]) => { const on = s.filter === id; return { label, n: L.filter((r) => match(r, id)).length, pressed: on ? 'true' : 'false', bg: on ? 'var(--text)' : 'var(--surface)', color: on ? 'var(--surface)' : 'var(--text-2)', bd: on ? 'var(--text)' : 'var(--border)', pick: () => this.setState({ filter: id }) }; }),
+      list: L.filter((r) => match(r, s.filter)).map(([id, name, ini, av, preview, time, handler, flag, f, unread]) => ({ name, ini, av, preview, time, handler, flag: flag || false, w: unread ? 700 : 500, tone: handler.includes('AI') && handler !== 'AI → You' ? TONE.ai : (handler === 'Unassigned' ? TONE.un : TONE.neu), open: () => this.setState({ view: 'convo', sel: id, extra: [], resolved: false }) })),
+      tabs: [['Inbox', 'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z', 'MobileInbox.dc.html', true], ['Tickets', 'M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z', 'MobileApp.dc.html'], ['Customers', 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'MobileApp.dc.html'], ['Overview', 'M3 3h8v10H3zM13 3h8v6h-8zM13 13h8v8h-8zM3 17h8v4H3z', 'MobileApp.dc.html']].map(([label, icon, href, on]) => ({ label, icon, href, color: on ? 'var(--accent-text)' : 'var(--text-3)' })),
+      cur: { name: cur0[1], ini: cur0[2], av: cur0[3], sub: 'Website chat · #ORD-2048 · VIP', summary: 'Needs #ORD-2048 by Saturday (gift). No UPS scan since Nov 6. Nova shared tracking and confirmed the address.' },
+      summaryOpen: s.summary, summaryAria: s.summary ? 'true' : 'false', summaryCaret: s.summary ? '−' : '+', toggleSummary: () => this.setState({ summary: !s.summary }),
+      msgs: [['in', 'Hi, where is my order #ORD-2048?'], ['ai', 'Your order #ORD-2048 has been shipped and is expected to arrive tomorrow.'], ['in', 'Tracking hasn’t moved in 3 days. It’s a gift — I need it by Saturday.'], ['ai', 'I’m bringing in a teammate who can help right away.']].concat(s.extra).map(([k, t]) => ({ t, isIn: k === 'in', isAi: k === 'ai', isOut: k === 'out', isNote: k === 'note' })),
+      back: () => this.setState({ view: 'list' }),
+      resolveLabel: s.resolved ? 'Reopen' : 'Resolve', resolve: () => this.setState({ resolved: !s.resolved }),
+      modeReply: () => this.setState({ mode: 'reply' }), modeNote: () => this.setState({ mode: 'note' }),
+      replyAria: isNote ? 'false' : 'true', noteAria: isNote ? 'true' : 'false',
+      replyBg: isNote ? 'transparent' : 'var(--surface-2)', noteBg: isNote ? 'var(--warn-soft)' : 'transparent', noteC: isNote ? 'var(--warn)' : 'var(--text-2)',
+      inputBg: isNote ? 'var(--note)' : 'var(--surface)', placeholder: isNote ? 'Note for your team…' : 'Reply to Sarah…',
+      suggest: () => this.setState({ mode: 'reply', draft: 'Hi Sarah, I’ve opened a trace with UPS. If there’s no scan by Wednesday, I’ll send a free express replacement so it arrives before Saturday.' }),
+      draft: s.draft, onDraft: (e) => this.setState({ draft: e.target.value }),
+      send: () => { if (!s.draft.trim()) return; this.setState({ extra: s.extra.concat([[isNote ? 'note' : 'out', s.draft]]), draft: '' }); }
+    };
+  }
+}
+</script>
+</body>
+</html>

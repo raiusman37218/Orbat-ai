@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Connect your website</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ai-text:#5B2FC2;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--bad:#BF2F28;--bad-soft:#FCEBEA;--side:#163300;--side-2:#21420C;--side-text:#C8D3BD;--shadow:0 1px 2px rgba(14,20,36,.05),0 4px 16px rgba(14,20,36,.06);font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0A0E19;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--border-strong:#323B58;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-hover:#3A6E18;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ai-text:#C2ACFF;--ok:#4FC48A;--ok-soft:#10291D;--warn:#F0A54E;--warn-soft:#2C2010;--bad:#F2756C;--bad-soft:#2F1615;--side:#0B1A00;--side-2:#1A3009;--side-text:#9BA3BC;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35)}
+.orb *{box-sizing:border-box}
+.orb button{font:inherit;color:inherit;cursor:pointer}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.hov:hover{background:var(--surface-2)!important}
+.sbi:hover{background:rgba(255,255,255,.07)!important}
+.bp:hover{background:var(--accent-hover)!important}
+a{color:var(--accent-text);text-decoration:none}a:hover{text-decoration:underline}
+/* POLISH v1 */
+/* POLISH v2 */
+.orb main h2 + p{display:none!important}
+.orb main h3 + p{font-size:12.5px!important;color:var(--text-3)!important}
+.orb{--bg:#F6F7F4;--border:#E3E5E0;--shadow-card:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.03);letter-spacing:-0.003em;font-feature-settings:'tnum' 0}
+.orb.dark{--bg:#0B0F1A;--border:#232B44;--shadow-card:none}
+.orb .mono{font-family:Inter,system-ui,sans-serif!important;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.orb code.mono,.orb pre.mono{font-family:'Geist Mono',ui-monospace,monospace!important;letter-spacing:0}
+.orb h1,.orb h2,.orb h3{letter-spacing:-0.015em}
+.orb [style*="border-radius: 12px"][style*="background: var(--surface)"],.orb [style*="border-radius: 14px"][style*="background: var(--surface)"]{box-shadow:var(--shadow-card)}
+.orb thead th{font-size:11.5px!important;font-weight:600!important;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.orb tbody td{vertical-align:middle}
+.orb button,.orb a{transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,color .15s ease,opacity .15s ease}
+.orb button:active{transform:translateY(.5px)}
+.orb input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,.orb select:focus,.orb textarea:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)!important}
+.orb button[style*="border: 1px solid var(--border)"]:hover{border-color:var(--border-strong)!important}
+.orb ::selection{background:var(--accent-soft)}
+.orb *{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+.orb main > div[style*="padding: 2"]{max-width:1480px;width:100%;margin-left:auto;margin-right:auto}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="min-height: 100vh; display: flex; flex-wrap: wrap; background: var(--bg)">
+  <div style="flex: 1 1 232px; background: var(--side); display: flex">
+    <dc-import name="Sidebar" active="channels" hint-size="232px,900px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <dc-import name="Topbar" heading="Connect your website" sub="Channels &amp; apps" dark="{{dark}}" on-toggle-theme="{{toggleTheme}}" hint-size="100%,56px"></dc-import>
+    <div style="padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 18px">
+      <div><h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em">Connect any website in five minutes</h2><p style="margin: 2px 0 0; color: var(--text-2); font-size: 13.5px">One app, plugin or line of code. ORBAT reads your site, builds the knowledge base and first AI agent, and imports your customers into the CRM.</p></div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px">
+        <sc-for list="{{routes}}" as="r"><button type="button" onClick="{{r.pick}}" aria-pressed="{{r.on}}" style="display: flex; flex-direction: column; gap: 8px; padding: 18px; border: 1.5px solid {{r.bd}}; border-radius: 14px; background: var(--surface); text-align: left; box-shadow: {{r.ring}}">
+          <span style="display: flex; gap: 10px; align-items: center"><span class="mono" style="width: 38px; height: 38px; border-radius: 10px; display: grid; place-items: center; font-weight: 700; font-size: 12px; background: var(--surface-2)">{{r.mono}}</span><span><span style="display: block; font-weight: 600">{{r.n}}</span><span style="display: block; font-size: 12px; color: var(--text-3)">{{r.how}}</span></span></span>
+          <span style="font-size: 13px; color: var(--text-2)">Syncs: {{r.syncs}}</span>
+        </button></sc-for>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+        <section style="flex: 3 1 520px; min-width: 0; padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 16px">
+          <sc-if value="{{isScript}}" hint-placeholder-val="{{false}}">
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <div style="font-weight: 600">1. Paste this before &lt;/body&gt; on every page</div>
+              <div style="display: flex; gap: 8px; align-items: stretch"><code class="mono" style="flex: 1; min-width: 0; padding: 12px 14px; border-radius: 10px; background: #0E0F0C; color: #E1E4EE; font-size: 12.5px; overflow-x: auto; white-space: nowrap">&lt;script src="https://widget.orbat.ai/v3.js" data-ws="lumen-goods" async&gt;&lt;/script&gt;</code><button type="button" onClick="{{copy}}" class="hov" style="padding: 0 14px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-size: 13px; font-weight: 500">{{copyLabel}}</button></div>
+              <div style="font-size: 12.5px; color: var(--text-3)">Send customers, orders and bookings with the REST API or webhooks. <a href="#api">API docs</a></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{isApp}}" hint-placeholder-val="{{true}}">
+            <div style="display: flex; gap: 12px; align-items: center; padding: 12px 14px; border-radius: 10px; background: var(--surface-2)"><span style="flex: 1; font-size: 13.5px">{{appText}}</span><button type="button" onClick="{{start}}" class="bp" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">{{startLabel}}</button></div>
+          </sc-if>
+          <div style="display: flex; flex-direction: column; gap: 4px">
+            <sc-for list="{{steps}}" as="st"><div style="display: flex; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border)">
+              <span style="flex: none; width: 26px; height: 26px; border-radius: 99px; display: grid; place-items: center; font-size: 12px; font-weight: 700; background: {{st.bg}}; color: {{st.c}}; border: 1.5px solid {{st.bd}}">{{st.mark}}</span>
+              <div style="flex: 1"><div style="font-weight: 500; font-size: 13.5px">{{st.t}}</div><div style="font-size: 12.5px; color: var(--text-3)">{{st.d}}</div></div>
+              <span class="mono" style="font-size: 12.5px; color: {{st.c2}}">{{st.res}}</span>
+            </div></sc-for>
+          </div>
+          <sc-if value="{{allDone}}" hint-placeholder-val="{{false}}"><div style="display: flex; gap: 10px; flex-wrap: wrap"><a href="Customers.dc.html" class="bp" style="height: 36px; padding: 0 14px; display: grid; place-items: center; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500; text-decoration: none">Open CRM</a><a href="AgentBuilder.dc.html" class="hov" style="height: 36px; padding: 0 14px; display: grid; place-items: center; border: 1px solid var(--border); border-radius: 8px; color: var(--text); font-size: 13px; font-weight: 500; text-decoration: none">Test the AI agent</a></div></sc-if>
+        </section>
+        <aside style="flex: 2 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+          <section style="padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 10px">
+            <h3 style="margin: 0; font-size: 14.5px; font-weight: 600">Actions the AI can take</h3>
+            <sc-for list="{{actions}}" as="a"><div style="display: flex; gap: 12px; align-items: center; padding: 6px 0; border-top: 1px solid var(--border)"><div style="flex: 1"><div style="font-size: 13.5px; font-weight: 500">{{a.t}}</div><div style="font-size: 12px; color: var(--text-3)">{{a.limit}}</div></div><button type="button" role="switch" aria-checked="{{a.aria}}" aria-label="{{a.t}}" onClick="{{a.toggle}}" style="width: 36px; height: 20px; border: 0; border-radius: 99px; padding: 2px; display: flex; flex: none; background: {{a.track}}; justify-content: {{a.knob}}"><span style="width: 16px; height: 16px; border-radius: 99px; background: #FFFFFF"></span></button></div></sc-for>
+          </section>
+          <section style="padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 8px">
+            <h3 style="margin: 0; font-size: 14.5px; font-weight: 600">CRM fields for your industry</h3>
+            <div style="font-size: 12.5px; color: var(--text-3)">Set from onboarding · E-commerce & retail</div>
+            <div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{fields}}" as="f"><span style="font-size: 12px; padding: 3px 9px; border-radius: 99px; background: var(--surface-2); color: var(--text-2)">{{f}}</span></sc-for></div>
+          </section>
+        </aside>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1000}}'>
+const R = [['shopify', 'SH', 'Shopify', 'App from the Shopify App Store', 'customers, orders, products, fulfilment'], ['wp', 'WP', 'WordPress / WooCommerce', 'Plugin', 'users, orders, products, form submissions'], ['custom', '</>', 'Custom website', 'One-line script + REST API and webhooks', 'any customer, order, booking or event you send']];
+const S = [['Install', 'App approved on lumengoods.myshopify.com', 'connected'], ['Read your site', 'Pages, products and policies', '142 pages · 86 products'], ['Build knowledge + first agent', 'Articles drafted from your policies', '48 articles · Nova (draft)'], ['Import customers and orders', 'Into the Universal CRM', '12,480 people · 31,904 orders'], ['Widget goes live', 'On every page of your store', 'live']];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { dark: null, route: 'shopify', step: 5, copied: false, act: { track: true, ret: true, cod: true, wallet: false, book: false, lead: true } }; }
+  componentWillUnmount() { clearInterval(this._iv); }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const r = R.find((x) => x[0] === s.route);
+    const A = [['track', 'Track an order and share live courier status', 'Read only'], ['ret', 'Start a return, exchange or refund', 'Refunds up to $75'], ['cod', 'Confirm a cash-on-delivery order', 'Before dispatch'], ['wallet', 'Verify a local wallet payment', 'JazzCash, Easypaisa'], ['book', 'Book, move or cancel an appointment', 'Calendar connection needed'], ['lead', 'Qualify a lead and book a demo or viewing', 'Creates a lead in the CRM']];
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', dark, toggleTheme: () => this.setState({ dark: !dark }),
+      routes: R.map(([id, mono, n, how, syncs]) => { const on = id === s.route; return { mono, n, how, syncs, on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : 'var(--border)', ring: on ? '0 0 0 3px var(--accent-soft)' : 'none', pick: () => { clearInterval(this._iv); this.setState({ route: id, step: id === 'shopify' ? 5 : 0 }); } }; }),
+      isScript: s.route === 'custom', isApp: s.route !== 'custom',
+      appText: s.route === 'shopify' ? (s.step >= 5 ? 'Connected to lumengoods.myshopify.com' : 'Install the ORBAT app from the Shopify App Store') : 'Install the ORBAT plugin from the WordPress plugin directory',
+      startLabel: s.step >= 5 ? 'Re-sync' : 'Install & connect',
+      start: () => { clearInterval(this._iv); this.setState({ step: 0 }); let i = 0; this._iv = setInterval(() => { i += 1; this.setState({ step: i }); if (i >= 5) clearInterval(this._iv); }, 700); },
+      copyLabel: s.copied ? 'Copied' : 'Copy', copy: () => { this.setState({ copied: true }); clearInterval(this._iv); let i = s.step; this._iv = setInterval(() => { i += 1; this.setState({ step: i }); if (i >= 5) clearInterval(this._iv); }, 700); },
+      steps: S.map(([t, d, res], i) => { const done = i < s.step; const cur = i === s.step; return { t, d, res: done ? res : (cur ? 'working…' : ''), mark: done ? '✓' : String(i + 1), bg: done ? 'var(--ok)' : 'var(--surface)', c: done ? '#FFFFFF' : 'var(--text-2)', bd: done ? 'var(--ok)' : (cur ? 'var(--accent)' : 'var(--border-strong)'), c2: done ? 'var(--ok)' : 'var(--ai-text)' }; }),
+      allDone: s.step >= 5,
+      actions: A.map(([id, t, limit]) => { const on = s.act[id]; return { t, limit, aria: on ? 'true' : 'false', track: on ? 'var(--ok)' : 'var(--border-strong)', knob: on ? 'flex-end' : 'flex-start', toggle: () => this.setState({ act: { ...s.act, [id]: !on } }) }; }),
+      fields: ['Orders', 'Lifetime value', 'Last order', 'Favourite category', 'Returns', 'Cart value', 'Courier', 'COD preference', 'Language', 'Churn risk']
+    };
+  }
+}
+</script>
+</body>
+</html>

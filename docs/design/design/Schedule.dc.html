@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Office hours and on-call</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ai-text:#5B2FC2;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--bad:#BF2F28;--bad-soft:#FCEBEA;--side:#163300;--side-2:#21420C;--side-text:#C8D3BD;--shadow-card:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.03);font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0B0F1A;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--border-strong:#323B58;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-hover:#3A6E18;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ai-text:#C2ACFF;--ok:#4FC48A;--ok-soft:#10291D;--warn:#F0A54E;--warn-soft:#2C2010;--bad:#F2756C;--bad-soft:#2F1615;--side:#0B1A00;--side-2:#1A3009;--side-text:#9BA3BC;--shadow-card:none}
+.orb *{box-sizing:border-box}
+.orb button,.orb input,.orb select{font:inherit;color:inherit}
+.orb button{cursor:pointer;transition:background-color .15s,border-color .15s}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.orb .card{border:1px solid var(--border);border-radius:12px;background:var(--surface);box-shadow:var(--shadow-card)}
+.num{font-variant-numeric:tabular-nums}
+.hov:hover{background:var(--surface-2)!important}
+.sbi:hover{background:rgba(255,255,255,.07)!important}
+.bp:hover{background:var(--accent-hover)!important}
+.orb thead th{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+a{color:var(--accent-text);text-decoration:none}a:hover{text-decoration:underline}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="min-height: 100vh; display: flex; flex-wrap: wrap; background: var(--bg)">
+  <div style="flex: 1 1 232px; background: var(--side); display: flex">
+    <dc-import name="Sidebar" active="team" hint-size="232px,900px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <dc-import name="Topbar" heading="Office hours &amp; on-call" sub="Team" dark="{{dark}}" on-toggle-theme="{{toggleTheme}}" hint-size="100%,56px"></dc-import>
+    <div style="padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 18px; max-width: 1480px; width: 100%; margin: 0 auto">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px">
+        <div style="display: flex; align-items: center; gap: 12px"><a href="Team.dc.html" style="font-size: 13px; font-weight: 500">← Team</a><h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em">Office hours &amp; on-call</h2></div>
+        <div style="display: flex; gap: 10px; align-items: center">
+          <span style="font-size: 12.5px; font-weight: 500; padding: 4px 10px; border-radius: 99px; {{nowTone}}">{{nowLabel}}</span>
+          <button type="button" onClick="{{save}}" class="bp" style="height: 36px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">Save changes</button>
+        </div>
+      </div>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+        <section class="card" style="flex: 3 1 560px; min-width: 0">
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border)"><h3 style="margin: 0; font-size: 15px; font-weight: 600">Office hours</h3>
+            <label style="display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2)">Time zone<select style="height: 32px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px"><option>(UTC−06:00) Central Time</option><option>(UTC+05:00) Karachi</option><option>(UTC+04:00) Dubai</option></select></label></div>
+          <sc-for list="{{days}}" as="d"><div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--border)">
+            <button type="button" role="switch" aria-checked="{{d.aria}}" aria-label="Open on {{d.n}}" onClick="{{d.toggle}}" style="width: 36px; height: 20px; border: 0; border-radius: 99px; padding: 2px; display: flex; flex: none; background: {{d.track}}; justify-content: {{d.knob}}"><span style="width: 16px; height: 16px; border-radius: 99px; background: #FFFFFF"></span></button>
+            <span style="width: 100px; font-weight: 500">{{d.n}}</span>
+            <sc-if value="{{d.on}}" hint-placeholder-val="{{true}}">
+              <span style="display: flex; gap: 8px; align-items: center"><label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">{{d.n}} opens</span><select style="height: 34px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px"><option>{{d.from}}</option><option>7:00 AM</option><option>9:00 AM</option></select></label><span style="color: var(--text-3)">to</span><label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">{{d.n}} closes</span><select style="height: 34px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px"><option>{{d.to}}</option><option>6:00 PM</option><option>10:00 PM</option></select></label></span>
+              <div style="flex: 1 1 200px; height: 8px; border-radius: 6px; background: var(--surface-2); position: relative"><span style="position: absolute; top: 0; bottom: 0; left: {{d.left}}%; width: {{d.width}}%; border-radius: 6px; background: var(--accent)"></span></div>
+            </sc-if>
+            <sc-if value="{{d.off}}" hint-placeholder-val="{{false}}"><span style="font-size: 13px; color: var(--text-3)">Closed · AI answers, people follow up next business day</span></sc-if>
+          </div></sc-for>
+          <div style="display: flex; justify-content: space-between; padding: 8px 18px 12px; font-size: 11px; color: var(--text-3)" class="num"><span style="width: 260px"></span><span>12a</span><span>6a</span><span>12p</span><span>6p</span><span>12a</span></div>
+        </section>
+
+        <section class="card" style="flex: 2 1 320px; min-width: 0">
+          <div style="padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center"><h3 style="margin: 0; font-size: 15px; font-weight: 600">Holidays</h3><button type="button" class="hov" style="height: 30px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 12.5px">Add date</button></div>
+          <sc-for list="{{holidays}}" as="h"><div style="display: flex; gap: 12px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--border)"><span class="num" style="width: 64px; font-size: 13px; font-weight: 600">{{h.d}}</span><span style="flex: 1">{{h.n}}</span><span style="font-size: 12.5px; color: var(--text-3)">{{h.m}}</span></div></sc-for>
+        </section>
+      </div>
+
+      <section class="card" style="overflow-x: auto">
+        <div style="display: flex; flex-wrap: wrap; gap: 10px; justify-content: space-between; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border)">
+          <div><h3 style="margin: 0; font-size: 15px; font-weight: 600">On-call rotation</h3><div style="font-size: 12.5px; color: var(--text-3)">After hours, urgent chats ring this person’s phone</div></div>
+          <div style="display: flex; gap: 6px"><button type="button" onClick="{{prevWeek}}" aria-label="Previous week" class="hov" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface)">‹</button><span class="num" style="align-self: center; font-size: 13px; font-weight: 500; min-width: 120px; text-align: center">{{weekLabel}}</span><button type="button" onClick="{{nextWeek}}" aria-label="Next week" class="hov" style="width: 32px; height: 32px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface)">›</button></div>
+        </div>
+        <table style="width: 100%; min-width: 860px; border-collapse: collapse; font-size: 13px">
+          <thead><tr style="text-align: left"><th style="padding: 10px 18px">Shift</th><sc-for list="{{weekDays}}" as="w"><th style="padding: 10px 8px">{{w}}</th></sc-for></tr></thead>
+          <tbody><sc-for list="{{shifts}}" as="sh"><tr style="border-top: 1px solid var(--border)"><td style="padding: 12px 18px"><div style="font-weight: 500">{{sh.n}}</div><div class="num" style="font-size: 12px; color: var(--text-3)">{{sh.t}}</div></td>
+            <sc-for list="{{sh.cells}}" as="c"><td style="padding: 8px"><button type="button" onClick="{{c.cycle}}" title="Click to change who is on call" style="width: 100%; display: flex; gap: 6px; align-items: center; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; background: {{c.bg}}; text-align: left; font-size: 12.5px"><span style="width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; font-size: 10px; font-weight: 700; {{c.av}}">{{c.ini}}</span>{{c.n}}</button></td></sc-for>
+          </tr></sc-for></tbody>
+        </table>
+      </section>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+        <section class="card" style="flex: 1 1 380px; min-width: 0; padding: 18px; display: flex; flex-direction: column; gap: 4px">
+          <h3 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">Outside office hours</h3>
+          <sc-for list="{{rules}}" as="r"><label style="display: flex; flex-direction: column; gap: 6px; padding: 10px 0; border-top: 1px solid var(--border); font-size: 13px; font-weight: 500">{{r.k}}<select style="height: 36px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-weight: 400"><option>{{r.v}}</option><option>{{r.alt}}</option></select></label></sc-for>
+        </section>
+        <section class="card" style="flex: 1 1 380px; min-width: 0; padding: 18px; display: flex; flex-direction: column; gap: 4px">
+          <h3 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">Agent availability</h3>
+          <sc-for list="{{avail}}" as="a"><div style="display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border)"><div style="flex: 1"><div style="font-weight: 500; font-size: 13.5px">{{a.k}}</div><div style="font-size: 12px; color: var(--text-3)">{{a.h}}</div></div><span class="num" style="font-size: 13px; font-weight: 600; padding: 4px 10px; border-radius: 8px; background: var(--surface-2)">{{a.v}}</span></div></sc-for>
+        </section>
+      </div>
+    </div>
+  </main>
+  <sc-if value="{{toast}}" hint-placeholder-val="{{false}}"><div role="status" style="position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 60; padding: 10px 14px; border-radius: 10px; background: #0E0F0C; color: #FFFFFF; font-size: 13px">{{toast}}</div></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1260}}'>
+const D = [['Monday', 8, 20], ['Tuesday', 8, 20], ['Wednesday', 8, 20], ['Thursday', 8, 20], ['Friday', 8, 20], ['Saturday', 10, 16], ['Sunday', 10, 16]];
+const P = [['AM', 'Alex', 'background:#E9D8FD;color:#3B1F73'], ['JL', 'Jordan', 'background:#D3E8FF;color:#123E6B'], ['NP', 'Nina', 'background:#FFE1C7;color:#6B3410'], ['OH', 'Omar', 'background:#D2F2E2;color:#0F4D2F'], ['CM', 'Chloe', 'background:#FAD4E4;color:#6B1238']];
+const fmt = (h) => (h === 0 ? '12:00 AM' : (h < 12 ? h + ':00 AM' : (h === 12 ? '12:00 PM' : (h - 12) + ':00 PM')));
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { dark: null, off: { 6: true }, week: 0, oc: {}, toast: '' }; }
+  flash(t) { this.setState({ toast: t }); clearTimeout(this._t); this._t = setTimeout(() => this.setState({ toast: '' }), 2400); }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const start = new Date(2026, 10, 9 + s.week * 7);
+    const wd = Array.from({ length: 7 }, (_, i) => { const d = new Date(start); d.setDate(d.getDate() + i); return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i] + ' ' + d.getDate(); });
+    const end = new Date(start); end.setDate(end.getDate() + 6);
+    const M = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const SH = [['Evening', '8:00 PM – 2:00 AM', 0], ['Overnight', '2:00 AM – 8:00 AM', 2]];
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', dark, toggleTheme: () => this.setState({ dark: !dark }),
+      nowLabel: 'Open now · closes 8:00 PM', nowTone: 'background:var(--ok-soft);color:var(--ok)',
+      save: () => this.flash('Schedule saved · applies to routing immediately'),
+      days: D.map(([n, f, t], i) => { const on = !s.off[i]; return { n, on, off: !on, from: fmt(f), to: fmt(t), left: f / 24 * 100, width: (t - f) / 24 * 100, aria: on ? 'true' : 'false', track: on ? 'var(--ok)' : 'var(--border-strong)', knob: on ? 'flex-end' : 'flex-start', toggle: () => this.setState({ off: { ...s.off, [i]: on } }) }; }),
+      holidays: [['Nov 26', 'Thanksgiving', 'Closed'], ['Dec 25', 'Christmas Day', 'Closed'], ['Dec 31', 'New Year’s Eve', 'Closes 2:00 PM'], ['Jan 1', 'New Year’s Day', 'Closed']].map(([d, n, m]) => ({ d, n, m })),
+      weekLabel: M[start.getMonth()] + ' ' + start.getDate() + ' – ' + M[end.getMonth()] + ' ' + end.getDate(),
+      prevWeek: () => this.setState({ week: s.week - 1 }), nextWeek: () => this.setState({ week: s.week + 1 }),
+      weekDays: wd,
+      shifts: SH.map(([n, t, base], si) => ({ n, t, cells: wd.map((_, di) => { const key = s.week + ':' + si + ':' + di; const pi = (s.oc[key] ?? (base + di + s.week) % P.length); const p = P[pi]; const today = s.week === 0 && di === 0; return { ini: p[0], n: p[1], av: p[2], bg: today ? 'var(--accent-soft)' : 'var(--surface)', cycle: () => this.setState({ oc: { ...s.oc, [key]: (pi + 1) % P.length } }) }; }) })),
+      rules: [['Urgent chats (VIP, SLA risk, regulator mention)', 'Ring the on-call agent’s phone', 'Email supervisors'], ['Other chats', 'AI answers; people follow up next business day', 'AI answers and creates a ticket'], ['Calls', 'Voicemail, transcribed, callback booked', 'Forward to on-call agent'], ['Tell customers', 'Show expected reply time in the widget', 'Hide reply time']].map(([k, v, alt]) => ({ k, v, alt })),
+      avail: [['Auto-away after inactivity', 'Agent shows Away and stops getting new chats', '15 min'], ['Dashboard heartbeat grace', 'Counts as online if the tab drops briefly', '90 s'], ['Chats per agent', 'New chats skip agents at their limit', '8'], ['Ring timeout', 'Then the AI resolution team takes over', '60 s']].map(([k, h, v]) => ({ k, h, v })),
+      toast: s.toast || false
+    };
+  }
+}
+</script>
+</body>
+</html>

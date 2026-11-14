@@ -1,0 +1,409 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Customer chat widget</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+.w *{box-sizing:border-box}
+.w button,.w input{font:inherit;color:inherit}
+.w button{cursor:pointer}
+.w :focus-visible{outline:2px solid #163300;outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.w .hv:hover{background:#EDEFEA!important}
+.w .lift:hover{transform:translateY(-1px);box-shadow:0 10px 28px rgba(14,20,36,.22)!important}
+.dot{width:6px;height:6px;border-radius:9px;background:#8A90A2;animation:bl 1.2s infinite ease-in-out}
+.dot:nth-child(2){animation-delay:.15s}.dot:nth-child(3){animation-delay:.3s}
+@keyframes bl{0%,80%,100%{opacity:.3;transform:translateY(0)}40%{opacity:1;transform:translateY(-3px)}}
+.pop{animation:pop .22s ease-out}
+@keyframes pop{from{opacity:0;transform:translateY(8px) scale(.98)}to{opacity:1;transform:none}}
+/* POLISH v1 */
+.mono{font-family:Inter,system-ui,sans-serif!important;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+code.mono,pre.mono{font-family:'Geist Mono',ui-monospace,monospace!important}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+</style>
+</helmet>
+<div class="w" style="width: 1440px; height: 900px; display: flex; font-family: Inter, Inter, system-ui, sans-serif; font-size: 14px; line-height: 1.45; color: #0E0F0C; background: #F6F7F4; overflow: hidden">
+
+  <!-- Launcher gallery -->
+  <aside aria-label="Launcher variants" style="flex: 0 0 400px; padding: 32px; border-right: 1px solid #E3E5E0; background: #FFFFFF; display: flex; flex-direction: column; gap: 26px; overflow: auto">
+    <div>
+      <div style="font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: #6A6C6A">Website widget</div>
+      <h1 style="margin: 4px 0 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em">Chat window &amp; launcher</h1>
+      <p style="margin: 6px 0 0; font-size: 13.5px; color: #454745">What your customers see. Try it on the right — ask about an order, then ask for a person.</p>
+    </div>
+
+    <section style="display: flex; flex-direction: column; gap: 12px">
+      <div style="font-size: 12.5px; font-weight: 600; color: #454745">Launcher icon</div>
+      <div style="display: flex; gap: 18px; align-items: flex-end">
+        <sc-for list="{{icons}}" as="ic">
+          <button type="button" onClick="{{ic.pick}}" aria-pressed="{{ic.pressed}}" aria-label="Use {{ic.label}} launcher" style="display: flex; flex-direction: column; align-items: center; gap: 8px; border: 0; background: transparent; padding: 0">
+            <span style="width: 56px; height: 56px; border-radius: 99px; display: grid; place-items: center; background: {{brand}}; color: #FFFFFF; box-shadow: {{ic.ring}}">
+              <svg width="26" height="26" viewBox="0 0 24 24" fill="{{ic.fill}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{ic.path}}"></path></svg>
+            </span>
+            <span style="font-size: 12px; color: {{ic.color}}; font-weight: 500">{{ic.label}}</span>
+          </button>
+        </sc-for>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 12px">
+      <div style="font-size: 12.5px; font-weight: 600; color: #454745">States</div>
+      <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px">
+        <div style="padding: 16px; border: 1px solid #E3E5E0; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px">
+          <span style="width: 52px; height: 52px; border-radius: 99px; display: grid; place-items: center; background: {{brand}}; color: #FFFFFF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{iconPath}}"></path></svg></span>
+          <span style="font-size: 12px; color: #6A6C6A">Default</span>
+        </div>
+        <div style="padding: 16px; border: 1px solid #E3E5E0; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px">
+          <span style="position: relative; width: 52px; height: 52px; border-radius: 99px; display: grid; place-items: center; background: {{brand}}; color: #FFFFFF"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{iconPath}}"></path></svg><span class="mono" style="position: absolute; top: -3px; right: -3px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 99px; background: #BF2F28; color: #FFFFFF; font-size: 11px; font-weight: 700; display: grid; place-items: center; border: 2px solid #FFFFFF">2</span></span>
+          <span style="font-size: 12px; color: #6A6C6A">Unread replies</span>
+        </div>
+        <div style="padding: 16px; border: 1px solid #E3E5E0; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px">
+          <span style="width: 52px; height: 52px; border-radius: 99px; display: grid; place-items: center; background: {{brand}}; color: #FFFFFF"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></span>
+          <span style="font-size: 12px; color: #6A6C6A">Open (minimise)</span>
+        </div>
+        <div style="padding: 16px; border: 1px solid #E3E5E0; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 10px">
+          <span style="height: 48px; padding: 0 18px 0 14px; border-radius: 99px; display: flex; align-items: center; gap: 8px; background: {{brand}}; color: #FFFFFF; font-size: 14px; font-weight: 600"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{iconPath}}"></path></svg>Chat with us</span>
+          <span style="font-size: 12px; color: #6A6C6A">With label</span>
+        </div>
+      </div>
+      <div style="padding: 14px; border: 1px solid #E3E5E0; border-radius: 12px; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; background: #F6F7F4">
+        <div style="max-width: 260px; padding: 12px 14px; border-radius: 14px 14px 4px 14px; background: #FFFFFF; box-shadow: 0 6px 20px rgba(14,20,36,.12); font-size: 13.5px">
+          <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 4px"><span style="width: 22px; height: 22px; border-radius: 7px; background: #6D3FD6; color: #FFFFFF; display: grid; place-items: center; font-size: 10px; font-weight: 700">N</span><b style="font-size: 12.5px">Nova</b><span style="font-size: 11.5px; color: #6A6C6A">· Lumen Goods</span></div>
+          Hi! Free shipping ends tonight on orders over $75. Need help choosing?
+        </div>
+        <span style="font-size: 12px; color: #6A6C6A">Proactive message (from Engagement)</span>
+      </div>
+      <div style="padding: 14px; border: 1px solid #E3E5E0; border-radius: 12px; display: flex; align-items: center; gap: 12px">
+        <span style="position: relative; width: 44px; height: 44px; border-radius: 99px; display: grid; place-items: center; background: #E3E6DF; color: #454745"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{iconPath}}"></path></svg><span style="position: absolute; right: 0; bottom: 0; width: 11px; height: 11px; border-radius: 99px; background: #8A90A2; border: 2px solid #FFFFFF"></span></span>
+        <div style="font-size: 12.5px; color: #454745"><b style="color: #0E0F0C">Offline</b> · Nova still answers; human replies arrive by email.</div>
+      </div>
+    </section>
+
+    <section style="display: flex; flex-direction: column; gap: 10px">
+      <div style="font-size: 12.5px; font-weight: 600; color: #454745">Preview controls</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 8px">
+        <button type="button" onClick="{{showClosed}}" class="hv" style="height: 34px; padding: 0 12px; border: 1px solid #E3E5E0; border-radius: 8px; background: #FFFFFF; font-size: 13px">Closed + proactive</button>
+        <button type="button" onClick="{{showHome}}" class="hv" style="height: 34px; padding: 0 12px; border: 1px solid #E3E5E0; border-radius: 8px; background: #FFFFFF; font-size: 13px">Home</button>
+        <button type="button" onClick="{{showChat}}" class="hv" style="height: 34px; padding: 0 12px; border: 1px solid #E3E5E0; border-radius: 8px; background: #FFFFFF; font-size: 13px">Conversation</button>
+        <button type="button" onClick="{{restart}}" class="hv" style="height: 34px; padding: 0 12px; border: 1px solid #E3E5E0; border-radius: 8px; background: #FFFFFF; font-size: 13px">Restart demo</button>
+      </div>
+    </section>
+  </aside>
+
+  <!-- Storefront mock + live widget -->
+  <section aria-label="Customer website with widget" style="flex: 1; position: relative; overflow: hidden; background: #FBFAF7">
+    <div aria-hidden="true" style="display: flex; flex-direction: column; height: 100%; opacity: 0.9">
+      <div style="height: 64px; display: flex; align-items: center; gap: 28px; padding: 0 48px; border-bottom: 1px solid #ECE8DF; font-size: 14px; color: #3D3A33">
+        <b style="font-size: 18px; letter-spacing: 0.08em">LUMEN</b><span>Bedding</span><span>Bath</span><span>Table</span><span>Gifts</span><span style="margin-left: auto">Search</span><span>Cart (2)</span>
+      </div>
+      <div style="display: flex; gap: 40px; padding: 48px; align-items: center">
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 16px">
+          <div style="font-size: 13px; letter-spacing: 0.12em; color: #8A7F6A">AUTUMN LINEN EDIT</div>
+          <div style="font-size: 44px; line-height: 1.1; font-weight: 600; color: #2A2620; letter-spacing: -0.02em">Softer with<br>every wash.</div>
+          <div style="font-size: 15px; color: #6B6457; max-width: 360px">Stonewashed European linen throws, sheets and table linen.</div>
+          <span style="align-self: flex-start; padding: 12px 22px; background: #2A2620; color: #FBFAF7; font-size: 14px">Shop the edit</span>
+        </div>
+        <div style="flex: 1; height: 320px; background: repeating-linear-gradient(135deg, #EFEBE2 0 14px, #E7E2D6 14px 28px); display: grid; place-items: center; color: #8A7F6A; font-size: 13px">[HERO IMAGE]</div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; padding: 0 48px">
+        <sc-for list="{{products}}" as="p"><div style="display: flex; flex-direction: column; gap: 8px"><div style="height: 180px; background: #EFEBE2"></div><div style="font-size: 14px; color: #2A2620">{{p.n}}</div><div style="font-size: 13px; color: #6B6457">{{p.p}}</div></div></sc-for>
+      </div>
+    </div>
+
+    <!-- Proactive bubble -->
+    <sc-if value="{{showProactive}}" hint-placeholder-val="{{false}}">
+      <div class="pop" style="position: absolute; right: 28px; bottom: 100px; width: 290px; padding: 14px 16px; border-radius: 16px 16px 4px 16px; background: #FFFFFF; box-shadow: 0 12px 36px rgba(14,20,36,.16); display: flex; flex-direction: column; gap: 8px">
+        <div style="display: flex; gap: 8px; align-items: center"><span style="width: 24px; height: 24px; border-radius: 7px; background: #6D3FD6; color: #FFFFFF; display: grid; place-items: center; font-size: 11px; font-weight: 700">N</span><b style="font-size: 13px">Nova</b><span style="font-size: 12px; color: #6A6C6A">from Lumen Goods</span>
+          <button type="button" onClick="{{dismissProactive}}" aria-label="Dismiss message" class="hv" style="margin-left: auto; width: 28px; height: 28px; border: 0; border-radius: 7px; background: transparent; color: #6A6C6A"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" style="display:block;margin:auto"><path d="M18 6L6 18M6 6l12 12"></path></svg></button></div>
+        <div style="font-size: 14px">Hi! Free shipping ends tonight on orders over $75. Need help choosing a size?</div>
+        <div style="display: flex; gap: 6px; flex-wrap: wrap"><button type="button" onClick="{{replyProactive}}" style="height: 32px; padding: 0 12px; border: 1px solid #E3E5E0; border-radius: 99px; background: #FFFFFF; font-size: 13px">Yes, help me</button><button type="button" onClick="{{trackFromProactive}}" style="height: 32px; padding: 0 12px; border: 1px solid #E3E5E0; border-radius: 99px; background: #FFFFFF; font-size: 13px">Track my order</button></div>
+      </div>
+    </sc-if>
+
+    <!-- Window -->
+    <sc-if value="{{open}}" hint-placeholder-val="{{true}}">
+      <div class="pop" role="dialog" aria-label="Chat with Lumen Goods" style="position: absolute; right: 28px; bottom: 100px; width: 384px; height: 640px; border-radius: 18px; background: #FFFFFF; box-shadow: 0 24px 64px rgba(14,20,36,.22); display: flex; flex-direction: column; overflow: hidden">
+
+        <sc-if value="{{isHome}}" hint-placeholder-val="{{false}}">
+          <div style="flex: 1; overflow: auto; display: flex; flex-direction: column; background: #F6F7F4">
+            <div style="padding: 24px 22px 56px; background: {{brand}}; color: #FFFFFF; display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; align-items: center; justify-content: space-between">
+                <b style="letter-spacing: 0.1em; font-size: 15px">LUMEN</b>
+                <div style="display: flex">
+                  <span style="width: 30px; height: 30px; border-radius: 99px; background: #E9D8FD; color: #3B1F73; display: grid; place-items: center; font-size: 11px; font-weight: 700; border: 2px solid {{brand}}">AM</span>
+                  <span style="width: 30px; height: 30px; margin-left: -8px; border-radius: 99px; background: #FFE1C7; color: #6B3410; display: grid; place-items: center; font-size: 11px; font-weight: 700; border: 2px solid {{brand}}">NP</span>
+                  <span style="width: 30px; height: 30px; margin-left: -8px; border-radius: 99px; background: #D2F2E2; color: #0F4D2F; display: grid; place-items: center; font-size: 11px; font-weight: 700; border: 2px solid {{brand}}">OH</span>
+                </div>
+              </div>
+              <div style="font-size: 26px; font-weight: 600; line-height: 1.2; letter-spacing: -0.02em">Hi there<br>How can we help?</div>
+            </div>
+            <div style="margin-top: -36px; padding: 0 14px 14px; display: flex; flex-direction: column; gap: 10px">
+              <button type="button" onClick="{{showChat}}" class="lift" style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 0; border-radius: 14px; background: #FFFFFF; box-shadow: 0 4px 14px rgba(14,20,36,.08); text-align: left; transition: transform .15s, box-shadow .15s">
+                <span style="flex: 1"><span style="display: block; font-weight: 600">Send us a message</span><span style="display: block; font-size: 12.5px; color: #6A6C6A">Nova replies instantly · team online until 8 PM</span></span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="{{brand}}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4z"></path></svg>
+              </button>
+              <button type="button" onClick="{{trackFromHome}}" class="lift" style="display: flex; align-items: center; gap: 12px; padding: 14px 16px; border: 0; border-radius: 14px; background: #FFFFFF; box-shadow: 0 4px 14px rgba(14,20,36,.08); text-align: left; transition: transform .15s, box-shadow .15s">
+                <span style="width: 36px; height: 36px; border-radius: 10px; background: #E2F6D5; color: #163300; display: grid; place-items: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 3h15v13H1zM16 8h4l3 3v5h-7M5.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM18.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"></path></svg></span>
+                <span style="flex: 1"><span style="display: block; font-weight: 600">Track an order</span><span style="display: block; font-size: 12.5px; color: #6A6C6A">#ORD-2048 · shipped Nov 5</span></span>
+              </button>
+              <div style="padding: 14px 16px; border-radius: 14px; background: #FFFFFF; box-shadow: 0 4px 14px rgba(14,20,36,.08); display: flex; flex-direction: column; gap: 8px">
+                <label style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 10px; background: #EDEFEA"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6A6C6A" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search for help</span><input value="{{q}}" onInput="{{onQ}}" onFocus="{{showHelp}}" placeholder="Search for help" style="flex: 1; border: 0; outline: none; background: transparent; font-size: 14px"></label>
+                <sc-for list="{{topArticles}}" as="a"><button type="button" onClick="{{showHelp}}" class="hv" style="display: flex; justify-content: space-between; align-items: center; min-height: 40px; padding: 0 8px; margin: 0 -8px; border: 0; border-radius: 8px; background: transparent; text-align: left; font-size: 14px">{{a}}<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6A6C6A" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"></path></svg></button></sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isMessages}}" hint-placeholder-val="{{false}}">
+          <div style="padding: 18px 20px; border-bottom: 1px solid #E3E5E0; font-weight: 600; font-size: 16px; text-align: center">Messages</div>
+          <div style="flex: 1; overflow: auto">
+            <button type="button" onClick="{{showChat}}" class="hv" style="width: 100%; display: flex; gap: 12px; padding: 14px 18px; border: 0; border-bottom: 1px solid #E3E5E0; background: #FFFFFF; text-align: left">
+              <span style="width: 38px; height: 38px; border-radius: 10px; background: #6D3FD6; color: #FFFFFF; display: grid; place-items: center; font-weight: 700">N</span>
+              <span style="flex: 1; min-width: 0"><span style="display: flex; justify-content: space-between"><b>Order #ORD-2048</b><span style="font-size: 12px; color: #6A6C6A">now</span></span><span style="display: block; font-size: 13px; color: #454745; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{lastPreview}}</span></span>
+            </button>
+            <div style="display: flex; gap: 12px; padding: 14px 18px; border-bottom: 1px solid #E3E5E0; opacity: .75">
+              <span style="width: 38px; height: 38px; border-radius: 99px; background: #FFE1C7; color: #6B3410; display: grid; place-items: center; font-weight: 700; font-size: 12px">NP</span>
+              <span style="flex: 1"><span style="display: flex; justify-content: space-between"><b>Gift wrapping options</b><span style="font-size: 12px; color: #6A6C6A">Sep 12</span></span><span style="display: block; font-size: 13px; color: #454745">Resolved · you rated 5/5</span></span>
+            </div>
+          </div>
+          <div style="padding: 14px"><button type="button" onClick="{{showChat}}" style="width: 100%; height: 44px; border: 0; border-radius: 12px; background: {{brand}}; color: #FFFFFF; font-weight: 600">Send us a message</button></div>
+        </sc-if>
+
+        <sc-if value="{{isHelp}}" hint-placeholder-val="{{false}}">
+          <div style="padding: 16px 18px 12px; border-bottom: 1px solid #E3E5E0; display: flex; flex-direction: column; gap: 10px">
+            <div style="font-weight: 600; font-size: 16px; text-align: center">Help</div>
+            <label style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-radius: 10px; background: #EDEFEA"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#6A6C6A" stroke-width="1.9" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search articles</span><input value="{{q}}" onInput="{{onQ}}" placeholder="Search articles" style="flex: 1; border: 0; outline: none; background: transparent; font-size: 14px"></label>
+          </div>
+          <div style="flex: 1; overflow: auto; padding: 6px 10px">
+            <sc-for list="{{articles}}" as="a"><button type="button" class="hv" style="width: 100%; display: flex; flex-direction: column; gap: 2px; padding: 12px 10px; border: 0; border-radius: 10px; background: transparent; text-align: left"><span style="font-weight: 500">{{a.t}}</span><span style="font-size: 12.5px; color: #6A6C6A">{{a.d}}</span></button></sc-for>
+            <sc-if value="{{noArticles}}" hint-placeholder-val="{{false}}"><div style="padding: 28px 12px; text-align: center; font-size: 13.5px; color: #454745">No articles for “{{q}}”.<br><button type="button" onClick="{{showChat}}" style="margin-top: 10px; height: 38px; padding: 0 14px; border: 0; border-radius: 10px; background: {{brand}}; color: #FFFFFF; font-weight: 500">Ask Nova instead</button></div></sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{isChat}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; align-items: center; gap: 10px; padding: 12px 12px; border-bottom: 1px solid #E3E5E0">
+            <button type="button" onClick="{{showHome}}" aria-label="Back" class="hv" style="width: 36px; height: 36px; border: 0; border-radius: 9px; background: transparent; display: grid; place-items: center; color: #454745"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></button>
+            <span style="position: relative; width: 36px; height: 36px; border-radius: {{hdr.radius}}; display: grid; place-items: center; font-size: 13px; font-weight: 700; {{hdr.av}}">{{hdr.ini}}<span style="position: absolute; right: -2px; bottom: -2px; width: 11px; height: 11px; border-radius: 99px; background: #2FB36B; border: 2px solid #FFFFFF"></span></span>
+            <div style="flex: 1; min-width: 0"><div style="font-weight: 600">{{hdr.name}}</div><div style="font-size: 12px; color: #6A6C6A">{{hdr.sub}}</div></div>
+            <button type="button" onClick="{{callUs}}" class="hv" aria-label="Call us" title="Call us" style="width: 32px; height: 32px; border: 1px solid #E3E5E0; border-radius: 8px; background: #FFFFFF; display: grid; place-items: center; color: #454745"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"></path></svg></button>
+            <button type="button" onClick="{{toWhatsApp}}" class="hv" aria-label="Continue on WhatsApp" title="Continue on WhatsApp" style="width: 32px; height: 32px; border: 1px solid #E3E5E0; border-radius: 8px; background: #FFFFFF; display: grid; place-items: center; color: #454745"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21l1.6-4.8A8.5 8.5 0 1 1 8 19.6z"></path><path d="M9 9.5c0 3 2.5 5.5 5.5 5.5l1-1.5-2-1-1 1c-1-.5-2-1.5-2.5-2.5l1-1-1-2z"></path></svg></button>
+            <button type="button" onClick="{endChat}" class="hv" title="End conversation" style="height: 32px; padding: 0 10px; border: 1px solid #E3E5E0; border-radius: 8px; background: #FFFFFF; font-size: 12.5px; color: #454745">End</button>
+          </div>
+          <div style="flex: 1; overflow: auto; display: flex; flex-direction: column-reverse; background: #FFFFFF">
+            <div style="padding: 16px 14px; display: flex; flex-direction: column; gap: 10px">
+              <div style="align-self: center; font-size: 11.5px; color: #6A6C6A">Today 10:31 AM</div>
+              <sc-for list="{{msgs}}" as="m">
+                <sc-if value="{{m.isBot}}" hint-placeholder-val="{{true}}">
+                  <div class="pop" style="display: flex; gap: 8px; align-items: flex-end; max-width: 88%">
+                    <span style="flex: none; width: 26px; height: 26px; border-radius: 8px; background: #6D3FD6; color: #FFFFFF; display: grid; place-items: center; font-size: 11px; font-weight: 700">N</span>
+                    <div style="display: flex; flex-direction: column; gap: 3px"><div style="padding: 10px 13px; border-radius: 14px 14px 14px 4px; background: #EDEFEA; font-size: 14px; white-space: pre-line">{{m.t}}</div><span style="font-size: 11px; color: #6A6C6A">Nova · AI agent</span></div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{m.isAgent}}" hint-placeholder-val="{{false}}">
+                  <div class="pop" style="display: flex; gap: 8px; align-items: flex-end; max-width: 88%">
+                    <span style="flex: none; width: 26px; height: 26px; border-radius: 99px; background: #E9D8FD; color: #3B1F73; display: grid; place-items: center; font-size: 10px; font-weight: 700">AM</span>
+                    <div style="display: flex; flex-direction: column; gap: 3px"><div style="padding: 10px 13px; border-radius: 14px 14px 14px 4px; background: #EDEFEA; font-size: 14px">{{m.t}}</div><span style="font-size: 11px; color: #6A6C6A">Alex · Lumen Goods team</span></div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{m.isUser}}" hint-placeholder-val="{{false}}">
+                  <div class="pop" style="align-self: flex-end; max-width: 80%; display: flex; flex-direction: column; align-items: flex-end; gap: 3px"><div style="padding: 10px 13px; border-radius: 14px 14px 4px 14px; background: {{brand}}; color: #FFFFFF; font-size: 14px">{{m.t}}</div><span style="font-size: 11px; color: #6A6C6A">Seen</span></div>
+                </sc-if>
+                <sc-if value="{{m.isEvent}}" hint-placeholder-val="{{false}}">
+                  <div class="pop" style="align-self: center; display: flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 99px; background: #F6F7F4; font-size: 12px; color: #454745"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 1l4 4-4 4M3 11V9a4 4 0 0 1 4-4h14"></path></svg>{{m.t}}</div>
+                </sc-if>
+                <sc-if value="{{m.isOrder}}" hint-placeholder-val="{{false}}">
+                  <div class="pop" style="margin-left: 34px; width: 260px; border: 1px solid #E3E5E0; border-radius: 14px; overflow: hidden">
+                    <div style="display: flex; gap: 10px; padding: 12px; align-items: center"><span style="width: 48px; height: 48px; border-radius: 8px; background: #EFEBE2"></span><div style="flex: 1"><div class="mono" style="font-size: 12px; color: #6A6C6A">#ORD-2048 · $148.00</div><div style="font-size: 13.5px; font-weight: 500">Linen Throw (Sand) + 2 mugs</div></div></div>
+                    <div style="padding: 0 12px 12px; display: flex; flex-direction: column; gap: 6px">
+                      <div style="display: flex; gap: 4px"><span style="flex: 1; height: 4px; border-radius: 4px; background: #1C7C45"></span><span style="flex: 1; height: 4px; border-radius: 4px; background: #1C7C45"></span><span style="flex: 1; height: 4px; border-radius: 4px; background: #E3E5E0"></span></div>
+                      <div style="display: flex; justify-content: space-between; font-size: 12px; color: #454745"><span>Ordered</span><b style="color: #1C7C45">Shipped · UPS</b><span>Delivered</span></div>
+                    </div>
+                    <div style="display: flex; border-top: 1px solid #E3E5E0"><span style="flex: 1; padding: 10px; text-align: center; font-size: 13px; font-weight: 500; color: {{brand}}">Track package</span><span style="flex: 1; padding: 10px; text-align: center; font-size: 13px; font-weight: 500; color: {{brand}}; border-left: 1px solid #E3E5E0">Order details</span></div>
+                  </div>
+                </sc-if>
+                <sc-if value="{{m.isOtp}}" hint-placeholder-val="{{false}}">
+                  <div class="pop" style="align-self: stretch; padding: 14px; border: 1px solid #E3E5E0; border-radius: 14px; display: flex; flex-direction: column; gap: 10px">
+                    <div style="display: flex; gap: 10px; align-items: center"><span style="width: 32px; height: 32px; border-radius: 9px; background: #E2F6D5; color: #163300; display: grid; place-items: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="10" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg></span><div><div style="font-weight: 600; font-size: 13.5px">Verify it’s you</div><div style="font-size: 12px; color: #6A6C6A">Code sent to s•••@example.com</div></div></div>
+                    <sc-if value="{{otpPending}}" hint-placeholder-val="{{true}}">
+                      <div style="display: flex; gap: 8px"><label for="otp" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">6-digit code</label><input id="otp" inputmode="numeric" maxlength="6" value="{{otpCode}}" onInput="{{onOtp}}" placeholder="••••••" style="flex: 1; min-width: 0; height: 40px; padding: 0 12px; border: 1px solid #C9CCC5; border-radius: 10px; font-family: 'Geist Mono', monospace; font-size: 17px; letter-spacing: 0.3em"><button type="button" onClick="{{verifyOtp}}" disabled="{{otpShort}}" style="height: 40px; padding: 0 14px; border: 0; border-radius: 10px; background: {{otpBg}}; color: #FFFFFF; font-size: 13.5px; font-weight: 600">Verify</button></div>
+                      <div style="display: flex; justify-content: space-between; font-size: 12px; color: #6A6C6A"><span>Expires in 10 min</span><button type="button" style="border: 0; background: transparent; padding: 0; font-size: 12px; color: {{brand}}">Resend code</button></div>
+                    </sc-if>
+                    <sc-if value="{{otpDone}}" hint-placeholder-val="{{false}}"><div style="font-size: 13px; color: #1C7C45; font-weight: 500">Verified</div></sc-if>
+                  </div>
+                </sc-if>
+                <sc-if value="{{m.isCsat}}" hint-placeholder-val="{{false}}">
+                  <div class="pop" style="align-self: stretch; padding: 16px; border: 1px solid #E3E5E0; border-radius: 14px; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center">
+                    <div style="font-weight: 600">How was this conversation?</div>
+                    <sc-if value="{{notRated}}" hint-placeholder-val="{{true}}">
+                      <div style="display: flex; gap: 6px"><sc-for list="{{stars}}" as="st"><button type="button" onClick="{{st.pick}}" onMouseEnter="{{st.hover}}" aria-label="Rate {{st.n}} out of 5" style="width: 40px; height: 40px; border: 0; border-radius: 10px; background: transparent; display: grid; place-items: center"><svg width="28" height="28" viewBox="0 0 24 24" fill="{{st.fill}}" stroke="{{st.stroke}}" stroke-width="1.6" stroke-linejoin="round" aria-hidden="true"><path d="M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z"></path></svg></button></sc-for></div>
+                      <div style="font-size: 12px; color: #6A6C6A">{{starHint}}</div>
+                    </sc-if>
+                    <sc-if value="{{rated}}" hint-placeholder-val="{{false}}"><div style="font-size: 13.5px; color: #1C7C45; font-weight: 500">Thanks for rating {{rating}}/5 — it helps us improve.</div><button type="button" onClick="{{restart}}" style="height: 36px; padding: 0 14px; border: 1px solid #E3E5E0; border-radius: 10px; background: #FFFFFF; font-size: 13px">Start a new conversation</button></sc-if>
+                  </div>
+                </sc-if>
+              </sc-for>
+              <sc-if value="{{typing}}" hint-placeholder-val="{{false}}">
+                <div style="display: flex; gap: 8px; align-items: flex-end"><span style="width: 26px; height: 26px; border-radius: {{hdr.radius}}; display: grid; place-items: center; font-size: 10px; font-weight: 700; {{hdr.av}}">{{hdr.ini}}</span><div style="padding: 12px 14px; border-radius: 14px 14px 14px 4px; background: #EDEFEA; display: flex; gap: 4px"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div></div>
+              </sc-if>
+              <sc-if value="{{hasQuick}}" hint-placeholder-val="{{true}}">
+                <div style="display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; margin-top: 4px"><sc-for list="{{quick}}" as="qk"><button type="button" onClick="{{qk.send}}" class="hv" style="min-height: 36px; padding: 0 13px; border: 1px solid {{brand}}; border-radius: 99px; background: #FFFFFF; color: {{brand}}; font-size: 13.5px; font-weight: 500">{{qk.t}}</button></sc-for></div>
+              </sc-if>
+            </div>
+          </div>
+          <div style="padding: 10px 12px 8px; border-top: 1px solid #E3E5E0; display: flex; flex-direction: column; gap: 6px">
+            <div style="display: flex; align-items: center; gap: 4px; padding: 4px 4px 4px 12px; border: 1px solid #E3E5E0; border-radius: 24px">
+              <label for="wmsg" style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Message</label>
+              <input id="wmsg" value="{{draft}}" onInput="{{onDraft}}" onKeyDown="{{onKey}}" disabled="{{ended}}" placeholder="{{placeholder}}" style="flex: 1; min-width: 0; height: 36px; border: 0; outline: none; background: transparent; font-size: 14px">
+              <button type="button" aria-label="Attach a photo" title="Attach a photo" class="hv" style="width: 34px; height: 34px; border: 0; border-radius: 99px; background: transparent; display: grid; place-items: center; color: #6A6C6A"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.4 11.1l-9.2 9.2a6 6 0 0 1-8.5-8.5l9.2-9.2a4 4 0 0 1 5.7 5.7l-9.2 9.2a2 2 0 0 1-2.8-2.8l8.5-8.5"></path></svg></button>
+              <button type="button" aria-label="Emoji" title="Emoji" class="hv" style="width: 34px; height: 34px; border: 0; border-radius: 99px; background: transparent; display: grid; place-items: center; color: #6A6C6A"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01"></path></svg></button>
+              <button type="button" onClick="{{send}}" aria-label="Send message" style="width: 36px; height: 36px; border: 0; border-radius: 99px; background: {{sendBg}}; color: #FFFFFF; display: grid; place-items: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"></path></svg></button>
+            </div>
+            <div style="text-align: center; font-size: 11px; color: #6A6C6A">AI answers can be wrong · <span style="text-decoration: underline">Do not sell or share my info</span> · Powered by ORBAT</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{showNav}}" hint-placeholder-val="{{false}}">
+          <nav aria-label="Widget" style="display: flex; border-top: 1px solid #E3E5E0; background: #FFFFFF">
+            <sc-for list="{{nav}}" as="n"><button type="button" onClick="{{n.pick}}" aria-current="{{n.cur}}" style="flex: 1; height: 58px; border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; font-size: 12px; font-weight: 500; color: {{n.color}}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{n.icon}}"></path></svg>{{n.label}}</button></sc-for>
+          </nav>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <!-- Launcher -->
+    <button type="button" onClick="{{toggleOpen}}" class="lift" aria-label="{{launcherLabel}}" aria-expanded="{{openAria}}" style="position: absolute; right: 28px; bottom: 24px; width: 60px; height: 60px; border: 0; border-radius: 99px; background: {{brand}}; color: #FFFFFF; display: grid; place-items: center; box-shadow: 0 8px 24px rgba(14,20,36,.2); transition: transform .15s, box-shadow .15s">
+      <sc-if value="{{open}}" hint-placeholder-val="{{true}}"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 9l6 6 6-6"></path></svg></sc-if>
+      <sc-if value="{{closed}}" hint-placeholder-val="{{false}}"><svg width="28" height="28" viewBox="0 0 24 24" fill="{{iconFill}}" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{iconPath}}"></path></svg></sc-if>
+      <sc-if value="{{badge}}" hint-placeholder-val="{{false}}"><span class="mono" style="position: absolute; top: -2px; right: -2px; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 99px; background: #BF2F28; color: #FFFFFF; font-size: 11.5px; font-weight: 700; display: grid; place-items: center; border: 2px solid #FBFAF7">{{badge}}</span></sc-if>
+    </button>
+  </section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"brand":{"editor":"color","default":"#163300","options":["#163300","#2563EB","#0F766E","#1F2937"]},"$preview":{"width":1440,"height":900}}'>
+const ICONS = [
+  ['Bubble', 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z', 'none'],
+  ['Round', 'M21 11.5a8.4 8.4 0 0 1-9 8.4 8.6 8.6 0 0 1-3.8-.9L3 21l1.9-5.7A8.4 8.4 0 0 1 12.5 3h.5a8.5 8.5 0 0 1 8 8z', 'none'],
+  ['Spark', 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z', 'currentColor'],
+  ['Wave', 'M7 11v2M11 8v8M15 6v12M19 10v4M3 12h0', 'none']
+];
+const SEED = [
+  { k: 'bot', t: 'Hi! I’m Nova from Lumen Goods. I can track orders, start returns and answer product questions.' },
+  { k: 'user', t: 'Where is my order?' },
+  { k: 'bot', t: 'Found it — here’s your latest order:' },
+  { k: 'order' }
+];
+const ART = [
+  ['Shipping & delivery times', 'US 3–5 days · international 6–14 days'],
+  ['Lost or delayed packages', 'What to do if tracking stops updating'],
+  ['Refund policy', '30-day returns on unused items'],
+  ['Exchanges & returns', 'Swap sizes or colors for free'],
+  ['Linen care guide', 'Wash cold, tumble dry low'],
+  ['Discount codes & promotions', 'Why a code might not apply']
+];
+const ESC = /person|human|agent|connect|yes|someone|real/;
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = this.fresh(); this.state.icon = 0; }
+  fresh() { return { open: true, screen: 'chat', proactive: false, msgs: SEED.slice(), quick: ['It hasn’t moved in 3 days', 'Change delivery address', 'Talk to a person'], draft: '', typing: false, human: false, ended: false, otp: '', verified: false, rating: 0, hover: 0, q: '', unread: 0 }; }
+  componentWillUnmount() { (this._ts || []).forEach(clearTimeout); }
+  later(fn, ms) { this._ts = this._ts || []; this._ts.push(setTimeout(fn, ms)); }
+  botSay(items, quick, ms) {
+    this.setState({ typing: true, quick: [] });
+    this.later(() => this.setState((s) => ({ typing: false, msgs: s.msgs.concat(items), quick: quick || [], unread: s.open ? 0 : s.unread + 1 })), ms || 900);
+  }
+  ask(text) {
+    const t = text.trim();
+    if (!t || this.state.ended) return;
+    const x = t.toLowerCase();
+    this.setState((s) => ({ msgs: s.msgs.concat([{ k: 'user', t }]), draft: '', screen: 'chat', open: true, proactive: false }));
+    if (/refund instead|refund my|cancel order/.test(x) && !this.state.verified) return this.botSay([{ k: this.state.human ? 'agent' : 'bot', t: 'I can help with that. To protect your account, please confirm the code we just emailed you.' }, { k: 'otp' }], []);
+    if (this.state.human) { this.botSay([{ k: 'agent', t: 'Got it — I’ve noted that on your order. Anything else I can help with?' }], ['No, that’s all']); return; }
+    if (ESC.test(x)) {
+      this.botSay([{ k: 'bot', t: 'Of course. I’m bringing in a teammate now — they’ll see our whole chat, so you won’t need to repeat anything.' }, { k: 'event', t: 'Alex from the team joined · usually replies in 1 min' }], [], 900);
+      this.later(() => { this.setState({ human: true }); this.botSay([{ k: 'agent', t: 'Hi Sarah, Alex here. I can see #ORD-2048 hasn’t had a UPS scan since Nov 6. I’ve opened a trace, and if there’s no movement by Wednesday I’ll send a free express replacement so it arrives before Saturday.' }], ['Thank you!', 'Can I get a refund instead?'], 1500); }, 1100);
+      return;
+    }
+    if (/moved|days|late|stuck|saturday|delay/.test(x)) return this.botSay([{ k: 'bot', t: 'Sorry about that. Tracking shows no carrier scan since Nov 6.\nI can’t guarantee a delivery date myself, but a teammate can open a trace and arrange a replacement.' }], ['Yes, connect me', 'I’ll wait']);
+    if (/address/.test(x)) return this.botSay([{ k: 'bot', t: 'Your order has already shipped, so I can’t change the address directly. I can ask UPS to redirect it — want me to connect you with the team?' }], ['Yes, connect me', 'No thanks']);
+    if (/refund|return|exchange/.test(x)) return this.botSay([{ k: 'bot', t: 'You can return unused items within 30 days for a full refund. Want me to start a return for #ORD-2048 once it arrives?' }], ['Start a return', 'Talk to a person']);
+    if (/size|help me|choose|linen|wash/.test(x)) return this.botSay([{ k: 'bot', t: 'Happy to help! Our throws come in one size (130 × 180 cm). Sheets come in Twin to California King. What bed size do you have?' }], ['Queen', 'King', 'Talk to a person']);
+    if (/thank|that’s all|no thanks|wait/.test(x)) return this.botSay([{ k: 'bot', t: 'You’re welcome! I’ll be here if anything changes.' }], ['End chat']);
+    if (/end chat/.test(x)) return this.end();
+    return this.botSay([{ k: 'bot', t: 'I can help with orders, returns and product questions. Could you tell me a bit more?' }], ['Track my order', 'Start a return', 'Talk to a person']);
+  }
+  verify() {
+    if (this.state.otp.length < 6) return;
+    this.setState({ verified: true });
+    this.botSay([{ k: 'event', t: 'Identity verified' }, { k: this.state.human ? 'agent' : 'bot', t: 'Thanks, you’re verified. I’ve started a full refund of $148.00 for #ORD-2048 — it reaches your card in 3–5 business days.' }], ['Thank you!'], 900);
+  }
+  end() { this.setState((s) => ({ ended: true, quick: [], msgs: s.msgs.concat([{ k: 'event', t: 'Conversation ended' }, { k: 'csat' }]) })); }
+  renderVals() {
+    const s = this.state;
+    const brand = this.props.brand ?? '#163300';
+    const ic = ICONS[s.icon];
+    const q = s.q.toLowerCase();
+    const arts = ART.filter((a) => !q || (a[0] + a[1]).toLowerCase().includes(q));
+    const last = [...s.msgs].reverse().find((m) => m.t);
+    const NAV = [['home', 'Home', 'M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z'], ['messages', 'Messages', 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'], ['help', 'Help', 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01']];
+    return {
+      brand, iconPath: ic[1], iconFill: ic[2],
+      icons: ICONS.map(([label, path, fill], i) => ({ label, path, fill, pressed: i === s.icon ? 'true' : 'false', ring: i === s.icon ? '0 0 0 3px #FFFFFF, 0 0 0 5px ' + brand : 'none', color: i === s.icon ? '#0E0F0C' : '#6A6C6A', pick: () => this.setState({ icon: i }) })),
+      products: [['Linen Throw · Sand', '$96'], ['Waffle Bath Towel Set', '$86'], ['Stoneware Dinner Set', '$212'], ['Arc Table Lamp · Oak', '$124']].map(([n, p]) => ({ n, p })),
+      open: s.open, closed: !s.open, openAria: s.open ? 'true' : 'false',
+      launcherLabel: s.open ? 'Minimise chat' : 'Open chat with Lumen Goods',
+      toggleOpen: () => this.setState({ open: !s.open, proactive: false, unread: 0 }),
+      badge: !s.open && s.unread ? String(s.unread) : false,
+      showProactive: !s.open && s.proactive,
+      dismissProactive: () => this.setState({ proactive: false }),
+      replyProactive: () => this.ask('Yes, help me choose a size'),
+      trackFromProactive: () => { this.setState({ ...this.fresh() }); },
+      showClosed: () => this.setState({ open: false, proactive: true, unread: 1 }),
+      showHome: () => this.setState({ open: true, screen: 'home' }),
+      showChat: () => this.setState({ open: true, screen: 'chat' }),
+      showHelp: () => this.setState({ screen: 'help' }),
+      trackFromHome: () => this.setState({ screen: 'chat' }),
+      restart: () => { (this._ts || []).forEach(clearTimeout); this.setState(this.fresh()); },
+      isHome: s.screen === 'home', isMessages: s.screen === 'messages', isHelp: s.screen === 'help', isChat: s.screen === 'chat',
+      showNav: s.screen !== 'chat',
+      nav: NAV.map(([id, label, icon]) => ({ label, icon, cur: s.screen === id ? 'page' : 'false', color: s.screen === id ? brand : '#6A6C6A', pick: () => this.setState({ screen: id }) })),
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }),
+      topArticles: ART.slice(0, 3).map((a) => a[0]),
+      articles: arts.map(([t, d]) => ({ t, d })), noArticles: arts.length === 0,
+      lastPreview: last ? last.t : '',
+      hdr: s.human ? { name: 'Alex Morgan', sub: 'Lumen Goods team · replies in ~1 min', ini: 'AM', av: 'background:#E9D8FD;color:#3B1F73', radius: '99px' } : { name: 'Nova', sub: 'AI agent · the team can join anytime', ini: 'N', av: 'background:#6D3FD6;color:#FFFFFF', radius: '10px' },
+      msgs: s.msgs.map((m) => ({ t: m.t || '', isBot: m.k === 'bot', isAgent: m.k === 'agent', isUser: m.k === 'user', isEvent: m.k === 'event', isOrder: m.k === 'order', isCsat: m.k === 'csat', isOtp: m.k === 'otp' })),
+      typing: s.typing,
+      quick: s.quick.map((t) => ({ t, send: () => this.ask(t) })), hasQuick: s.quick.length > 0 && !s.typing,
+      draft: s.draft, onDraft: (e) => this.setState({ draft: e.target.value }),
+      onKey: (e) => { if (e.key === 'Enter') this.ask(s.draft); },
+      send: () => this.ask(s.draft),
+      otpCode: s.otp, onOtp: (e) => this.setState({ otp: e.target.value.replace(/\D/g, '').slice(0, 6) }), otpShort: s.otp.length < 6, otpBg: s.otp.length < 6 ? '#B9BEC9' : brand,
+      otpPending: !s.verified, otpDone: s.verified, verifyOtp: () => this.verify(),
+      callUs: () => this.botSay([{ k: 'event', t: 'Calling Lumen Goods · our voice assistant answers, a person can join' }], ['Back to chat'], 500),
+      toWhatsApp: () => this.botSay([{ k: 'event', t: 'Link sent to WhatsApp +1 •••0148' }, { k: 'bot', t: 'Done — continue on WhatsApp anytime. This chat and your order details carry over.' }], [], 600),
+      sendBg: s.draft.trim() ? brand : '#C9CCC5',
+      ended: s.ended, placeholder: s.ended ? 'This conversation has ended' : (s.human ? 'Message Alex…' : 'Ask Nova anything…'),
+      endChat: () => { if (!s.ended) this.end(); },
+      notRated: !s.rating, rated: !!s.rating, rating: s.rating,
+      starHint: ['Tap a star to rate', 'Not good', 'Could be better', 'Okay', 'Good', 'Excellent'][s.hover || 0],
+      stars: [1, 2, 3, 4, 5].map((n) => ({ n, fill: n <= s.hover ? '#E3A008' : 'none', stroke: n <= s.hover ? '#E3A008' : '#C9CCC5', pick: () => this.setState({ rating: n }), hover: () => this.setState({ hover: n }) }))
+    };
+  }
+}
+</script>
+</body>
+</html>

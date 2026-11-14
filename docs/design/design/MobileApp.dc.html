@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Mobile app</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ai-text:#5B2FC2;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--bad:#BF2F28;--bad-soft:#FCEBEA;font-family:Inter,system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0B0F1A;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ai-text:#C2ACFF;--ok:#4FC48A;--ok-soft:#10291D;--warn:#F0A54E;--warn-soft:#2C2010;--bad:#F2756C;--bad-soft:#2F1615}
+.orb *{box-sizing:border-box}
+.orb button,.orb input{font:inherit;color:inherit}
+.orb button{cursor:pointer}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="width: 390px; height: 844px; display: flex; flex-direction: column; background: var(--bg); overflow: hidden">
+  <header style="padding: 18px 16px 12px; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px">
+    <div style="display: flex; align-items: center; gap: 10px">
+      <sc-if value="{{hasBack}}" hint-placeholder-val="{{false}}"><button type="button" onClick="{{back}}" aria-label="Back" style="width: 40px; height: 40px; margin-left: -8px; border: 0; background: transparent; display: grid; place-items: center; color: var(--accent-text)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M15 18l-6-6 6-6"></path></svg></button></sc-if>
+      <h1 style="margin: 0; font-size: 24px; font-weight: 600; letter-spacing: -0.02em; flex: 1">{{title}}</h1>
+      <button type="button" onClick="{{toggleDark}}" aria-label="Toggle dark mode" style="width: 44px; height: 44px; border: 0; border-radius: 12px; background: var(--surface-2); display: grid; place-items: center; color: var(--text-2)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg></button>
+    </div>
+    <sc-if value="{{showChips}}" hint-placeholder-val="{{true}}">
+      <div style="display: flex; gap: 8px; overflow-x: auto">
+        <sc-for list="{{chips}}" as="c"><button type="button" onClick="{{c.pick}}" aria-pressed="{{c.on}}" style="height: 36px; padding: 0 14px; border: 1px solid {{c.bd}}; border-radius: 99px; background: {{c.bg}}; color: {{c.color}}; font-size: 14px; font-weight: 500; white-space: nowrap">{{c.label}}</button></sc-for>
+      </div>
+    </sc-if>
+  </header>
+
+  <div style="flex: 1; overflow: auto">
+    <sc-if value="{{isOverview}}" hint-placeholder-val="{{true}}">
+      <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px">
+        <div style="padding: 14px 16px; border-radius: 14px; background: var(--bad-soft); color: var(--bad); display: flex; gap: 10px; align-items: center"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"></path></svg><span style="flex: 1; font-size: 14px; font-weight: 500">4 chats breach SLA in 30 min</span></div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+          <sc-for list="{{kpis}}" as="k"><div style="padding: 14px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border)"><div style="font-size: 12.5px; color: var(--text-2)">{{k.l}}</div><div class="num" style="font-size: 24px; font-weight: 600; margin-top: 2px">{{k.v}}</div><div style="font-size: 12px; color: {{k.c}}">{{k.f}}</div></div></sc-for>
+        </div>
+        <div style="padding: 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; justify-content: space-between"><b style="font-size: 15px">Last 7 days</b><span style="font-size: 12.5px; color: var(--text-3)">AI · Human</span></div>
+          <div style="height: 110px; display: flex; align-items: flex-end; gap: 8px">
+            <sc-for list="{{bars}}" as="b"><div style="flex: 1; display: flex; flex-direction: column; justify-content: flex-end; gap: 2px; height: 100%"><span style="height: {{b.h}}px; border-radius: 4px 4px 0 0; background: var(--accent)"></span><span style="height: {{b.a}}px; background: var(--ai)"></span><span style="font-size: 11px; color: var(--text-3); text-align: center; margin-top: 4px">{{b.l}}</span></div></sc-for>
+          </div>
+        </div>
+        <div style="padding: 6px 0; border-radius: 14px; background: var(--surface); border: 1px solid var(--border)">
+          <div style="padding: 10px 16px; font-weight: 600; font-size: 15px">Team</div>
+          <sc-for list="{{team}}" as="m"><div style="display: flex; gap: 12px; align-items: center; padding: 10px 16px; border-top: 1px solid var(--border)"><span style="position: relative; width: 36px; height: 36px; border-radius: 99px; display: grid; place-items: center; font-size: 13px; font-weight: 600; {{m.av}}">{{m.ini}}<span style="position: absolute; right: -1px; bottom: -1px; width: 11px; height: 11px; border-radius: 99px; background: {{m.dot}}; border: 2px solid var(--surface)"></span></span><span style="flex: 1"><span style="display: block; font-weight: 500">{{m.n}}</span><span style="display: block; font-size: 12.5px; color: var(--text-3)">{{m.s}}</span></span><span class="num" style="font-size: 13px; color: {{m.lc}}">{{m.load}}/8</span></div></sc-for>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isTickets}}" hint-placeholder-val="{{false}}">
+      <div>
+        <sc-for list="{{tickets}}" as="t"><button type="button" onClick="{{t.open}}" style="width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--border); background: var(--surface); text-align: left; min-height: 72px">
+          <span style="display: flex; justify-content: space-between; gap: 8px"><span style="font-size: 12.5px; color: var(--text-3)">{{t.id}} · {{t.customer}}</span><span class="num" style="font-size: 12.5px; font-weight: 600; color: {{t.slaC}}">{{t.sla}}</span></span>
+          <span style="font-weight: 600; font-size: 15px">{{t.subject}}</span>
+          <span style="display: flex; gap: 6px"><span style="font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 99px; {{t.tone}}">{{t.status}}</span><span style="font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); color: var(--text-2)">{{t.priority}}</span><span style="font-size: 12px; color: var(--text-3)">{{t.assignee}}</span></span>
+        </button></sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isTicket}}" hint-placeholder-val="{{false}}">
+      <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px">
+        <div style="padding: 16px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px">
+          <div style="font-size: 12.5px; color: var(--text-3)">{{tk.id}} · {{tk.customer}}</div>
+          <div style="font-size: 18px; font-weight: 600">{{tk.subject}}</div>
+          <div style="display: flex; gap: 6px; flex-wrap: wrap"><span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 99px; {{tk.tone}}">{{tk.status}}</span><span style="font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--surface-2)">{{tk.priority}}</span><span class="num" style="font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--bad-soft); color: var(--bad)">SLA {{tk.sla}}</span></div>
+        </div>
+        <div style="padding: 14px 16px; border-radius: 14px; background: var(--ai-soft); font-size: 14px"><b style="color: var(--ai-text)">Summary</b><br>{{tk.summary}}</div>
+        <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+          <button type="button" onClick="{{assignMe}}" style="height: 48px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); font-weight: 500">{{assignLabel}}</button>
+          <button type="button" onClick="{{solve}}" style="height: 48px; border: 0; border-radius: 12px; background: var(--accent); color: #FFFFFF; font-weight: 600">{{solveLabel}}</button>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isCustomers}}" hint-placeholder-val="{{false}}">
+      <div>
+        <div style="padding: 12px 16px; background: var(--surface); border-bottom: 1px solid var(--border)"><label style="display: flex; align-items: center; gap: 8px; height: 44px; padding: 0 12px; border-radius: 12px; background: var(--surface-2)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search customers</span><input value="{{q}}" onInput="{{onQ}}" placeholder="Search customers" style="flex: 1; min-width: 0; border: 0; outline: none; background: transparent"></label></div>
+        <sc-for list="{{customers}}" as="c"><button type="button" onClick="{{c.open}}" style="width: 100%; display: flex; gap: 12px; align-items: center; padding: 12px 16px; border: 0; border-bottom: 1px solid var(--border); background: var(--surface); text-align: left; min-height: 68px">
+          <span style="width: 42px; height: 42px; border-radius: 99px; display: grid; place-items: center; font-size: 14px; font-weight: 600; {{c.av}}">{{c.ini}}</span>
+          <span style="flex: 1; min-width: 0"><span style="display: block; font-weight: 600">{{c.n}}</span><span style="display: block; font-size: 13px; color: var(--text-3)">{{c.meta}}</span></span>
+          <span style="font-size: 12px; font-weight: 500; padding: 1px 8px; border-radius: 99px; {{c.tone}}">{{c.seg}}</span>
+        </button></sc-for>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{isCustomer}}" hint-placeholder-val="{{false}}">
+      <div style="padding: 16px; display: flex; flex-direction: column; gap: 12px">
+        <div style="padding: 18px; border-radius: 14px; background: var(--surface); border: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center">
+          <span style="width: 60px; height: 60px; border-radius: 99px; display: grid; place-items: center; font-size: 20px; font-weight: 600; {{cu.av}}">{{cu.ini}}</span>
+          <div style="font-size: 18px; font-weight: 600">{{cu.n}}</div>
+          <div style="font-size: 13px; color: var(--text-3)">{{cu.meta}}</div>
+          <div style="display: flex; gap: 8px; margin-top: 6px"><a href="MobileInbox.dc.html" style="height: 40px; padding: 0 16px; display: grid; place-items: center; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600; text-decoration: none; font-size: 14px">Message</a><button type="button" style="height: 40px; padding: 0 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); font-weight: 500; font-size: 14px">Call</button></div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px"><sc-for list="{{cu.stats}}" as="s"><div style="padding: 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--border); text-align: center"><div class="num" style="font-weight: 600">{{s.v}}</div><div style="font-size: 11.5px; color: var(--text-3)">{{s.k}}</div></div></sc-for></div>
+        <div style="border-radius: 14px; background: var(--surface); border: 1px solid var(--border)">
+          <div style="padding: 12px 16px; font-weight: 600">Recent activity</div>
+          <sc-for list="{{cu.activity}}" as="a"><div style="display: flex; gap: 10px; padding: 10px 16px; border-top: 1px solid var(--border); font-size: 14px"><span style="flex: none; margin-top: 7px; width: 7px; height: 7px; border-radius: 9px; background: {{a.c}}"></span><span style="flex: 1">{{a.t}}<span style="display: block; font-size: 12px; color: var(--text-3)">{{a.d}}</span></span></div></sc-for>
+        </div>
+      </div>
+    </sc-if>
+  </div>
+
+  <nav aria-label="App" style="display: flex; border-top: 1px solid var(--border); background: var(--surface); padding: 4px 8px 20px">
+    <a href="MobileInbox.dc.html" style="flex: 1; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11.5px; font-weight: 500; text-decoration: none; color: var(--text-3)"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"></path></svg>Inbox</a>
+    <sc-for list="{{tabs}}" as="t"><button type="button" onClick="{{t.pick}}" aria-current="{{t.cur}}" style="flex: 1; min-height: 52px; border: 0; background: transparent; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; font-size: 11.5px; font-weight: 500; color: {{t.color}}"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{t.icon}}"></path></svg>{{t.label}}</button></sc-for>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"start":{"editor":"enum","default":"overview","options":["overview","tickets","customers"]},"$preview":{"width":390,"height":844}}'>
+const TONE = { ok: 'background:var(--ok-soft);color:var(--ok)', warn: 'background:var(--warn-soft);color:var(--warn)', bad: 'background:var(--bad-soft);color:var(--bad)', ai: 'background:var(--ai-soft);color:var(--ai-text)', acc: 'background:var(--accent-soft);color:var(--accent-text)', neu: 'background:var(--surface-2);color:var(--text-2)' };
+const T = [
+  ['TCK-1190', 'Package arrived damaged', 'Tom Becker', 'Open', 'Urgent', 'Jordan Lee', '0h 38m', 'var(--bad)', 'First order. Lamp arrived cracked, photo attached. Eligible for free replacement under $150.'],
+  ['TCK-1188', 'Where is my order? #ORD-2048', 'Sarah Johnson', 'Open', 'High', 'Alex Morgan', '1h 12m', 'var(--warn)', 'VIP. No UPS scan since Nov 6. Needs delivery by Saturday — offer express re-ship.'],
+  ['TCK-1186', 'Charged twice for #ORD-2031', 'Aisha Rahman', 'Pending', 'High', 'Omar Haddad', '2h 10m', 'var(--warn)', 'One charge plus a temporary hold that releases in 3–5 days.'],
+  ['TCK-1182', 'Can’t log in', 'Lucas Ferreira', 'Open', 'Normal', 'Unassigned', '3h 05m', 'var(--text)', 'Reset emails landing in Outlook junk.'],
+  ['TCK-1179', 'Wrong item shipped', 'Hana Sato', 'Solved', 'Normal', 'Nina Patel', 'Met', 'var(--ok)', 'Replacement delivered Nov 7.']
+];
+const C = [
+  ['Sarah Johnson', 'SJ', 'background:#FAD4E4;color:#6B1238', 'Austin · 9 orders · $1,284', 'VIP', TONE.ai],
+  ['Kamran Ali', 'KA', 'background:#FFE1C7;color:#6B3410', 'Lahore · 3 orders · COD', 'Customer', TONE.neu],
+  ['Aisha Rahman', 'AR', 'background:#CFF1F4;color:#0B4A50', 'Toronto · 4 orders · $412', 'Churn risk', TONE.bad],
+  ['Tom Becker', 'TB', 'background:#D3E8FF;color:#123E6B', 'Hamburg · 1 order · $124', 'New', TONE.acc],
+  ['Grace Holloway', 'GH', 'background:#D2F2E2;color:#0F4D2F', 'Portland · 14 orders · $6,920', 'Wholesale', TONE.ok]
+];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { dark: null, tab: null, view: null, filter: 'Mine', q: '', tk: 0, cu: 0, mine: {}, solved: {} }; }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const tab = s.tab ?? (this.props.start ?? 'overview');
+    const view = s.view;
+    const TF = ['Mine', 'Open', 'Urgent', 'All'];
+    const tickets = T.map((t, i) => ({ t, i })).filter(({ t }) => s.filter === 'All' || (s.filter === 'Mine' ? (t[5] === 'Alex Morgan' || s.mine[t[0]]) : (s.filter === 'Open' ? t[3] === 'Open' : t[4] === 'Urgent')));
+    const tk = T[s.tk]; const cu = C[s.cu];
+    const solved = !!s.solved[tk[0]]; const status = solved ? 'Solved' : tk[3];
+    const q = s.q.toLowerCase();
+    const TABS = [['overview', 'Overview', 'M3 3h8v10H3zM13 3h8v6h-8zM13 13h8v8h-8zM3 17h8v4H3z'], ['tickets', 'Tickets', 'M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z'], ['customers', 'Customers', 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z']];
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', toggleDark: () => this.setState({ dark: !dark }),
+      title: view === 'ticket' ? tk[0] : (view === 'customer' ? 'Customer' : TABS.find((x) => x[0] === tab)[1]),
+      hasBack: !!view, back: () => this.setState({ view: null }),
+      isOverview: tab === 'overview' && !view, isTickets: tab === 'tickets' && !view, isTicket: view === 'ticket', isCustomers: tab === 'customers' && !view, isCustomer: view === 'customer',
+      showChips: tab === 'tickets' && !view,
+      chips: TF.map((f) => { const on = f === s.filter; return { label: f, on: on ? 'true' : 'false', bd: on ? 'var(--text)' : 'var(--border)', bg: on ? 'var(--text)' : 'var(--surface)', color: on ? 'var(--surface)' : 'var(--text-2)', pick: () => this.setState({ filter: f }) }; }),
+      kpis: [['Open now', '214', '−5% vs last week', 'var(--ok)'], ['Unassigned', '18', '4 breach soon', 'var(--bad)'], ['AI resolved', '64%', '+3.2 pts', 'var(--ok)'], ['CSAT', '92%', '+1.4 pts', 'var(--ok)']].map(([l, v, f, c]) => ({ l, v, f, c })),
+      bars: [[46, 30, 'Tue'], [52, 34, 'Wed'], [49, 32, 'Thu'], [54, 36, 'Fri'], [57, 38, 'Sat'], [49, 31, 'Sun'], [40, 26, 'Mon']].map(([h, a, l]) => ({ h: Math.round(h * 0.55), a: Math.round(a * 1.1), l })),
+      team: [['AM', 'Alex Morgan', 'Online · you', 6, 'var(--ok)', 'background:#E9D8FD;color:#3B1F73'], ['JL', 'Jordan Lee', 'Online · at capacity', 8, 'var(--ok)', 'background:#D3E8FF;color:#123E6B'], ['NP', 'Nina Patel', 'Away · back 11:30', 3, 'var(--warn)', 'background:#FFE1C7;color:#6B3410']].map(([ini, n, st, load, dot, av]) => ({ ini, n, s: st, load, dot, av, lc: load >= 8 ? 'var(--bad)' : 'var(--text-2)' })),
+      tickets: tickets.map(({ t, i }) => { const sv = !!s.solved[t[0]]; return { id: t[0], subject: t[1], customer: t[2], status: sv ? 'Solved' : t[3], priority: t[4], assignee: s.mine[t[0]] ? 'Alex Morgan' : t[5], sla: sv ? 'Met' : t[6], slaC: sv ? 'var(--ok)' : t[7], tone: sv || t[3] === 'Solved' ? TONE.ok : (t[3] === 'Pending' ? TONE.warn : TONE.acc), open: () => this.setState({ view: 'ticket', tk: i }) }; }),
+      tk: { id: tk[0], subject: tk[1], customer: tk[2], status, priority: tk[4], sla: solved ? 'met' : tk[6], summary: tk[8], tone: solved || status === 'Solved' ? TONE.ok : TONE.acc },
+      assignLabel: s.mine[tk[0]] || tk[5] === 'Alex Morgan' ? 'Assigned to you' : 'Assign to me', assignMe: () => this.setState({ mine: { ...s.mine, [tk[0]]: true } }),
+      solveLabel: solved ? 'Reopen' : 'Mark solved', solve: () => this.setState({ solved: { ...s.solved, [tk[0]]: !solved } }),
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }),
+      customers: C.map((c, i) => ({ c, i })).filter(({ c }) => !q || c[0].toLowerCase().includes(q)).map(({ c, i }) => ({ n: c[0], ini: c[1], av: c[2], meta: c[3], seg: c[4], tone: c[5], open: () => this.setState({ view: 'customer', cu: i }) })),
+      cu: { n: cu[0], ini: cu[1], av: cu[2], meta: cu[3], stats: [{ k: 'Orders', v: cu[3].split(' · ')[1].split(' ')[0] }, { k: 'Chats', v: '14' }, { k: 'CSAT', v: '4.8' }], activity: [['Chat: Where is my order?', 'Today · Alex Morgan', 'var(--accent)'], ['Order shipped #ORD-2048', 'Nov 5 · Shopify', 'var(--ok)'], ['Rated 5 stars', 'Sep 12', 'var(--warn)']].map(([t, d, c]) => ({ t, d, c })) },
+      tabs: TABS.map(([id, label, icon]) => { const on = id === tab; return { label, icon, cur: on ? 'page' : 'false', color: on ? 'var(--accent-text)' : 'var(--text-3)', pick: () => this.setState({ tab: id, view: null }) }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

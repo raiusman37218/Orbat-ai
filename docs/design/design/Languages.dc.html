@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Languages</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ai-text:#5B2FC2;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--bad:#BF2F28;--bad-soft:#FCEBEA;--side:#163300;--side-2:#21420C;--side-text:#C8D3BD;--shadow:0 1px 2px rgba(14,20,36,.05),0 4px 16px rgba(14,20,36,.06);font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0A0E19;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--border-strong:#323B58;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-hover:#3A6E18;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ai-text:#C2ACFF;--ok:#4FC48A;--ok-soft:#10291D;--warn:#F0A54E;--warn-soft:#2C2010;--bad:#F2756C;--bad-soft:#2F1615;--side:#0B1A00;--side-2:#1A3009;--side-text:#9BA3BC;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.35)}
+.orb *{box-sizing:border-box}
+.orb button,.orb input,.orb textarea,.orb select{font:inherit;color:inherit}
+.orb button{cursor:pointer}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.hov:hover{background:var(--surface-2)!important}
+.sbi:hover{background:rgba(255,255,255,.07)!important}
+.bp:hover{background:var(--accent-hover)!important}
+.row:hover{background:var(--surface-2)}
+a{color:var(--accent-text);text-decoration:none}a:hover{text-decoration:underline}
+/* POLISH v1 */
+/* POLISH v2 */
+.orb main h2 + p{display:none!important}
+.orb main h3 + p{font-size:12.5px!important;color:var(--text-3)!important}
+.orb{--bg:#F6F7F4;--border:#E3E5E0;--shadow-card:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.03);letter-spacing:-0.003em;font-feature-settings:'tnum' 0}
+.orb.dark{--bg:#0B0F1A;--border:#232B44;--shadow-card:none}
+.orb .mono{font-family:Inter,system-ui,sans-serif!important;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.orb code.mono,.orb pre.mono{font-family:'Geist Mono',ui-monospace,monospace!important;letter-spacing:0}
+.orb h1,.orb h2,.orb h3{letter-spacing:-0.015em}
+.orb [style*="border-radius: 12px"][style*="background: var(--surface)"],.orb [style*="border-radius: 14px"][style*="background: var(--surface)"]{box-shadow:var(--shadow-card)}
+.orb thead th{font-size:11.5px!important;font-weight:600!important;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.orb tbody td{vertical-align:middle}
+.orb button,.orb a{transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,color .15s ease,opacity .15s ease}
+.orb button:active{transform:translateY(.5px)}
+.orb input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,.orb select:focus,.orb textarea:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)!important}
+.orb button[style*="border: 1px solid var(--border)"]:hover{border-color:var(--border-strong)!important}
+.orb ::selection{background:var(--accent-soft)}
+.orb *{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+.orb main > div[style*="padding: 2"]{max-width:1480px;width:100%;margin-left:auto;margin-right:auto}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="min-height: 100vh; display: flex; flex-wrap: wrap; background: var(--bg)">
+  <div style="flex: 1 1 232px; background: var(--side); display: flex">
+    <dc-import name="Sidebar" active="languages" hint-size="232px,900px"></dc-import>
+  </div>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <dc-import name="Topbar" heading="Languages" sub="AI & Knowledge" dark="{{dark}}" on-toggle-theme="{{toggleTheme}}" hint-size="100%,56px"></dc-import>
+    <div style="padding: 24px 32px 40px; display: flex; flex-direction: column; gap: 18px">
+      <div><h2 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -0.02em">Multilingual engine</h2><p style="margin: 2px 0 0; color: var(--text-2); font-size: 13.5px">Customers write the way they talk — native script, romanized, or mixed with English. ORBAT detects it per message and answers the same way.</p></div>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 12px">
+        <sc-for list="{{kpis}}" as="k"><div style="padding: 14px 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface)"><div style="font-size: 12.5px; color: var(--text-2)">{{k.l}}</div><div class="mono" style="font-size: 22px; font-weight: 600; margin-top: 6px">{{k.v}}</div><div style="font-size: 12px; color: var(--text-3); margin-top: 2px">{{k.f}}</div></div></sc-for>
+      </div>
+
+      <section style="border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden">
+        <div style="padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; align-items: baseline"><h3 style="margin: 0; font-size: 15px; font-weight: 600">Try the engine</h3><span style="font-size: 12.5px; color: var(--text-3)">Sample output · prototype, not a live model</span></div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px">
+            <sc-for list="{{samples}}" as="s"><button type="button" onClick="{{s.pick}}" aria-pressed="{{s.on}}" style="height: 30px; padding: 0 12px; border: 1px solid {{s.bd}}; border-radius: 99px; background: {{s.bg}}; color: {{s.c}}; font-size: 12.5px; font-weight: 500">{{s.label}}</button></sc-for>
+          </div>
+          <div style="display: flex; gap: 10px; align-items: flex-end">
+            <span style="flex: none; width: 32px; height: 32px; border-radius: 99px; display: grid; place-items: center; font-size: 12px; font-weight: 600; background: #FAD4E4; color: #6B1238">C</span>
+            <div dir="auto" style="padding: 11px 14px; border-radius: 14px 14px 14px 4px; background: var(--surface-2); font-size: 15px; max-width: 640px">{{cur.msg}}</div>
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(210px, 100%), 1fr)); gap: 1px; background: var(--border)">
+          <sc-for list="{{steps}}" as="st" hint-placeholder-count="5">
+            <div style="padding: 16px; background: var(--surface); display: flex; flex-direction: column; gap: 8px">
+              <div style="display: flex; gap: 8px; align-items: center"><span class="mono" style="width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; font-size: 11px; font-weight: 600; background: var(--ai-soft); color: var(--ai-text)">{{st.n}}</span><span style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3)">{{st.name}}</span></div>
+              <div dir="auto" style="font-size: 13.5px; font-weight: 500">{{st.main}}</div>
+              <div style="font-size: 12.5px; color: var(--text-2)">{{st.sub}}</div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="padding: 16px 20px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; gap: 16px">
+          <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px; align-items: flex-end">
+            <div style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3); align-self: flex-start">What the customer receives</div>
+            <div dir="auto" style="padding: 11px 14px; border-radius: 14px 14px 4px 14px; background: var(--ai-soft); font-size: 15px; max-width: 100%">{{cur.reply}}</div>
+            <span style="font-size: 12px; color: var(--text-3)">Nova · AI agent · same language, script and tone</span>
+          </div>
+          <div style="flex: 1 1 320px; min-width: 0; display: flex; flex-direction: column; gap: 6px">
+            <div style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3)">What your agent sees</div>
+            <div style="padding: 11px 14px; border-radius: 10px; border: 1px dashed var(--border-strong); font-size: 13.5px; color: var(--text-2)"><b style="color: var(--text)">Customer:</b> {{cur.en}}<br><b style="color: var(--text)">Nova:</b> {{cur.replyEn}}</div>
+            <span style="font-size: 12px; color: var(--text-3)">Translation shown beside the original so any agent can take over</span>
+          </div>
+        </div>
+      </section>
+
+      <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start">
+        <section style="flex: 3 1 560px; min-width: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow-x: auto">
+          <div style="padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center"><h3 style="margin: 0; font-size: 15px; font-weight: 600">Language coverage</h3><span style="font-size: 12.5px; color: var(--text-3)">Accuracy is measured on your own reviewed conversations</span></div>
+          <table style="width: 100%; min-width: 680px; border-collapse: collapse; font-size: 13px">
+            <thead><tr style="text-align: left; color: var(--text-3); font-size: 12px"><th style="padding: 10px 18px; font-weight: 500">Language</th><th style="padding: 10px 8px; font-weight: 500">Native</th><th style="padding: 10px 8px; font-weight: 500">Romanized</th><th style="padding: 10px 8px; font-weight: 500">Mixed</th><th style="padding: 10px 8px; font-weight: 500">Voice notes</th><th style="padding: 10px 8px; font-weight: 500; text-align: right">Share · 30d</th><th style="padding: 10px 8px; font-weight: 500; text-align: right">Accuracy</th><th style="padding: 10px 18px; font-weight: 500; text-align: right">On</th></tr></thead>
+            <tbody><sc-for list="{{langs}}" as="l"><tr class="row" style="border-top: 1px solid var(--border)">
+              <td style="padding: 10px 18px; font-weight: 500">{{l.n}}</td>
+              <sc-for list="{{l.forms}}" as="f"><td style="padding: 10px 8px; color: {{f.c}}">{{f.t}}</td></sc-for>
+              <td class="mono" style="padding: 10px 8px; text-align: right">{{l.share}}</td>
+              <td class="mono" style="padding: 10px 8px; text-align: right; color: {{l.accC}}">{{l.acc}}</td>
+              <td style="padding: 10px 18px; text-align: right"><button type="button" role="switch" aria-checked="{{l.aria}}" aria-label="Enable {{l.n}}" onClick="{{l.toggle}}" style="width: 36px; height: 20px; border: 0; border-radius: 99px; padding: 2px; display: inline-flex; background: {{l.track}}; justify-content: {{l.knob}}"><span style="width: 16px; height: 16px; border-radius: 99px; background: #FFFFFF"></span></button></td>
+            </tr></sc-for></tbody>
+          </table>
+        </section>
+        <section style="flex: 2 1 320px; min-width: 0; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 4px">
+          <h3 style="margin: 0 0 6px; font-size: 15px; font-weight: 600">Behaviour</h3>
+          <label style="display: flex; flex-direction: column; gap: 6px; font-size: 13px; font-weight: 500; padding-bottom: 10px">Reply style<select style="height: 36px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-weight: 400"><option>Match the customer (language, script, formality)</option><option>Always native script</option><option>Always English</option></select></label>
+          <sc-for list="{{toggles}}" as="t"><div style="display: flex; gap: 12px; align-items: center; padding: 10px 0; border-top: 1px solid var(--border)"><div style="flex: 1"><div style="font-weight: 500; font-size: 13.5px">{{t.l}}</div><div style="font-size: 12px; color: var(--text-3)">{{t.h}}</div></div><button type="button" role="switch" aria-checked="{{t.aria}}" aria-label="{{t.l}}" onClick="{{t.toggle}}" style="width: 36px; height: 20px; border: 0; border-radius: 99px; padding: 2px; display: flex; flex: none; background: {{t.track}}; justify-content: {{t.knob}}"><span style="width: 16px; height: 16px; border-radius: 99px; background: #FFFFFF"></span></button></div></sc-for>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1180}}'>
+const S = [
+  ['Roman Urdu', 'mera order abhi tak nahi aya, kab tak ayega?', 'Urdu · Latin script · informal', '0.96', 'میرا آرڈر ابھی تک نہیں آیا، کب تک آئے گا؟', 'Spelling variants mapped: aya → آیا, ayega → آئے گا', 'Aap ka order #ORD-2048 ship ho chuka hai aur kal tak pohanch jayega. Tracking link: ups.com/track/1Z84A…', 'My order has not arrived yet, when will it come?', 'Your order #ORD-2048 has shipped and will arrive by tomorrow.'],
+  ['Hinglish', 'bhai refund kab aayega? 5 din ho gaye already', 'Hindi + English · Latin script · casual', '0.94', 'भाई रिफंड कब आएगा? 5 दिन हो गए', 'English words kept: refund, already', 'Aapka refund process ho chuka hai. Bank ke hisaab se 3–5 business days mein account mein aa jayega.', 'Brother, when will the refund come? It has been 5 days already.', 'Your refund has been processed. It reaches your account in 3–5 business days.'],
+  ['Arabizi', 'wen talabi? ma wasalni shi la hala2', 'Arabic (Levantine) · Latin script with numerals', '0.91', 'وين طلبي؟ ما وصلني شي لحالاً', 'Numeral letters mapped: 2 → ء', 'Talabak #ORD-2048 nshahan w rah yousal bukra. Fik ttaba3o hon: ups.com/track/1Z84A…', 'Where is my order? Nothing has reached me yet.', 'Your order #ORD-2048 has shipped and will arrive tomorrow.'],
+  ['Taglish', 'Hi, nasaan na po yung order ko? Hindi pa dumating.', 'Tagalog + English · polite (po)', '0.93', 'Nasaan na po ang order ko? Hindi pa dumarating.', 'Politeness marker “po” kept for the reply', 'Hello po! Na-ship na po ang order #ORD-2048 ninyo at darating bukas. Heto po ang tracking: ups.com/track/1Z84A…', 'Hi, where is my order? It has not arrived yet.', 'Your order #ORD-2048 has shipped and will arrive tomorrow.'],
+  ['Urdu (native)', 'میرا آرڈر کب پہنچے گا؟', 'Urdu · Arabic script · neutral', '0.99', 'میرا آرڈر کب پہنچے گا؟', 'No normalisation needed', 'آپ کا آرڈر #ORD-2048 روانہ ہو چکا ہے اور کل تک پہنچ جائے گا۔', 'When will my order arrive?', 'Your order #ORD-2048 has shipped and will arrive by tomorrow.']
+];
+const L = [
+  ['English', 1, 0, 1, 1, '41%', '97%'], ['Urdu', 1, 1, 1, 1, '22%', '93%'], ['Hindi', 1, 1, 1, 1, '11%', '92%'], ['Arabic', 1, 1, 1, 1, '9%', '90%'], ['Spanish', 1, 0, 1, 1, '6%', '96%'], ['Bengali', 1, 1, 0, 0, '4%', '86%'], ['Tagalog', 1, 0, 1, 0, '3%', '89%'], ['French', 1, 0, 0, 1, '2%', '96%'], ['Indonesian', 1, 0, 0, 0, '1%', '94%'], ['Portuguese', 1, 0, 0, 0, '1%', '95%']
+];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { dark: null, s: 0, off: { 9: true }, t: { sw: true, tr: true, vn: true, va: false, fb: true } }; }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const c = S[s.s];
+    const T = [['sw', 'Switch language mid-conversation', 'Detect on every message, not once per chat'], ['tr', 'Show translation to agents', 'Original and English side by side in the inbox'], ['vn', 'Transcribe voice notes', 'WhatsApp and Messenger audio becomes text'], ['va', 'Reply to voice notes with audio', 'Spoken reply in the customer’s language'], ['fb', 'Hand off when unsure of the language', 'Below 0.70 detection confidence']];
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', dark, toggleTheme: () => this.setState({ dark: !dark }),
+      kpis: [{ l: 'Languages active', v: String(L.filter((x, i) => !s.off[i]).length), f: 'native, romanized and mixed' }, { l: 'Romanized messages', v: '38%', f: 'of all conversations · 30d' }, { l: 'Mixed-language messages', v: '21%', f: 'e.g. Hinglish, Taglish' }, { l: 'Voice notes handled', v: '1,204', f: 'transcribed and answered' }, { l: 'Reviewed accuracy', v: '92%', f: 'from 640 reviewed replies' }],
+      samples: S.map((x, i) => { const on = i === s.s; return { label: x[0], on: on ? 'true' : 'false', bd: on ? 'var(--text)' : 'var(--border)', bg: on ? 'var(--text)' : 'var(--surface)', c: on ? 'var(--surface)' : 'var(--text-2)', pick: () => this.setState({ s: i }) }; }),
+      cur: { msg: c[1], reply: c[6], en: c[7], replyEn: c[8] },
+      steps: [
+        { n: 1, name: 'Detect', main: c[2], sub: 'Confidence ' + c[3] + ' · checked on every message' },
+        { n: 2, name: 'Normalise', main: c[4], sub: c[5] },
+        { n: 3, name: 'Search', main: 'Shipping & delivery times', sub: 'English article matched across languages · score 0.84' },
+        { n: 4, name: 'Verify + Sentinel', main: '2 claims supported', sub: 'Order status from Shopify · no policy issues' },
+        { n: 5, name: 'Answer', main: 'Reply in ' + c[0], sub: 'Same script and formality as the customer' }
+      ],
+      langs: L.map(([n, a, b, m, v, share, acc], i) => { const on = !s.off[i]; const f = (x) => ({ t: x ? 'Yes' : '—', c: x ? 'var(--ok)' : 'var(--text-3)' }); return { n, forms: [f(a), f(b), f(m), f(v)], share, acc, accC: parseInt(acc) < 90 ? 'var(--warn)' : 'var(--text)', aria: on ? 'true' : 'false', track: on ? 'var(--ok)' : 'var(--border-strong)', knob: on ? 'flex-end' : 'flex-start', toggle: () => this.setState({ off: { ...s.off, [i]: on } }) }; }),
+      toggles: T.map(([id, l, h]) => { const on = s.t[id]; return { l, h, aria: on ? 'true' : 'false', track: on ? 'var(--ok)' : 'var(--border-strong)', knob: on ? 'flex-end' : 'flex-start', toggle: () => this.setState({ t: { ...s.t, [id]: !on } }) }; })
+    };
+  }
+}
+</script>
+</body>
+</html>

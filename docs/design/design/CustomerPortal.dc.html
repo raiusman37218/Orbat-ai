@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lumen Goods · My requests</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500&display=swap">
+<style>
+body{margin:0}
+.pt{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--border:#E3E5E0;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-soft:#E2F6D5;--accent-text:#163300;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.5;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.pt *{box-sizing:border-box}
+.pt button,.pt input,.pt textarea{font:inherit;color:inherit}
+.pt button{cursor:pointer}
+.pt :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.pt input:focus,.pt textarea:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)}
+.hov:hover{background:var(--surface-2)!important}
+.bp:hover{background:#0E2200!important}
+a{color:var(--accent-text);text-decoration:none}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+.pt{zoom:1.06}
+</style>
+</helmet>
+<div class="pt" style="min-height: 100vh; background: var(--bg)">
+  <header style="height: 60px; display: flex; align-items: center; gap: 20px; padding: 0 32px; border-bottom: 1px solid var(--border); background: var(--surface)">
+    <a href="HelpCenter.dc.html" style="font-weight: 700; font-size: 16px; color: var(--text); letter-spacing: -.01em">Lumen Goods</a>
+    <nav aria-label="Portal" style="display: flex; gap: 18px; font-size: 13.5px"><a href="HelpCenter.dc.html" style="color: var(--text-2)">Help center</a><span style="color: var(--text); font-weight: 600">My requests</span></nav>
+    <span style="margin-left: auto; display: flex; align-items: center; gap: 10px; font-size: 13px; color: var(--text-2)"><span style="width: 28px; height: 28px; border-radius: 99px; background: #FAD4E4; color: #6B1238; display: grid; place-items: center; font-size: 11px; font-weight: 600">SJ</span>sarah@example.com</span>
+  </header>
+
+  <div style="max-width: 1080px; margin: 0 auto; padding: 28px 24px 48px; display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start">
+    <section style="flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 12px">
+      <div style="display: flex; align-items: center; gap: 10px"><h1 style="margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.02em; flex: 1">My requests</h1><button type="button" onClick="{{newReq}}" class="bp" style="height: 36px; padding: 0 14px; border: 0; border-radius: 9px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">New request</button></div>
+      <div role="tablist" aria-label="Filter" style="display: flex; gap: 4px"><sc-for list="{{filters}}" as="f"><button type="button" role="tab" aria-selected="{{f.on}}" onClick="{{f.pick}}" style="height: 30px; padding: 0 12px; border: 0; border-radius: 8px; font-size: 13px; font-weight: 500; background: {{f.bg}}; color: {{f.c}}">{{f.l}}</button></sc-for></div>
+      <div style="border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow: hidden">
+        <sc-for list="{{list}}" as="r"><button type="button" onClick="{{r.pick}}" class="hov" style="width: 100%; display: flex; gap: 12px; align-items: center; padding: 14px 16px; border: 0; border-bottom: 1px solid var(--border); background: {{r.bg}}; text-align: left">
+          <span style="flex: 1; min-width: 0"><span style="display: block; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{r.t}}</span><span style="display: block; font-size: 12.5px; color: var(--text-3)"><span style="font-family: 'Geist Mono', monospace">{{r.id}}</span> · updated {{r.u}}</span></span>
+          <span style="font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 99px; {{r.tone}}">{{r.st}}</span>
+        </button></sc-for>
+      </div>
+    </section>
+
+    <section style="flex: 2 1 480px; min-width: 0; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column">
+      <div style="padding: 18px 20px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 10px">
+        <div style="display: flex; gap: 10px; align-items: flex-start"><h2 style="margin: 0; font-size: 17px; font-weight: 600; flex: 1">{{cur.t}}</h2><span style="font-size: 12px; font-weight: 500; padding: 2px 9px; border-radius: 99px; {{cur.tone}}">{{cur.st}}</span></div>
+        <ol aria-label="Progress" style="list-style: none; margin: 0; padding: 0; display: flex; gap: 6px"><sc-for list="{{steps}}" as="s"><li style="flex: 1; display: flex; flex-direction: column; gap: 6px"><span style="height: 4px; border-radius: 4px; background: {{s.c}}"></span><span style="font-size: 12px; color: {{s.tc}}">{{s.l}}</span></li></sc-for></ol>
+      </div>
+      <div style="padding: 18px 20px; display: flex; flex-direction: column; gap: 14px">
+        <sc-for list="{{msgs}}" as="m"><div style="display: flex; gap: 10px">
+          <span style="flex: none; width: 30px; height: 30px; border-radius: 99px; display: grid; place-items: center; font-size: 11px; font-weight: 600; {{m.av}}">{{m.ini}}</span>
+          <div style="flex: 1; min-width: 0"><div style="font-size: 13px"><b style="font-weight: 600">{{m.who}}</b> <span style="color: var(--text-3)">· {{m.time}}</span></div><div style="font-size: 14px; color: var(--text-2); margin-top: 2px; white-space: pre-line">{{m.text}}</div></div>
+        </div></sc-for>
+      </div>
+      <sc-if value="{{canReply}}" hint-placeholder-val="{{true}}">
+        <div style="padding: 14px 20px; border-top: 1px solid var(--border); display: flex; flex-direction: column; gap: 8px">
+          <label for="reply" style="font-size: 13px; font-weight: 500">Reply</label>
+          <textarea id="reply" rows="3" value="{{draft}}" onInput="{{onDraft}}" placeholder="Add a message or details" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface); font-size: 14px; resize: vertical"></textarea>
+          <div style="display: flex; gap: 8px; align-items: center"><button type="button" class="hov" style="height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px">Attach file</button><button type="button" onClick="{{markSolved}}" style="margin-left: auto; height: 34px; padding: 0 12px; border: 0; background: transparent; font-size: 13px; color: var(--text-2)">My issue is solved</button><button type="button" onClick="{{send}}" class="bp" style="height: 34px; padding: 0 14px; border: 0; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">Send</button></div>
+        </div>
+      </sc-if>
+      <sc-if value="{{isSolved}}" hint-placeholder-val="{{false}}">
+        <div style="padding: 16px 20px; border-top: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; gap: 10px">
+          <span style="font-size: 13.5px; font-weight: 500; flex: 1">How did we do?</span>
+          <sc-for list="{{rates}}" as="r"><button type="button" onClick="{{r.pick}}" aria-pressed="{{r.on}}" style="height: 34px; padding: 0 12px; border: 1px solid {{r.bd}}; border-radius: 8px; background: {{r.bg}}; font-size: 13px">{{r.l}}</button></sc-for>
+        </div>
+      </sc-if>
+    </section>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+const TONE = { Open: 'background:var(--accent-soft);color:var(--accent-text)', 'Waiting on you': 'background:var(--warn-soft);color:var(--warn)', Solved: 'background:var(--ok-soft);color:var(--ok)' };
+const R = [
+  ['TCK-1190', 'Order #ORD-2048 hasn’t moved in 3 days', 'Open', '10 min ago', 1, [['Sarah Johnson', 'You', 'Nov 12, 10:38', 'Tracking still says label created. It’s a birthday gift — I need it by Saturday.'], ['Alex', 'Lumen Goods', 'Nov 12, 10:44', 'I’ve opened a trace with UPS. If there’s no scan by Wednesday, I’ll send a free express replacement so it arrives before Saturday.']]],
+  ['TCK-1176', 'Gift wrapping for a second order', 'Waiting on you', 'yesterday', 2, [['Sarah Johnson', 'You', 'Nov 10, 4:12 PM', 'Can you gift wrap order #ORD-2044?'], ['Nova', 'AI agent', 'Nov 10, 4:12 PM', 'Yes! Which message would you like on the card?']]],
+  ['TCK-1102', 'Change delivery address', 'Solved', 'Jun 3', 3, [['Sarah Johnson', 'You', 'Jun 3, 9:02 AM', 'I moved — please ship to my new address.'], ['Nina', 'Lumen Goods', 'Jun 3, 9:20 AM', 'Done, your address is updated for this and future orders.']]]
+];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { f: 'all', sel: 'TCK-1190', extra: {}, solved: {}, draft: '', rate: {} }; }
+  renderVals() {
+    const s = this.state;
+    const st = (r) => (s.solved[r[0]] ? 'Solved' : r[2]);
+    const list = R.filter((r) => s.f === 'all' || (s.f === 'open' ? st(r) !== 'Solved' : st(r) === 'Solved'));
+    const c = R.find((r) => r[0] === s.sel);
+    const cst = st(c);
+    const stage = cst === 'Solved' ? 3 : (cst === 'Waiting on you' ? 2 : 1);
+    const msgs = c[5].concat(s.extra[c[0]] || []);
+    return {
+      filters: [['all', 'All'], ['open', 'Open'], ['solved', 'Solved']].map(([id, l]) => ({ l, on: s.f === id ? 'true' : 'false', bg: s.f === id ? 'var(--surface-2)' : 'transparent', c: s.f === id ? 'var(--text)' : 'var(--text-3)', pick: () => this.setState({ f: id }) })),
+      list: list.map((r) => ({ id: r[0], t: r[1], st: st(r), u: r[3], tone: TONE[st(r)], bg: r[0] === s.sel ? 'var(--surface-2)' : 'var(--surface)', pick: () => this.setState({ sel: r[0], draft: '' }) })),
+      cur: { t: c[1], st: cst, tone: TONE[cst] },
+      steps: ['Received', 'In progress', 'Solved'].map((l, i) => ({ l, c: i < stage ? 'var(--accent)' : 'var(--border)', tc: i < stage ? 'var(--text)' : 'var(--text-3)' })),
+      msgs: msgs.map(([who, role, time, text]) => { const me = role === 'You'; const ai = role === 'AI agent'; return { who: me ? 'You' : who + ' · ' + role, time, text, ini: who[0], av: me ? 'background:#FAD4E4;color:#6B1238' : (ai ? 'background:#F2EDFD;color:#5B2FC2' : 'background:#E3E5E0;color:#2A3142') }; }),
+      canReply: cst !== 'Solved', isSolved: cst === 'Solved',
+      draft: s.draft, onDraft: (e) => this.setState({ draft: e.target.value }),
+      send: () => { if (!s.draft.trim()) return; this.setState({ draft: '', extra: { ...s.extra, [c[0]]: (s.extra[c[0]] || []).concat([['Sarah Johnson', 'You', 'Just now', s.draft.trim()]]) } }); },
+      markSolved: () => this.setState({ solved: { ...s.solved, [c[0]]: true } }),
+      rates: ['Bad', 'Okay', 'Good', 'Great'].map((l) => { const on = s.rate[c[0]] === l; return { l, on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : 'var(--border)', bg: on ? 'var(--accent-soft)' : 'var(--surface)', pick: () => this.setState({ rate: { ...s.rate, [c[0]]: l } }) }; }),
+      newReq: () => this.setState({ sel: 'TCK-1190' })
+    };
+  }
+}
+</script>
+</body>
+</html>

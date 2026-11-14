@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Platform admin</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+.orb{--bg:#F6F7F4;--surface:#FFFFFF;--surface-2:#EDEFEA;--surface-3:#E3E6DF;--border:#E3E5E0;--border-strong:#C9CCC5;--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ai-text:#5B2FC2;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;--bad:#BF2F28;--bad-soft:#FCEBEA;--shadow:0 1px 2px rgba(14,20,36,.05),0 4px 16px rgba(14,20,36,.06);font-family:Inter,system-ui,-apple-system,sans-serif;font-size:14px;line-height:1.45;color:var(--text);background:var(--bg);-webkit-font-smoothing:antialiased}
+.orb.dark{--bg:#0A0E19;--surface:#10162A;--surface-2:#161D33;--surface-3:#1E2640;--border:#232B44;--border-strong:#323B58;--text:#E9EBF3;--text-2:#B0B6C9;--text-3:#8F96AB;--accent:#2E5A12;--accent-hover:#3A6E18;--accent-soft:#1C2E12;--accent-text:#9FE870;--ai:#9D7BFF;--ai-soft:#251C45;--ai-text:#C2ACFF;--ok:#4FC48A;--ok-soft:#10291D;--warn:#F0A54E;--warn-soft:#2C2010;--bad:#F2756C;--bad-soft:#2F1615}
+.orb *{box-sizing:border-box}
+.orb button,.orb input,.orb select{font:inherit;color:inherit}
+.orb button{cursor:pointer}
+.orb :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:'Geist Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.hov:hover{background:var(--surface-2)!important}
+.nv:hover{background:rgba(255,255,255,.07)!important}
+.bp:hover{background:var(--accent-hover)!important}
+.row:hover{background:var(--surface-2)}
+a{color:var(--accent-text);text-decoration:none}a:hover{text-decoration:underline}
+/* POLISH v1 */
+/* POLISH v2 */
+.orb main h2 + p{display:none!important}
+.orb main h3 + p{font-size:12.5px!important;color:var(--text-3)!important}
+.orb{--bg:#F6F7F4;--border:#E3E5E0;--shadow-card:0 1px 2px rgba(16,24,40,.04),0 1px 3px rgba(16,24,40,.03);letter-spacing:-0.003em;font-feature-settings:'tnum' 0}
+.orb.dark{--bg:#0B0F1A;--border:#232B44;--shadow-card:none}
+.orb .mono{font-family:Inter,system-ui,sans-serif!important;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+.orb code.mono,.orb pre.mono{font-family:'Geist Mono',ui-monospace,monospace!important;letter-spacing:0}
+.orb h1,.orb h2,.orb h3{letter-spacing:-0.015em}
+.orb [style*="border-radius: 12px"][style*="background: var(--surface)"],.orb [style*="border-radius: 14px"][style*="background: var(--surface)"]{box-shadow:var(--shadow-card)}
+.orb thead th{font-size:11.5px!important;font-weight:600!important;letter-spacing:.04em;text-transform:uppercase;color:var(--text-3)}
+.orb tbody td{vertical-align:middle}
+.orb button,.orb a{transition:background-color .15s ease,border-color .15s ease,box-shadow .15s ease,color .15s ease,opacity .15s ease}
+.orb button:active{transform:translateY(.5px)}
+.orb input:not([type=checkbox]):not([type=radio]):not([type=range]):focus,.orb select:focus,.orb textarea:focus{outline:none;border-color:var(--accent)!important;box-shadow:0 0 0 3px var(--accent-soft)!important}
+.orb button[style*="border: 1px solid var(--border)"]:hover{border-color:var(--border-strong)!important}
+.orb ::selection{background:var(--accent-soft)}
+.orb *{scrollbar-width:thin;scrollbar-color:var(--border-strong) transparent}
+.orb main > div[style*="padding: 2"]{max-width:1480px;width:100%;margin-left:auto;margin-right:auto}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+</style>
+</helmet>
+<div class="{{rootClass}}" style="min-height: 100vh; display: flex; flex-wrap: wrap; background: var(--bg)">
+  <nav aria-label="Platform admin" style="flex: 1 1 232px; max-width: 260px; background: #111318; color: #B9BDC9; padding: 16px 12px; display: flex; flex-direction: column; gap: 16px">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 4px 8px"><svg width="30" height="30" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#FFFFFF"></rect><ellipse cx="14" cy="14" rx="9.5" ry="4.2" fill="none" stroke="#111318" stroke-width="1.6" transform="rotate(-28 14 14)"></ellipse><circle cx="14" cy="14" r="3.1" fill="#111318"></circle></svg><div><div style="color: #FFFFFF; font-weight: 600">ORBAT Platform</div><div style="font-size: 11.5px; color: #8C92A3">Super admin</div></div></div>
+    <div style="display: flex; flex-direction: column; gap: 2px">
+      <sc-for list="{{nav}}" as="n"><button type="button" onClick="{{n.pick}}" aria-current="{{n.cur}}" class="nv" style="display: flex; align-items: center; gap: 10px; height: 34px; padding: 0 10px; border: 0; border-radius: 8px; background: {{n.bg}}; color: {{n.c}}; text-align: left; font-size: 13.5px; font-weight: {{n.w}}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{n.icon}}"></path></svg>{{n.label}}</button></sc-for>
+    </div>
+    <div style="margin-top: auto; padding: 10px; border-radius: 10px; background: rgba(255,255,255,.05); font-size: 12px; color: #8C92A3">Signed in as platform owner · every action is logged</div>
+  </nav>
+  <main style="flex: 999 1 560px; min-width: 0; display: flex; flex-direction: column">
+    <header style="height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 28px; background: var(--surface); border-bottom: 1px solid var(--border)">
+      <h1 style="margin: 0; font-size: 15px; font-weight: 600">{{secLabel}}</h1>
+      <span style="font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 6px; background: var(--bad-soft); color: var(--bad)">Platform scope</span>
+      <button type="button" onClick="{{toggleTheme}}" class="hov" aria-label="Toggle theme" style="margin-left: auto; height: 32px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 12.5px">{{themeLabel}}</button>
+    </header>
+    <div style="padding: 24px 28px 40px; display: flex; flex-direction: column; gap: 18px">
+
+      <sc-if value="{{isOverview}}" hint-placeholder-val="{{true}}">
+        <div style="display: flex; flex-direction: column; gap: 16px">
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr)); gap: 12px">
+            <sc-for list="{{kpis}}" as="k"><div style="padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface)"><div style="font-size: 12.5px; color: var(--text-2)">{{k.l}}</div><div class="mono" style="font-size: 24px; font-weight: 600; margin-top: 4px">{{k.v}}</div><div style="font-size: 12px; color: {{k.c}}">{{k.f}}</div></div></sc-for>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 16px">
+            <section style="flex: 1 1 360px; min-width: 0; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 10px">
+              <h3 style="margin: 0; font-size: 15px; font-weight: 600">Workspaces by plan</h3>
+              <sc-for list="{{byPlan}}" as="p"><div style="display: flex; flex-direction: column; gap: 4px"><div style="display: flex; justify-content: space-between; font-size: 13px"><span>{{p.n}}</span><span class="mono">{{p.v}}</span></div><div style="height: 8px; border-radius: 6px; background: var(--surface-2)"><div style="height: 8px; border-radius: 6px; width: {{p.w}}%; background: var(--accent)"></div></div></div></sc-for>
+            </section>
+            <section style="flex: 1 1 360px; min-width: 0; padding: 18px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 10px">
+              <h3 style="margin: 0; font-size: 15px; font-weight: 600">Platform health</h3>
+              <sc-for list="{{health}}" as="h"><div style="display: flex; gap: 10px; align-items: center; font-size: 13px; padding: 6px 0; border-bottom: 1px solid var(--border)"><span style="width: 8px; height: 8px; border-radius: 9px; background: {{h.c}}"></span><span style="flex: 1">{{h.n}}</span><span style="color: var(--text-2)">{{h.v}}</span></div></sc-for>
+            </section>
+          </div>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isWorkspaces}}" hint-placeholder-val="{{false}}">
+        <div style="display: flex; flex-direction: column; gap: 12px">
+          <div style="display: flex; gap: 8px; flex-wrap: wrap"><label style="flex: 0 1 320px; display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface)"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Search workspaces</span><input value="{{q}}" onInput="{{onQ}}" placeholder="Search workspaces" style="flex: 1; border: 0; outline: none; background: transparent; font-size: 13px"></label></div>
+          <section style="border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow-x: auto">
+            <table style="width: 100%; min-width: 1000px; border-collapse: collapse; font-size: 13px">
+              <thead><tr style="text-align: left; color: var(--text-3); font-size: 12px; background: var(--surface-2)"><th style="padding: 10px 16px; font-weight: 500">Workspace</th><th style="padding: 10px 8px; font-weight: 500">Plan</th><th style="padding: 10px 8px; font-weight: 500">Industry · region</th><th style="padding: 10px 8px; font-weight: 500; text-align: right">AI convos · 30d</th><th style="padding: 10px 8px; font-weight: 500; text-align: right">Model cost</th><th style="padding: 10px 8px; font-weight: 500; text-align: right">Revenue</th><th style="padding: 10px 8px; font-weight: 500; text-align: right">Margin</th><th style="padding: 10px 8px; font-weight: 500">Status</th><th style="padding: 10px 16px; font-weight: 500; text-align: right">Actions</th></tr></thead>
+              <tbody><sc-for list="{{workspaces}}" as="w"><tr class="row" style="border-top: 1px solid var(--border)">
+                <td style="padding: 11px 16px"><div style="font-weight: 500">{{w.n}}</div><div class="mono" style="font-size: 11.5px; color: var(--text-3)">{{w.slug}}.orbat.ai</div></td>
+                <td style="padding: 11px 8px">{{w.plan}}</td>
+                <td style="padding: 11px 8px; color: var(--text-2)">{{w.ind}}</td>
+                <td class="mono" style="padding: 11px 8px; text-align: right">{{w.ai}}</td>
+                <td class="mono" style="padding: 11px 8px; text-align: right">{{w.cost}}</td>
+                <td class="mono" style="padding: 11px 8px; text-align: right">{{w.rev}}</td>
+                <td class="mono" style="padding: 11px 8px; text-align: right; color: {{w.mC}}">{{w.margin}}</td>
+                <td style="padding: 11px 8px"><span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 99px; {{w.tone}}">{{w.st}}</span></td>
+                <td style="padding: 11px 16px; text-align: right; white-space: nowrap"><button type="button" class="hov" style="height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 12.5px">Open</button> <button type="button" onClick="{{w.toggle}}" style="height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 12.5px; color: {{w.actC}}">{{w.act}}</button></td>
+              </tr></sc-for></tbody>
+            </table>
+          </section>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isPlans}}" hint-placeholder-val="{{false}}">
+        <section style="border: 1px solid var(--border); border-radius: 12px; background: var(--surface); overflow-x: auto">
+          <div style="padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center"><h3 style="margin: 0; font-size: 15px; font-weight: 600">Plans and limits</h3><span style="font-size: 12.5px; color: var(--text-3)">Changes apply at each workspace’s next billing period</span></div>
+          <table style="width: 100%; min-width: 820px; border-collapse: collapse; font-size: 13px">
+            <thead><tr style="text-align: left; color: var(--text-3); font-size: 12px"><th style="padding: 10px 18px; font-weight: 500">Limit</th><sc-for list="{{planCols}}" as="c"><th style="padding: 10px 8px; font-weight: 500">{{c}}</th></sc-for></tr></thead>
+            <tbody><sc-for list="{{limits}}" as="l"><tr style="border-top: 1px solid var(--border)"><td style="padding: 10px 18px; font-weight: 500">{{l.n}}</td><sc-for list="{{l.v}}" as="v"><td style="padding: 6px 8px"><label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">{{l.n}}</span><input value="{{v}}" style="width: 120px; height: 32px; padding: 0 8px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 13px"></label></td></sc-for></tr></sc-for></tbody>
+          </table>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{isModels}}" hint-placeholder-val="{{false}}">
+        <div style="display: flex; flex-direction: column; gap: 16px">
+          <div style="padding: 12px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: 13px">API keys are added only here. Workspaces never see them — they get model access through their plan.</div>
+          <section style="border: 1px solid var(--border); border-radius: 12px; background: var(--surface)">
+            <div style="padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center"><h3 style="margin: 0; font-size: 15px; font-weight: 600">Provider keys</h3><button type="button" class="bp" style="height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">Add key</button></div>
+            <sc-for list="{{keys}}" as="k"><div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--border)"><div style="flex: 1 1 240px"><div style="font-weight: 500">{{k.n}}</div><div class="mono" style="font-size: 12px; color: var(--text-3)">{{k.mask}}</div></div><span style="font-size: 12.5px; color: var(--text-2)">{{k.use}}</span><span style="font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 99px; {{k.tone}}">{{k.st}}</span><button type="button" class="hov" style="height: 28px; padding: 0 10px; border: 1px solid var(--border); border-radius: 7px; background: var(--surface); font-size: 12.5px">Rotate</button></div></sc-for>
+          </section>
+          <section style="border: 1px solid var(--border); border-radius: 12px; background: var(--surface)">
+            <div style="padding: 14px 18px; border-bottom: 1px solid var(--border)"><h3 style="margin: 0; font-size: 15px; font-weight: 600">Router tiers</h3></div>
+            <sc-for list="{{tiers}}" as="t"><div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--border)"><b style="width: 100px">{{t.n}}</b><span style="flex: 1 1 260px; font-size: 13px; color: var(--text-2)">{{t.d}}</span><label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Model for {{t.n}}</span><select style="height: 34px; padding: 0 8px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); font-size: 13px"><option>{{t.m}}</option></select></label><span class="mono" style="font-size: 12.5px; color: var(--text-2); width: 120px; text-align: right">{{t.cost}}</span></div></sc-for>
+          </section>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{isStaff}}" hint-placeholder-val="{{false}}">
+        <section style="border: 1px solid var(--border); border-radius: 12px; background: var(--surface)">
+          <div style="padding: 14px 18px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center"><h3 style="margin: 0; font-size: 15px; font-weight: 600">Staff with platform access</h3><button type="button" class="bp" style="height: 32px; padding: 0 12px; border: 0; border-radius: 8px; background: var(--accent); color: #FFFFFF; font-size: 13px; font-weight: 500">Invite staff</button></div>
+          <sc-for list="{{staff}}" as="s"><div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 18px; border-bottom: 1px solid var(--border)"><div style="flex: 1 1 220px"><div style="font-weight: 500">{{s.n}}</div><div style="font-size: 12px; color: var(--text-3)">{{s.e}}</div></div><span style="font-size: 13px">{{s.role}}</span><span style="font-size: 12.5px; color: var(--text-2)">{{s.scope}}</span><span style="font-size: 12px; color: var(--text-3)">2FA {{s.mfa}}</span></div></sc-for>
+        </section>
+      </sc-if>
+
+      <sc-if value="{{isSettings}}" hint-placeholder-val="{{false}}">
+        <section style="padding: 20px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); display: flex; flex-direction: column; gap: 4px">
+          <sc-for list="{{psettings}}" as="p"><div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border)"><div style="flex: 1 1 300px"><div style="font-weight: 500">{{p.n}}</div><div style="font-size: 12.5px; color: var(--text-3)">{{p.d}}</div></div><span style="font-size: 13px; font-weight: 500">{{p.v}}</span></div></sc-for>
+        </section>
+      </sc-if>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":1440,"height":1000}}'>
+const TONE = { ok: 'background:var(--ok-soft);color:var(--ok)', warn: 'background:var(--warn-soft);color:var(--warn)', bad: 'background:var(--bad-soft);color:var(--bad)', neu: 'background:var(--surface-2);color:var(--text-2)' };
+const NAV = [['overview', 'Overview', 'M3 3h8v10H3zM13 3h8v6h-8zM13 13h8v8h-8zM3 17h8v4H3z'], ['workspaces', 'Workspaces', 'M3 21h18M5 21V7l7-4 7 4v14'], ['plans', 'Plans & limits', 'M2 5h20v14H2zM2 10h20'], ['models', 'AI models & keys', 'M15 7a4 4 0 1 1-3.9 4.9L3 20v-3h3v-3h3l2.1-2.1A4 4 0 0 1 15 7z'], ['staff', 'Staff access', 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z'], ['settings', 'Platform settings', 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 12h2M18 12h2M12 4v2M12 18v2']];
+const WS = [['Lumen Goods', 'lumen-goods', 'Growth', 'Retail · US', 7030, '$64.90', '[REV]', 0.78], ['Northwind Health', 'northwind-health', 'Compliance', 'Healthcare · US', 3120, '$41.20', '[REV]', 0.81], ['Indus Wallet', 'indus-wallet', 'Compliance', 'Fintech · PK', 9840, '$118.60', '[REV]', 0.66], ['Karachi Kitchenware', 'karachi-kitchen', 'Starter', 'Retail · PK', 410, '$2.10', 'Free', -1], ['Atlas Telecom', 'atlas-telecom', 'Business', 'Telecom · AE', 15220, '$161.40', '[REV]', 0.59], ['StudyBridge', 'studybridge', 'Growth', 'Education · UK', 1880, '$14.80', '[REV]', 0.83]];
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { dark: null, sec: 'workspaces', q: '', susp: { 'karachi-kitchen': false } }; }
+  renderVals() {
+    const s = this.state;
+    const dark = s.dark ?? (this.props.dark ?? false);
+    const q = s.q.toLowerCase();
+    return {
+      rootClass: dark ? 'orb dark' : 'orb', dark, toggleTheme: () => this.setState({ dark: !dark }), themeLabel: dark ? 'Light' : 'Dark',
+      nav: NAV.map(([id, label, icon]) => { const on = id === s.sec; return { label, icon, cur: on ? 'page' : 'false', bg: on ? 'rgba(255,255,255,.1)' : 'transparent', c: on ? '#FFFFFF' : '#B9BDC9', w: on ? 600 : 450, pick: () => this.setState({ sec: id }) }; }),
+      secLabel: NAV.find((n) => n[0] === s.sec)[1],
+      isOverview: s.sec === 'overview', isWorkspaces: s.sec === 'workspaces', isPlans: s.sec === 'plans', isModels: s.sec === 'models', isStaff: s.sec === 'staff', isSettings: s.sec === 'settings',
+      kpis: [['Workspaces', '1,284', '+86 this month', 'var(--ok)'], ['Paying workspaces', '412', '32% conversion', 'var(--text-3)'], ['AI conversations · 30d', '2.4M', '74% on light tier', 'var(--text-3)'], ['Model cost · 30d', '$21,480', '$0.009 per conversation', 'var(--text-3)'], ['Gross margin', '71%', 'target 70%', 'var(--ok)']].map(([l, v, f, c]) => ({ l, v, f, c })),
+      byPlan: [['Starter (free)', 872], ['Growth', 268], ['Business', 104], ['Compliance', 40]].map(([n, v]) => ({ n, v, w: Math.round(v / 872 * 100) })),
+      health: [['API and dashboard', 'Operational', 'var(--ok)'], ['Realtime (inbox, widget)', 'Operational', 'var(--ok)'], ['AI providers', 'Advanced tier slow · 2.1s p95', 'var(--warn)'], ['WhatsApp channel', 'Operational', 'var(--ok)'], ['Scheduled jobs', '2 retries in the last hour', 'var(--warn)']].map(([n, v, c]) => ({ n, v, c })),
+      q: s.q, onQ: (e) => this.setState({ q: e.target.value }),
+      workspaces: WS.filter((w) => !q || (w[0] + w[3]).toLowerCase().includes(q)).map(([n, slug, plan, ind, ai, cost, rev, m]) => { const sus = !!s.susp[slug]; return { n, slug, plan, ind, ai: ai.toLocaleString('en-US'), cost, rev, margin: m < 0 ? '—' : Math.round(m * 100) + '%', mC: m >= 0 && m < 0.65 ? 'var(--warn)' : 'var(--text)', st: sus ? 'Suspended' : 'Active', tone: sus ? TONE.bad : TONE.ok, act: sus ? 'Restore' : 'Suspend', actC: sus ? 'var(--ok)' : 'var(--bad)', toggle: () => this.setState({ susp: { ...s.susp, [slug]: !sus } }) }; }),
+      planCols: ['Starter', 'Growth', 'Business', 'Compliance'],
+      limits: [['AI conversations / month', ['500', '10,000', '40,000', 'Custom']], ['AI agents', ['1', '2', '10', 'Unlimited']], ['Channels', ['Website chat', 'All', 'All', 'All']], ['Voice minutes', ['—', 'Add-on', '1,000', 'Custom']], ['Website audits / month', ['—', 'Add-on', '4', 'Unlimited']], ['Data region choice', ['US', 'US', 'US / EU', 'Any']], ['Price', ['Free', '[PRICE]', '[PRICE]', 'Custom']]].map(([n, v]) => ({ n, v })),
+      keys: [['Provider A · primary', 'sk-••••••••••••••4f2a', 'Light and standard tiers', 'Healthy', TONE.ok], ['Provider B · advanced', 'sk-••••••••••••••91bc', 'Advanced tier', 'Slow', TONE.warn], ['Speech provider', 'not set', 'Voice calling', 'Not chosen', TONE.neu]].map(([n, mask, use, st, tone]) => ({ n, mask, use, st, tone })),
+      tiers: [['Light', 'Greetings, FAQs, order status', '[LIGHT MODEL]', '$0.003 / conv'], ['Standard', 'Multi-step, policy, actions', '[STANDARD MODEL]', '$0.018 / conv'], ['Advanced', 'Sensitive, second attempts', '[ADVANCED MODEL]', '$0.079 / conv']].map(([n, d, m, cost]) => ({ n, d, m, cost })),
+      staff: [['You', 'owner@orbat.ai', 'Owner', 'Everything', 'on'], ['Support engineer', 'support@orbat.ai', 'Support', 'Read workspaces, open as admin with consent', 'on'], ['Finance', 'finance@orbat.ai', 'Billing', 'Plans, invoices, refunds', 'on']].map(([n, e, role, scope, mfa]) => ({ n, e, role, scope, mfa })),
+      psettings: [['Sign-ups', 'Who can create a workspace', 'Open · email verification required'], ['Default data region', 'For new workspaces without a choice', 'United States'], ['Maintenance window', 'Announced in every dashboard 48h ahead', 'Sundays 02:00–03:00 UTC'], ['Workspace impersonation', 'Staff can open a workspace only with the owner’s consent', 'Consent required · logged'], ['Abuse limits', 'Messages per customer per minute', '20']].map(([n, d, v]) => ({ n, d, v }))
+    };
+  }
+}
+</script>
+</body>
+</html>

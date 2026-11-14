@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT sidebar</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+.sbi:hover{background:rgba(22,51,0,.06)}
+.sbi[aria-current="page"]:hover{background:#CDFFAD!important}
+</style>
+</helmet>
+<nav aria-label="Primary" style="width: 100%; height: 100%; min-height: 100%; box-sizing: border-box; background: var(--side, #FFFFFF); color: var(--side-text, #454745); font-family: Inter, system-ui, sans-serif; font-size: 15px; line-height: 1.4; display: flex; flex-direction: column; gap: 22px; padding: {{pad}}">
+  <button type="button" style="display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px; border: 0; border-radius: 16px; background: transparent; color: var(--text, #0E0F0C); font: inherit; cursor: pointer; text-align: left">
+    <svg width="40" height="40" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="9" fill="#163300"></rect><ellipse cx="14" cy="14" rx="9.5" ry="4.2" fill="none" stroke="#9FE870" stroke-width="1.7" transform="rotate(-28 14 14)"></ellipse><circle cx="14" cy="14" r="3.2" fill="#9FE870"></circle></svg>
+    <sc-if value="{{full}}" hint-placeholder-val="{{true}}">
+    <span style="display: flex; flex-direction: column; min-width: 0; flex: 1">
+      <span style="font-family: 'Inter Tight', Inter, sans-serif; font-weight: 900; font-size: 18px; letter-spacing: -0.01em; color: var(--text, #0E0F0C)">ORBAT</span>
+      <span style="font-size: 13.5px; color: var(--text-3, #6A6C6A)">Lumen Goods</span>
+    </span>
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 15l5 5 5-5M7 9l5-5 5 5"></path></svg>
+    </sc-if>
+  </button>
+
+  <div style="display: flex; flex-direction: column; gap: 18px; flex: 1">
+    <sc-for list="{{groups}}" as="g" hint-placeholder-count="4">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <sc-if value="{{full}}" hint-placeholder-val="{{true}}"><div style="font-size: 12.5px; font-weight: 600; color: var(--text-3, #6A6C6A); padding: 0 16px 6px">{{g.label}}</div></sc-if>
+        <sc-if value="{{compact}}" hint-placeholder-val="{{false}}"><div style="height: 1px; margin: 0 8px 6px; background: var(--border, #E3E5E0)"></div></sc-if>
+        <sc-for list="{{g.items}}" as="item" hint-placeholder-count="3">
+          <a href="{{item.href}}" class="sbi" aria-current="{{item.current}}" aria-label="{{item.label}}" title="{{item.label}}" style="position: relative; display: flex; align-items: center; gap: 14px; height: 44px; padding: 0 16px; border-radius: 9999px; text-decoration: none; font-size: 15.5px; color: {{item.color}}; background: {{item.bg}}; box-shadow: {{item.ring}}; font-weight: {{item.weight}}">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{item.icon}}"></path></svg>
+            <sc-if value="{{full}}" hint-placeholder-val="{{true}}"><span style="flex: 1">{{item.label}}</span></sc-if>
+            <sc-if value="{{item.dot}}" hint-placeholder-val="{{false}}"><span aria-hidden="true" style="position: absolute; top: 8px; right: 10px; width: 8px; height: 8px; border-radius: 9px; background: #163300"></span></sc-if>
+            <sc-if value="{{item.badge}}" hint-placeholder-val="{{false}}">
+              <span class="mono" style="font-size: 12.5px; font-weight: 700; min-width: 26px; text-align: center; padding: 2px 8px; border-radius: 99px; background: {{item.bBg}}; color: #163300">{{item.badge}}</span>
+            </sc-if>
+          </a>
+        </sc-for>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display: flex; flex-direction: column; gap: 10px">
+    <sc-if value="{{showTrial}}" hint-placeholder-val="{{false}}">
+    <a href="Checkout.dc.html" class="sbi" style="padding: 18px; border-radius: 24px; background: #163300; display: flex; flex-direction: column; gap: 10px; text-decoration: none">
+      <div style="display: flex; justify-content: space-between; font-size: 14px"><span style="color: #FFFFFF; font-weight: 600">Free trial</span><span class="mono" style="color: #CFE0C2">{{trialDays}} days left</span></div>
+      <div style="height: 6px; border-radius: 6px; background: rgba(255,255,255,0.14)"><div style="width: {{trialPct}}%; height: 6px; border-radius: 6px; background: #9FE870"></div></div>
+      <div style="height: 40px; border-radius: 99px; background: #9FE870; color: #163300; font-weight: 600; font-size: 14.5px; display: grid; place-items: center">Choose a plan</div>
+    </a>
+    </sc-if>
+    <sc-if value="{{showUsage}}" hint-placeholder-val="{{true}}">
+    <div style="padding: 18px; border-radius: 24px; background: var(--side-2, #F4F5F1); display: flex; flex-direction: column; gap: 10px">
+      <div style="display: flex; justify-content: space-between; font-size: 14px"><span style="color: var(--text, #0E0F0C); font-weight: 600">AI conversations</span><span class="mono" style="color: var(--text-2, #454745)">7,412 / 10k</span></div>
+      <div style="height: 6px; border-radius: 6px; background: var(--surface-3, #E3E6DF)"><div style="width: 74%; height: 6px; border-radius: 6px; background: #163300"></div></div>
+      <div style="font-size: 13px; color: var(--text-3, #6A6C6A)">Resets Dec 1 · Growth plan</div>
+    </div>
+    </sc-if>
+    <a href="Profile.dc.html" class="sbi" style="display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 99px; text-decoration: none; color: var(--text, #0E0F0C)">
+      <span style="position: relative; width: 40px; height: 40px; border-radius: 99px; background: #E9D8FD; color: #3B1F73; display: grid; place-items: center; font-size: 14px; font-weight: 700">AM<span style="position: absolute; right: -1px; bottom: -1px; width: 12px; height: 12px; border-radius: 99px; background: #2FB36B; border: 2px solid var(--side, #FFFFFF)"></span></span>
+      <sc-if value="{{full}}" hint-placeholder-val="{{true}}">
+      <span style="display: flex; flex-direction: column; min-width: 0">
+        <span style="font-size: 15px; font-weight: 600">Alex Morgan</span>
+        <span style="font-size: 13px; color: var(--text-3, #6A6C6A)">Supervisor · Online</span>
+      </span>
+      </sc-if>
+    </a>
+  </div>
+</nav>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"active":{"editor":"enum","default":"overview","options":["overview","inbox","tickets","customers","agents","builder","knowledge","automation","engagement","analytics","team","channels","settings","design","templates","compliance","calls","quality","languages","billing"]},"compact":{"editor":"boolean","default":false},"trial":{"editor":"boolean","default":false},"trialDays":{"editor":"number","default":12},"$preview":{"width":272,"height":1100}}'>
+const ICONS = {
+  overview: 'M3 3h8v10H3zM13 3h8v6h-8zM13 13h8v8h-8zM3 17h8v4H3z',
+  inbox: 'M22 12h-6l-2 3h-4l-2-3H2M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z',
+  tickets: 'M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2zM13 5v2M13 17v2M13 11v2',
+  customers: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  agents: 'M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9zM19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z',
+  builder: 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
+  knowledge: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14zM20 17v4H6.5A2.5 2.5 0 0 1 4 18.5',
+  automation: 'M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM18 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 9v3a3 3 0 0 0 3 3h6',
+  engagement: 'M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1zM16 8a5 5 0 0 1 0 8M19 5a9 9 0 0 1 0 14',
+  analytics: 'M3 3v18h18M7 15l4-4 3 3 5-6',
+  team: 'M12 2a10 10 0 1 0 10 10M12 6a6 6 0 1 0 6 6M12 12l7-7',
+  channels: 'M12 22v-5M9 8V2M15 8V2M18 8v5a6 6 0 0 1-12 0V8z',
+  settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM4 12h2M18 12h2M12 4v2M12 18v2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M6.3 17.7l1.4-1.4M16.3 7.7l1.4-1.4',
+  design: 'M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
+  templates: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
+  calls: 'M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3l2 5-2.5 1.5a11 11 0 0 0 5 5L13 11l5 2z',
+  quality: 'M12 2l3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z',
+  languages: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20',
+  billing: 'M2 5h20v14H2zM2 10h20M6 15h4',
+  compliance: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4'
+};
+const NAV = [
+  { label: 'Workspace', items: [
+    ['overview', 'Overview', 'Main.dc.html'], ['inbox', 'Inbox', 'Inbox.dc.html', '24'], ['calls', 'Calls', 'Voice.dc.html', '2'], ['tickets', 'Tickets', 'Tickets.dc.html', '9'], ['customers', 'Customers', 'Customers.dc.html']
+  ] },
+  { label: 'AI & Knowledge', items: [
+    ['agents', 'AI Agents', 'AIAgents.dc.html'], ['templates', 'Agent templates', 'AgentTemplates.dc.html'], ['builder', 'Agent builder', 'AgentBuilder.dc.html'], ['quality', 'AI quality', 'AITrust.dc.html'], ['languages', 'Languages', 'Languages.dc.html'], ['knowledge', 'Knowledge base', 'Knowledge.dc.html'], ['automation', 'Automation', 'Automation.dc.html']
+  ] },
+  { label: 'Grow', items: [
+    ['engagement', 'Engagement', 'Engagement.dc.html'], ['analytics', 'Analytics', 'Analytics.dc.html']
+  ] },
+  { label: 'Admin', items: [
+    ['team', 'Team', 'Team.dc.html'], ['compliance', 'Compliance', 'Compliance.dc.html', '3'], ['channels', 'Channels & apps', 'Channels.dc.html'], ['billing', 'Billing & usage', 'Billing.dc.html'], ['settings', 'Settings', 'Settings.dc.html'], ['design', 'Design system', 'DesignSystem.dc.html']
+  ] }
+];
+class Component extends DCLogic {
+  renderVals() {
+    const active = this.props.active ?? 'overview';
+    const compact = this.props.compact ?? false;
+    const groups = NAV.map((g) => ({
+      label: g.label,
+      items: g.items.map(([id, label, href, badge]) => {
+        const on = id === active;
+        return {
+          label, href, badge: (!compact && badge) || false, dot: (compact && !!badge), icon: ICONS[id],
+          current: on ? 'page' : 'false',
+          color: on ? '#163300' : 'var(--side-text, #454745)',
+          bg: on ? '#9FE870' : 'transparent',
+          ring: 'none', bBg: on ? '#FFFFFF' : '#E2F6D5',
+          weight: on ? 650 : 500
+        };
+      })
+    }));
+    const trial = this.props.trial === true || this.props.trial === "true"; const td = Number(this.props.trialDays ?? 12);
+    return { showTrial: trial && !compact, showUsage: !trial && !compact, trialDays: td, trialPct: Math.round((14 - td) / 14 * 100), groups, compact, full: !compact, pad: compact ? '18px 10px 20px' : '20px 16px 24px' };
+  }
+}
+</script>
+</body>
+</html>

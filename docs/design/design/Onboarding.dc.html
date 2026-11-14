@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>ORBAT AI · Set up your workspace</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Inter+Tight:wght@600;700;800;900&family=Geist+Mono:wght@400;500;600&display=swap">
+<style>
+body{margin:0}
+.ob{--text:#0E0F0C;--text-2:#454745;--text-3:#6A6C6A;--border:#DDE1E8;--accent:#163300;--accent-hover:#0E2200;--accent-soft:#E2F6D5;--accent-text:#163300;--ai:#6D3FD6;--ai-soft:#F2EDFD;--ai-text:#5B2FC2;--ok:#1C7C45;--ok-soft:#E7F4EC;--warn:#A4510B;--warn-soft:#FDF2E3;font-family:Inter,system-ui,sans-serif;font-size:14px;line-height:1.45;color:var(--text);-webkit-font-smoothing:antialiased}
+.ob *{box-sizing:border-box}
+.ob button,.ob input,.ob select{font:inherit;color:inherit}
+.ob button{cursor:pointer}
+.ob :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.ob .in{height:42px;width:100%;padding:0 12px;border:1px solid var(--border);border-radius:10px;background:#FFFFFF;font-size:14px;font-weight:400}
+.ob .in:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.ob .lbl{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:500}
+.ob .opt:hover{border-color:#B9BEF5!important}
+.ob .bp:hover{background:var(--accent-hover)!important}
+.mono{font-family:'Geist Mono',ui-monospace,monospace}
+.fade{animation:fd .25s ease-out}
+@keyframes fd{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+/* POLISH v1 */
+.mono{font-family:Inter,system-ui,sans-serif!important;font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+code.mono,pre.mono{font-family:'Geist Mono',ui-monospace,monospace!important}
+
+/* WISE THEME */
+h1,h2,.h1,.h2{font-family:'Inter Tight',Inter,Helvetica,Arial,sans-serif}
+.bp,.btn-p{background:#9FE870!important;color:#163300!important;border-radius:9999px!important;font-weight:600!important;box-shadow:none!important;transition:transform .15s,background-color .15s!important}
+.bp:hover,.btn-p:hover{background:#CDFFAD!important;transform:scale(1.03)}
+.bp:active,.btn-p:active{transform:scale(.97)}
+h1:not(header h1){font-weight:800!important;letter-spacing:-.02em!important}
+[style*="border-radius: 12px"]{border-radius:20px!important}
+[style*="border-radius: 14px"]{border-radius:24px!important}
+
+/* WISE APP v1 */
+.orb{--side:#FFFFFF;--side-2:#F4F5F1;--side-text:#454745;--bg:#FFFFFF;--surface-2:#F2F4EF;font-size:15px}
+.orb.dark{--side:#0F1510;--side-2:#1A2218;--side-text:#B0B6C9}
+.orb main{zoom:1.08}
+.orb [style*="flex: 1 1 232px"]{flex:0 0 272px!important;align-self:flex-start;position:sticky;top:0;height:100vh;overflow-y:auto;border-right:1px solid var(--border);scrollbar-width:none}
+.orb [style*="flex: 0 0 64px"],.orb [style*="flex: none; width: 64px"]{border-right:1px solid var(--border)}
+.orb main button[style*="border-radius: 6px"][style*="height: 2"],.orb main button[style*="border-radius: 6px"][style*="height: 3"],.orb main button[style*="border-radius: 6px"][style*="height: 4"],.orb main a[style*="border-radius: 6px"][style*="height: 2"],.orb main a[style*="border-radius: 6px"][style*="height: 3"],.orb main a[style*="border-radius: 6px"][style*="height: 4"],.orb main button[style*="border-radius: 7px"][style*="height: 2"],.orb main button[style*="border-radius: 7px"][style*="height: 3"],.orb main button[style*="border-radius: 7px"][style*="height: 4"],.orb main a[style*="border-radius: 7px"][style*="height: 2"],.orb main a[style*="border-radius: 7px"][style*="height: 3"],.orb main a[style*="border-radius: 7px"][style*="height: 4"],.orb main button[style*="border-radius: 8px"][style*="height: 2"],.orb main button[style*="border-radius: 8px"][style*="height: 3"],.orb main button[style*="border-radius: 8px"][style*="height: 4"],.orb main a[style*="border-radius: 8px"][style*="height: 2"],.orb main a[style*="border-radius: 8px"][style*="height: 3"],.orb main a[style*="border-radius: 8px"][style*="height: 4"],.orb main button[style*="border-radius: 9px"][style*="height: 2"],.orb main button[style*="border-radius: 9px"][style*="height: 3"],.orb main button[style*="border-radius: 9px"][style*="height: 4"],.orb main a[style*="border-radius: 9px"][style*="height: 2"],.orb main a[style*="border-radius: 9px"][style*="height: 3"],.orb main a[style*="border-radius: 9px"][style*="height: 4"],.orb main button[style*="border-radius: 10px"][style*="height: 2"],.orb main button[style*="border-radius: 10px"][style*="height: 3"],.orb main button[style*="border-radius: 10px"][style*="height: 4"],.orb main a[style*="border-radius: 10px"][style*="height: 2"],.orb main a[style*="border-radius: 10px"][style*="height: 3"],.orb main a[style*="border-radius: 10px"][style*="height: 4"]{border-radius:9999px!important}
+.orb main input:not([type=checkbox]):not([type=radio]):not([type=range]),.orb main select{border-radius:12px!important}
+.orb main textarea{border-radius:14px!important}
+.orb main h2[style*="font-size: 22px"],.orb main h2[style*="font-size: 24px"],.orb main h2[style*="font-size: 20px"]{font-size:30px!important;font-weight:800!important;letter-spacing:-.02em!important}
+.orb main h3{font-weight:700!important}
+.orb .sbi:hover{background:rgba(22,51,0,.06)!important}
+.ob{zoom:1.06}
+</style>
+</helmet>
+<div class="ob" style="min-height: 100vh; display: flex; flex-direction: column; background: #F6F7F4">
+  <header style="display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 14px 28px; background: #FFFFFF; border-bottom: 1px solid #E3E5E0">
+    <div style="display: flex; align-items: center; gap: 10px"><svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true"><rect width="28" height="28" rx="8" fill="#163300"></rect><ellipse cx="14" cy="14" rx="9.5" ry="4.2" fill="none" stroke="#FFFFFF" stroke-width="1.6" transform="rotate(-28 14 14)"></ellipse><circle cx="14" cy="14" r="3.1" fill="#FFFFFF"></circle></svg><b style="letter-spacing: 0.02em">ORBAT AI</b></div>
+    <div style="flex: 1 1 300px; display: flex; align-items: center; gap: 12px; max-width: 520px; margin: 0 auto">
+      <div role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{pct}}" aria-label="Setup progress" style="flex: 1; height: 6px; border-radius: 6px; background: #E3E6DF"><div style="height: 6px; border-radius: 6px; width: {{pct}}%; background: var(--accent); transition: width .3s"></div></div>
+      <span class="mono" style="font-size: 12.5px; color: var(--text-2)">{{stepCount}}</span>
+    </div>
+    <a href="Main.dc.html" style="font-size: 13.5px; color: var(--text-2); text-decoration: none; font-weight: 500">Save &amp; finish later</a>
+  </header>
+
+  <div style="flex: 1; display: flex; flex-wrap: wrap; gap: 0">
+    <nav aria-label="Setup steps" style="flex: 0 1 250px; min-width: 220px; padding: 32px 20px; display: flex; flex-direction: column; gap: 4px">
+      <sc-for list="{{steps}}" as="st" hint-placeholder-count="9">
+        <button type="button" onClick="{{st.pick}}" disabled="{{st.locked}}" aria-current="{{st.cur}}" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 0; border-radius: 10px; background: {{st.bg}}; text-align: left; opacity: {{st.op}}; cursor: {{st.cursor}}">
+          <span class="mono" style="flex: none; width: 26px; height: 26px; border-radius: 99px; display: grid; place-items: center; font-size: 12px; font-weight: 600; background: {{st.numBg}}; color: {{st.numC}}; border: 1.5px solid {{st.numBd}}">{{st.n}}</span>
+          <span style="display: flex; flex-direction: column"><span style="font-size: 13.5px; font-weight: {{st.w}}">{{st.label}}</span><span style="font-size: 12px; color: var(--text-3)">{{st.hint}}</span></span>
+        </button>
+      </sc-for>
+    </nav>
+
+    <main style="flex: 999 1 520px; min-width: 0; padding: 40px 32px 48px; display: flex; justify-content: center">
+      <div style="width: 620px; max-width: 100%; display: flex; flex-direction: column; gap: 24px">
+
+        <sc-if value="{{s0}}" hint-placeholder-val="{{true}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 22px">
+            <div><div style="font-size: 12.5px; font-weight: 600; color: var(--accent-text)">Welcome to ORBAT</div><h1 style="margin: 4px 0 0; font-size: 28px; font-weight: 600; letter-spacing: -0.025em">First, a little about you</h1><p style="margin: 6px 0 0; color: var(--text-2)">This personalises your workspace. You can change it anytime in Settings.</p></div>
+            <div style="display: flex; gap: 16px; align-items: center"><span style="width: 64px; height: 64px; border-radius: 99px; display: grid; place-items: center; font-size: 22px; font-weight: 600; background: #E9D8FD; color: #3B1F73">{{initials}}</span><div style="display: flex; flex-direction: column; gap: 4px"><button type="button" style="height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: #FFFFFF; font-size: 13px">Upload photo</button><span style="font-size: 12px; color: var(--text-3)">Shown to customers when you reply</span></div></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 14px">
+              <label class="lbl">Full name<input class="in" value="{{name}}" onInput="{{onName}}"></label>
+              <label class="lbl">Display name for customers<input class="in" value="{{display}}" onInput="{{onDisplay}}"></label>
+              <label class="lbl">Job title<input class="in" value="{{title}}" onInput="{{onTitle}}" placeholder="e.g. Head of Customer Experience"></label>
+              <label class="lbl">Phone (optional)<input class="in" placeholder="+1 555 000 0000"></label>
+            </div>
+            <div class="lbl">What best describes your role?
+              <div style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{roles}}" as="r"><button type="button" onClick="{{r.pick}}" aria-pressed="{{r.on}}" class="opt" style="height: 38px; padding: 0 14px; border: 1.5px solid {{r.bd}}; border-radius: 99px; background: {{r.bg}}; color: {{r.c}}; font-size: 13.5px; font-weight: 500">{{r.label}}</button></sc-for></div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{s1}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 22px">
+            <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.025em">Your business profile</h1><p style="margin: 6px 0 0; color: var(--text-2)">We use your website to pre-train your AI agent and fill in your brand.</p></div>
+            <div style="display: flex; gap: 16px; align-items: center"><span style="width: 64px; height: 64px; border-radius: 16px; border: 1.5px dashed #C9CCC5; display: grid; place-items: center; font-size: 12px; color: var(--text-3); background: #FFFFFF">Logo</span><div style="display: flex; flex-direction: column; gap: 4px"><button type="button" style="height: 34px; padding: 0 12px; border: 1px solid var(--border); border-radius: 8px; background: #FFFFFF; font-size: 13px">Upload logo</button><span style="font-size: 12px; color: var(--text-3)">SVG or PNG, square</span></div></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 14px">
+              <label class="lbl">Company name<input class="in" value="{{company}}" onInput="{{onCompany}}"></label>
+              <label class="lbl">Website<span style="display: flex; align-items: center; border: 1px solid var(--border); border-radius: 10px; background: #FFFFFF; overflow: hidden"><span class="mono" style="padding: 0 10px; height: 42px; display: grid; place-items: center; background: #F6F7F4; color: var(--text-3); font-size: 12.5px; border-right: 1px solid var(--border)">https://</span><input value="{{site}}" onInput="{{onSite}}" style="flex: 1; min-width: 0; height: 42px; padding: 0 10px; border: 0; outline: none; font-weight: 400"></span></label>
+              <label class="lbl">Workspace URL<span style="display: flex; align-items: center; border: 1px solid var(--border); border-radius: 10px; background: #FFFFFF; overflow: hidden"><input value="{{slug}}" readonly style="flex: 1; min-width: 0; height: 42px; padding: 0 10px; border: 0; outline: none; font-weight: 400" class="mono"><span class="mono" style="padding: 0 10px; height: 42px; display: grid; place-items: center; background: #F6F7F4; color: var(--text-3); font-size: 12.5px; border-left: 1px solid var(--border)">.orbat.ai</span></span></label>
+              <label class="lbl">Headquarters<select class="in" value="{{country}}" onChange="{{onCountry}}"><option>United States</option><option>United Kingdom</option><option>Germany</option><option>United Arab Emirates</option><option>Pakistan</option><option>India</option><option>Canada</option><option>Australia</option></select></label>
+              <label class="lbl">Time zone<select class="in"><option>Detected: (UTC−06:00) Central Time</option><option>(UTC+00:00) London</option><option>(UTC+04:00) Dubai</option><option>(UTC+05:00) Karachi</option></select></label>
+              <label class="lbl">Main language customers use<select class="in"><option>English</option><option>English + Spanish</option><option>Arabic</option><option>Urdu + English</option><option>German</option></select></label>
+            </div>
+            <div class="lbl">Company size
+              <div style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{sizes}}" as="r"><button type="button" onClick="{{r.pick}}" aria-pressed="{{r.on}}" class="opt" style="height: 38px; padding: 0 14px; border: 1.5px solid {{r.bd}}; border-radius: 99px; background: {{r.bg}}; color: {{r.c}}; font-size: 13.5px; font-weight: 500">{{r.label}}</button></sc-for></div>
+            </div>
+            <div class="lbl">Monthly customer conversations
+              <div style="display: flex; flex-wrap: wrap; gap: 8px"><sc-for list="{{volumes}}" as="r"><button type="button" onClick="{{r.pick}}" aria-pressed="{{r.on}}" class="opt" style="height: 38px; padding: 0 14px; border: 1.5px solid {{r.bd}}; border-radius: 99px; background: {{r.bg}}; color: {{r.c}}; font-size: 13.5px; font-weight: 500">{{r.label}}</button></sc-for></div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{s2}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px">
+            <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.025em">Which industry are you in?</h1><p style="margin: 6px 0 0; color: var(--text-2)">We’ll suggest agent templates, workflows and compliance controls built for it.</p></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr)); gap: 10px">
+              <sc-for list="{{industries}}" as="i" hint-placeholder-count="12">
+                <button type="button" onClick="{{i.pick}}" aria-pressed="{{i.on}}" class="opt" style="position: relative; display: flex; flex-direction: column; gap: 10px; padding: 14px; border: 1.5px solid {{i.bd}}; border-radius: 12px; background: {{i.bg}}; text-align: left; box-shadow: {{i.ring}}">
+                  <span style="width: 34px; height: 34px; border-radius: 9px; display: grid; place-items: center; background: {{i.iconBg}}; color: {{i.iconC}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{i.icon}}"></path></svg></span>
+                  <span style="font-weight: 600; font-size: 13.5px">{{i.label}}</span>
+                  <span style="font-size: 12px; color: var(--text-3)">{{i.ex}}</span>
+                  <sc-if value="{{i.sel}}" hint-placeholder-val="{{false}}"><span style="position: absolute; top: 10px; right: 10px; width: 20px; height: 20px; border-radius: 99px; background: var(--accent); color: #FFFFFF; display: grid; place-items: center"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg></span></sc-if>
+                </button>
+              </sc-for>
+            </div>
+            <label class="lbl">Main things customers contact you about<input class="in" value="{{topics}}" onInput="{{onTopics}}"><span style="font-size: 12px; font-weight: 400; color: var(--text-3)">Suggested for {{indLabel}} — edit freely.</span></label>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{s3}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px">
+            <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.025em">Compliance &amp; data protection</h1><p style="margin: 6px 0 0; color: var(--text-2)">Our compliance agent, Sentinel, enforces these on every AI and human conversation.</p></div>
+            <div style="display: flex; gap: 10px; padding: 12px 14px; border-radius: 10px; background: var(--ai-soft); font-size: 13px; color: var(--ai-text)"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round" aria-hidden="true" style="flex: none; margin-top: 1px"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"></path></svg><span>Recommended for <b>{{indLabel}}</b> in <b>{{country}}</b>. These are suggestions — confirm with your legal or compliance team.</span></div>
+            <div style="display: flex; flex-direction: column; gap: 8px">
+              <sc-for list="{{frameworks}}" as="f"><label class="opt" style="display: flex; gap: 12px; align-items: flex-start; padding: 14px; border: 1.5px solid {{f.bd}}; border-radius: 12px; background: #FFFFFF; cursor: pointer">
+                <input type="checkbox" checked="{{f.on}}" onChange="{{f.toggle}}" style="margin-top: 2px; width: 17px; height: 17px; accent-color: var(--accent)">
+                <span style="flex: 1"><span style="display: flex; gap: 8px; align-items: center"><b style="font-size: 14px">{{f.n}}</b><sc-if value="{{f.rec}}" hint-placeholder-val="{{false}}"><span style="font-size: 11px; font-weight: 600; padding: 1px 7px; border-radius: 5px; background: var(--ok-soft); color: var(--ok)">Recommended</span></sc-if></span><span style="display: block; font-size: 12.5px; color: var(--text-2); margin-top: 2px">{{f.d}}</span></span>
+              </label></sc-for>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr)); gap: 14px">
+              <label class="lbl">Data residency<select class="in" value="{{region}}" onChange="{{onRegion}}"><option>United States</option><option>European Union</option><option>United Kingdom</option><option>Middle East (UAE)</option></select></label>
+              <label class="lbl">Keep conversation data for<select class="in"><option>24 months</option><option>12 months</option><option>7 years (financial records)</option><option>6 years (health records)</option></select></label>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{s4}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px">
+            <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.025em">Where do customers reach you?</h1><p style="margin: 6px 0 0; color: var(--text-2)">Pick the channels to connect now. You can add more later.</p></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 10px">
+              <sc-for list="{{channels}}" as="c"><button type="button" onClick="{{c.pick}}" aria-pressed="{{c.on}}" class="opt" style="display: flex; gap: 12px; align-items: center; padding: 14px; border: 1.5px solid {{c.bd}}; border-radius: 12px; background: {{c.bg}}; text-align: left">
+                <span style="width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; background: #EDEFEA; color: var(--text-2)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="{{c.icon}}"></path></svg></span>
+                <span style="flex: 1"><span style="display: block; font-weight: 600; font-size: 13.5px">{{c.n}}</span><span style="display: block; font-size: 12px; color: var(--text-3)">{{c.d}}</span></span>
+                <span style="width: 20px; height: 20px; border-radius: 6px; border: 1.5px solid {{c.boxBd}}; background: {{c.boxBg}}; display: grid; place-items: center; color: #FFFFFF; font-size: 12px; font-weight: 700">{{c.tick}}</span>
+              </button></sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{s5}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px">
+            <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.025em">Connect your business data</h1><p style="margin: 6px 0 0; color: var(--text-2)">Your agent can look up orders, bookings and customers.</p></div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 10px">
+              <sc-for list="{{sources}}" as="d"><div style="display: flex; gap: 12px; align-items: center; padding: 14px; border: 1.5px solid {{d.bd}}; border-radius: 12px; background: #FFFFFF">
+                <span style="width: 36px; height: 36px; border-radius: 9px; display: grid; place-items: center; background: #EDEFEA; color: var(--text-2); font-weight: 700; font-size: 13px">{{d.ini}}</span>
+                <span style="flex: 1; min-width: 0"><span style="display: block; font-weight: 600; font-size: 13.5px">{{d.n}}</span><span style="display: block; font-size: 12px; color: {{d.dc}}">{{d.d}}</span></span>
+                <button type="button" onClick="{{d.toggle}}" style="height: 30px; padding: 0 12px; border: 1px solid {{d.btnBd}}; border-radius: 8px; background: #FFFFFF; font-size: 12.5px; font-weight: 500; color: {{d.btnC}}">{{d.btn}}</button>
+              </div></sc-for>
+            </div>
+            <div style="display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 12px; border: 1px dashed #C9CCC5; background: #FFFFFF">
+              <span style="flex: 1"><span style="display: block; font-weight: 600; font-size: 13.5px">Custom website or app</span><span style="display: block; font-size: 12px; color: var(--text-3)">Connect any site with the ORBAT connector or REST API</span></span>
+              <a href="CRMConnect.dc.html" style="font-size: 13px; font-weight: 500; color: var(--accent-text); text-decoration: none">Set up →</a>
+            </div>
+            <sc-if value="{{anyData}}" hint-placeholder-val="{{true}}"><div style="padding: 12px 14px; border-radius: 10px; background: var(--ok-soft); color: var(--ok); font-size: 13px; font-weight: 500">{{dataSummary}}</div></sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{s6}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px">
+            <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.025em">Meet your first AI agent</h1><p style="margin: 6px 0 0; color: var(--text-2)">Based on {{indLabel}}. It learns from your website and you can test it before going live.</p></div>
+            <div style="padding: 18px; border: 1px solid #E3E5E0; border-radius: 14px; background: #FFFFFF; display: flex; flex-direction: column; gap: 14px">
+              <div style="display: flex; gap: 12px; align-items: center"><span style="width: 44px; height: 44px; border-radius: 12px; background: var(--ai); color: #FFFFFF; display: grid; place-items: center; font-weight: 700; font-size: 17px">{{agentIni}}</span><div style="flex: 1"><div style="font-weight: 600">{{agentTemplate}}</div><div style="font-size: 12.5px; color: var(--text-3)">Template · {{indLabel}}</div></div></div>
+              <label class="lbl">Agent name<input class="in" value="{{agentName}}" onInput="{{onAgentName}}"></label>
+              <div class="lbl">It will be able to
+                <div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{agentSkills}}" as="k"><span style="font-size: 12.5px; padding: 5px 10px; border-radius: 99px; background: #EDEFEA; color: var(--text-2); font-weight: 400">{{k}}</span></sc-for></div>
+              </div>
+              <div class="lbl">Learning from
+                <div style="display: flex; align-items: center; gap: 10px; padding: 12px; border-radius: 10px; background: #F6F7F4; font-weight: 400">
+                  <span class="mono" style="font-size: 12.5px; flex: 1">https://{{site}}</span>
+                  <span style="font-size: 12.5px; color: {{crawlC}}; font-weight: 500">{{crawlLabel}}</span>
+                </div>
+                <div style="height: 6px; border-radius: 6px; background: #E3E6DF"><div style="height: 6px; border-radius: 6px; width: {{crawlPct}}%; background: var(--ai); transition: width .4s"></div></div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{s7}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px">
+            <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.025em">Invite your team</h1><p style="margin: 6px 0 0; color: var(--text-2)">Agents take over when AI hands off. Supervisors see the command center.</p></div>
+            <sc-for list="{{invites}}" as="v"><div style="display: flex; gap: 8px"><label style="flex: 1"><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Email {{v.n}}</span><input class="in" value="{{v.email}}" onInput="{{v.onEmail}}" placeholder="teammate@company.com"></label><label><span style="position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0)">Role {{v.n}}</span><select class="in" style="width: 150px"><option>Agent</option><option>Supervisor</option><option>Admin</option><option>Viewer</option></select></label></div></sc-for>
+            <button type="button" onClick="{{addInvite}}" style="align-self: flex-start; border: 0; background: transparent; padding: 0; color: var(--accent-text); font-weight: 500">+ Add another</button>
+            <div style="padding: 12px 14px; border-radius: 10px; background: #FFFFFF; border: 1px solid #E3E5E0; font-size: 13px; color: var(--text-2)">Or share an invite link limited to <b style="color: var(--text)">@{{site}}</b> emails.</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{s8}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px">
+            <div><h1 style="margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -0.025em">How do you want to start?</h1><p style="margin: 6px 0 0; color: var(--text-2)">Try everything free, or pick a plan now.</p></div>
+            <div role="radiogroup" aria-label="Start" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(260px, 100%), 1fr)); gap: 12px">
+              <sc-for list="{{startOpts}}" as="o"><button type="button" role="radio" aria-checked="{{o.on}}" onClick="{{o.pick}}" class="opt" style="padding: 18px; border: 1.5px solid {{o.bd}}; border-radius: 14px; background: #FFFFFF; box-shadow: {{o.ring}}; text-align: left; display: flex; flex-direction: column; gap: 10px">
+                <span style="font-weight: 600; font-size: 16px">{{o.t}}</span><span style="font-size: 13px; color: var(--text-2)">{{o.d}}</span>
+                <span style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px"><sc-for list="{{o.pts}}" as="pt"><span style="display: flex; gap: 8px; font-size: 13px"><span style="color: var(--ok); font-weight: 700">✓</span>{{pt}}</span></sc-for></span>
+              </button></sc-for>
+            </div>
+            <sc-if value="{{paidNow}}" hint-placeholder-val="{{false}}"><div role="radiogroup" aria-label="Plan" style="display: flex; gap: 8px; flex-wrap: wrap"><sc-for list="{{planOpts}}" as="pl"><button type="button" role="radio" aria-checked="{{pl.on}}" onClick="{{pl.pick}}" style="height: 38px; padding: 0 16px; border: 1.5px solid {{pl.bd}}; border-radius: 10px; background: {{pl.bg}}; font-weight: 500">{{pl.n}}</button></sc-for><a href="Pricing.dc.html" style="align-self: center; font-size: 13px; color: var(--accent-text); text-decoration: none; margin-left: 6px">Compare plans</a></div></sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{s9}}" hint-placeholder-val="{{false}}">
+          <div class="fade" style="display: flex; flex-direction: column; gap: 20px; align-items: flex-start">
+            <span style="width: 56px; height: 56px; border-radius: 16px; background: var(--ok-soft); color: var(--ok); display: grid; place-items: center"><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"></path></svg></span>
+            <div><h1 style="margin: 0; font-size: 30px; font-weight: 600; letter-spacing: -0.025em">{{company}} is ready</h1><p style="margin: 6px 0 0; color: var(--text-2)">Here’s what we set up. A few things are left before you go live.</p></div>
+            <div style="width: 100%; border: 1px solid #E3E5E0; border-radius: 14px; background: #FFFFFF">
+              <sc-for list="{{checklist}}" as="c"><div style="display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-bottom: 1px solid #E3E5E0">
+                <span style="width: 22px; height: 22px; border-radius: 99px; display: grid; place-items: center; background: {{c.bg}}; color: #FFFFFF; font-size: 12px; font-weight: 700; border: 1.5px solid {{c.bd}}">{{c.tick}}</span>
+                <span style="flex: 1"><span style="display: block; font-weight: 500; font-size: 13.5px">{{c.t}}</span><span style="display: block; font-size: 12px; color: var(--text-3)">{{c.d}}</span></span>
+                <sc-if value="{{c.href}}" hint-placeholder-val="{{false}}"><a href="{{c.href}}" style="font-size: 13px; font-weight: 500; color: var(--accent-text); text-decoration: none">{{c.cta}} →</a></sc-if>
+              </div></sc-for>
+            </div>
+            <sc-if value="{{trialChosen}}" hint-placeholder-val="{{true}}"><div style="width: 100%; display: flex; gap: 12px; align-items: center; padding: 14px 16px; border-radius: 12px; background: var(--accent-soft); color: var(--accent-text); font-size: 13.5px"><b style="font-weight: 600">Your 14-day free trial is on</b><span style="color: var(--text-2)">Ends Nov 27 · no card needed</span></div></sc-if>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap">
+              <sc-if value="{{paidNow}}" hint-placeholder-val="{{false}}"><a href="Checkout.dc.html" class="bp" style="height: 46px; padding: 0 22px; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600; display: grid; place-items: center; text-decoration: none">Complete payment · {{planName}}</a></sc-if>
+              <a href="Welcome.dc.html" class="{{dashCls}}" style="height: 46px; padding: 0 22px; border-radius: 10px; background: {{dashBg}}; color: {{dashC}}; border: {{dashBd}}; font-weight: 600; display: grid; place-items: center; text-decoration: none">Go to dashboard</a>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{showNav}}" hint-placeholder-val="{{true}}">
+          <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 8px; border-top: 1px solid #E3E5E0">
+            <button type="button" onClick="{{back}}" disabled="{{atStart}}" style="height: 42px; padding: 0 16px; border: 1px solid var(--border); border-radius: 10px; background: #FFFFFF; font-weight: 500; opacity: {{backOp}}">Back</button>
+            <div style="display: flex; gap: 10px; align-items: center">
+              <sc-if value="{{canSkip}}" hint-placeholder-val="{{false}}"><button type="button" onClick="{{next}}" style="border: 0; background: transparent; color: var(--text-2); font-weight: 500">Skip for now</button></sc-if>
+              <button type="button" onClick="{{next}}" class="bp" style="height: 42px; padding: 0 20px; border: 0; border-radius: 10px; background: var(--accent); color: #FFFFFF; font-weight: 600">{{nextLabel}}</button>
+            </div>
+          </div>
+        </sc-if>
+      </div>
+    </main>
+
+    <aside aria-label="Workspace preview" style="flex: 1 1 320px; min-width: 0; max-width: 400px; padding: 40px 28px 40px 0">
+      <div style="position: sticky; top: 24px; border: 1px solid #E3E5E0; border-radius: 16px; background: #FFFFFF; overflow: hidden">
+        <div style="padding: 18px; background: #163300; color: #FFFFFF; display: flex; gap: 12px; align-items: center">
+          <span style="width: 42px; height: 42px; border-radius: 12px; background: #FFFFFF; color: #163300; display: grid; place-items: center; font-weight: 700">{{companyIni}}</span>
+          <div style="min-width: 0"><div style="font-weight: 600">{{company}}</div><div class="mono" style="font-size: 12px; color: #C8D3BD">{{slug}}.orbat.ai</div></div>
+        </div>
+        <div style="padding: 16px 18px; display: flex; flex-direction: column; gap: 12px; font-size: 13px">
+          <div style="font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--text-3)">Live preview</div>
+          <sc-for list="{{preview}}" as="p"><div style="display: flex; gap: 10px"><span style="width: 96px; flex: none; color: var(--text-3)">{{p.k}}</span><span style="min-width: 0; font-weight: 500">{{p.v}}</span></div></sc-for>
+          <div style="display: flex; flex-direction: column; gap: 6px"><span style="color: var(--text-3)">Compliance</span><div style="display: flex; flex-wrap: wrap; gap: 6px"><sc-for list="{{chosenFw}}" as="f"><span style="font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--ok-soft); color: var(--ok); font-weight: 500">{{f}}</span></sc-for></div></div>
+          <div style="margin-top: 4px; padding: 12px; border-radius: 12px; background: #F6F7F4; display: flex; flex-direction: column; gap: 8px">
+            <div style="display: flex; gap: 8px; align-items: center"><span style="width: 24px; height: 24px; border-radius: 7px; background: var(--ai); color: #FFFFFF; display: grid; place-items: center; font-size: 11px; font-weight: 700">{{agentIni}}</span><b style="font-size: 12.5px">{{agentName}}</b><span style="font-size: 11.5px; color: var(--text-3)">· {{company}}</span></div>
+            <div style="padding: 9px 11px; border-radius: 12px 12px 12px 4px; background: #FFFFFF; font-size: 13px">{{greeting}}</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+const IND = {
+  ecom: ['E-commerce & retail', 'Online stores, D2C brands', 'M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4zM3 6h18M16 10a4 4 0 0 1-8 0', ['GDPR', 'CCPA', 'PCI'], 'Order & returns agent', ['Track orders', 'Start returns', 'Answer product questions', 'Recover carts'], 'Order status, returns, sizing, shipping'],
+  saas: ['SaaS & technology', 'Software, apps, platforms', 'M2 3h20v14H2zM8 21h8M12 17v4', ['GDPR', 'SOC2'], 'Technical support agent', ['Troubleshoot errors', 'Explain billing', 'Reset access', 'Log bugs to Jira'], 'Login issues, billing, bugs, how-to'],
+  fin: ['Banking & fintech', 'Banks, wallets, lending', 'M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3', ['GDPR', 'PCI', 'SOC2', 'KYC'], 'Card & account servicing agent', ['Verify identity', 'Freeze cards', 'Explain transactions', 'Open disputes'], 'Card disputes, transfers, KYC, fees'],
+  health: ['Healthcare', 'Clinics, hospitals, telehealth', 'M22 12h-4l-3 9L9 3l-3 9H2', ['HIPAA', 'GDPR'], 'Appointments & intake agent', ['Book appointments', 'Collect intake forms', 'Send reminders', 'Never give medical advice'], 'Appointments, prescriptions refills, billing'],
+  edu: ['Education', 'Universities, schools, edtech', 'M22 10L12 5 2 10l10 5 10-5zM6 12v5c3 2 9 2 12 0v-5', ['FERPA', 'GDPR'], 'Admissions & student agent', ['Answer admissions FAQs', 'Check application status', 'Schedule counselling'], 'Admissions, fees, schedules, portal access'],
+  travel: ['Travel & hospitality', 'Airlines, hotels, OTAs', 'M2 16l20-6-20-6 4 6-4 6zM6 10h8', ['GDPR', 'PCI'], 'Booking changes agent', ['Change bookings', 'Explain policies', 'Process cancellations'], 'Bookings, changes, refunds, baggage'],
+  tel: ['Telecom & utilities', 'Mobile, internet, energy', 'M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 20h.01M2 9a15 15 0 0 1 20 0', ['GDPR', 'CCPA'], 'Plans & outages agent', ['Check outages', 'Change plans', 'Explain bills'], 'Outages, plan changes, bills, porting'],
+  ins: ['Insurance', 'Policies, claims, brokers', 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z', ['GDPR', 'SOC2'], 'Claims intake agent', ['Open first notice of loss', 'Collect photos', 'Track claim status'], 'Claims, policy changes, renewals'],
+  real: ['Real estate', 'Agencies, property management', 'M3 10l9-7 9 7v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM9 22V12h6v10', ['GDPR', 'CCPA'], 'Lead qualification agent', ['Qualify buyers', 'Book viewings', 'Log maintenance requests'], 'Viewings, rent, maintenance, listings'],
+  log: ['Logistics & delivery', 'Couriers, 3PL, freight', 'M1 3h15v13H1zM16 8h4l3 3v5h-7M5.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM18.5 21a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z', ['GDPR'], 'Shipment tracking agent', ['Track shipments', 'Reschedule delivery', 'File damage claims'], 'Tracking, delivery slots, claims'],
+  gov: ['Public sector', 'Government, councils, NGOs', 'M3 21h18M4 21V9l8-6 8 6v12M9 21v-6h6v6', ['GDPR', 'WCAG'], 'Citizen services agent', ['Answer service questions', 'Check application status', 'Route to departments'], 'Permits, applications, payments, complaints'],
+  agency: ['Agencies & BPO', 'Outsourced support teams', 'M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8', ['SOC2', 'GDPR'], 'Multi-brand support agent', ['Switch brand voice', 'Route by client', 'SLA reporting'], 'Varies by client']
+};
+const FW = [
+  ['GDPR', 'GDPR', 'EU/UK personal data: consent, access and deletion requests handled in 30 days'],
+  ['CCPA', 'CCPA / CPRA', 'California privacy rights: opt-out, access and deletion'],
+  ['HIPAA', 'HIPAA', 'Protected health information: BAA, PHI redaction, access logs'],
+  ['PCI', 'PCI DSS', 'Card data never stored: card numbers auto-redacted in chat and email'],
+  ['SOC2', 'SOC 2 controls', 'Access reviews, audit log export and change history for auditors'],
+  ['KYC', 'KYC / AML disclosures', 'Identity verification before account actions, regulated wording'],
+  ['FERPA', 'FERPA', 'Student records shared only with verified students or guardians'],
+  ['WCAG', 'Accessibility (WCAG 2.2 AA)', 'Accessible widget and help center for public services']
+];
+const CH = [['web', 'Website chat', 'Add a widget to your site', 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z'], ['email', 'Email', 'Forward your support inbox', 'M4 4h16v16H4zM22 6l-10 7L2 6'], ['wa', 'WhatsApp', 'Business API number', 'M3 21l1.7-5A9 9 0 1 1 8 19.3z'], ['ig', 'Instagram', 'DMs and story replies', 'M7 2h10a5 5 0 0 1 5 5v10a5 5 0 0 1-5 5H7a5 5 0 0 1-5-5V7a5 5 0 0 1 5-5z'], ['fb', 'Messenger', 'Facebook page messages', 'M12 2C6.5 2 2 6.1 2 11.2c0 2.9 1.4 5.4 3.7 7.1V22l3.4-1.9c.9.3 1.9.4 2.9.4 5.5 0 10-4.1 10-9.2S17.5 2 12 2z'], ['sms', 'SMS & voice', 'Text and call transcripts', 'M22 16.9v3a2 2 0 0 1-2.2 2A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3l2 5-2.5 1.5a11 11 0 0 0 5 5L13 11l5 2z']];
+const STEPS = [['About you', 'Name and role'], ['Business profile', 'Company and size'], ['Industry', 'What you do'], ['Compliance', 'Rules and data'], ['Channels', 'Where customers are'], ['Connect data', 'Store, CRM, website'], ['AI agent', 'Your first agent'], ['Team', 'Invite teammates'], ['Start', 'Free trial or plan']]
+const SRC = [['shopify', 'SH', 'Shopify', 'Orders, customers, refunds'], ['woo', 'WC', 'WooCommerce', 'Orders and customers'], ['hubspot', 'HS', 'HubSpot', 'Contacts and deals'], ['sf', 'SF', 'Salesforce', 'Accounts and cases'], ['stripe', 'ST', 'Stripe', 'Payments and subscriptions'], ['cal', 'GC', 'Google Calendar', 'Bookings and availability']];;
+class Component extends DCLogic {
+  constructor(p) {
+    super(p);
+    this.state = { step: 0, max: 0, name: 'Jordan Rivera', display: 'Jordan', title: 'Head of Customer Experience', role: 'Support leader', company: 'Northwind Health', site: 'northwindhealth.com', country: 'United States', size: '51–200', volume: '2k–10k', ind: 'health', topics: null, fw: null, region: 'United States', ch: { web: true, email: true, wa: true }, agentName: 'Iris', crawl: 0, data: { shopify: true }, start: 'trial', plan: 'Growth', invites: ['maria@northwindhealth.com', ''] };
+  }
+  componentWillUnmount() { clearInterval(this._iv); }
+  pill(list, cur, key) { return list.map((label) => { const on = label === cur; return { label, on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : 'var(--border)', bg: on ? 'var(--accent-soft)' : '#FFFFFF', c: on ? 'var(--accent-text)' : 'var(--text)', pick: () => this.setState({ [key]: label }) }; }); }
+  goto(n) {
+    this.setState({ step: n, max: Math.max(this.state.max, n) });
+    if (n === 6 && this.state.crawl < 100) { clearInterval(this._iv); this._iv = setInterval(() => this.setState((s) => { const c = Math.min(100, s.crawl + 9); if (c >= 100) clearInterval(this._iv); return { crawl: c }; }), 260); }
+  }
+  renderVals() {
+    const s = this.state;
+    const ind = IND[s.ind];
+    const fwSel = s.fw || ind[3].reduce((a, k) => ({ ...a, [k]: true }), {});
+    const chosenFw = FW.filter((f) => fwSel[f[0]]).map((f) => f[1]);
+    const slug = s.company.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || 'your-company';
+    const n = s.step;
+    const ini = (t) => t.split(/\s+/).filter(Boolean).map((w) => w[0]).join('').slice(0, 2).toUpperCase() || '?';
+    return {
+      pct: Math.round(Math.min(n, 9) / 9 * 100), stepCount: n < 9 ? 'Step ' + (n + 1) + ' of 9' : 'Done',
+      steps: STEPS.map(([label, hint], i) => { const done = i < n || (n === 9); const cur = i === n; const locked = i > s.max; return { label, hint, n: done && !cur ? '✓' : String(i + 1), cur: cur ? 'step' : 'false', bg: cur ? '#FFFFFF' : 'transparent', op: locked ? 0.5 : 1, cursor: locked ? 'not-allowed' : 'pointer', locked, w: cur ? 600 : 500, numBg: done && !cur ? 'var(--accent)' : (cur ? 'var(--accent-soft)' : '#FFFFFF'), numC: done && !cur ? '#FFFFFF' : (cur ? 'var(--accent-text)' : 'var(--text-3)'), numBd: done || cur ? 'var(--accent)' : '#C9CCC5', pick: () => { if (!locked) this.goto(i); } }; }),
+      s0: n === 0, s1: n === 1, s2: n === 2, s3: n === 3, s4: n === 4, s5: n === 5, s6: n === 6, s7: n === 7, s8: n === 8, s9: n === 9,
+      sources: SRC.map(([id, ini2, nm, d]) => { const on = !!s.data[id]; return { ini: ini2, n: nm, d: on ? 'Connected · syncing' : d, dc: on ? 'var(--ok)' : 'var(--text-3)', bd: on ? 'var(--ok)' : '#E3E5E0', btn: on ? 'Disconnect' : 'Connect', btnBd: on ? '#E3E5E0' : 'var(--accent)', btnC: on ? 'var(--text-2)' : 'var(--accent-text)', toggle: () => this.setState({ data: { ...s.data, [id]: !on } }) }; }),
+      anyData: Object.values(s.data).some(Boolean),
+      dataSummary: SRC.filter((x) => s.data[x[0]]).map((x) => x[2]).join(', ') + ' connected · 1,284 customers and 3,920 orders synced',
+      startOpts: [['trial', '14-day free trial', 'All Growth features. No card needed.', ['500 AI resolutions', 'Up to 5 teammates', 'Cancel anytime']], ['paid', 'Choose a plan now', 'Skip the trial and go live with your plan.', ['Billed monthly or yearly', 'Card, PayPal or local wallets', 'Invoice for your records']]].map(([id, t, d, pts]) => { const on = s.start === id; return { t, d, pts, on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : '#E3E5E0', ring: on ? '0 0 0 3px var(--accent-soft)' : 'none', pick: () => this.setState({ start: id }) }; }),
+      paidNow: s.start === 'paid', trialChosen: s.start === 'trial', planName: s.plan,
+      planOpts: ['Starter', 'Growth', 'Scale'].map((nm) => { const on = s.plan === nm; return { n: nm, on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : '#E3E5E0', bg: on ? 'var(--accent-soft)' : '#FFFFFF', pick: () => this.setState({ plan: nm }) }; }),
+      dashCls: s.start === 'paid' ? '' : 'bp', dashBg: s.start === 'paid' ? '#FFFFFF' : 'var(--accent)', dashC: s.start === 'paid' ? 'var(--text)' : '#FFFFFF', dashBd: s.start === 'paid' ? '1px solid #E3E5E0' : '0',
+      name: s.name, onName: (e) => this.setState({ name: e.target.value }), initials: ini(s.name),
+      display: s.display, onDisplay: (e) => this.setState({ display: e.target.value }),
+      title: s.title, onTitle: (e) => this.setState({ title: e.target.value }),
+      roles: this.pill(['Support leader', 'Support agent', 'Founder / owner', 'Operations', 'IT / admin', 'Compliance'], s.role, 'role'),
+      company: s.company, onCompany: (e) => this.setState({ company: e.target.value }), companyIni: ini(s.company),
+      site: s.site, onSite: (e) => this.setState({ site: e.target.value, crawl: 0 }), slug,
+      country: s.country, onCountry: (e) => this.setState({ country: e.target.value }),
+      sizes: this.pill(['1–10', '11–50', '51–200', '201–1,000', '1,000+'], s.size, 'size'),
+      volumes: this.pill(['Under 500', '500–2k', '2k–10k', '10k–50k', '50k+'], s.volume, 'volume'),
+      industries: Object.keys(IND).map((id) => { const on = id === s.ind; const x = IND[id]; return { label: x[0], ex: x[1], icon: x[2], sel: on, on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : '#E3E5E0', bg: on ? '#FFFFFF' : '#FFFFFF', ring: on ? '0 0 0 3px var(--accent-soft)' : 'none', iconBg: on ? 'var(--accent)' : '#EDEFEA', iconC: on ? '#FFFFFF' : 'var(--text-2)', pick: () => this.setState({ ind: id, topics: null, fw: null }) }; }),
+      indLabel: ind[0], topics: s.topics ?? ind[6], onTopics: (e) => this.setState({ topics: e.target.value }),
+      frameworks: FW.map(([id, nm, d]) => { const on = !!fwSel[id]; return { n: nm, d, on, rec: ind[3].includes(id), bd: on ? 'var(--accent)' : '#E3E5E0', toggle: () => this.setState({ fw: { ...fwSel, [id]: !on } }) }; }),
+      region: s.region, onRegion: (e) => this.setState({ region: e.target.value }),
+      channels: CH.map(([id, nm, d, icon]) => { const on = !!s.ch[id]; return { n: nm, d, icon, on: on ? 'true' : 'false', bd: on ? 'var(--accent)' : '#E3E5E0', bg: '#FFFFFF', boxBd: on ? 'var(--accent)' : '#C9CCC5', boxBg: on ? 'var(--accent)' : '#FFFFFF', tick: on ? '✓' : '', pick: () => this.setState({ ch: { ...s.ch, [id]: !on } }) }; }),
+      agentTemplate: ind[4], agentSkills: ind[5], agentName: s.agentName, onAgentName: (e) => this.setState({ agentName: e.target.value }), agentIni: ini(s.agentName).charAt(0) || 'A',
+      crawlPct: s.crawl, crawlLabel: s.crawl >= 100 ? '✓ 86 pages learned' : 'Reading pages… ' + s.crawl + '%', crawlC: s.crawl >= 100 ? 'var(--ok)' : 'var(--ai-text)',
+      invites: s.invites.map((email, i) => ({ n: i + 1, email, onEmail: (e) => { const v = s.invites.slice(); v[i] = e.target.value; this.setState({ invites: v }); } })),
+      addInvite: () => this.setState({ invites: s.invites.concat('') }),
+      checklist: [
+        ['Business profile & ' + ind[0], s.company + ' · ' + s.size + ' people', true],
+        [chosenFw.length + ' compliance controls on', chosenFw.join(', ') + ' · data in ' + s.region, true, 'Compliance.dc.html', 'Review'],
+        [s.agentName + ' is trained (draft)', ind[4] + ' · 86 pages learned', true, 'AgentBuilder.dc.html', 'Test it'],
+        ['Install the website widget', 'Paste one line of code, or use the Shopify / WordPress app', false, 'ChatWidget.dc.html', 'Preview'],
+        ['Connect ' + Object.keys(s.ch).filter((k) => s.ch[k]).length + ' channels', 'Finish sign-in for each channel', false, 'Channels.dc.html', 'Connect'],
+        ['Business data connected', SRC.filter((x) => s.data[x[0]]).map((x) => x[2]).join(', ') || 'Not connected yet', Object.values(s.data).some(Boolean), 'CRMConnect.dc.html', 'Manage'],
+        ['Invites sent', s.invites.filter(Boolean).length + ' teammates', true]
+      ].map(([t, d, done, href, cta]) => ({ t, d, tick: done ? '✓' : '', bg: done ? 'var(--ok)' : '#FFFFFF', bd: done ? 'var(--ok)' : '#C9CCC5', href: href || false, cta: cta || '' })),
+      preview: [['Owner', s.name + ' · ' + s.role], ['Industry', ind[0]], ['Size', s.size + ' people'], ['Volume', s.volume + ' / month'], ['Data region', s.region], ['Data', SRC.filter((x) => s.data[x[0]]).map((x) => x[2]).join(', ') || '—'], ['Channels', Object.keys(s.ch).filter((k) => s.ch[k]).map((k) => CH.find((c) => c[0] === k)[1]).join(', ') || '—']].map(([k, v]) => ({ k, v })),
+      chosenFw: chosenFw.length ? chosenFw : ['None selected'],
+      greeting: 'Hi! I’m ' + s.agentName + ' from ' + s.company + '. ' + (s.ind === 'health' ? 'I can book or change appointments and help with forms. I can’t give medical advice.' : 'How can I help you today?'),
+      showNav: n < 9, atStart: n === 0, backOp: n === 0 ? 0.45 : 1, canSkip: n >= 4 && n <= 7,
+      back: () => this.goto(Math.max(0, n - 1)), next: () => this.goto(Math.min(9, n + 1)),
+      nextLabel: n === 8 ? (s.start === 'trial' ? 'Start free trial' : 'Finish setup') : 'Continue'
+    };
+  }
+}
+</script>
+</body>
+</html>
