@@ -128,6 +128,82 @@ const bcrypt = require("bcryptjs");
             await (0, vitest_1.expect)(service.googleAuth({ idToken: 'fake-google-id-token' })).rejects.toThrow(common_1.UnauthorizedException);
             fetchSpy.mockRestore();
         });
+        (0, vitest_1.it)('creates workspace and owner agent on new Google signup and returns isNewUser: true', async () => {
+            mockConfig.get = vitest_1.vi.fn((key) => {
+                if (key === 'google.clientId')
+                    return 'expected-client-id.apps.googleusercontent.com';
+                if (key === 'jwt.secret')
+                    return 'test_secret';
+                if (key === 'jwt.expiresIn')
+                    return '7d';
+                if (key === 'jwt.refreshSecret')
+                    return 'test_refresh_secret';
+                if (key === 'jwt.refreshExpiresIn')
+                    return '30d';
+                return null;
+            });
+            const fetchSpy = vitest_1.vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce({
+                ok: true,
+                json: async () => ({
+                    aud: 'expected-client-id.apps.googleusercontent.com',
+                    email: 'NewFounder@Example.com',
+                    name: 'New Founder',
+                    picture: 'https://example.com/avatar.png',
+                    email_verified: true,
+                }),
+            });
+            mockDb.query = vitest_1.vi.fn().mockResolvedValue({ rows: [] });
+            const txQueries = [];
+            mockDb.transaction = vitest_1.vi.fn(async (cb) => {
+                const fakeClient = {
+                    query: vitest_1.vi.fn(async (sql, params) => {
+                        txQueries.push({ sql, params });
+                        if (sql.includes('INSERT INTO public.workspaces')) {
+                            return { rows: [{ id: 'ws-new', name: "New Founder's Workspace", brand_color: '#4f46e5' }] };
+                        }
+                        if (sql.includes('INSERT INTO public.agents')) {
+                            return {
+                                rows: [
+                                    {
+                                        id: 'agent-new',
+                                        name: 'New Founder',
+                                        email: 'newfounder@example.com',
+                                        role: 'owner',
+                                        workspace_id: 'ws-new',
+                                        status: 'online',
+                                        is_super_admin: false,
+                                    },
+                                ],
+                            };
+                        }
+                        return { rows: [] };
+                    }),
+                };
+                return cb(fakeClient);
+            });
+            const result = await service.googleAuth({ idToken: 'valid-google-id-token' });
+            (0, vitest_1.expect)(result.isNewUser).toBe(true);
+            (0, vitest_1.expect)(result.accessToken).toBe('mock_token');
+            (0, vitest_1.expect)(result.user.email).toBe('newfounder@example.com');
+            (0, vitest_1.expect)(result.user.role).toBe('owner');
+            (0, vitest_1.expect)(result.workspace?.id).toBe('ws-new');
+            (0, vitest_1.expect)(txQueries.some((q) => q.sql.includes('INSERT INTO public.workspaces'))).toBe(true);
+            (0, vitest_1.expect)(txQueries.some((q) => q.sql.includes('INSERT INTO public.agents'))).toBe(true);
+            (0, vitest_1.expect)(txQueries.some((q) => q.sql.includes('UPDATE public.workspaces SET owner_id'))).toBe(true);
+            fetchSpy.mockRestore();
+        });
+        (0, vitest_1.it)('preserves OAuth state and exact redirect_uri in getGoogleAuthUrl', () => {
+            mockConfig.get = vitest_1.vi.fn((key) => {
+                if (key === 'google.clientId')
+                    return 'expected-client-id.apps.googleusercontent.com';
+                return 'http://localhost:3000/auth/callback';
+            });
+            const res = service.getGoogleAuthUrl('http://localhost:3000/auth/callback', 'mode=signup&next=%2Fapp');
+            (0, vitest_1.expect)(res.configured).toBe(true);
+            const parsed = new URL(res.url);
+            (0, vitest_1.expect)(parsed.searchParams.get('redirect_uri')).toBe('http://localhost:3000/auth/callback');
+            (0, vitest_1.expect)(parsed.searchParams.get('state')).toBe('mode=signup&next=%2Fapp');
+        });
     });
 });
 //# sourceMappingURL=auth.service.spec.js.map

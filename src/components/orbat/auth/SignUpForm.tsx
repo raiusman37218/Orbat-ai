@@ -12,7 +12,7 @@ import { GoogleMark, PasswordInput, PasswordStrength, ProviderButton } from './p
 
 const MIN_PASSWORD = 10;
 
-export function SignUpForm() {
+export function SignUpForm({ initialError }: { initialError?: string | null }) {
   const [name, setName] = useState('');
   const [company, setCompany] = useState('');
   const [email, setEmail] = useState('');
@@ -21,7 +21,7 @@ export function SignUpForm() {
   const [tried, setTried] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
   const [done, setDone] = useState(false);
   const [providers, setProviders] = useState<AuthProviders | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -73,7 +73,7 @@ export function SignUpForm() {
     setError(null);
     setGoogleLoading(true);
     try {
-      await startGoogleSignIn();
+      await startGoogleSignIn({ mode: 'signup', next: '/app' });
     } catch (err) {
       setError(errorMessage(err, 'Couldn’t reach Google. Try again.'));
       setGoogleLoading(false);

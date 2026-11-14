@@ -14,7 +14,7 @@ Replace the whole frontend with the ORBAT design in `docs/design/design/*.dc.htm
 |---|---|---|
 | Audit of the existing app | Done | (in this file, "How the backend looks today") |
 | Foundation: tokens, fonts, dark mode, shared components, app shell | Done | `src/components/orbat/` |
-| Auth screens (`Auth.dc.html`) | Done | `/v2/login`, `/v2/signup`, `/v2/forgot`, `/v2/sso` |
+| Auth screens (`Auth.dc.html`) | Done | `/login`, `/signup`, `/forgot`, `/sso` (`/v2/*` redirects) |
 | Overview (`Main.dc.html`) | Done | `/app` |
 | Sidebar badges, usage / trial card | Done | `src/components/orbat/shell/Sidebar.tsx` |
 | Inbox (`Inbox.dc.html`, `MobileInbox.dc.html`) | Done | `/app/inbox` (`src/components/orbat/inbox/`, `src/lib/data/inbox.ts`) |
@@ -23,7 +23,7 @@ Replace the whole frontend with the ORBAT design in `docs/design/design/*.dc.htm
 | Customers (`Customers.dc.html`) | Done | `/app/customers` (`src/components/orbat/customers/`, `src/lib/data/customers.ts`, `src/app/actions/customers.ts`, `backend/src/contacts/`) |
 | Calls / Voice (`Voice.dc.html`) | Done | `/app/calls` (`src/components/orbat/calls/`, `src/lib/data/calls.ts`, `src/app/actions/voice.ts`, `src/app/api/channels/voice/webhook/route.ts`) |
 | Every other screen | In progress (Phase 1 done) | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
-| Cut-over (new UI on the real URLs, old UI deleted) | In progress (Landing cut over; app screens ongoing) | see "Cut-over" below |
+| Cut-over (new UI on the real URLs, old UI deleted) | In progress (Landing & Auth cut over; app screens ongoing) | see "Cut-over" below |
 
 Screens left, in order (from REPLACE_PLAN.md): **AI Agents** → Agent templates → Agent builder → AI quality → Languages → Knowledge → Automation → Journeys → Engagement → Analytics → Team → Schedule → Compliance → Policies → Website audit → Handoff → Channels → CRM connect → Billing → Checkout → Settings → Emails → Profile → Getting started → Trial → States → Super admin → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
 
@@ -74,7 +74,7 @@ npm --prefix backend run start:dev
 npm run dev
 ```
 
-Then sign in at http://localhost:3000/v2/login; the new app is at http://localhost:3000/app.
+Then sign in at http://localhost:3000/login (or create a workspace at http://localhost:3000/signup); the new app is at http://localhost:3000/app.
 
 - `.env.local` needs `DATABASE_URL`, `JWT_SECRET` (**the same value as `backend/.env`**, otherwise every session is rejected and `/app` loops back to login) and `NEXT_PUBLIC_BACKEND_URL=http://localhost:4000`. This was set up on 2026-11-14.
 - Both env files point at the hosted Neon database: local runs read and **write real data**. Be careful with anything that sends messages or emails.
@@ -112,7 +112,7 @@ before finishing, then update the Status table in docs/design/PROGRESS.md.
 
 ## Cut-over (last step)
 
-When every screen is done: move `/v2/*` pages to their real URLs and `/dashboard` → `/app` (redirect old URLs), point `src/app/auth/callback/route.ts`'s default `next` from `/dashboard` to `/app` (Google sign-in lands there today), delete the `[...slug]` placeholder, the old pages and the old components no longer used, and show `git diff --stat` for `backend/`, `src/app/api/`, `src/app/actions/` and `supabase/` to prove the backend did not change.
+When every screen is done: move remaining `/v2/*` pages (`/pricing`, `/help`, etc.) to their real URLs and `/dashboard` → `/app` (redirect old URLs), delete the `[...slug]` placeholder, the old pages and the old components no longer used, and show `git diff --stat` for `backend/`, `src/app/api/`, `src/app/actions/` and `supabase/` to prove the backend did not change. (`/`, `/login`, `/signup`, `/forgot`, `/sso` and `/auth/callback` default `/app` are already cut over.)
 
 ## Known issues and decisions
 

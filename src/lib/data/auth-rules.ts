@@ -8,6 +8,32 @@ export function safeRedirect(raw: string | null | undefined, fallback = '/app'):
   return raw;
 }
 
+export type OAuthAuthMode = 'login' | 'signup';
+
+export function buildOAuthState(mode: OAuthAuthMode, next = '/app'): string {
+  const params = new URLSearchParams();
+  params.set('mode', mode === 'signup' ? 'signup' : 'login');
+  params.set('next', safeRedirect(next, '/app'));
+  return params.toString();
+}
+
+export function parseOAuthState(raw: string | null | undefined): {
+  mode: OAuthAuthMode;
+  next: string;
+} {
+  if (!raw || typeof raw !== 'string') {
+    return { mode: 'login', next: '/app' };
+  }
+  const params = new URLSearchParams(raw);
+  const mode: OAuthAuthMode = params.get('mode') === 'signup' ? 'signup' : 'login';
+  const next = safeRedirect(params.get('next'), '/app');
+  return { mode, next };
+}
+
+export function authPathForMode(mode: OAuthAuthMode): '/login' | '/signup' {
+  return mode === 'signup' ? '/signup' : '/login';
+}
+
 export function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value.trim());
 }

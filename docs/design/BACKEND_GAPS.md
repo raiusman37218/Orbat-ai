@@ -31,4 +31,3 @@ Every screen, field, action or endpoint the new UI needs that the backend does n
 These have a backend; they are just not connected in the new UI yet.
 
 - Command palette search over conversations, customers and tickets: `listDashboardConversationsAction`, NestJS `contacts`, `searchTicketsAction`.
-- Google sign-in lands on the old `/dashboard`: `/auth/callback` defaults `next` to `/dashboard`, and adding `?next=` to the Google redirect URI would have to match what is registered in Google Cloud. Switch the default at the cut-over.

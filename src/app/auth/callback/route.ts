@@ -6,15 +6,34 @@ import { resolveServerBackendBaseUrl } from '@/lib/backend-url';
  * Accepts `next` only if it starts with exactly one `/`; rejects `//`, `/\`,
  * and anything containing `://` or `@`. Falls back to `/dashboard`.
  */
-export function sanitizeNextPath(raw: string | null | undefined): string {
-  if (!raw || typeof raw !== 'string') return '/dashboard';
+import { authPathForMode, parseOAuthState } from '@/lib/data/auth-rules';
+
+export function sanitizeNextPath(raw: string | null | undefined, fallback = '/app'): string {
+  if (!raw || typeof raw !== 'string') return fallback;
   if (!raw.startsWith('/') || raw.startsWith('//') || raw.startsWith('/\\')) {
-    return '/dashboard';
+    return fallback;
   }
   if (raw.includes('://') || raw.includes('@')) {
-    return '/dashboard';
+    return fallback;
   }
   return raw;
+}
+
+function getCallbackContext(requestUrl: string): {
+  errorAuthPath: '/login' | '/signup';
+  stateNext: string;
+} {
+  try {
+    const { searchParams } = new URL(requestUrl);
+    const parsedState = parseOAuthState(searchParams.get('state'));
+    const explicitNext = searchParams.get('next');
+    return {
+      errorAuthPath: authPathForMode(parsedState.mode),
+      stateNext: explicitNext ? sanitizeNextPath(explicitNext) : parsedState.next,
+    };
+  } catch {
+    return { errorAuthPath: '/login', stateNext: '/app' };
+  }
 }
 
 /**
@@ -42,12 +61,12 @@ export async function GET(request: Request) {
   const code = searchParams.get('code');
   const error = searchParams.get('error');
   const errorDescription = searchParams.get('error_description');
-  const next = sanitizeNextPath(searchParams.get('next'));
+  const { errorAuthPath, stateNext } = getCallbackContext(request.url);
   const baseUrl = resolveBaseUrl(request, origin);
 
   if (error) {
     const errorMsg = errorDescription || error;
-    return NextResponse.redirect(`${baseUrl}/login?error=${encodeURIComponent(errorMsg)}`);
+    return NextResponse.redirect(`${baseUrl}${errorAuthPath}?error=${encodeURIComponent(errorMsg)}`);
   }
 
   if (code) {
@@ -55,7 +74,7 @@ export async function GET(request: Request) {
     const backendUrl = resolveServerBackendBaseUrl();
     if (!backendUrl) {
       return NextResponse.redirect(
-        `${baseUrl}/login?error=${encodeURIComponent(
+        `${baseUrl}${errorAuthPath}?error=${encodeURIComponent(
           'Backend URL is not configured on the frontend deployment (set BACKEND_URL or NEXT_PUBLIC_BACKEND_URL).'
         )}`
       );
@@ -75,8 +94,14 @@ export async function GET(request: Request) {
       if (backendRes.ok) {
         const authData = await backendRes.json();
         const tokens = authData.data || authData;
+        if (!tokens?.accessToken) {
+          return NextResponse.redirect(
+            `${baseUrl}${errorAuthPath}?error=${encodeURIComponent('Authentication failed: missing access token.')}`
+          );
+        }
+        const effectiveNext = sanitizeNextPath(stateNext, '/app');
         const targetPath =
-          tokens.workspace?.id || next !== '/dashboard' ? next : '/onboarding';
+          tokens.workspace?.id || effectiveNext !== '/app' ? effectiveNext : '/onboarding';
         const res = NextResponse.redirect(`${baseUrl}${targetPath}`);
         const cookieOpts = {
           path: '/',
@@ -102,17 +127,17 @@ export async function GET(request: Request) {
 
       const errBody = await backendRes.json().catch(() => null);
       backendErrorMessage = errBody?.message || errBody?.error || null;
-    } catch (e: any) {
-      backendErrorMessage = e.message;
+    } catch (e: unknown) {
+      backendErrorMessage = e instanceof Error ? e.message : String(e);
     }
 
     const errorToDisplay = backendErrorMessage || 'Authentication failed.';
     return NextResponse.redirect(
-      `${baseUrl}/login?error=${encodeURIComponent(
+      `${baseUrl}${errorAuthPath}?error=${encodeURIComponent(
         Array.isArray(errorToDisplay) ? errorToDisplay.join(', ') : errorToDisplay
       )}`
     );
   }
 
-  return NextResponse.redirect(`${baseUrl}/login?error=no_auth_code`);
+  return NextResponse.redirect(`${baseUrl}${errorAuthPath}?error=no_auth_code`);
 }

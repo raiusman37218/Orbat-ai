@@ -302,13 +302,17 @@ export async function backendGoogleAuth(payload: {
   return data;
 }
 
-export async function backendGetGoogleUrl(): Promise<{ configured: boolean; url: string | null; message?: string }> {
+export async function backendGetGoogleUrl(state?: string): Promise<{ configured: boolean; url: string | null; message?: string }> {
   try {
-    const redirectQuery =
-      typeof window !== 'undefined'
-        ? `?redirectUri=${encodeURIComponent(`${window.location.origin}/auth/callback`)}`
-        : '';
-    const res = await fetch(`${getBackendBaseUrl()}/auth/google/url${redirectQuery}`);
+    const query = new URLSearchParams();
+    if (typeof window !== 'undefined') {
+      query.set('redirectUri', `${window.location.origin}/auth/callback`);
+    }
+    if (state) {
+      query.set('state', state);
+    }
+    const qs = query.toString();
+    const res = await fetch(`${getBackendBaseUrl()}/auth/google/url${qs ? `?${qs}` : ''}`);
     const body = await res.json().catch(() => null);
     if (!res.ok || !body) {
       return {

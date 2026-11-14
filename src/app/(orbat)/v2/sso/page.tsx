@@ -1,13 +1,5 @@
-import type { Metadata } from 'next';
-import { AuthLayout } from '@/components/orbat/auth/AuthLayout';
-import { SsoForm } from '@/components/orbat/auth/HelpForms';
+import { redirect } from 'next/navigation';
 
-export const metadata: Metadata = { title: 'Single sign-on · ORBAT AI' };
-
-export default function SsoPage() {
-  return (
-    <AuthLayout topText="New to ORBAT?" topLink={{ href: '/v2/signup', label: 'Create a workspace' }}>
-      <SsoForm />
-    </AuthLayout>
-  );
+export default function V2SsoRedirect() {
+  redirect('/sso');
 }

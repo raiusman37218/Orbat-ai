@@ -10,7 +10,7 @@ import { AuthHeading } from './AuthLayout';
 
 function BackToSignIn() {
   return (
-    <Link href="/v2/login" className="self-center text-[14px] text-o-text-2 hover:text-o-text">
+    <Link href="/login" className="self-center text-[14px] text-o-text-2 hover:text-o-text">
       ← Back to sign in
     </Link>
   );

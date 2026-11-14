@@ -174,6 +174,21 @@ let AuthService = AuthService_1 = class AuthService {
                 name = payload.name;
                 picture = payload.picture;
             }
+            else if (tokenData.access_token) {
+                const userRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                    headers: { Authorization: `Bearer ${tokenData.access_token}` },
+                });
+                if (!userRes.ok) {
+                    throw new common_1.UnauthorizedException('Failed to fetch Google userinfo.');
+                }
+                const user = await userRes.json();
+                if (user.email_verified !== true && user.email_verified !== 'true') {
+                    throw new common_1.UnauthorizedException('Google account email is not verified.');
+                }
+                email = user.email;
+                name = user.name;
+                picture = user.picture;
+            }
         }
         else if (token) {
             const payload = await verifyGoogleIdToken(token);
@@ -227,6 +242,16 @@ let AuthService = AuthService_1 = class AuthService {
             if (agent.is_active === false) {
                 throw new common_1.ForbiddenException('Your account has been deactivated. Please contact your workspace administrator.');
             }
+            try {
+                await this.db.query(`UPDATE public.agents
+           SET email_verified = true,
+               email_confirmed_at = COALESCE(email_confirmed_at, now()),
+               avatar_url = COALESCE(avatar_url, $2)
+           WHERE id = $1`, [agent.id, picture || null]);
+            }
+            catch (e) {
+                this.logger.warn(`Non-fatal Google profile metadata sync skipped for agent ${agent.id}: ${e?.message}`);
+            }
             const userPayload = {
                 id: agent.id,
                 email: agent.email,
@@ -239,6 +264,7 @@ let AuthService = AuthService_1 = class AuthService {
             const tokens = await this.generateTokens(userPayload);
             return {
                 ...tokens,
+                isNewUser: false,
                 user: userPayload,
                 workspace: agent.workspace_id
                     ? {
@@ -256,14 +282,21 @@ let AuthService = AuthService_1 = class AuthService {
          VALUES ($1, $2, $3, $4, NULL)
          RETURNING id, name, brand_color`, [workspaceName, '#4f46e5', 'Welcome to Orbat AI', 'How can we help you today?']);
             const workspace = wsResult.rows[0];
-            const agentResult = await client.query(`INSERT INTO public.agents (id, name, email, role, status, workspace_id, avatar_url, is_active)
-         VALUES (gen_random_uuid(), $1, $2, 'owner', 'online', $3, $4, true)
+            const agentResult = await client.query(`INSERT INTO public.agents (
+           id, name, email, role, status, workspace_id, avatar_url, is_active,
+           email_verified, email_confirmed_at, token_version
+         )
+         VALUES (gen_random_uuid(), $1, $2, 'owner', 'online', $3, $4, true, true, now(), 1)
          RETURNING id, name, email, role, workspace_id, status, is_super_admin`, [userName, emailNormalized, workspace.id, picture || null]);
             const agent = agentResult.rows[0];
+            await client.query('SAVEPOINT sp_workspace_owner');
             try {
                 await client.query('UPDATE public.workspaces SET owner_id = $1 WHERE id = $2', [agent.id, workspace.id]);
+                await client.query('RELEASE SAVEPOINT sp_workspace_owner');
             }
-            catch (e) { }
+            catch {
+                await client.query('ROLLBACK TO SAVEPOINT sp_workspace_owner');
+            }
             const userPayload = {
                 id: agent.id,
                 email: agent.email,
@@ -276,6 +309,7 @@ let AuthService = AuthService_1 = class AuthService {
             const tokens = await this.generateTokens(userPayload);
             return {
                 ...tokens,
+                isNewUser: true,
                 user: userPayload,
                 workspace: {
                     id: workspace.id,
@@ -322,7 +356,7 @@ let AuthService = AuthService_1 = class AuthService {
         }
         return fallbackCallback;
     }
-    getGoogleAuthUrl(requestedRedirectUri) {
+    getGoogleAuthUrl(requestedRedirectUri, requestedState) {
         const clientId = this.configService.get('google.clientId') || process.env.GOOGLE_CLIENT_ID;
         const callbackUrl = this.resolveGoogleCallbackUrl(requestedRedirectUri);
         if (!clientId) {
@@ -340,6 +374,10 @@ let AuthService = AuthService_1 = class AuthService {
             access_type: 'offline',
             prompt: 'consent',
         });
+        const cleanState = typeof requestedState === 'string' ? requestedState.trim().slice(0, 512) : '';
+        if (cleanState) {
+            params.set('state', cleanState);
+        }
         return {
             configured: true,
             url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,

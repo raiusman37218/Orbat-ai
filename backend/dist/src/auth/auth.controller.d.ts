@@ -32,6 +32,7 @@ export declare class AuthController {
         expiresIn: string | undefined;
     }>;
     googleAuth(dto: GoogleAuthDto): Promise<{
+        isNewUser: boolean;
         user: AuthenticatedUser;
         workspace: {
             id: any;
@@ -43,7 +44,7 @@ export declare class AuthController {
         tokenType: string;
         expiresIn: string | undefined;
     }>;
-    getGoogleAuthUrl(redirectUri?: string): {
+    getGoogleAuthUrl(redirectUri?: string, state?: string): {
         configured: boolean;
         url: null;
         message: string;

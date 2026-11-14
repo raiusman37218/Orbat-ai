@@ -6,6 +6,7 @@ import {
   backendSignup,
   clearAuthSession,
 } from '@/lib/api/backend-auth';
+import { buildOAuthState, type OAuthAuthMode } from './auth-rules';
 
 /* Sign-in, sign-up and sign-out for the new UI. Everything goes through the
    same NestJS endpoints as the old pages (src/lib/api/backend-auth.ts), which
@@ -43,8 +44,12 @@ export async function signUp(input: {
 }
 
 /* Sends the browser to Google. Resolves only if Google is not configured. */
-export async function startGoogleSignIn(): Promise<void> {
-  const res = await backendGetGoogleUrl();
+export async function startGoogleSignIn(options?: {
+  mode?: OAuthAuthMode;
+  next?: string;
+}): Promise<void> {
+  const state = buildOAuthState(options?.mode ?? 'login', options?.next ?? '/app');
+  const res = await backendGetGoogleUrl(state);
   if (res.configured && res.url) {
     window.location.href = res.url;
     return new Promise(() => {});

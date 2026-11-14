@@ -478,13 +478,13 @@ export function LandingPage() {
                 <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
               </svg>
             </button>
-            <Link className="o-lp-navl o-lp-hide-mobile" href="/v2/login">
+            <Link className="o-lp-navl o-lp-hide-mobile" href="/login">
               Log in
             </Link>
             <a className="o-lp-pill o-lp-pill-sm o-lp-p-soft o-lp-hide-mobile" href="#demo">
               Book a demo
             </a>
-            <Link className="o-lp-pill o-lp-pill-sm o-lp-p-lime" href="/v2/signup">
+            <Link className="o-lp-pill o-lp-pill-sm o-lp-p-lime" href="/signup">
               Start free trial
             </Link>
             <button
@@ -532,7 +532,7 @@ export function LandingPage() {
               Resources
             </Link>
             <div style={{ display: 'flex', gap: 8, paddingTop: 8, flexWrap: 'wrap' }}>
-              <Link className="o-lp-pill o-lp-pill-sm o-lp-p-soft" href="/v2/login">
+              <Link className="o-lp-pill o-lp-pill-sm o-lp-p-soft" href="/login">
                 Log in
               </Link>
               <a
@@ -614,7 +614,7 @@ export function LandingPage() {
           </p>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
-            <Link className="o-lp-pill o-lp-p-lime" href="/v2/signup">
+            <Link className="o-lp-pill o-lp-p-lime" href="/signup">
               Start free — 14 days
               <svg
                 width="18"
@@ -2131,14 +2131,14 @@ export function LandingPage() {
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                 <Link
-                  href="/v2/signup"
+                  href="/signup"
                   className="o-lp-pill"
                   style={{ background: '#163300', color: '#FFFFFF' }}
                 >
                   Start free trial
                 </Link>
                 <Link
-                  href="/v2/login"
+                  href="/login"
                   className="o-lp-pill"
                   style={{ background: 'rgba(22, 51, 0, 0.1)', color: '#163300' }}
                 >

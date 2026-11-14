@@ -54,8 +54,11 @@ export class AuthController {
   @Public()
   @Get('google/url')
   @ApiOperation({ summary: 'Get Google OAuth login URL' })
-  getGoogleAuthUrl(@Query('redirectUri') redirectUri?: string) {
-    return this.authService.getGoogleAuthUrl(redirectUri);
+  getGoogleAuthUrl(
+    @Query('redirectUri') redirectUri?: string,
+    @Query('state') state?: string,
+  ) {
+    return this.authService.getGoogleAuthUrl(redirectUri, state);
   }
 
   @Public()

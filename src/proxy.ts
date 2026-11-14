@@ -11,7 +11,7 @@ function base64UrlToUint8Array(input: string): Uint8Array {
   return bytes;
 }
 
-async function decodeNestJwt(token: string): Promise<Record<string, any> | null> {
+async function decodeNestJwt(token: string): Promise<Record<string, unknown> | null> {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
@@ -80,7 +80,9 @@ export async function proxy(request: NextRequest) {
     try {
       const payload = await decodeNestJwt(nestToken);
       if (payload) {
-        userId = payload.sub || payload.id || null;
+        const sub = typeof payload.sub === 'string' ? payload.sub : null;
+        const id = typeof payload.id === 'string' ? payload.id : null;
+        userId = sub || id;
         isSuperAdmin = Boolean(payload.isSuperAdmin);
       }
     } catch {
@@ -111,7 +113,17 @@ export async function proxy(request: NextRequest) {
 
   // 4. Redirect already-logged-in users away from /login and /signup
   if ((pathname === '/login' || pathname === '/signup') && userId) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+    const rawRedirect = request.nextUrl.searchParams.get('redirect');
+    const safeTarget =
+      rawRedirect &&
+      rawRedirect.startsWith('/') &&
+      !rawRedirect.startsWith('//') &&
+      !rawRedirect.startsWith('/\\') &&
+      !rawRedirect.includes('://') &&
+      !rawRedirect.includes('@')
+        ? rawRedirect
+        : '/app';
+    return NextResponse.redirect(new URL(safeTarget, request.url));
   }
 
   // 5. Rewrite custom Help Center domains and <slug>.HELP_BASE_DOMAIN subdomains to /help/<workspace>

@@ -62,7 +62,7 @@ export function SignInForm({ redirectTo, initialError }: { redirectTo: string; i
     setError(null);
     setGoogleLoading(true);
     try {
-      await startGoogleSignIn();
+      await startGoogleSignIn({ mode: 'login', next: redirectTo });
     } catch (err) {
       setError(errorMessage(err, 'Couldn’t reach Google. Try again.'));
       setGoogleLoading(false);
@@ -103,7 +103,7 @@ export function SignInForm({ redirectTo, initialError }: { redirectTo: string; i
             <label htmlFor="signin-password" className="o-label">
               Password
             </label>
-            <Link href="/v2/forgot" className="text-[13.5px] font-medium text-o-accent-text hover:underline">
+            <Link href="/forgot" className="text-[13.5px] font-medium text-o-accent-text hover:underline">
               Forgot password?
             </Link>
           </div>
@@ -128,7 +128,7 @@ export function SignInForm({ redirectTo, initialError }: { redirectTo: string; i
           {loading ? 'Signing in…' : 'Sign in'}
         </Button>
 
-        <Link href="/v2/sso" className="self-center text-[13.5px] font-medium text-o-text-2 hover:text-o-text">
+        <Link href="/sso" className="self-center text-[13.5px] font-medium text-o-text-2 hover:text-o-text">
           Use single sign-on (SAML)
         </Link>
       </form>
