@@ -34,6 +34,29 @@ describe('WorkspacesService', () => {
       expect(result.name).toBe('Acme Corp');
       expect(result.brand_color).toBe('#3B82F6');
     });
+
+    it('should persist widgetIcon, onboardingState and trialReminderSnoozedUntil on update', async () => {
+      const existing = { id: 'ws-1', name: 'Acme Corp' };
+      const updated = {
+        ...existing,
+        widget_icon: 'spark',
+        onboarding_state: { completed: true, step: 9 },
+        trial_reminder_snoozed_until: '2026-12-01T00:00:00.000Z',
+      };
+      mockDb.query = vi
+        .fn()
+        .mockResolvedValueOnce({ rows: [existing] })
+        .mockResolvedValueOnce({ rows: [updated] });
+
+      const result = await service.updateWorkspace('ws-1', {
+        widgetIcon: 'spark',
+        onboardingState: { completed: true, step: 9 },
+        trialReminderSnoozedUntil: '2026-12-01T00:00:00.000Z',
+      });
+      expect(result.widget_icon).toBe('spark');
+      expect(result.onboarding_state).toEqual({ completed: true, step: 9 });
+      expect(mockDb.query).toHaveBeenCalledTimes(2);
+    });
   });
 
   describe('getWorkspaceStats', () => {

@@ -369,7 +369,7 @@ const FOOTER_COLS = [
     links: [
       { t: 'Help center', href: '/v2/help' },
       { t: 'Trust center', href: '/app/compliance' },
-      { t: 'Status', href: '/app/getting-started' },
+      { t: 'Status', href: '/app/states' },
     ],
   },
   {

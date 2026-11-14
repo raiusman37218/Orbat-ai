@@ -45,10 +45,19 @@ Replace the whole frontend with the ORBAT design in `docs/design/design/*.dc.htm
 | Workspace Settings (`Settings.dc.html`) | Done | `/app/settings` (`src/components/orbat/settings/SettingsScreen.tsx`, `src/lib/data/settings.ts`, `src/app/actions/settings-studio.ts`) |
 | Transactional Emails (`Emails.dc.html`) | Done | `/app/settings/emails` (`/app/emails` redirects; `src/components/orbat/settings/EmailsScreen.tsx`, `src/app/actions/settings-studio.ts`) |
 | Agent Profile (`Profile.dc.html`) | Done | `/app/profile` (`src/components/orbat/profile/ProfileScreen.tsx`, `src/lib/data/profile.ts`, `src/app/actions/profile.ts`) |
-| Every other screen | In progress (Phases 1–5 done) | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
-| Cut-over (new UI on the real URLs, old UI deleted) | In progress (Landing & Auth cut over; app screens ongoing) | see "Cut-over" below |
+| Getting started (`Welcome.dc.html`) | Done | `/app/getting-started` (`src/components/orbat/lifecycle/GettingStartedScreen.tsx`, `src/lib/data/getting-started.ts`, `src/app/actions/lifecycle-studio.ts`) |
+| Trial & Upgrade (`Trial.dc.html`) | Done | `/app/trial`, `/app/trial-ended` (`src/components/orbat/lifecycle/TrialScreen.tsx`, `src/lib/data/trial.ts`, `src/app/actions/lifecycle-studio.ts`) |
+| System States & Health (`States.dc.html`) | Done | `/app/states` (`src/components/orbat/lifecycle/StatesScreen.tsx`, `src/lib/data/states.ts`, `src/app/actions/lifecycle-studio.ts`) |
+| Platform Super Admin (`SuperAdmin.dc.html`) | Done | `/v2/admin` (`src/components/orbat/admin/SuperAdminScreen.tsx`, `src/lib/data/super-admin.ts`, `src/app/actions/admin-studio.ts`) |
+| Pricing & PAYG (`Pricing.dc.html`) | Done | `/v2/pricing` (`src/components/orbat/public/PricingScreen.tsx`, `src/lib/data/pricing.ts`, `src/app/actions/public-portal.ts`) |
+| Public Help Center (`HelpCenter.dc.html`) | Done | `/v2/help`, `/v2/help/[workspaceId]` (`src/components/orbat/public/HelpCenterScreen.tsx`, `src/lib/data/help-center.ts`, `src/app/actions/public-portal.ts`) |
+| Customer Portal (`CustomerPortal.dc.html`) | Done | `/v2/portal`, `/v2/help/requests` (`src/components/orbat/public/CustomerPortalScreen.tsx`, `src/lib/data/customer-portal.ts`, `src/app/actions/public-portal.ts`) |
+| Chat Widget Studio (`ChatWidget.dc.html`) | Done | `/v2/widget` (`src/components/orbat/public/ChatWidgetStudioScreen.tsx`, `src/lib/data/chat-widget.ts`, `src/app/actions/public-portal.ts`, `backend/src/workspaces/`) |
+| Onboarding Wizard (`Onboarding.dc.html`) | Done | `/v2/onboarding` (`src/components/orbat/onboarding/OnboardingWizardScreen.tsx`, `src/lib/data/onboarding.ts`, `src/app/actions/lifecycle-studio.ts`) |
+| Every planned screen (Phases 1–6) | Done | All 40 ORBAT screens built; `[...slug]` placeholder kept as fallback only |
+| Cut-over (new UI on the real URLs, old UI deleted) | Pending | `/`, `/login`, `/signup`, `/forgot`, `/sso`, `/checkout`, `/app/*` cut over; move remaining `/v2/*` (`pricing`, `help`, `portal`, `widget`, `onboarding`, `admin`) on final cut-over |
 
-Screens left, in order (from REPLACE_PLAN.md): **Getting started** → Trial → States → Super admin → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
+Phases 1–6 are complete (`Getting started` → `Trial` → `States` → `Super admin` → `Pricing` → `Help center` → `Customer portal` → `Chat widget` → `Onboarding`). Remaining cut-over step: promote `/v2/*` public/admin routes to root URLs once verified in the browser.
 
 ## How the new UI is built
 

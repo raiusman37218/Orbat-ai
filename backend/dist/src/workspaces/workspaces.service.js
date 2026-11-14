@@ -47,6 +47,7 @@ let WorkspacesService = WorkspacesService_1 = class WorkspacesService {
               widget_position, widget_icon, slug, custom_domain, custom_domain_status,
               business_hours, ai_settings, timezone, language, handoff_settings,
               company_profile, ai_behavior_config, security_policies,
+              onboarding_state, trial_reminder_snoozed_until,
               auto_close_days, require_2fa, data_retention_days, ai_monthly_cost_cap_usd,
               plan, is_suspended, created_at
        FROM public.workspaces
@@ -122,6 +123,18 @@ let WorkspacesService = WorkspacesService_1 = class WorkspacesService {
             fields.push(`security_policies = $${idx++}`);
             values.push(JSON.stringify(dto.securityPolicies));
         }
+        if (dto.widgetIcon !== undefined) {
+            fields.push(`widget_icon = $${idx++}`);
+            values.push(dto.widgetIcon);
+        }
+        if (dto.onboardingState !== undefined) {
+            fields.push(`onboarding_state = $${idx++}`);
+            values.push(JSON.stringify(dto.onboardingState));
+        }
+        if (dto.trialReminderSnoozedUntil !== undefined) {
+            fields.push(`trial_reminder_snoozed_until = $${idx++}`);
+            values.push(dto.trialReminderSnoozedUntil);
+        }
         if (fields.length === 0) {
             return this.getWorkspace(workspaceId);
         }
@@ -131,8 +144,9 @@ let WorkspacesService = WorkspacesService_1 = class WorkspacesService {
       SET ${fields.join(', ')}
       WHERE id = $${idx}
       RETURNING id, name, website_url, brand_color, logo_url, greeting_title, greeting_message,
-                widget_position, timezone, language, business_hours, ai_settings, handoff_settings,
-                company_profile, ai_behavior_config, security_policies
+                widget_position, widget_icon, timezone, language, business_hours, ai_settings, handoff_settings,
+                company_profile, ai_behavior_config, security_policies,
+                onboarding_state, trial_reminder_snoozed_until
     `;
         const result = await this.db.query(sql, values);
         return sanitizeWorkspaceRow(result.rows[0]);

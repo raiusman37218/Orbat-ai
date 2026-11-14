@@ -89,6 +89,9 @@ export const NAV: NavGroup[] = [
 /* Pages that live under a nav item but are not in the sidebar themselves. */
 const EXTRA_PAGES: { href: string; label: string; group: string }[] = [
   { href: '/app/getting-started', label: 'Getting started', group: 'Workspace' },
+  { href: '/app/trial', label: 'Free trial status', group: 'Workspace' },
+  { href: '/app/trial-ended', label: 'Trial ended', group: 'Workspace' },
+  { href: '/app/states', label: 'System states', group: 'Workspace' },
   { href: '/app/handoff', label: 'Handoff', group: 'Workspace' },
   { href: '/app/automation/journeys', label: 'Journeys', group: 'AI & Knowledge' },
   { href: '/app/team/schedule', label: 'Schedule', group: 'Admin' },

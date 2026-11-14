@@ -14,4 +14,7 @@ export declare class UpdateWorkspaceDto {
     companyProfile?: Record<string, any>;
     aiBehaviorConfig?: Record<string, any>;
     securityPolicies?: Record<string, any>;
+    widgetIcon?: string;
+    onboardingState?: Record<string, any>;
+    trialReminderSnoozedUntil?: string;
 }

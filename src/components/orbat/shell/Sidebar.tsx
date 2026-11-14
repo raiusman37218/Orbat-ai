@@ -169,7 +169,7 @@ function UsageCard({ usage, onNavigate }: { usage: ShellUsage; onNavigate?: () =
     const pct = Math.min(100, Math.round(((usage.trialDays - usage.daysLeft) / usage.trialDays) * 100));
     return (
       <Link
-        href="/app/billing"
+        href={usage.expired ? '/app/trial-ended' : '/app/trial'}
         onClick={onNavigate}
         className="flex flex-col gap-2.5 rounded-[24px] bg-o-forest p-[18px] no-underline"
       >

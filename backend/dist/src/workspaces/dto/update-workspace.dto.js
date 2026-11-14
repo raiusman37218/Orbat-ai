@@ -89,4 +89,19 @@ __decorate([
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], UpdateWorkspaceDto.prototype, "securityPolicies", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsIn)(['smile_bubble', 'dots_bubble', 'double_bubble', 'smile_line', 'headset', 'help', 'custom_logo']),
+    __metadata("design:type", String)
+], UpdateWorkspaceDto.prototype, "widgetIcon", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], UpdateWorkspaceDto.prototype, "onboardingState", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsISO8601)(),
+    __metadata("design:type", String)
+], UpdateWorkspaceDto.prototype, "trialReminderSnoozedUntil", void 0);
 //# sourceMappingURL=update-workspace.dto.js.map

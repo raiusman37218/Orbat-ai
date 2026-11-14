@@ -27,7 +27,7 @@ const ToastContext = createContext<ToastApi | null>(null);
 
 /* Separate from the old app's ToastProvider (root layout) on purpose: this one
    renders inside `.orb`, so it picks up the new tokens. */
-export function OrbToastProvider({ children }: { children: ReactNode }) {
+function OrbToastProviderInner({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
   const seq = useRef(0);
 
@@ -78,6 +78,12 @@ export function OrbToastProvider({ children }: { children: ReactNode }) {
       </div>
     </ToastContext.Provider>
   );
+}
+
+export function OrbToastProvider({ children }: { children: ReactNode }) {
+  const existing = useContext(ToastContext);
+  if (existing) return children;
+  return <OrbToastProviderInner>{children}</OrbToastProviderInner>;
 }
 
 export function useOrbToast(): ToastApi {

@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsHexColor, IsIn, IsObject } from 'class-validator';
+import { IsOptional, IsString, IsHexColor, IsIn, IsObject, IsISO8601 } from 'class-validator';
 
 export class UpdateWorkspaceDto {
   @IsOptional()
@@ -60,5 +60,17 @@ export class UpdateWorkspaceDto {
   @IsOptional()
   @IsObject()
   securityPolicies?: Record<string, any>;
+
+  @IsOptional()
+  @IsIn(['smile_bubble', 'dots_bubble', 'double_bubble', 'smile_line', 'headset', 'help', 'custom_logo'])
+  widgetIcon?: string;
+
+  @IsOptional()
+  @IsObject()
+  onboardingState?: Record<string, any>;
+
+  @IsOptional()
+  @IsISO8601()
+  trialReminderSnoozedUntil?: string;
 }
 
