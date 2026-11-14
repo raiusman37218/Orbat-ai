@@ -74,4 +74,19 @@ __decorate([
     (0, class_validator_1.IsObject)(),
     __metadata("design:type", Object)
 ], UpdateWorkspaceDto.prototype, "handoffSettings", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], UpdateWorkspaceDto.prototype, "companyProfile", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], UpdateWorkspaceDto.prototype, "aiBehaviorConfig", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsObject)(),
+    __metadata("design:type", Object)
+], UpdateWorkspaceDto.prototype, "securityPolicies", void 0);
 //# sourceMappingURL=update-workspace.dto.js.map

@@ -11,4 +11,7 @@ export declare class UpdateWorkspaceDto {
     businessHours?: Record<string, any>;
     aiSettings?: Record<string, any>;
     handoffSettings?: Record<string, any>;
+    companyProfile?: Record<string, any>;
+    aiBehaviorConfig?: Record<string, any>;
+    securityPolicies?: Record<string, any>;
 }

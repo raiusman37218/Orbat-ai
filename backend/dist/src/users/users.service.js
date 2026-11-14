@@ -21,14 +21,16 @@ let UsersService = UsersService_1 = class UsersService {
         this.logger = new common_1.Logger(UsersService_1.name);
     }
     async getAgents(workspaceId) {
-        const result = await this.db.query(`SELECT id, name, email, avatar_url, role, status, is_active, max_open_tickets, created_at
+        const result = await this.db.query(`SELECT id, name, display_name, email, avatar_url, role, status, availability_mode,
+              on_call_phone, spoken_languages, is_active, max_open_tickets, created_at
        FROM public.agents
        WHERE workspace_id = $1
        ORDER BY role = 'owner' DESC, created_at ASC`, [workspaceId]);
         return result.rows;
     }
     async getAgentById(workspaceId, agentId) {
-        const result = await this.db.query(`SELECT id, name, email, avatar_url, role, status, is_active, max_open_tickets, created_at
+        const result = await this.db.query(`SELECT id, name, display_name, email, avatar_url, role, status, availability_mode,
+              on_call_phone, spoken_languages, is_active, max_open_tickets, created_at
        FROM public.agents
        WHERE id = $1 AND workspace_id = $2
        LIMIT 1`, [agentId, workspaceId]);
@@ -75,6 +77,26 @@ let UsersService = UsersService_1 = class UsersService {
             fields.push(`name = $${idx++}`);
             values.push(dto.name.trim());
         }
+        if (dto.displayName !== undefined) {
+            fields.push(`display_name = $${idx++}`);
+            values.push(dto.displayName.trim() || null);
+        }
+        if (dto.onCallPhone !== undefined) {
+            fields.push(`on_call_phone = $${idx++}`);
+            values.push(dto.onCallPhone.trim() || null);
+        }
+        if (dto.spokenLanguages !== undefined) {
+            fields.push(`spoken_languages = $${idx++}`);
+            values.push(dto.spokenLanguages);
+        }
+        if (dto.availabilityMode !== undefined) {
+            fields.push(`availability_mode = $${idx++}`);
+            values.push(dto.availabilityMode);
+            if (dto.status === undefined) {
+                fields.push(`status = $${idx++}`);
+                values.push(dto.availabilityMode === 'dnd' ? 'away' : dto.availabilityMode);
+            }
+        }
         if (dto.avatarUrl !== undefined) {
             fields.push(`avatar_url = $${idx++}`);
             values.push(dto.avatarUrl.trim());
@@ -106,7 +128,8 @@ let UsersService = UsersService_1 = class UsersService {
       UPDATE public.agents
       SET ${fields.join(', ')}
       WHERE id = $${idx++} AND workspace_id = $${idx}
-      RETURNING id, name, email, avatar_url, role, status, is_active, max_open_tickets, created_at
+      RETURNING id, name, display_name, email, avatar_url, role, status, availability_mode,
+                on_call_phone, spoken_languages, is_active, max_open_tickets, created_at
     `;
         const result = await this.db.query(sql, values);
         (0, jwt_auth_guard_1.invalidateAuthStateCache)(agentId);

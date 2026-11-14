@@ -38,10 +38,17 @@ Replace the whole frontend with the ORBAT design in `docs/design/design/*.dc.htm
 | Policy to Guardrails (`PolicyGuardrail.dc.html`) | Done | `/app/compliance/policies` (`src/components/orbat/compliance/PoliciesScreen.tsx`, `src/app/actions/compliance.ts`) |
 | Website Compliance Audit (`WebsiteAudit.dc.html`) | Done | `/app/compliance/website-audit` (`src/components/orbat/compliance/WebsiteAuditScreen.tsx`, `src/app/actions/website-audit.ts`) |
 | AI to Human Handoff (`Handoff.dc.html`) | Done | `/app/handoff` (`src/components/orbat/handoff/HandoffScreen.tsx`, `src/lib/data/handoff.ts`, `src/app/actions/handoff.ts`, `backend/src/widget/widget.service.ts`) |
-| Every other screen | In progress (Phases 1–4 done) | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
+| Channels & Apps (`Channels.dc.html`) | Done | `/app/channels` (`src/components/orbat/channels/ChannelsScreen.tsx`, `src/lib/data/channels.ts`, `src/app/actions/channels-studio.ts`) |
+| Connect Website & CRM (`CRMConnect.dc.html`) | Done | `/app/channels/connect` (`/app/crm` redirects; `src/components/orbat/channels/CrmConnectScreen.tsx`, `src/app/actions/channels-studio.ts`) |
+| Billing & Usage (`Billing.dc.html`) | Done | `/app/billing` (`src/components/orbat/billing/BillingScreen.tsx`, `src/lib/data/billing.ts`, `src/app/actions/billing-studio.ts`) |
+| Checkout (`Checkout.dc.html`) | Done | `/checkout` (`/v2/checkout` redirects; `src/components/orbat/billing/CheckoutScreen.tsx`, `src/app/actions/billing-studio.ts`) |
+| Workspace Settings (`Settings.dc.html`) | Done | `/app/settings` (`src/components/orbat/settings/SettingsScreen.tsx`, `src/lib/data/settings.ts`, `src/app/actions/settings-studio.ts`) |
+| Transactional Emails (`Emails.dc.html`) | Done | `/app/settings/emails` (`/app/emails` redirects; `src/components/orbat/settings/EmailsScreen.tsx`, `src/app/actions/settings-studio.ts`) |
+| Agent Profile (`Profile.dc.html`) | Done | `/app/profile` (`src/components/orbat/profile/ProfileScreen.tsx`, `src/lib/data/profile.ts`, `src/app/actions/profile.ts`) |
+| Every other screen | In progress (Phases 1–5 done) | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
 | Cut-over (new UI on the real URLs, old UI deleted) | In progress (Landing & Auth cut over; app screens ongoing) | see "Cut-over" below |
 
-Screens left, in order (from REPLACE_PLAN.md): **Channels** → CRM connect → Billing → Checkout → Settings → Emails → Profile → Getting started → Trial → States → Super admin → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
+Screens left, in order (from REPLACE_PLAN.md): **Getting started** → Trial → States → Super admin → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
 
 ## How the new UI is built
 

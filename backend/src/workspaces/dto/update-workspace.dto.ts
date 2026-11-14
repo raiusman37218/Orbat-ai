@@ -48,5 +48,17 @@ export class UpdateWorkspaceDto {
   @IsOptional()
   @IsObject()
   handoffSettings?: Record<string, any>;
+
+  @IsOptional()
+  @IsObject()
+  companyProfile?: Record<string, any>;
+
+  @IsOptional()
+  @IsObject()
+  aiBehaviorConfig?: Record<string, any>;
+
+  @IsOptional()
+  @IsObject()
+  securityPolicies?: Record<string, any>;
 }
 

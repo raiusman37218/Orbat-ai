@@ -36,8 +36,10 @@ export class WorkspacesService {
     const result = await this.db.query(
       `SELECT id, name, website_url, brand_color, logo_url, greeting_title, greeting_message,
               widget_position, widget_icon, slug, custom_domain, custom_domain_status,
-              business_hours, ai_settings, timezone, language, handoff_settings, plan,
-              is_suspended, created_at
+              business_hours, ai_settings, timezone, language, handoff_settings,
+              company_profile, ai_behavior_config, security_policies,
+              auto_close_days, require_2fa, data_retention_days, ai_monthly_cost_cap_usd,
+              plan, is_suspended, created_at
        FROM public.workspaces
        WHERE id = $1 AND deleted_at IS NULL
        LIMIT 1`,
@@ -107,6 +109,18 @@ export class WorkspacesService {
       fields.push(`handoff_settings = $${idx++}`);
       values.push(JSON.stringify(dto.handoffSettings));
     }
+    if (dto.companyProfile !== undefined) {
+      fields.push(`company_profile = $${idx++}`);
+      values.push(JSON.stringify(dto.companyProfile));
+    }
+    if (dto.aiBehaviorConfig !== undefined) {
+      fields.push(`ai_behavior_config = $${idx++}`);
+      values.push(JSON.stringify(dto.aiBehaviorConfig));
+    }
+    if (dto.securityPolicies !== undefined) {
+      fields.push(`security_policies = $${idx++}`);
+      values.push(JSON.stringify(dto.securityPolicies));
+    }
 
     if (fields.length === 0) {
       return this.getWorkspace(workspaceId);
@@ -118,7 +132,8 @@ export class WorkspacesService {
       SET ${fields.join(', ')}
       WHERE id = $${idx}
       RETURNING id, name, website_url, brand_color, logo_url, greeting_title, greeting_message,
-                widget_position, timezone, language, business_hours, ai_settings, handoff_settings
+                widget_position, timezone, language, business_hours, ai_settings, handoff_settings,
+                company_profile, ai_behavior_config, security_policies
     `;
 
     const result = await this.db.query(sql, values);
