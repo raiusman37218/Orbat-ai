@@ -191,6 +191,20 @@ export class WidgetController {
     );
   }
 
+  @Post('proactive/:id/event')
+  @ApiOperation({ summary: 'Track proactive message impression, reply, or conversion from widget' })
+  async trackProactiveEvent(
+    @Param('id') messageId: string,
+    @Body() body: Record<string, any>,
+  ) {
+    const evt = body.event === 'reply' || body.event === 'converted' ? body.event : 'shown';
+    return this.widgetService.trackProactiveEvent(
+      body.workspaceId ?? body.p_workspace_id,
+      messageId,
+      evt,
+    );
+  }
+
   @Post('rpc/:fnName')
   @ApiOperation({ summary: 'Execute a whitelisted fn_widget_* RPC cleanly through NestJS' })
   async rpc(@Param('fnName') fnName: string, @Body() body: Record<string, any>) {

@@ -45,8 +45,9 @@ export interface WebhookPayload {
 }
 export interface AutomationPayload {
     workspaceId: string;
-    action: 'check_sla' | 'auto_close_inactive' | 'run_macro';
+    action: 'check_sla' | 'auto_close_inactive' | 'run_macro' | 'run_workflow';
     targetId?: string;
+    conversationId?: string;
     inactivityMinutes?: number;
     idempotencyKey?: string;
     metadata?: Record<string, any>;

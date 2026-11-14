@@ -11,6 +11,7 @@ export declare class WidgetService {
     private runRpc;
     private emitConversationEvent;
     getConfig(workspaceId: string): Promise<any>;
+    trackProactiveEvent(workspaceId: string, messageId: string, event: 'shown' | 'reply' | 'converted'): Promise<any>;
     getAgents(workspaceId: string): Promise<any>;
     getHelp(workspaceId: string): Promise<{
         sections: any[];

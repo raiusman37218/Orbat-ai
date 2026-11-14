@@ -243,6 +243,50 @@ export async function POST(req: NextRequest) {
         ]
       );
 
+      // Mirror CSAT feedback into unified Phase 3 survey_responses stream
+      try {
+        let handlerType: 'ai' | 'human' | 'unknown' = 'unknown';
+        let customerName = 'Customer';
+        if (ticket.conversation_id) {
+          const convMeta = await queryRows<{
+            ai_enabled: boolean | null;
+            assigned_agent_id: string | null;
+            visitor_name: string | null;
+          }>(
+            `SELECT c.ai_enabled, c.assigned_agent_id, COALESCE(v.name, v.email) AS visitor_name
+             FROM public.conversations c
+             LEFT JOIN public.visitors v ON v.id = c.visitor_id
+             WHERE c.id = $1 LIMIT 1`,
+            [ticket.conversation_id]
+          );
+          if (convMeta[0]) {
+            if (convMeta[0].visitor_name) customerName = convMeta[0].visitor_name;
+            if (convMeta[0].assigned_agent_id) handlerType = 'human';
+            else if (convMeta[0].ai_enabled) handlerType = 'ai';
+          }
+        } else if (ticket.assignee_id) {
+          handlerType = 'human';
+        }
+        await query(
+          `INSERT INTO public.survey_responses
+             (workspace_id, kind, conversation_id, ticket_id, customer_name, channel, handler_type, score, comment, created_at)
+           VALUES ($1, 'csat', $2, $3, $4, $5, $6, $7, $8, $9)`,
+          [
+            ticket.workspace_id,
+            ticket.conversation_id,
+            ticket.id,
+            customerName,
+            ticket.channel || 'email',
+            handlerType,
+            rating === 'good' ? 5 : 1,
+            trimmedComment || null,
+            now,
+          ]
+        );
+      } catch {
+        // Non-fatal: ticket + conversation CSAT already persisted
+      }
+
       return NextResponse.json(
         {
           success: true,
@@ -339,6 +383,23 @@ export async function POST(req: NextRequest) {
       csat_rating: rating,
       csat_comment: trimmedComment || null,
     });
+
+    try {
+      await supabase.from('survey_responses').insert({
+        workspace_id: ticket.workspace_id,
+        kind: 'csat',
+        conversation_id: ticket.conversation_id,
+        ticket_id: ticket.id,
+        customer_name: 'Customer',
+        channel: ticket.channel || 'email',
+        handler_type: ticket.assignee_id ? 'human' : 'unknown',
+        score: rating === 'good' ? 5 : 1,
+        comment: trimmedComment || null,
+        created_at: now,
+      });
+    } catch {
+      // Non-fatal mirror
+    }
 
     return NextResponse.json(
       {

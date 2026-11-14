@@ -28,10 +28,14 @@ Replace the whole frontend with the ORBAT design in `docs/design/design/*.dc.htm
 | AI quality & trust (`AiQuality.dc.html`) | Done | `/app/ai-quality` (`src/components/orbat/ai-quality/AiQualityScreen.tsx`, `src/lib/data/ai-quality.ts`, `src/app/actions/ai-quality.ts`) |
 | Languages (`Languages.dc.html`) | Done | `/app/languages` (`src/components/orbat/languages/LanguagesScreen.tsx`, `src/lib/data/languages.ts`, `src/app/actions/ai-languages.ts`) |
 | Knowledge (`Knowledge.dc.html`) | Done | `/app/knowledge` (`src/components/orbat/knowledge/KnowledgeScreen.tsx`, `src/lib/data/knowledge.ts`, `src/app/actions/knowledge-hub.ts`) |
-| Every other screen | In progress (Phase 1 & Phase 2 done) | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
+| Automation Studio (`Automation.dc.html`) | Done | `/app/automation` (`src/components/orbat/automation/AutomationScreen.tsx`, `src/lib/data/automation.ts`, `src/app/actions/automation-studio.ts`, `src/lib/automation/workflow-templates.ts`) |
+| Customer Journeys (`Journey.dc.html`) | Done | `/app/automation/journeys` (`/app/journeys` redirects; `src/components/orbat/journeys/JourneysScreen.tsx`, `src/lib/data/journeys.ts`, `src/app/actions/journeys.ts`) |
+| Engagement (`Engagement.dc.html`) | Done | `/app/engagement` (`src/components/orbat/engagement/EngagementScreen.tsx`, `src/lib/data/engagement.ts`, `src/app/actions/engagement.ts`, `backend/src/widget/widget.service.ts`) |
+| Analytics & Reports (`Analytics.dc.html`) | Done | `/app/analytics` (`src/components/orbat/analytics/AnalyticsScreen.tsx`, `src/lib/data/analytics.ts`, `src/app/actions/analytics-studio.ts`) |
+| Every other screen | In progress (Phases 1–3 done) | `/app/*` shows a "being rebuilt" placeholder (`src/app/(orbat)/app/[...slug]/page.tsx`) |
 | Cut-over (new UI on the real URLs, old UI deleted) | In progress (Landing & Auth cut over; app screens ongoing) | see "Cut-over" below |
 
-Screens left, in order (from REPLACE_PLAN.md): **Automation** → Journeys → Engagement → Analytics → Team → Schedule → Compliance → Policies → Website audit → Handoff → Channels → CRM connect → Billing → Checkout → Settings → Emails → Profile → Getting started → Trial → States → Super admin → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
+Screens left, in order (from REPLACE_PLAN.md): **Team** → Schedule → Compliance → Policies → Website audit → Handoff → Channels → CRM connect → Billing → Checkout → Settings → Emails → Profile → Getting started → Trial → States → Super admin → Pricing → Help center → Customer portal → Chat widget → Mobile layouts. Onboarding (`Onboarding.dc.html`) was skipped for now because sign-up already creates the workspace; do it before the cut-over.
 
 ## How the new UI is built
 

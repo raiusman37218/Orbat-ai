@@ -81,6 +81,10 @@ let WidgetController = class WidgetController {
     async submitCsat(body) {
         return this.widgetService.submitCsat(body.visitorId ?? body.p_visitor_id, body.token ?? body.p_token, body.conversationId ?? body.p_conversation_id, body.rating, body.feedback ?? null);
     }
+    async trackProactiveEvent(messageId, body) {
+        const evt = body.event === 'reply' || body.event === 'converted' ? body.event : 'shown';
+        return this.widgetService.trackProactiveEvent(body.workspaceId ?? body.p_workspace_id, messageId, evt);
+    }
     async rpc(fnName, body) {
         return this.widgetService.invokeWhitelistedRpc(fnName, body || {});
     }
@@ -243,6 +247,15 @@ __decorate([
     __metadata("design:paramtypes", [Object]),
     __metadata("design:returntype", Promise)
 ], WidgetController.prototype, "submitCsat", null);
+__decorate([
+    (0, common_1.Post)('proactive/:id/event'),
+    (0, swagger_1.ApiOperation)({ summary: 'Track proactive message impression, reply, or conversion from widget' }),
+    __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Body)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [String, Object]),
+    __metadata("design:returntype", Promise)
+], WidgetController.prototype, "trackProactiveEvent", null);
 __decorate([
     (0, common_1.Post)('rpc/:fnName'),
     (0, swagger_1.ApiOperation)({ summary: 'Execute a whitelisted fn_widget_* RPC cleanly through NestJS' }),

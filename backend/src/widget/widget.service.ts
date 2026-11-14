@@ -97,7 +97,50 @@ export class WidgetService {
     if (!data) {
       throw new NotFoundException('Workspace not found or unavailable.');
     }
-    return data;
+
+    let proactiveMessages: any[] = [];
+    try {
+      const pm = await this.db.query(
+        `SELECT id, name, trigger_when, page_pattern, delay_seconds, message
+         FROM public.proactive_messages
+         WHERE workspace_id = $1 AND is_active = true
+         ORDER BY updated_at DESC
+         LIMIT 20`,
+        [wsId],
+      );
+      proactiveMessages = pm.rows;
+    } catch {
+      proactiveMessages = [];
+    }
+
+    return {
+      ...(typeof data === 'object' && data !== null ? data : {}),
+      proactive_messages: proactiveMessages,
+    };
+  }
+
+  async trackProactiveEvent(
+    workspaceId: string,
+    messageId: string,
+    event: 'shown' | 'reply' | 'converted',
+  ) {
+    const wsId = this.assertUuid(workspaceId, 'workspaceId');
+    const msgId = this.assertUuid(messageId, 'messageId');
+    const col =
+      event === 'reply'
+        ? 'reply_count'
+        : event === 'converted'
+          ? 'converted_count'
+          : 'shown_count';
+
+    const res = await this.db.query(
+      `UPDATE public.proactive_messages
+       SET ${col} = ${col} + 1
+       WHERE id = $1 AND workspace_id = $2
+       RETURNING id, shown_count, reply_count, converted_count`,
+      [msgId, wsId],
+    );
+    return res.rows[0] ?? { id: msgId, recorded: false };
   }
 
   async getAgents(workspaceId: string) {
@@ -442,6 +485,44 @@ export class WidgetService {
         conversationId: convId,
         csat_rating: numericRating,
       });
+
+      // Mirror widget CSAT rating into unified Phase 3 survey_responses stream
+      try {
+        const meta = await this.db.query(
+          `SELECT c.workspace_id, c.channel, c.ai_enabled, c.assigned_agent_id,
+                  COALESCE(v.name, v.email, 'Visitor') AS customer_name
+           FROM public.conversations c
+           LEFT JOIN public.visitors v ON v.id = c.visitor_id
+           WHERE c.id = $1 LIMIT 1`,
+          [convId],
+        );
+        const row = meta.rows[0];
+        if (row?.workspace_id) {
+          const handlerType = row.assigned_agent_id
+            ? 'human'
+            : row.ai_enabled
+              ? 'ai'
+              : 'unknown';
+          await this.db.query(
+            `INSERT INTO public.survey_responses
+               (workspace_id, kind, conversation_id, visitor_id, customer_name, channel, handler_type, score, comment)
+             VALUES ($1, 'csat', $2, $3, $4, $5, $6, $7, $8)`,
+            [
+              row.workspace_id,
+              convId,
+              vId,
+              row.customer_name || 'Visitor',
+              row.channel || 'web',
+              handlerType,
+              numericRating,
+              feedback ? String(feedback).trim().slice(0, 1000) : null,
+            ],
+          );
+        }
+      } catch {
+        // Non-fatal mirror into analytics/engagement stream
+      }
+
       return upd.rows[0];
     } catch (error) {
       this.mapPgError(error);

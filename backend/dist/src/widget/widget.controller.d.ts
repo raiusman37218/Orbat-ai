@@ -37,5 +37,6 @@ export declare class WidgetController {
         ok: boolean;
     }>;
     submitCsat(body: Record<string, any>): Promise<any>;
+    trackProactiveEvent(messageId: string, body: Record<string, any>): Promise<any>;
     rpc(fnName: string, body: Record<string, any>): Promise<any>;
 }
