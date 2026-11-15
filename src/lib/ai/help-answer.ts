@@ -16,6 +16,11 @@ import {
 } from './semantic-retrieval';
 import type { RetrievedChunk } from '@/types/database';
 import { searchQueriesFor } from './understanding';
+import {
+  isRestrictedKnowledgeScope,
+  matchesKnowledgeScope,
+  type AgentKnowledgeScope,
+} from './agent-templates';
 
 /**
  * Answers a customer from the workspace's own help centre, with no model API.
@@ -155,6 +160,21 @@ export const FULL_KNOWLEDGE_MAX_CHARS = 100_000;
  * Team notes are left out, as in every visitor-facing answer. `priorityIds`
  * are placed first when the help centre is over the budget.
  */
+/**
+ * Filters a HelpIndex down to the sections and Bot knowledge allowed for an agent.
+ * Rebuilds the index when restricted so BM25 IDF and top-hit slots cannot leak excluded docs.
+ */
+export function filterIndexByKnowledgeScope(
+  index: HelpIndex,
+  scope?: Partial<AgentKnowledgeScope> | null,
+): HelpIndex {
+  if (!isRestrictedKnowledgeScope(scope)) return index;
+  const scopedArticles = index.docs
+    .map((d) => d.article)
+    .filter((a) => matchesKnowledgeScope(a, scope));
+  return buildIndex(scopedArticles);
+}
+
 export async function loadFullKnowledge(
   workspaceId: string,
   options: {
@@ -163,13 +183,20 @@ export async function loadFullKnowledge(
     /** Articles whose title or section matches go first: the answering specialist's topic. */
     priorityMatch?: RegExp | null;
     maxChars?: number;
+    /** Restrict included articles and Bot knowledge to this agent's allowed collection scope. */
+    knowledgeScope?: Partial<AgentKnowledgeScope> | null;
   } = {}
 ): Promise<FullKnowledge> {
   const index = await loadIndex(workspaceId);
   const maxChars = options.maxChars ?? FULL_KNOWLEDGE_MAX_CHARS;
   const docs = index.docs
     .map((d) => d.article)
-    .filter((a) => !a.id.startsWith('note:') && (a.content || '').trim());
+    .filter(
+      (a) =>
+        !a.id.startsWith('note:') &&
+        (a.content || '').trim() &&
+        matchesKnowledgeScope(a, options.knowledgeScope),
+    );
 
   // Articles grouped by section, Bot knowledge last; the order the help centre reads in.
   const isKnowledge = (id: string) => id.startsWith(KNOWLEDGE_PREFIX);
@@ -355,6 +382,8 @@ export interface AnswerRequest {
   articlesOnly?: boolean;
   /** Scores at which the top passage may be quoted (learning/policy.ts). */
   highConfidence?: { similarity: number; combined: number };
+  /** Restrict fallback keyword retrieval to the active agent's knowledge scope. */
+  knowledgeScope?: Partial<AgentKnowledgeScope> | null;
 }
 
 /**
@@ -461,7 +490,7 @@ export async function answerFromHelpCenter(
     }
   }
 
-  const index = await loadIndex(req.workspaceId);
+  const index = filterIndexByKnowledgeScope(await loadIndex(req.workspaceId), req.knowledgeScope);
   const hits = search(index, req.message, { history: req.history, limit: req.articlesOnly ? 8 : 4 })
     .filter((h) => !req.articlesOnly || !h.article.id.startsWith('note:'))
     .slice(0, 4);
@@ -576,6 +605,10 @@ export async function buildModelContext(
     queryEmbedding?: number[] | null;
     /** Scores at which the top passage counts as a direct answer (learning/policy.ts). */
     highConfidence?: { similarity: number; combined: number };
+    /** Per-agent collection and Bot knowledge visibility scope. */
+    knowledgeScope?: Partial<AgentKnowledgeScope> | null;
+    /** Optional stricter minimum semantic similarity/combined score configured per agent. */
+    minScore?: number;
   } = {}
 ): Promise<RetrievedContext> {
   // The live keyword index reads the published articles and the team's
@@ -599,6 +632,8 @@ export async function buildModelContext(
       limit: options.limit ?? 6,
       helpCenterUrl: options.helpCenterUrl,
       messageEmbedding: options.queryEmbedding,
+      knowledgeScope: options.knowledgeScope,
+      minScore: options.minScore,
     });
     rewrittenQuery = semantic.rewrittenQuery;
     searchedQueries = semantic.queries ?? [];
@@ -663,8 +698,10 @@ export async function buildModelContext(
   });
 
   // 2. Keyword index: semantic search found nothing usable.
-  const index = await indexPromise;
-  if (!index) return nothing();
+  const rawIndex = await indexPromise;
+  if (!rawIndex) return nothing();
+  const index = filterIndexByKnowledgeScope(rawIndex, options.knowledgeScope);
+  if (index.docs.length === 0) return nothing();
   // Search with the English rewrite as well as the visitor's own words, so a
   // question in Roman Urdu or Spanish still meets English articles.
   // Every reading counts: the model's queries, or the rules' normalised one

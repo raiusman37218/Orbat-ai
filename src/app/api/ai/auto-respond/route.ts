@@ -1022,7 +1022,9 @@ async function executeAutoRespond(req: NextRequest, body: any) {
     })();
     const effectiveAnswerMode = activeAiAgent?.answer_mode || (aiSettings?.answer_mode === 'strict' ? 'strict' : 'agent');
     const effectiveReplyStyle = activeAiAgent?.reply_language_mode || langConfig?.reply_style || 'match_customer';
-    const showCitations = activeAiAgent ? activeAiAgent.appearance?.showCitations !== false : true;
+    const showCitations = activeAiAgent
+      ? activeAiAgent.appearance?.showCitations !== false && activeAiAgent.rag_config?.citations !== false
+      : true;
     const effectiveConfidenceThreshold =
       activeAiAgent?.escalation_rules?.confidenceThreshold ?? handoffSettings?.ai?.confidence_threshold ?? 0.65;
     const effectiveHandoffOnFrustration = activeAiAgent?.escalation_rules?.handoffOnFrustration ?? true;
@@ -1134,6 +1136,10 @@ async function executeAutoRespond(req: NextRequest, body: any) {
           answerMode: effectiveAnswerMode,
           subAgents: aiSettings?.sub_agents ?? null,
           handoffOnFrustration: effectiveHandoffOnFrustration,
+          knowledgeScope: activeAiAgent?.knowledge_scope ?? null,
+          ragConfig: activeAiAgent?.rag_config
+            ? { ...activeAiAgent.rag_config, citations: showCitations }
+            : { citations: showCitations },
         });
 
       if (matchedBlockedTopic && !isAskingForHuman) {

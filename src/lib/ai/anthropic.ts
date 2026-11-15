@@ -78,6 +78,11 @@ import { pickPolicyArm, POLICY_ARMS, type PolicyArm } from './learning/policy';
 import { generateEmbeddings } from './semantic-retrieval';
 import { groundedChunkIndex } from './grounding';
 import { checkWorkspaceBusinessHours } from '@/lib/business-hours';
+import {
+  isRestrictedKnowledgeScope,
+  type AgentKnowledgeScope,
+  type AgentRagConfig,
+} from './agent-templates';
 import type { BusinessHoursConfig, Conversation } from '@/types/database';
 
 export { cleanVisitorDisplayName };
@@ -395,6 +400,10 @@ interface HelpCenterInput {
   highConfidence?: { similarity: number; combined: number };
   /** False when agent mode already counted a reply on this turn, so fallback does not double-bill. */
   countReply?: boolean;
+  /** Per-agent collection & Bot knowledge visibility boundary. */
+  knowledgeScope?: Partial<AgentKnowledgeScope> | null;
+  /** Per-agent Standard/Advanced RAG retrieval parameters. */
+  ragConfig?: Partial<AgentRagConfig> | null;
 }
 
 /** The last public reply a person wrote in the current exchange. */
@@ -482,15 +491,16 @@ async function answerHelpCenterQuestion(input: HelpCenterInput): Promise<HelpDes
 async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<HelpDeskResponseResult> {
   const { workspaceId, conversationId, incomingMessage, intent, lang, brand, botName, providerConfig } = input;
   const apology = intent.isComplaint ? `${complaintApology(lang)} ` : '';
+  const restrictedScope = isRestrictedKnowledgeScope(input.knowledgeScope);
 
-  // 1. Check per-workspace answer cache before retrieval
+  // 1. Check per-workspace answer cache before retrieval (skipped when knowledgeScope is restricted)
   let queryEmbedding: number[] | null = null;
   try {
     const embeddings = await generateEmbeddings([incomingMessage], providerConfig);
     queryEmbedding = embeddings[0] || null;
   } catch {}
 
-  if (queryEmbedding && queryEmbedding.length > 0) {
+  if (!restrictedScope && queryEmbedding && queryEmbedding.length > 0) {
     const cached = await lookupBotAnswerCache({
       workspaceId,
       queryEmbedding,
@@ -517,13 +527,15 @@ async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<He
   const context = await buildModelContext(workspaceId, incomingMessage, {
     history: input.history,
     turns: input.conversationMessages.slice(-6),
-    limit: 5,
+    limit: input.ragConfig?.topK ?? 5,
     providerConfig,
     helpCenterUrl: input.helpCenterUrl,
     articlesOnly: true,
     // Already paid for by the cache lookup; reused when the query is not rewritten.
     queryEmbedding,
     highConfidence: input.highConfidence,
+    knowledgeScope: input.knowledgeScope,
+    minScore: input.ragConfig?.minScore,
   });
 
   // A one-word or vague message that matched nothing: one short clarifying
@@ -581,10 +593,16 @@ async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<He
     const fromKnowledge = citation.kind === 'knowledge';
 
     // Save answer to per-workspace cache. Not when Bot knowledge was in the
-    // context: the cache is invalidated by article edits only, so an answer
-    // drawn from an entry would outlive a change to that entry.
+    // context (since cache invalidation is article-only) or when the active agent
+    // runs under a restricted collection scope.
     const usedKnowledge = articleSources.length !== context.sources.length || fromKnowledge;
-    if (cache && (context.queryEmbedding || queryEmbedding) && usedArticleIds.length > 0 && !usedKnowledge) {
+    if (
+      !restrictedScope &&
+      cache &&
+      (context.queryEmbedding || queryEmbedding) &&
+      usedArticleIds.length > 0 &&
+      !usedKnowledge
+    ) {
       saveBotAnswerCache({
         workspaceId,
         question: incomingMessage,
@@ -595,14 +613,16 @@ async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<He
       }).catch((err) => console.warn('[answer-cache] Save error:', err));
     }
 
+    const showCitations = !fromKnowledge && input.ragConfig?.citations !== false;
+
     return {
-      replyText: fromKnowledge ? `${apology}${text}` : `${apology}${text}\n\n${formatCitation(citation, lang)}`,
+      replyText: showCitations ? `${apology}${text}\n\n${formatCitation(citation, lang)}` : `${apology}${text}`,
       shouldHandover: false,
       canAnswerFromDocs: true,
       intent: intent.intent,
       intentSource: intent.source,
       disableAi: false,
-      citation: fromKnowledge ? null : citation,
+      citation: showCitations ? citation : null,
       citedArticles,
       usedArticleIds,
       retrievalConfidence: context.confidence,
@@ -790,6 +810,7 @@ async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<He
     providerConfig,
     articlesOnly: true,
     highConfidence: input.highConfidence,
+    knowledgeScope: input.knowledgeScope,
   });
 
   if (answer.text && answer.article && answer.source !== 'note') {
@@ -901,6 +922,10 @@ interface SupportAgentInput {
   lookup?: Extract<LookupStep, { kind: 'answer' }> | null;
   /** Jev, when the platform has it on: checks the reply against its cited article. */
   jev?: JevRuntime | null;
+  /** Per-agent collection & Bot knowledge visibility boundary. */
+  knowledgeScope?: Partial<AgentKnowledgeScope> | null;
+  /** Per-agent Standard/Advanced RAG retrieval parameters. */
+  ragConfig?: Partial<AgentRagConfig> | null;
 }
 
 /** "[ARTICLE n]" block n of the full-knowledge text (loadFullKnowledge), or ''. */
@@ -995,6 +1020,7 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
   let knowledge = await loadFullKnowledge(workspaceId, {
     helpCenterUrl: input.helpCenterUrl,
     priorityMatch: specialist.articleMatch,
+    knowledgeScope: input.knowledgeScope,
   }).catch((err) => {
     console.warn('[Agent mode] Could not load the help center:', (err as Error)?.message);
     return null;
@@ -1005,13 +1031,19 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
     try {
       const context = await buildModelContext(workspaceId, incomingMessage, {
         turns: input.conversationMessages.slice(-6),
-        limit: 8,
+        limit: input.ragConfig?.topK ?? 8,
         providerConfig: input.providerConfig,
         helpCenterUrl: input.helpCenterUrl,
         articlesOnly: true,
+        knowledgeScope: input.knowledgeScope,
+        minScore: input.ragConfig?.minScore,
       });
       const priorityIds = context.sources.map((s) => (s.kind === 'knowledge' ? `knowledge:${s.id}` : s.id));
-      knowledge = await loadFullKnowledge(workspaceId, { helpCenterUrl: input.helpCenterUrl, priorityIds });
+      knowledge = await loadFullKnowledge(workspaceId, {
+        helpCenterUrl: input.helpCenterUrl,
+        priorityIds,
+        knowledgeScope: input.knowledgeScope,
+      });
     } catch (err) {
       console.warn('[Agent mode] Prioritising articles failed:', (err as Error)?.message);
     }
@@ -1179,15 +1211,16 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
       : null);
   const source = effectiveSourceIndex ? knowledge.sources[effectiveSourceIndex - 1] ?? null : null;
   const citation = source && source.kind !== 'knowledge' ? source : null;
+  const showCitations = Boolean(citation && input.ragConfig?.citations !== false);
   const articleIds = source && source.kind !== 'knowledge' ? [source.id] : [];
   const base: HelpDeskResponseResult = {
-    replyText: citation ? `${parsed.text}\n\n${formatCitation(citation, lang)}` : parsed.text,
+    replyText: showCitations && citation ? `${parsed.text}\n\n${formatCitation(citation, lang)}` : parsed.text,
     shouldHandover: false,
     canAnswerFromDocs: Boolean(source),
     intent: intent.intent,
     intentSource: intent.source,
     disableAi: false,
-    citation,
+    citation: showCitations ? citation : null,
     citedArticles: citation ? [{ id: citation.id, title: citation.title }] : [],
     usedArticleIds: articleIds,
     retrievalConfidence: source ? 'high' : 'medium',
@@ -1297,6 +1330,8 @@ async function respondToVisitor({
   answerMode = 'strict',
   subAgents = null,
   handoffOnFrustration = true,
+  knowledgeScope = null,
+  ragConfig = null,
 }: {
   workspaceId: string;
   conversationId: string;
@@ -1326,6 +1361,10 @@ async function respondToVisitor({
   subAgents?: SubAgentSettings | null;
   /** Agent Builder escalation rule: hand over immediately on frustration/anger. */
   handoffOnFrustration?: boolean;
+  /** Per-agent collection & Bot knowledge visibility boundary. */
+  knowledgeScope?: Partial<AgentKnowledgeScope> | null;
+  /** Per-agent Standard/Advanced RAG retrieval parameters. */
+  ragConfig?: Partial<AgentRagConfig> | null;
 }): Promise<HelpDeskResponseResult> {
   const brand = workspaceName?.trim() || 'our team';
   // The screenshot note (vision.ts) is English; the reply follows the visitor's own words.
@@ -1614,6 +1653,8 @@ async function respondToVisitor({
         subAgentInstructions: subAgents?.[lookup.subAgent]?.instructions ?? null,
         lookup,
         jev,
+        knowledgeScope,
+        ragConfig,
       });
       if (reply) return { ...reply, subAgent: lookup.subAgent };
       // After a code the visitor's message is only digits: the strict path
@@ -1706,6 +1747,8 @@ async function respondToVisitor({
         subAgent: route.agent,
         subAgentInstructions: subAgents?.[route.agent]?.instructions ?? null,
         jev,
+        knowledgeScope,
+        ragConfig,
       });
       if (reply) return { ...reply, subAgent: route.agent };
     }
@@ -1806,6 +1849,8 @@ async function respondToVisitor({
         humanContext,
         jev,
         countReply: !agentModeCountedReply,
+        knowledgeScope,
+        ragConfig,
       });
   }
 }

@@ -6,16 +6,30 @@ import { assertSettingNotLocked } from '@/lib/settings/precedence';
 import { userError, errorMessage } from '@/lib/errors/user-error';
 import {
   DEFAULT_AGENT_APPEARANCE,
+  DEFAULT_AGENT_ENGINE_CONFIG,
+  DEFAULT_AGENT_MODEL_CONFIG,
+  DEFAULT_AGENT_ROUTING_RULES,
   DEFAULT_ESCALATION_RULES,
   DEFAULT_KNOWLEDGE_SCOPE,
+  DEFAULT_AGENT_RAG_CONFIG,
   getAgentTemplate,
+  isRestrictedKnowledgeScope,
+  normalizeAgentRagConfig,
+  normalizeEngineType,
+  normalizeKnowledgeScope,
   slugifyAgentName,
   type AgentAnswerMode,
   type AgentAppearance,
   type AgentCapabilities,
+  type AgentEngineConfig,
+  type AgentEngineType,
   type AgentEscalationRules,
   type AgentKnowledgeScope,
+  type AgentModelConfig,
+  type AgentRagConfig,
+  type AgentRagMode,
   type AgentReplyLanguageMode,
+  type AgentRoutingRules,
   type AgentStatus,
 } from '@/lib/ai/agent-templates';
 import {
@@ -29,8 +43,12 @@ import {
   type VerificationClaim,
 } from '@/lib/ai/agent-runtime';
 import { buildSupportAgentPrompt } from '@/lib/ai/support-agent';
-import { buildIndex, search } from '@/lib/ai/retrieval';
-import { freshKnowledgeIndex } from '@/lib/ai/help-answer';
+import { buildModelContext, loadFullKnowledge } from '@/lib/ai/help-answer';
+import {
+  getArticleSectionNames,
+  getAutonomyPoliciesForAgent,
+  resolveAutonomyDecision,
+} from '@/lib/ai/trust-ladder';
 import { detectLanguage, getLanguageInfo, isRomanizedText, translateAgentReply } from '@/lib/ai/translator';
 
 export interface AiAgentListItem extends AiAgentRow {
@@ -514,6 +532,11 @@ export async function getAgentBuilderAction(
         subAgentId: null,
       },
       appearance: { ...DEFAULT_AGENT_APPEARANCE },
+      engine_type: 'builtin',
+      engine_config: { ...DEFAULT_AGENT_ENGINE_CONFIG },
+      rag_config: { ...DEFAULT_AGENT_RAG_CONFIG },
+      model_config: { ...DEFAULT_AGENT_MODEL_CONFIG },
+      routing_rules: { ...DEFAULT_AGENT_ROUTING_RULES },
       published_version: 0,
       draft_version: 1,
       published_at: null,
@@ -596,6 +619,11 @@ export interface SaveAgentDraftInput {
   knowledgeScope: AgentKnowledgeScope;
   capabilities: AgentCapabilities;
   appearance: AgentAppearance;
+  engineType?: AgentEngineType;
+  engineConfig?: AgentEngineConfig;
+  ragConfig?: Partial<AgentRagConfig>;
+  modelConfig?: AgentModelConfig;
+  routingRules?: AgentRoutingRules;
   isPrimary?: boolean;
   publishNow?: boolean;
   versionSummary?: string;
@@ -615,6 +643,7 @@ export async function saveAgentDraftAction(
 
     const cleanChannels = (input.channels || []).filter(Boolean);
     const guardrails = (input.guardrails || []).map((g) => g.trim()).filter(Boolean).slice(0, 20);
+    const normalizedScope = normalizeKnowledgeScope(input.knowledgeScope || DEFAULT_KNOWLEDGE_SCOPE);
     const isUpdate = Boolean(input.id && input.id !== 'new');
     const publishNow = Boolean(input.publishNow);
 
@@ -627,10 +656,19 @@ export async function saveAgentDraftAction(
       );
       if (!existing[0]) return { success: false, error: 'Agent not found.' };
 
-      const prevDraftVer = Number(existing[0].draft_version ?? 1);
-      const prevPubVer = Number(existing[0].published_version ?? 0);
+      const prevRow = existing[0];
+      const prevDraftVer = Number(prevRow.draft_version ?? 1);
+      const prevPubVer = Number(prevRow.published_version ?? 0);
       const nextDraftVer = prevDraftVer + 1;
       const nextPubVer = publishNow ? Math.max(prevPubVer + 1, nextDraftVer) : prevPubVer;
+
+      const nextEngineType = normalizeEngineType(input.engineType ?? prevRow.engine_type);
+      const nextEngineConfig = input.engineConfig ?? prevRow.engine_config ?? DEFAULT_AGENT_ENGINE_CONFIG;
+      const nextRagConfig = normalizeAgentRagConfig(
+        input.ragConfig ?? (prevRow.rag_config as Partial<AgentRagConfig> | undefined),
+      );
+      const nextModelConfig = input.modelConfig ?? prevRow.model_config ?? DEFAULT_AGENT_MODEL_CONFIG;
+      const nextRoutingRules = input.routingRules ?? prevRow.routing_rules ?? DEFAULT_AGENT_ROUTING_RULES;
 
       const updated = await queryRows<Record<string, unknown>>(
         `UPDATE public.ai_agents
@@ -653,6 +691,11 @@ export async function saveAgentDraftAction(
              published_version = $19,
              published_at = CASE WHEN $16 THEN now() ELSE published_at END,
              updated_by = $20,
+             engine_type = $21,
+             engine_config = $22::jsonb,
+             rag_config = $23::jsonb,
+             model_config = $24::jsonb,
+             routing_rules = $25::jsonb,
              updated_at = now()
          WHERE id = $1 AND workspace_id = $2
          RETURNING *`,
@@ -670,13 +713,18 @@ export async function saveAgentDraftAction(
           (input.systemPrompt || '').trim().slice(0, 8000),
           guardrails,
           JSON.stringify(input.escalationRules || DEFAULT_ESCALATION_RULES),
-          JSON.stringify(input.knowledgeScope || DEFAULT_KNOWLEDGE_SCOPE),
+          JSON.stringify(normalizedScope),
           JSON.stringify(input.capabilities || { actions: [], frameworks: [], subAgentId: null }),
           publishNow,
           JSON.stringify(input.appearance || DEFAULT_AGENT_APPEARANCE),
           nextDraftVer,
           nextPubVer,
           user.id,
+          nextEngineType,
+          JSON.stringify(nextEngineConfig),
+          JSON.stringify(nextRagConfig),
+          JSON.stringify(nextModelConfig),
+          JSON.stringify(nextRoutingRules),
         ],
       );
       savedRow = updated[0];
@@ -693,14 +741,21 @@ export async function saveAgentDraftAction(
         slug = `${baseSlug}-${suffix++}`;
       }
 
+      const nextEngineType = normalizeEngineType(input.engineType);
+      const nextEngineConfig = input.engineConfig ?? DEFAULT_AGENT_ENGINE_CONFIG;
+      const nextRagConfig = normalizeAgentRagConfig(input.ragConfig);
+      const nextModelConfig = input.modelConfig ?? DEFAULT_AGENT_MODEL_CONFIG;
+      const nextRoutingRules = input.routingRules ?? DEFAULT_AGENT_ROUTING_RULES;
+
       const inserted = await queryRows<Record<string, unknown>>(
         `INSERT INTO public.ai_agents (
            workspace_id, slug, name, role_title, description, template_id, industry,
            status, is_primary, channels, tone, reply_language_mode, answer_mode,
            system_prompt, guardrails, escalation_rules, knowledge_scope, capabilities,
-           appearance, published_version, draft_version, published_at, created_by, updated_by
+           appearance, published_version, draft_version, published_at, created_by, updated_by,
+           engine_type, engine_config, rag_config, model_config, routing_rules
          )
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18::jsonb,$19::jsonb,$20,1,$21,$22,$22)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb,$17::jsonb,$18::jsonb,$19::jsonb,$20,1,$21,$22,$22,$23,$24::jsonb,$25::jsonb,$26::jsonb,$27::jsonb)
          RETURNING *`,
         [
           workspaceId,
@@ -719,12 +774,17 @@ export async function saveAgentDraftAction(
           (input.systemPrompt || '').trim().slice(0, 8000),
           guardrails,
           JSON.stringify(input.escalationRules || DEFAULT_ESCALATION_RULES),
-          JSON.stringify(input.knowledgeScope || DEFAULT_KNOWLEDGE_SCOPE),
+          JSON.stringify(normalizedScope),
           JSON.stringify(input.capabilities || { actions: [], frameworks: [], subAgentId: null }),
           JSON.stringify(input.appearance || DEFAULT_AGENT_APPEARANCE),
           publishNow ? 1 : 0,
           publishNow ? new Date().toISOString() : null,
           user.id,
+          nextEngineType,
+          JSON.stringify(nextEngineConfig),
+          JSON.stringify(nextRagConfig),
+          JSON.stringify(nextModelConfig),
+          JSON.stringify(nextRoutingRules),
         ],
       );
       savedRow = inserted[0];
@@ -801,6 +861,11 @@ export async function restoreAgentVersionAction(
       knowledgeScope: snap.knowledge_scope,
       capabilities: snap.capabilities,
       appearance: snap.appearance,
+      engineType: snap.engine_type,
+      engineConfig: snap.engine_config,
+      ragConfig: snap.rag_config,
+      modelConfig: snap.model_config,
+      routingRules: snap.routing_rules,
       versionSummary: `Restored from v${ver.version_number} by ${currentMember?.name || user.id}`,
     });
     return nextRes;
@@ -837,6 +902,11 @@ export async function createAgentFromTemplateAction(
       subAgentId: null,
     },
     appearance: { ...DEFAULT_AGENT_APPEARANCE },
+    engineType: 'builtin',
+    engineConfig: { ...DEFAULT_AGENT_ENGINE_CONFIG },
+    ragConfig: { ...DEFAULT_AGENT_RAG_CONFIG },
+    modelConfig: { ...DEFAULT_AGENT_MODEL_CONFIG },
+    routingRules: { ...DEFAULT_AGENT_ROUTING_RULES },
     versionSummary: `Created from template "${tpl.name}"`,
   });
 }
@@ -900,6 +970,10 @@ export interface PlaygroundResult {
   detectedLanguage: string;
   usingModel: boolean;
   latencyMs: number;
+  ragMode?: AgentRagMode;
+  retrievalMethod?: 'semantic_rag' | 'keyword_fallback' | 'none';
+  verificationVerdict?: 'supported' | 'blocked_fixed' | 'blocked_human' | 'needs_review';
+  topic?: string;
 }
 
 export async function runAgentPlaygroundAction(
@@ -913,6 +987,10 @@ export async function runAgentPlaygroundAction(
     guardrails: string[];
     escalationRules: AgentEscalationRules;
     knowledgeScope: AgentKnowledgeScope;
+    answerMode?: AgentAnswerMode;
+    replyLanguageMode?: AgentReplyLanguageMode;
+    ragConfig?: Partial<AgentRagConfig>;
+    engineType?: AgentEngineType;
     message: string;
     persona: 'standard' | 'vip' | 'upset' | 'non_english';
     language: 'auto' | 'en' | 'ur' | 'roman_ur' | 'hi' | 'ar' | 'es';
@@ -938,6 +1016,12 @@ export async function runAgentPlaygroundAction(
     );
     const ws = wsRows[0];
     const wsName = ws?.name || 'Workspace';
+    const helpCenterUrl =
+      ws?.custom_domain && ws?.custom_domain_status === 'active'
+        ? `https://${ws.custom_domain}`
+        : ws?.slug
+          ? `/help/${ws.slug}`
+          : null;
 
     if (input.simulateHandoff) {
       const reason = 'Simulated escalation triggered in Playground';
@@ -953,6 +1037,10 @@ export async function runAgentPlaygroundAction(
           detectedLanguage: 'English',
           usingModel: false,
           latencyMs: Date.now() - started,
+          ragMode: normalizeAgentRagConfig(input.ragConfig).mode,
+          retrievalMethod: 'none',
+          verificationVerdict: 'blocked_human',
+          topic: 'General inquiries',
         },
       };
     }
@@ -978,37 +1066,90 @@ export async function runAgentPlaygroundAction(
           detectedLanguage: 'English',
           usingModel: false,
           latencyMs: Date.now() - started,
+          ragMode: normalizeAgentRagConfig(input.ragConfig).mode,
+          retrievalMethod: 'none',
+          verificationVerdict: 'blocked_human',
+          topic: 'General inquiries',
         },
       };
     }
 
-    // Load real workspace knowledge index scoped by sections/bot_knowledge settings
-    const fullIndex = await freshKnowledgeIndex(workspaceId);
-    const allArticles = fullIndex.docs.map((d) => d.article);
-    let scopedArticles = allArticles.filter((a) => {
-      if (a.id.startsWith('knowledge:')) {
-        return input.knowledgeScope.includeBotKnowledge;
-      }
-      if (!input.knowledgeScope.allArticles && input.knowledgeScope.sectionIds.length > 0) {
-        return Boolean(a.section_id && input.knowledgeScope.sectionIds.includes(a.section_id));
-      }
-      return true;
+    const hasSavedAgent = Boolean(input.agentId && input.agentId !== 'new');
+    const [savedAgentRows, autonomyPolicies] = hasSavedAgent
+      ? await Promise.all([
+          queryRows<{
+            industry?: string | null;
+            answer_mode?: AgentAnswerMode | null;
+            reply_language_mode?: AgentReplyLanguageMode | null;
+            rag_config?: Partial<AgentRagConfig> | null;
+            engine_type?: AgentEngineType | null;
+          }>(
+            `SELECT industry, answer_mode, reply_language_mode, rag_config, engine_type FROM public.ai_agents WHERE id = $1 AND workspace_id = $2 LIMIT 1`,
+            [input.agentId, workspaceId],
+          ).catch(() => []),
+          getAutonomyPoliciesForAgent(workspaceId, input.agentId!).catch(() => []),
+        ])
+      : [[], []];
+    const savedAgent = savedAgentRows[0];
+
+    const resolvedIndustry = input.industry || savedAgent?.industry || ws?.industry || 'generic';
+    const effectiveAnswerMode: AgentAnswerMode =
+      input.answerMode ?? (savedAgent?.answer_mode === 'strict' ? 'strict' : 'agent');
+    const effectiveReplyLanguageMode: AgentReplyLanguageMode =
+      input.replyLanguageMode ??
+      (savedAgent?.reply_language_mode === 'native_script' ||
+      savedAgent?.reply_language_mode === 'english_only'
+        ? savedAgent.reply_language_mode
+        : 'match_customer');
+    const effectiveRagConfig = normalizeAgentRagConfig(input.ragConfig ?? savedAgent?.rag_config);
+    const normalizedScope = normalizeKnowledgeScope(input.knowledgeScope);
+
+    // Run live Semantic RAG (with keyword fallback) strictly scoped by the agent's collections & Bot Knowledge toggle.
+    const retrieved = await buildModelContext(workspaceId, userMessage, {
+      history: (input.history || []).map((h) => h.content),
+      turns: input.history || [],
+      limit: effectiveRagConfig.topK,
+      helpCenterUrl,
+      articlesOnly: true,
+      knowledgeScope: normalizedScope,
+      minScore: effectiveRagConfig.minScore,
     });
-    if (scopedArticles.length === 0) scopedArticles = allArticles;
 
-    const customIndex = buildIndex(scopedArticles);
-    const hits = search(customIndex, userMessage, { limit: 5 });
+    const priorityIds = retrieved.sources.map((s) =>
+      s.kind === 'knowledge' ? `knowledge:${s.id}` : s.id,
+    );
+    const fullKnowledge =
+      effectiveAnswerMode === 'agent'
+        ? await loadFullKnowledge(workspaceId, {
+            helpCenterUrl,
+            priorityIds,
+            knowledgeScope: normalizedScope,
+            maxChars: 24_000,
+          }).catch(() => null)
+        : null;
 
-    const citedArticles = hits.slice(0, 3).map((h) => ({
-      id: h.article.id,
-      title: h.article.title,
-      slug: h.article.slug ?? null,
-    }));
+    const retrievalMethod: PlaygroundResult['retrievalMethod'] =
+      retrieved.chunks && retrieved.chunks.length > 0
+        ? 'semantic_rag'
+        : retrieved.sources.length > 0
+          ? 'keyword_fallback'
+          : 'none';
 
-    const knowledgeBlock = scopedArticles
-      .slice(0, 18)
-      .map((a, idx) => `[ARTICLE ${idx + 1}: ${a.title}]\n${a.content.slice(0, 1600)}`)
-      .join('\n\n---\n\n');
+    const citedArticles = effectiveRagConfig.citations
+      ? retrieved.sources
+          .filter((s) => s.kind !== 'knowledge')
+          .slice(0, 3)
+          .map((s) => ({
+            id: s.id,
+            title: s.title,
+            slug: s.slug ?? null,
+          }))
+      : [];
+
+    const knowledgeBlock =
+      effectiveAnswerMode === 'agent'
+        ? fullKnowledge?.text || retrieved.text
+        : retrieved.text;
 
     const detected = detectLanguage(userMessage);
     const isRoman = isRomanizedText(detected.code, userMessage);
@@ -1017,21 +1158,27 @@ export async function runAgentPlaygroundAction(
       : getLanguageInfo(detected.code).name;
 
     const targetLang =
-      input.language === 'auto'
-        ? detected.code === 'ur' && isRoman
-          ? 'roman_ur'
-          : detected.code === 'ur'
-            ? 'ur'
-            : 'en'
-        : input.language === 'roman_ur'
+      input.language !== 'auto'
+        ? input.language === 'roman_ur'
           ? 'roman_ur'
           : input.language === 'ur'
             ? 'ur'
-            : 'en';
+            : 'en'
+        : effectiveReplyLanguageMode === 'english_only'
+          ? 'en'
+          : detected.code === 'ur' && isRoman
+            ? effectiveReplyLanguageMode === 'native_script'
+              ? 'ur'
+              : 'roman_ur'
+            : detected.code === 'ur'
+              ? 'ur'
+              : 'en';
 
     const customInstructions = [
       input.systemPrompt.trim(),
       `Tone: ${input.tone}`,
+      `Answer mode: ${effectiveAnswerMode === 'strict' ? 'strict (answer only from retrieved chunks)' : 'agent (synthesize across permitted Help Center articles)'}`,
+      !effectiveRagConfig.citations ? 'Do not include source citation links or footers.' : '',
       input.persona === 'vip' ? 'Test persona context: VIP high-lifetime-value customer.' : '',
       input.persona === 'upset' ? 'Test persona context: Customer appears frustrated; lead with empathy.' : '',
       input.guardrails.length
@@ -1041,21 +1188,11 @@ export async function runAgentPlaygroundAction(
       .filter(Boolean)
       .join('\n\n');
 
-    let agentIndustry: string | null = null;
-    if (!input.industry && input.agentId && input.agentId !== 'new') {
-      const agentRows = await queryRows<{ industry: string | null }>(
-        `SELECT industry FROM public.ai_agents WHERE id = $1 AND workspace_id = $2 LIMIT 1`,
-        [input.agentId, workspaceId],
-      );
-      agentIndustry = agentRows[0]?.industry ?? null;
-    }
-    const resolvedIndustry = input.industry || agentIndustry || ws?.industry || 'generic';
-
     const prompt = buildSupportAgentPrompt({
       botName: input.agentName || 'AI Assistant',
       businessName: wsName,
       industry: resolvedIndustry,
-      knowledge: knowledgeBlock || 'No published articles exist in this workspace yet.',
+      knowledge: knowledgeBlock || 'No published articles exist in this agent\'s Knowledge Scope yet.',
       lang: targetLang,
       customInstructions,
       situation: input.persona === 'upset' ? ['Customer is frustrated in simulation.'] : undefined,
@@ -1078,17 +1215,28 @@ export async function runAgentPlaygroundAction(
 
     if (!replyText) {
       usingModel = false;
-      if (hits.length > 0 && hits[0].score > 0.35) {
-        const snippet = hits[0].article.content.replace(/\s+/g, ' ').trim().slice(0, 360);
-        replyText = `${snippet}${hits[0].article.content.length > 360 ? '…' : ''}`;
+      if (!retrieved.belowThreshold && retrieved.text && retrieved.sources.length > 0) {
+        const firstChunk = retrieved.text.split('\n\n---\n\n')[0] || retrieved.text;
+        const cleaned = firstChunk
+          .replace(/^\[CHUNK \d+\][\r\n]+(?:Article:[^\r\n]*[\r\n]+)?(?:Section:[^\r\n]*[\r\n]+)?/i, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+        const snippet = cleaned.slice(0, 360);
+        replyText = `${snippet}${cleaned.length > 360 ? '…' : ''}`;
       } else {
         handoffTriggered = true;
+        const hasAnyScopedDocs =
+          Boolean(fullKnowledge?.sources.length) || retrieved.sources.length > 0;
+        const restricted = isRestrictedKnowledgeScope(normalizedScope);
         handoffReason =
-          'No configured AI provider API key or matching Help Center article found for this test query.';
-        replyText =
-          scopedArticles.length === 0
-            ? 'Your workspace does not have any published Knowledge Base articles yet. Add articles in Knowledge Base or configure an AI provider key in Settings.'
-            : 'I could not find a verified match for this question in your published Knowledge Base, so I would hand this over to a team specialist.';
+          !hasAnyScopedDocs && restricted
+            ? "No published articles or Bot knowledge exist within this agent's Knowledge Scope."
+            : 'No configured AI provider API key or matching Help Center article found for this test query.';
+        replyText = !hasAnyScopedDocs
+          ? restricted
+            ? "No published articles or Bot knowledge match this agent's current Knowledge Scope."
+            : 'Your workspace does not have any published Knowledge Base articles yet. Add articles in Knowledge Base or configure an AI provider key in Settings.'
+          : 'I could not find a verified match for this question in your published Knowledge Base, so I would hand this over to a team specialist.';
       }
     } else if (/\[HANDOVER(?::\s*([^\]]*))?\]/i.test(replyText)) {
       const m = replyText.match(/\[HANDOVER(?::\s*([^\]]*))?\]/i);
@@ -1114,27 +1262,50 @@ export async function runAgentPlaygroundAction(
       if (translated?.translatedText) replyText = translated.translatedText;
     }
 
+    const citedIds = (citedArticles.length ? citedArticles : retrieved.sources.filter((s) => s.kind !== 'knowledge'))
+      .map((s) => s.id);
+    const citedSectionNames = citedIds.length
+      ? await getArticleSectionNames(workspaceId, citedIds).catch(() => [])
+      : [];
+    const autonomy = resolveAutonomyDecision({
+      policies: autonomyPolicies,
+      message: userMessage,
+      citedSectionNames,
+    });
+
     const verification = await verifyReplyClaimsAgainstKnowledge(
       workspaceId,
       replyText,
-      citedArticles[0]?.title ?? null,
+      citedArticles[0]?.title ?? retrieved.sources[0]?.title ?? null,
+      {
+        customerQuestion: userMessage,
+        knowledgeScope: normalizedScope,
+      },
     );
 
-    const topScore = hits[0]?.score ?? 0;
-    const confidencePct = Math.min(99, Math.max(35, Math.round((usingModel ? 0.58 : 0.4) * 100 + Math.min(topScore, 1) * 40)));
+    const topChunk = retrieved.chunks?.[0];
+    const topScore =
+      topChunk?.combined_score ??
+      topChunk?.similarity ??
+      (retrieved.confidence === 'high' ? 0.9 : retrieved.confidence === 'medium' ? 0.65 : 0);
+    const confidencePct = Math.min(
+      99,
+      Math.max(35, Math.round((usingModel ? 0.58 : 0.4) * 100 + Math.min(topScore, 1) * 40)),
+    );
     const latencyMs = Date.now() - started;
+    const verificationVerdict: NonNullable<PlaygroundResult['verificationVerdict']> =
+      handoffTriggered ? 'blocked_human' : verification.verdict;
 
-    // Store dry-run verification log entry for visibility only when requested via explicit Playground test?
-    // Keep verification log clean unless it ran against real docs; tagging metadata.playground = true lets team review dry runs too!
     await recordAiVerificationLog({
       workspaceId,
       agentId: input.agentId && input.agentId !== 'new' ? input.agentId : null,
       agentName: input.agentName || 'AI Assistant',
       channel: 'playground',
+      topic: autonomy.topic,
       customerQuestion: userMessage,
       draftReply: replyText,
       finalReply: replyText,
-      verdict: handoffTriggered ? 'blocked_human' : verification.verdict,
+      verdict: verificationVerdict,
       claims: verification.claims,
       outcomeNote: handoffTriggered
         ? `Playground handoff: ${handoffReason || 'escalation rule'}`
@@ -1143,7 +1314,14 @@ export async function runAgentPlaygroundAction(
           : 'Playground dry-run check',
       confidence: Number((confidencePct / 100).toFixed(2)),
       latencyMs,
-      metadata: { playground: true, persona: input.persona, language: input.language },
+      metadata: {
+        playground: true,
+        persona: input.persona,
+        language: input.language,
+        answerMode: effectiveAnswerMode,
+        ragMode: effectiveRagConfig.mode,
+        retrievalMethod,
+      },
     });
 
     return {
@@ -1158,6 +1336,10 @@ export async function runAgentPlaygroundAction(
         detectedLanguage,
         usingModel,
         latencyMs,
+        ragMode: effectiveRagConfig.mode,
+        retrievalMethod,
+        verificationVerdict,
+        topic: autonomy.topic,
       },
     };
   } catch (err) {

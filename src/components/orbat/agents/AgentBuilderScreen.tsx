@@ -39,6 +39,7 @@ import { useShellSession } from '@/components/orbat/shell/session-context';
 import { timeAgo } from '@/components/orbat/overview/format';
 import {
   getAgentBuilder,
+  normalizeAgentRagConfig,
   restoreAgentVersion,
   runAgentPlayground,
   saveAgentDraft,
@@ -47,6 +48,7 @@ import {
   type AgentCapabilities,
   type AgentEscalationRules,
   type AgentKnowledgeScope,
+  type AgentRagConfig,
   type AgentReplyLanguageMode,
   type PlaygroundResult,
   type PlaygroundTurn,
@@ -153,6 +155,7 @@ function AgentBuilderEditor({
   const [guardrails, setGuardrails] = useState<string[]>(a.guardrails);
   const [newGuardrail, setNewGuardrail] = useState('');
   const [knowledgeScope, setKnowledgeScope] = useState<AgentKnowledgeScope>(a.knowledge_scope);
+  const [ragConfig, setRagConfig] = useState<AgentRagConfig>(() => normalizeAgentRagConfig(a.rag_config));
   const [capabilities, setCapabilities] = useState<AgentCapabilities>(a.capabilities);
   const [newActionInput, setNewActionInput] = useState('');
   const [escalationRules, setEscalationRules] = useState<AgentEscalationRules>(a.escalation_rules);
@@ -195,6 +198,11 @@ function AgentBuilderEditor({
         knowledgeScope,
         capabilities,
         appearance: { badgeLabel, showCitations, welcomeMessage },
+        engineType: a.engine_type,
+        engineConfig: a.engine_config,
+        ragConfig: { ...ragConfig, citations: showCitations },
+        modelConfig: a.model_config,
+        routingRules: a.routing_rules,
         isPrimary: bundleData.agent.is_primary,
         publishNow,
       });
@@ -262,6 +270,10 @@ function AgentBuilderEditor({
         guardrails,
         escalationRules,
         knowledgeScope,
+        answerMode,
+        replyLanguageMode,
+        ragConfig: { ...ragConfig, citations: showCitations },
+        engineType: a.engine_type,
         message: prompt,
         persona,
         language: pgLang,
@@ -695,6 +707,60 @@ function AgentBuilderEditor({
                   markDirty();
                 }}
               />
+
+              <div className="rounded-[12px] border border-o-border bg-o-surface-2 p-3.5 space-y-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[12.5px] font-semibold text-o-text">
+                      Retrieval parameters (Standard RAG)
+                    </div>
+                    <p className="text-[11.5px] text-o-text-3">
+                      Controls how many scoped pgvector chunks are retrieved and the minimum match floor.
+                    </p>
+                  </div>
+                  <Badge tone="neutral">{ragConfig.mode}</Badge>
+                </div>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <Field label="Top-K chunks">
+                    <Select
+                      id="agent-rag-topk"
+                      value={String(ragConfig.topK)}
+                      disabled={!canManage}
+                      onChange={(e) => {
+                        setRagConfig((prev) => ({ ...prev, topK: Number(e.target.value) || 6 }));
+                        markDirty();
+                      }}
+                      options={[
+                        { value: '3', label: '3 chunks (Focused)' },
+                        { value: '5', label: '5 chunks (Concise)' },
+                        { value: '6', label: '6 chunks (Balanced)' },
+                        { value: '8', label: '8 chunks (Broad)' },
+                        { value: '12', label: '12 chunks (Comprehensive)' },
+                      ]}
+                    />
+                  </Field>
+                  <Field label="Min similarity threshold">
+                    <Select
+                      id="agent-rag-minscore"
+                      value={String(ragConfig.minScore)}
+                      disabled={!canManage}
+                      onChange={(e) => {
+                        setRagConfig((prev) => ({
+                          ...prev,
+                          minScore: Number(e.target.value) || 0.25,
+                        }));
+                        markDirty();
+                      }}
+                      options={[
+                        { value: '0.25', label: '0.25 (Default recall)' },
+                        { value: '0.35', label: '0.35 (Moderate)' },
+                        { value: '0.45', label: '0.45 (Strict)' },
+                        { value: '0.55', label: '0.55 (High precision)' },
+                      ]}
+                    />
+                  </Field>
+                </div>
+              </div>
             </div>
           ) : null}
 
@@ -1067,6 +1133,34 @@ function AgentBuilderEditor({
                           {art.title}
                         </Badge>
                       ))}
+                    </div>
+                  ) : null}
+
+                  {entry.meta?.retrievalMethod || entry.meta?.topic || entry.meta?.verificationVerdict ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10.5px] text-o-text-3">
+                      {entry.meta.retrievalMethod ? (
+                        <Badge tone="neutral">
+                          {entry.meta.retrievalMethod === 'semantic_rag'
+                            ? `Semantic RAG (${entry.meta.ragMode || 'standard'})`
+                            : entry.meta.retrievalMethod === 'keyword_fallback'
+                              ? 'Keyword fallback'
+                              : 'No doc match'}
+                        </Badge>
+                      ) : null}
+                      {entry.meta.topic ? <Badge tone="neutral">{entry.meta.topic}</Badge> : null}
+                      {entry.meta.verificationVerdict ? (
+                        <Badge
+                          tone={
+                            entry.meta.verificationVerdict === 'supported'
+                              ? 'ok'
+                              : entry.meta.verificationVerdict === 'blocked_human'
+                                ? 'bad'
+                                : 'warn'
+                          }
+                        >
+                          {entry.meta.verificationVerdict.replace('_', ' ')}
+                        </Badge>
+                      ) : null}
                     </div>
                   ) : null}
                 </div>

@@ -7,6 +7,36 @@
 export type AgentStatus = 'live' | 'draft' | 'paused';
 export type AgentReplyLanguageMode = 'match_customer' | 'native_script' | 'english_only';
 export type AgentAnswerMode = 'agent' | 'strict';
+export type AgentEngineType = 'builtin' | 'langgraph' | 'adk' | 'hybrid';
+export type AgentRagMode = 'standard' | 'advanced';
+
+export interface AgentEngineConfig {
+  fallbackEngine?: AgentEngineType | null;
+  maxSteps?: number;
+  enableMemory?: boolean;
+  workflowKey?: string | null;
+}
+
+export interface AgentRagConfig {
+  mode: AgentRagMode;
+  topK: number;
+  rerank: boolean;
+  minScore: number;
+  citations: boolean;
+}
+
+export interface AgentModelConfig {
+  provider?: string | null;
+  model?: string | null;
+  temperature?: number;
+}
+
+export interface AgentRoutingRules {
+  intents?: string[];
+  keywords?: string[];
+  channels?: string[];
+  priority?: number;
+}
 
 export interface AgentEscalationRules {
   confidenceThreshold: number;
@@ -98,6 +128,100 @@ export const DEFAULT_AGENT_APPEARANCE: AgentAppearance = {
   showCitations: true,
   welcomeMessage: '',
 };
+
+export const DEFAULT_AGENT_ENGINE_CONFIG: AgentEngineConfig = {
+  fallbackEngine: 'builtin',
+  maxSteps: 6,
+  enableMemory: true,
+  workflowKey: null,
+};
+
+export const DEFAULT_AGENT_RAG_CONFIG: AgentRagConfig = {
+  mode: 'standard',
+  topK: 6,
+  rerank: false,
+  minScore: 0.25,
+  citations: true,
+};
+
+export const DEFAULT_AGENT_MODEL_CONFIG: AgentModelConfig = {
+  provider: null,
+  model: null,
+  temperature: 0.3,
+};
+
+export const DEFAULT_AGENT_ROUTING_RULES: AgentRoutingRules = {
+  intents: [],
+  keywords: [],
+  channels: [],
+  priority: 0,
+};
+
+/** Normalizes an engine_type DB or form value into one of the supported runtime engines. */
+export function normalizeEngineType(raw: unknown): AgentEngineType {
+  const val = String(raw || '').toLowerCase();
+  if (val === 'langgraph' || val === 'adk' || val === 'hybrid') return val;
+  return 'builtin';
+}
+
+/** Normalizes partial agent knowledge scope settings into canonical booleans and section IDs. */
+export function normalizeKnowledgeScope(
+  scope?: Partial<AgentKnowledgeScope> | null,
+): AgentKnowledgeScope {
+  return {
+    allArticles: scope?.allArticles !== false,
+    sectionIds: Array.isArray(scope?.sectionIds)
+      ? Array.from(new Set(scope.sectionIds.map(String).filter(Boolean)))
+      : [],
+    includeBotKnowledge: scope?.includeBotKnowledge !== false,
+  };
+}
+
+/** Normalizes partial RAG config with safe bounds for topK and similarity threshold. */
+export function normalizeAgentRagConfig(cfg?: Partial<AgentRagConfig> | null): AgentRagConfig {
+  const rawTopK = Number(cfg?.topK);
+  const topK = Number.isFinite(rawTopK) ? Math.min(20, Math.max(1, Math.round(rawTopK))) : 6;
+  const rawMinScore = Number(cfg?.minScore);
+  const minScore = Number.isFinite(rawMinScore) ? Math.min(0.95, Math.max(0, rawMinScore)) : 0.25;
+  return {
+    mode: cfg?.mode === 'advanced' ? 'advanced' : 'standard',
+    topK,
+    rerank: Boolean(cfg?.rerank),
+    minScore,
+    citations: cfg?.citations !== false,
+  };
+}
+
+/**
+ * True when an agent restricts article sections or excludes Bot knowledge,
+ * so workspace-wide answer caches and unfiltered indexes must not leak cross-collection hits.
+ */
+export function isRestrictedKnowledgeScope(scope?: Partial<AgentKnowledgeScope> | null): boolean {
+  if (!scope) return false;
+  return scope.allArticles === false || scope.includeBotKnowledge === false;
+}
+
+/**
+ * Checks whether a single retrievable document belongs to the agent's allowed knowledge scope.
+ * Notes are governed separately by `articlesOnly` and always pass here.
+ */
+export function matchesKnowledgeScope(
+  doc: { id: string; section_id?: string | null },
+  scope?: Partial<AgentKnowledgeScope> | null,
+): boolean {
+  if (!scope) return true;
+  if (doc.id.startsWith('knowledge:')) {
+    return scope.includeBotKnowledge !== false;
+  }
+  if (doc.id.startsWith('note:')) {
+    return true;
+  }
+  if (scope.allArticles !== false) {
+    return true;
+  }
+  const sectionIds = Array.isArray(scope.sectionIds) ? scope.sectionIds : [];
+  return Boolean(doc.section_id && sectionIds.includes(doc.section_id));
+}
 
 export type AutonomyLevel = 1 | 2 | 3 | 4;
 

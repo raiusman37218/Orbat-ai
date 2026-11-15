@@ -5,6 +5,7 @@ import { getPlatformAiConfigServerOnly } from './platform-gateway';
 import type { RetrievedChunk } from '@/types/database';
 import { userError } from '@/lib/errors/user-error';
 import { searchQueriesFor, understandMessage } from './understanding';
+import { normalizeKnowledgeScope, type AgentKnowledgeScope } from './agent-templates';
 
 /**
  * Semantic retrieval and embedding engine with pgvector.
@@ -794,20 +795,31 @@ export async function hybridSearchWorkspaceChunks({
   queryText,
   queryEmbedding,
   limit = 6,
+  sectionIds = null,
 }: {
   workspaceId: string;
   queryText: string;
   queryEmbedding?: number[] | null;
   limit?: number;
+  /** Optional help_sections filter; null searches all sections, [] short-circuits to no hits. */
+  sectionIds?: string[] | null;
 }): Promise<RetrievedChunk[]> {
-  const supabase = serviceClient();
+  if (Array.isArray(sectionIds) && sectionIds.length === 0) {
+    return [];
+  }
 
-  const { data, error } = await supabase.rpc('fn_hybrid_search_chunks', {
+  const supabase = serviceClient();
+  const rpcArgs: Record<string, unknown> = {
     p_workspace_id: workspaceId,
     p_query_text: queryText,
     p_query_embedding: queryEmbedding || null,
     p_limit: limit,
-  });
+  };
+  if (Array.isArray(sectionIds)) {
+    rpcArgs.p_section_ids = sectionIds;
+  }
+
+  const { data, error } = await supabase.rpc('fn_hybrid_search_chunks', rpcArgs);
 
   if (error) {
     console.warn('[Semantic Retrieval] fn_hybrid_search_chunks RPC failed:', error.message);
@@ -879,6 +891,8 @@ export async function buildSemanticModelContext({
   providerConfig,
   limit = 6,
   messageEmbedding,
+  knowledgeScope,
+  minScore,
 }: {
   workspaceId: string;
   visitorMessage: string;
@@ -888,6 +902,10 @@ export async function buildSemanticModelContext({
   helpCenterUrl?: string | null;
   /** Embedding of `visitorMessage` itself, reused when the query is not rewritten. */
   messageEmbedding?: number[] | null;
+  /** Per-agent collection & Bot knowledge visibility boundaries. */
+  knowledgeScope?: Partial<AgentKnowledgeScope> | null;
+  /** Optional stricter similarity/combined score floor configured on the agent. */
+  minScore?: number;
 }): Promise<{
   text: string;
   used: { id: string; title: string; source: 'article' | 'knowledge' }[];
@@ -898,6 +916,26 @@ export async function buildSemanticModelContext({
   chunks: RetrievedChunk[];
   belowThreshold: boolean;
 }> {
+  const normalizedScope = knowledgeScope ? normalizeKnowledgeScope(knowledgeScope) : null;
+  const searchArticles =
+    !normalizedScope || normalizedScope.allArticles || normalizedScope.sectionIds.length > 0;
+  const articleSectionIds =
+    normalizedScope && !normalizedScope.allArticles ? normalizedScope.sectionIds : null;
+  const includeBotKnowledge = !normalizedScope || normalizedScope.includeBotKnowledge;
+
+  if (!searchArticles && !includeBotKnowledge) {
+    const cleaned = visitorMessage.trim();
+    return {
+      text: '',
+      used: [],
+      rewrittenQuery: cleaned,
+      queries: cleaned ? [cleaned] : [],
+      queryEmbedding: messageEmbedding ?? null,
+      chunks: [],
+      belowThreshold: true,
+    };
+  }
+
   let activeConfig = providerConfig;
   if (!isConfigured(activeConfig)) {
     const platform = await getPlatformAiConfigServerOnly().catch(() => null);
@@ -932,8 +970,18 @@ export async function buildSemanticModelContext({
   const lists = await Promise.all(
     queries.map(async (queryText, i) => {
       const [articleChunks, knowledgeChunks] = await Promise.all([
-        hybridSearchWorkspaceChunks({ workspaceId, queryText, queryEmbedding: embeddings[i], limit }),
-        hybridSearchBotKnowledge({ workspaceId, queryText, queryEmbedding: embeddings[i], limit }),
+        searchArticles
+          ? hybridSearchWorkspaceChunks({
+              workspaceId,
+              queryText,
+              queryEmbedding: embeddings[i],
+              limit,
+              sectionIds: articleSectionIds,
+            })
+          : Promise.resolve([]),
+        includeBotKnowledge
+          ? hybridSearchBotKnowledge({ workspaceId, queryText, queryEmbedding: embeddings[i], limit })
+          : Promise.resolve([]),
       ]);
       return [...articleChunks, ...knowledgeChunks].sort((a, b) => b.combined_score - a.combined_score || b.similarity - a.similarity);
     })
@@ -946,19 +994,25 @@ export async function buildSemanticModelContext({
 
   // 4. Threshold check: if top match is below threshold, refuse to pass unrelated articles
   const topChunk = chunks[0];
-  const isBelowThreshold =
+  const baseBelowThreshold =
     topChunk.similarity < 0.42 && topChunk.keyword_score < 0.20 && topChunk.combined_score < 0.38;
+  const stricterMinScore =
+    typeof minScore === 'number' &&
+    minScore > 0.25 &&
+    Math.max(topChunk.similarity, topChunk.combined_score) < minScore;
+  const isBelowThreshold = baseBelowThreshold || stricterMinScore;
 
   if (isBelowThreshold) {
     return { text: '', used: [], rewrittenQuery, queries, queryEmbedding, chunks: [], belowThreshold: true };
   }
 
-  // 5. Select only top 3-5 chunks above similarity threshold, and cap context at ~1,500 tokens (~6,000 chars)
+  // 5. Select only top chunks above similarity threshold, and cap context at ~9,000 chars
   // Long articles (rule lists) were cut before the part that answered.
   const MAX_KNOWLEDGE_CHARS = 9000;
+  const maxContextChunks = limit > 6 ? Math.min(limit, 12) : 5;
   const eligibleChunks = chunks
     .filter((c, i) => i === 0 || c.similarity >= 0.38 || c.combined_score >= 0.35)
-    .slice(0, 5);
+    .slice(0, maxContextChunks);
 
   const usedMap = new Map<string, { id: string; title: string; source: 'article' | 'knowledge' }>();
   const blocks: string[] = [];

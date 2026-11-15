@@ -2,14 +2,26 @@ import { query, queryRows } from '@/lib/db';
 import { serviceClient } from '@/lib/pg/service';
 import {
   DEFAULT_AGENT_APPEARANCE,
+  DEFAULT_AGENT_ENGINE_CONFIG,
+  DEFAULT_AGENT_MODEL_CONFIG,
+  DEFAULT_AGENT_ROUTING_RULES,
   DEFAULT_ESCALATION_RULES,
+  matchesKnowledgeScope,
+  normalizeAgentRagConfig,
+  normalizeEngineType,
+  normalizeKnowledgeScope,
   slugifyAgentName,
   type AgentAnswerMode,
   type AgentAppearance,
   type AgentCapabilities,
+  type AgentEngineConfig,
+  type AgentEngineType,
   type AgentEscalationRules,
   type AgentKnowledgeScope,
+  type AgentModelConfig,
+  type AgentRagConfig,
   type AgentReplyLanguageMode,
+  type AgentRoutingRules,
   type AgentStatus,
 } from '@/lib/ai/agent-templates';
 import { freshKnowledgeIndex } from '@/lib/ai/help-answer';
@@ -41,6 +53,11 @@ export interface AiAgentRow {
   knowledge_scope: AgentKnowledgeScope;
   capabilities: AgentCapabilities;
   appearance: AgentAppearance;
+  engine_type?: AgentEngineType;
+  engine_config?: AgentEngineConfig;
+  rag_config?: AgentRagConfig;
+  model_config?: AgentModelConfig;
+  routing_rules?: AgentRoutingRules;
   published_version: number;
   draft_version: number;
   published_at: string | null;
@@ -82,6 +99,18 @@ export function normalizeAgentRow(row: Record<string, unknown>): AiAgentRow {
   const app = (row.appearance && typeof row.appearance === 'object'
     ? row.appearance
     : {}) as Partial<AgentAppearance>;
+  const engCfg = (row.engine_config && typeof row.engine_config === 'object'
+    ? row.engine_config
+    : {}) as Partial<AgentEngineConfig>;
+  const ragCfg = (row.rag_config && typeof row.rag_config === 'object'
+    ? row.rag_config
+    : {}) as Partial<AgentRagConfig>;
+  const modelCfg = (row.model_config && typeof row.model_config === 'object'
+    ? row.model_config
+    : {}) as Partial<AgentModelConfig>;
+  const routingCfg = (row.routing_rules && typeof row.routing_rules === 'object'
+    ? row.routing_rules
+    : {}) as Partial<AgentRoutingRules>;
 
   const statusRaw = String(row.status || 'draft');
   const status: AgentStatus = statusRaw === 'live' || statusRaw === 'paused' ? statusRaw : 'draft';
@@ -115,11 +144,7 @@ export function normalizeAgentRow(row: Record<string, unknown>): AiAgentRow {
       blockedTopics: Array.isArray(esc.blockedTopics) ? esc.blockedTopics.map(String) : [],
       handoffGroupId: esc.handoffGroupId ? String(esc.handoffGroupId) : null,
     },
-    knowledge_scope: {
-      allArticles: scope.allArticles !== false,
-      sectionIds: Array.isArray(scope.sectionIds) ? scope.sectionIds.map(String) : [],
-      includeBotKnowledge: scope.includeBotKnowledge !== false,
-    },
+    knowledge_scope: normalizeKnowledgeScope(scope),
     capabilities: {
       actions: Array.isArray(cap.actions) ? cap.actions.map(String) : [],
       frameworks: Array.isArray(cap.frameworks) ? cap.frameworks.map(String) : [],
@@ -129,6 +154,31 @@ export function normalizeAgentRow(row: Record<string, unknown>): AiAgentRow {
       badgeLabel: String(app.badgeLabel || DEFAULT_AGENT_APPEARANCE.badgeLabel),
       showCitations: app.showCitations !== false,
       welcomeMessage: String(app.welcomeMessage || ''),
+    },
+    engine_type: normalizeEngineType(row.engine_type),
+    engine_config: {
+      fallbackEngine: engCfg.fallbackEngine ? normalizeEngineType(engCfg.fallbackEngine) : DEFAULT_AGENT_ENGINE_CONFIG.fallbackEngine,
+      maxSteps: typeof engCfg.maxSteps === 'number' && Number.isFinite(engCfg.maxSteps)
+        ? Math.max(1, Math.min(20, Math.round(engCfg.maxSteps)))
+        : DEFAULT_AGENT_ENGINE_CONFIG.maxSteps,
+      enableMemory: engCfg.enableMemory !== false,
+      workflowKey: engCfg.workflowKey ? String(engCfg.workflowKey) : null,
+    },
+    rag_config: normalizeAgentRagConfig(ragCfg),
+    model_config: {
+      provider: modelCfg.provider ? String(modelCfg.provider) : DEFAULT_AGENT_MODEL_CONFIG.provider,
+      model: modelCfg.model ? String(modelCfg.model) : DEFAULT_AGENT_MODEL_CONFIG.model,
+      temperature: typeof modelCfg.temperature === 'number' && Number.isFinite(modelCfg.temperature)
+        ? Math.max(0, Math.min(1, modelCfg.temperature))
+        : DEFAULT_AGENT_MODEL_CONFIG.temperature,
+    },
+    routing_rules: {
+      intents: Array.isArray(routingCfg.intents) ? routingCfg.intents.map(String) : DEFAULT_AGENT_ROUTING_RULES.intents,
+      keywords: Array.isArray(routingCfg.keywords) ? routingCfg.keywords.map(String) : DEFAULT_AGENT_ROUTING_RULES.keywords,
+      channels: Array.isArray(routingCfg.channels) ? routingCfg.channels.map(String) : DEFAULT_AGENT_ROUTING_RULES.channels,
+      priority: typeof routingCfg.priority === 'number' && Number.isFinite(routingCfg.priority)
+        ? Math.round(routingCfg.priority)
+        : DEFAULT_AGENT_ROUTING_RULES.priority,
     },
     published_version: Number(row.published_version ?? 0),
     draft_version: Number(row.draft_version ?? 1),
@@ -617,14 +667,17 @@ export async function verifyReplyClaimsAgainstKnowledge(
     languageCode?: string | null;
     customerQuestion?: string | null;
     skipLlm?: boolean;
+    knowledgeScope?: Partial<AgentKnowledgeScope> | null;
   },
 ): Promise<ClaimVerificationResult> {
   const index = await freshKnowledgeIndex(workspaceId);
-  const sources = index.docs.map((d) => ({
-    id: d.article.id,
-    title: d.article.title,
-    content: d.article.content,
-  }));
+  const sources = index.docs
+    .filter((d) => matchesKnowledgeScope(d.article, options?.knowledgeScope))
+    .map((d) => ({
+      id: d.article.id,
+      title: d.article.title,
+      content: d.article.content,
+    }));
 
   return verifyClaimsAgainstPassages({
     replyText,

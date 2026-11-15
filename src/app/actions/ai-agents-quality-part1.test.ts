@@ -10,6 +10,9 @@ const mockState = vi.hoisted(() => ({
   savedAgentIndustry: null as string | null,
   sqlCalls: [] as { sql: string; params: unknown[] }[],
   capturedPromptArgs: [] as { industry?: string | null; prompt: string }[],
+  buildModelContextCalls: [] as { question: string; options: Record<string, unknown> }[],
+  loadFullKnowledgeCalls: [] as Record<string, unknown>[],
+  verificationLogs: [] as Record<string, unknown>[],
 }));
 
 const PRIMARY_AGENT_ROW = {
@@ -117,7 +120,9 @@ vi.mock('@/lib/ai/agent-runtime', async (importOriginal) => {
   return {
     ...actual,
     ensurePrimaryAiAgent: vi.fn(async () => AGENT_PRIMARY_ID),
-    recordAiVerificationLog: vi.fn(async () => undefined),
+    recordAiVerificationLog: vi.fn(async (entry: Record<string, unknown>) => {
+      mockState.verificationLogs.push(entry);
+    }),
     syncPrimaryAgentToWorkspaceAiSettings: vi.fn(async () => undefined),
     tryWorkspaceChat: vi.fn(async () => null),
     verifyReplyClaimsAgainstKnowledge: vi.fn(async () => ({ verdict: 'supported', claims: [], confidence: 0.95 })),
@@ -126,20 +131,70 @@ vi.mock('@/lib/ai/agent-runtime', async (importOriginal) => {
 
 vi.mock('@/lib/ai/help-answer', async () => {
   const { buildIndex } = await import('@/lib/ai/retrieval');
+  const { matchesKnowledgeScope } = await import('@/lib/ai/agent-templates');
+  const fixtureArticles = [
+    {
+      id: 'art-1',
+      slug: 'hours',
+      title: 'Support Hours',
+      content: 'Support is open Monday to Friday 9am to 5pm.',
+      section_id: 'sec-1',
+      sectionName: 'General',
+      category: 'General',
+    },
+  ];
   return {
-    freshKnowledgeIndex: vi.fn(async () =>
-      buildIndex([
-        {
-          id: 'art-1',
-          slug: 'hours',
-          title: 'Support Hours',
-          content: 'Support is open Monday to Friday 9am to 5pm.',
-          section_id: 'sec-1',
-          sectionName: 'General',
-          category: 'General',
-        },
-      ]),
-    ),
+    freshKnowledgeIndex: vi.fn(async () => buildIndex(fixtureArticles)),
+    buildModelContext: vi.fn(async (_ws: string, question: string, options: Record<string, unknown> = {}) => {
+      mockState.buildModelContextCalls.push({ question, options });
+      const scope = (options.knowledgeScope ?? null) as Parameters<typeof matchesKnowledgeScope>[1];
+      const allowed = fixtureArticles.filter((a) => matchesKnowledgeScope(a, scope));
+      if (allowed.length === 0) {
+        return {
+          text: '',
+          used: [],
+          belowThreshold: true,
+          confidence: 'low',
+          sources: [],
+          chunks: [],
+        };
+      }
+      return {
+        text: `[CHUNK 1]\nArticle: ${allowed[0].title}\nSection: General\n\n${allowed[0].content}`,
+        used: [{ id: allowed[0].id, title: allowed[0].title, source: 'article' }],
+        belowThreshold: false,
+        confidence: 'high',
+        sources: [{ id: allowed[0].id, title: allowed[0].title, slug: allowed[0].slug, url: null, kind: 'article' }],
+        chunks: [
+          {
+            id: 'chk-1',
+            article_id: allowed[0].id,
+            article_title: allowed[0].title,
+            section_name: 'General',
+            article_slug: allowed[0].slug,
+            chunk_index: 0,
+            content: allowed[0].content,
+            similarity: 0.88,
+            keyword_score: 0.7,
+            combined_score: 0.82,
+            source: 'article',
+          },
+        ],
+      };
+    }),
+    loadFullKnowledge: vi.fn(async (_ws: string, options: Record<string, unknown> = {}) => {
+      mockState.loadFullKnowledgeCalls.push(options);
+      const scope = (options.knowledgeScope ?? null) as Parameters<typeof matchesKnowledgeScope>[1];
+      const allowed = fixtureArticles.filter((a) => matchesKnowledgeScope(a, scope));
+      if (allowed.length === 0) {
+        return { text: '', sources: [], truncated: false };
+      }
+      return {
+        text: allowed.map((a, idx) => `[ARTICLE ${idx + 1}]\nTitle: ${a.title}\n\n${a.content}`).join('\n\n'),
+        sources: allowed.map((a) => ({ id: a.id, title: a.title, slug: a.slug, url: null, kind: 'article' })),
+        truncated: false,
+      };
+    }),
   };
 });
 
@@ -184,6 +239,9 @@ describe('Part 1 server actions: metrics consistency, prop-firm leak prevention,
     mockState.savedAgentIndustry = null;
     mockState.sqlCalls = [];
     mockState.capturedPromptArgs = [];
+    mockState.buildModelContextCalls = [];
+    mockState.loadFullKnowledgeCalls = [];
+    mockState.verificationLogs = [];
   });
 
   it('counts reply_delivered events, preserves activity event names, and excludes playground from median latency', async () => {
@@ -303,5 +361,66 @@ describe('Part 1 server actions: metrics consistency, prop-firm leak prevention,
       expect(q).toBeDefined();
       expect(q?.params).toEqual([WS_ID, AGENT_SPECIALIST_ID, false]);
     }
+  });
+
+  it('syncs Playground with Semantic RAG, strict collection isolation, ragConfig, answerMode, and canonical verification topics', async () => {
+    // 1. Permitted scope routes through buildModelContext + Semantic RAG and records canonical topic
+    const okRes = await runAgentPlaygroundAction(WS_ID, {
+      agentId: AGENT_PRIMARY_ID,
+      agentName: 'Billing Bot',
+      tone: 'clear',
+      systemPrompt: '',
+      guardrails: [],
+      escalationRules: DEFAULT_ESCALATION_RULES,
+      knowledgeScope: { allArticles: false, sectionIds: ['sec-1'], includeBotKnowledge: false },
+      answerMode: 'strict',
+      ragConfig: { mode: 'standard', topK: 4, minScore: 0.35, citations: true },
+      message: 'Where can I check my refund hours?',
+      persona: 'standard',
+      language: 'en',
+    });
+
+    expect(okRes.success).toBe(true);
+    if (!okRes.success) return;
+    expect(okRes.result.retrievalMethod).toBe('semantic_rag');
+    expect(okRes.result.ragMode).toBe('standard');
+    expect(okRes.result.topic).toBe('Billing & refunds');
+    expect(okRes.result.citedArticles.map((c) => c.id)).toEqual(['art-1']);
+    expect(mockState.buildModelContextCalls[0]?.options).toMatchObject({
+      limit: 4,
+      minScore: 0.35,
+      articlesOnly: true,
+      knowledgeScope: { allArticles: false, sectionIds: ['sec-1'], includeBotKnowledge: false },
+    });
+    // Strict mode must not load full workspace knowledge
+    expect(mockState.loadFullKnowledgeCalls).toHaveLength(0);
+    expect(mockState.verificationLogs[0]).toMatchObject({
+      channel: 'playground',
+      topic: 'Billing & refunds',
+    });
+
+    // 2. Empty or unmatched collection must NEVER leak fallback workspace articles
+    mockState.capturedPromptArgs = [];
+    const isolatedRes = await runAgentPlaygroundAction(WS_ID, {
+      agentId: AGENT_PRIMARY_ID,
+      agentName: 'Isolated Bot',
+      tone: 'clear',
+      systemPrompt: '',
+      guardrails: [],
+      escalationRules: DEFAULT_ESCALATION_RULES,
+      knowledgeScope: { allArticles: false, sectionIds: ['sec-empty'], includeBotKnowledge: false },
+      answerMode: 'agent',
+      message: 'What are your support hours?',
+      persona: 'standard',
+      language: 'en',
+    });
+
+    expect(isolatedRes.success).toBe(true);
+    if (!isolatedRes.success) return;
+    expect(isolatedRes.result.handoffTriggered).toBe(true);
+    expect(isolatedRes.result.citedArticles).toEqual([]);
+    expect(isolatedRes.result.retrievalMethod).toBe('none');
+    expect(isolatedRes.result.replyText).not.toContain('Monday to Friday');
+    expect(mockState.capturedPromptArgs[0]?.prompt).not.toContain('Monday to Friday');
   });
 });
