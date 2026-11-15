@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 28 28">
+  <rect width="28" height="28" rx="9" fill="#163300" />
+  <ellipse
+    cx="14"
+    cy="14"
+    rx="9.5"
+    ry="4.2"
+    fill="none"
+    stroke="#9fe870"
+    stroke-width="1.7"
+    transform="rotate(-28 14 14)"
+  />
+  <circle cx="14" cy="14" r="3.2" fill="#9fe870" />
+</svg>
