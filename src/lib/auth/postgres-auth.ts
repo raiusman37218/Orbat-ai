@@ -3,6 +3,7 @@ import crypto from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { query, queryRows } from '@/lib/db';
 import { decryptSecret, encryptSecret, hasEncryptionKey } from '@/lib/channels/crypto';
+import { resolveServerJwtSecret } from '@/lib/auth/session-user';
 
 export interface PgAuthUser {
   id: string;
@@ -630,7 +631,7 @@ export function verifyTotpCode(secret: string, code: string, window = 1, timeMs 
 }
 
 function getTotpFallbackKey(): Buffer {
-  const jwtSecret = (process.env.JWT_SECRET || '').trim();
+  const jwtSecret = resolveServerJwtSecret();
   if (!jwtSecret) {
     throw new Error('Configure CHANNEL_ENCRYPTION_KEY or JWT_SECRET to store 2FA secrets.');
   }

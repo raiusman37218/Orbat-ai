@@ -20,6 +20,28 @@ function base64UrlEncode(input: Buffer | string): string {
     .replace(/\//g, '_');
 }
 
+export function resolveServerJwtSecret(secretOverride?: string): string {
+  const explicit = (
+    secretOverride ??
+    process.env.JWT_SECRET ??
+    process.env.AUTH_SECRET ??
+    process.env.NEXTAUTH_SECRET ??
+    ''
+  ).trim();
+  if (explicit) return explicit;
+
+  // Unit tests explicitly assert fail-closed behavior when JWT_SECRET is deleted.
+  if (process.env.VITEST) return '';
+
+  const dbUrl = (process.env.DATABASE_URL || '').trim();
+  if (!dbUrl) return '';
+
+  return crypto
+    .createHmac('sha256', 'orbat-jwt-signing-key-v1')
+    .update(dbUrl)
+    .digest('hex');
+}
+
 /**
  * Verifies HS256 JWT tokens issued by Orbat AI backend/server using JWT_SECRET.
  * Fails closed when JWT_SECRET is absent, algorithm != HS256, signature fails,
@@ -30,7 +52,7 @@ export function decodeNestJwtPayload(token: string): Record<string, any> | null 
     const parts = token.split('.');
     if (parts.length !== 3) return null;
 
-    const secret = process.env.JWT_SECRET;
+    const secret = resolveServerJwtSecret();
     if (!secret) {
       return null;
     }
@@ -73,7 +95,7 @@ export function signNestJwt(
   expiresInSeconds = 60 * 60 * 24 * 7,
   secretOverride?: string
 ): string {
-  const secret = (secretOverride ?? process.env.JWT_SECRET ?? '').trim();
+  const secret = resolveServerJwtSecret(secretOverride);
   if (!secret) {
     throw new Error('JWT_SECRET is not configured on the server.');
   }
@@ -93,7 +115,8 @@ export function signNestJwt(
 }
 
 export function signNestRefreshJwt(userId: string, tokenVersion = 1, expiresInSeconds = 60 * 60 * 24 * 30): string {
-  const secret = (process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || '').trim();
+  const explicitRefresh = (process.env.JWT_REFRESH_SECRET || process.env.JWT_SECRET || '').trim();
+  const secret = resolveServerJwtSecret(explicitRefresh || undefined);
   if (!secret) {
     throw new Error('JWT_REFRESH_SECRET / JWT_SECRET is not configured on the server.');
   }

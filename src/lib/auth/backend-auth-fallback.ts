@@ -160,6 +160,54 @@ async function loadAgentById(agentId: string): Promise<AgentRecord | null> {
   return rows[0] || null;
 }
 
+async function ensureAgentWorkspace(
+  agent: AgentRecord,
+  preferredWorkspaceName?: string,
+): Promise<AgentRecord> {
+  if (agent.workspace_id && agent.workspace_name) {
+    return agent;
+  }
+  if (agent.workspace_id) {
+    const wsRows = await queryRows<{ id: string; name: string; brand_color: string | null }>(
+      'SELECT id, name, brand_color FROM public.workspaces WHERE id = $1 AND deleted_at IS NULL LIMIT 1',
+      [agent.workspace_id],
+    ).catch(() => []);
+    if (wsRows.length > 0) {
+      return {
+        ...agent,
+        workspace_id: wsRows[0].id,
+        workspace_name: wsRows[0].name,
+        brand_color: wsRows[0].brand_color,
+      };
+    }
+  }
+
+  const baseName =
+    preferredWorkspaceName?.trim() || `${agent.name?.trim() || agent.email.split('@')[0]}'s Workspace`;
+  const wsRows = await queryRows<{ id: string; name: string; brand_color: string | null }>(
+    `INSERT INTO public.workspaces (name, brand_color, greeting_title, greeting_message, owner_id)
+     VALUES ($1, $2, $3, $4, NULL)
+     RETURNING id, name, brand_color`,
+    [baseName, '#163300', 'Welcome to Orbat AI', 'How can we help you today?'],
+  );
+  const workspace = wsRows[0];
+  await query('UPDATE public.workspaces SET owner_id = $1 WHERE id = $2', [
+    agent.id,
+    workspace.id,
+  ]).catch(() => {});
+  await query('UPDATE public.agents SET workspace_id = $1 WHERE id = $2', [
+    workspace.id,
+    agent.id,
+  ]).catch(() => {});
+
+  return {
+    ...agent,
+    workspace_id: workspace.id,
+    workspace_name: workspace.name,
+    brand_color: workspace.brand_color,
+  };
+}
+
 export async function resolveGoogleOAuthCredentials(): Promise<GoogleOAuthCredentials> {
   let clientId = (
     process.env.GOOGLE_CLIENT_ID ||
@@ -427,9 +475,10 @@ export async function exchangeGoogleOAuthAndSignIn(
       [agent.id, picture || null],
     ).catch(() => {});
 
+    const hydrated = await ensureAgentWorkspace(agent);
     const bundle = await buildSessionBundle({
-      ...agent,
-      avatar_url: agent.avatar_url || picture || null,
+      ...hydrated,
+      avatar_url: hydrated.avatar_url || picture || null,
     });
     return {
       ...bundle,
@@ -625,11 +674,64 @@ export async function handleBackendAuthFallback(
         );
       }
 
-      const existing = await queryRows<{ id: string }>(
-        'SELECT id FROM public.agents WHERE LOWER(email) = $1 LIMIT 1',
+      const existing = await queryRows<AgentRecord>(
+        `SELECT a.id, a.name, a.email, a.role, a.status, a.workspace_id,
+                w.name AS workspace_name, w.brand_color,
+                a.password_hash, a.is_active, a.is_super_admin, a.avatar_url,
+                COALESCE(a.email_verified, true) AS email_verified,
+                COALESCE(a.token_version, 1) AS token_version
+         FROM public.agents a
+         LEFT JOIN public.workspaces w ON w.id = a.workspace_id
+         WHERE LOWER(a.email) = $1
+         LIMIT 1`,
         [email],
       );
       if (existing.length > 0) {
+        const existingAgent = existing[0];
+        if (existingAgent.is_active === false) {
+          return NextResponse.json(
+            {
+              success: false,
+              statusCode: 403,
+              message: 'Your account has been deactivated. Please contact your workspace administrator.',
+            },
+            { status: 403 },
+          );
+        }
+
+        const passwordMatches = existingAgent.password_hash
+          ? await bcrypt.compare(password, existingAgent.password_hash)
+          : false;
+
+        if (!existingAgent.password_hash || passwordMatches) {
+          const updateFields: string[] = [];
+          const updateParams: any[] = [existingAgent.id];
+          if (!existingAgent.password_hash) {
+            const passwordHash = await bcrypt.hash(password, 10);
+            updateParams.push(passwordHash);
+            updateFields.push(`password_hash = $${updateParams.length}`);
+          }
+          if (name && name !== existingAgent.name) {
+            updateParams.push(name);
+            updateFields.push(`name = $${updateParams.length}`);
+          }
+          if (updateFields.length > 0) {
+            await query(
+              `UPDATE public.agents SET ${updateFields.join(', ')}, last_seen_at = now() WHERE id = $1`,
+              updateParams,
+            ).catch(() => {});
+          }
+
+          const hydrated = await ensureAgentWorkspace(
+            { ...existingAgent, name: name || existingAgent.name },
+            workspaceName,
+          );
+          const bundle = await buildSessionBundle(hydrated);
+          const res = NextResponse.json({ success: true, data: bundle }, { status: 200 });
+          applyAuthCookies(res, bundle, req);
+          return res;
+        }
+
         return NextResponse.json(
           {
             success: false,

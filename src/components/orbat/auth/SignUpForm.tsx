@@ -63,6 +63,7 @@ export function SignUpForm({ initialError }: { initialError?: string | null }) {
     try {
       await signUp({ name: name.trim(), company: company.trim(), email: email.trim(), password });
       setDone(true);
+      window.location.assign('/app');
     } catch (err) {
       setError(errorMessage(err, 'We couldn’t create your workspace. Please try again.'));
       setLoading(false);

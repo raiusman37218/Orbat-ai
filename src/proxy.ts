@@ -11,13 +11,38 @@ function base64UrlToUint8Array(input: string): Uint8Array {
   return bytes;
 }
 
+async function resolveEdgeJwtSecret(): Promise<string> {
+  const configured = (
+    process.env.JWT_SECRET ||
+    process.env.AUTH_SECRET ||
+    process.env.NEXTAUTH_SECRET ||
+    ''
+  ).trim();
+  if (configured) return configured;
+
+  const dbUrl = (process.env.DATABASE_URL || '').trim();
+  if (!dbUrl || !globalThis.crypto?.subtle) return '';
+
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode('orbat-jwt-signing-key-v1'),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  const sig = await crypto.subtle.sign('HMAC', key, encoder.encode(dbUrl));
+  return Array.from(new Uint8Array(sig))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
 async function decodeNestJwt(token: string): Promise<Record<string, unknown> | null> {
   try {
     const parts = token.split('.');
     if (parts.length !== 3) return null;
 
-    // Fail closed: never trust unsigned or unverified tokens when JWT_SECRET is missing.
-    const secret = process.env.JWT_SECRET;
+    const secret = await resolveEdgeJwtSecret();
     if (!secret || !globalThis.crypto?.subtle) {
       return null;
     }
