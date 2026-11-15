@@ -90,6 +90,7 @@ const touchedTicketData = () =>
 describe('ticket actions refuse another workspace before touching its data', () => {
   const calls: [string, () => Promise<unknown>][] = [
     ['getTicketsBootstrapAction', () => actions.getTicketsBootstrapAction(WS_B)],
+    ['getShellCountsAction', () => actions.getShellCountsAction(WS_B)],
     ['getTicketBarAction', () => actions.getTicketBarAction(WS_B, T1)],
     ['getViewCountsAction', () => actions.getViewCountsAction(WS_B)],
     ['listTicketViewsAction', () => actions.listTicketViewsAction(WS_B)],

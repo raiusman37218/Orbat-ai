@@ -80,6 +80,40 @@ export async function getOpenUnansweredCountAction(workspaceId: string): Promise
 }
 
 /**
+ * Lightweight overview summary: open count + top unanswered question without
+ * joining articles/agents or loading 250 rows.
+ */
+export async function getKnowledgeGapsSummaryAction(workspaceId: string): Promise<{
+  openCount: number;
+  topQuestion: { text: string; timesAsked: number } | null;
+}> {
+  const { supabase } = await getWorkspaceAccess(workspaceId, 'view');
+  const [countRes, topRes] = await Promise.all([
+    supabase
+      .from('unanswered_questions')
+      .select('id', { count: 'exact', head: true })
+      .eq('workspace_id', workspaceId)
+      .in('status', ['open', 'pending_approval']),
+    supabase
+      .from('unanswered_questions')
+      .select('question, times_asked')
+      .eq('workspace_id', workspaceId)
+      .eq('status', 'open')
+      .order('times_asked', { ascending: false })
+      .order('last_asked_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const openCount = countRes.error ? 0 : countRes.count || 0;
+  const top = topRes.data as { question?: string; times_asked?: number } | null;
+  return {
+    openCount,
+    topQuestion: top?.question ? { text: top.question, timesAsked: top.times_asked ?? 1 } : null,
+  };
+}
+
+/**
  * Saves an answer as a Quick Q&A in the knowledge notes.
  * If workspace setting `require_approval_for_new_answers` is on and user is not admin,
  * marks question as `pending_approval`.

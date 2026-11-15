@@ -13,6 +13,107 @@ import { sessionUser } from '@/lib/auth/session-user';
 import { queryRows } from '@/lib/db';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const WORKSPACE_ACCESS_TTL_MS = 15_000;
+const WORKSPACE_ACCESS_CACHE_MAX = 1000;
+
+interface WorkspaceRow {
+  id: string;
+  owner_id: string | null;
+  is_suspended: boolean;
+  deleted_at: string | null;
+}
+
+interface WorkspaceAccessLookup {
+  agent: MemberRow | null;
+  workspace: WorkspaceRow | null;
+}
+
+interface WorkspaceAccessCacheEntry {
+  value: WorkspaceAccessLookup;
+  expiresAt: number;
+}
+
+const globalForAccessCache = globalThis as unknown as {
+  __orbatWorkspaceAccessCache?: Map<string, WorkspaceAccessCacheEntry>;
+  __orbatWorkspaceAccessInFlight?: Map<string, Promise<WorkspaceAccessLookup>>;
+};
+
+function getWorkspaceAccessCache(): Map<string, WorkspaceAccessCacheEntry> {
+  if (!globalForAccessCache.__orbatWorkspaceAccessCache) {
+    globalForAccessCache.__orbatWorkspaceAccessCache = new Map();
+  }
+  return globalForAccessCache.__orbatWorkspaceAccessCache;
+}
+
+function getWorkspaceAccessInFlight(): Map<string, Promise<WorkspaceAccessLookup>> {
+  if (!globalForAccessCache.__orbatWorkspaceAccessInFlight) {
+    globalForAccessCache.__orbatWorkspaceAccessInFlight = new Map();
+  }
+  return globalForAccessCache.__orbatWorkspaceAccessInFlight;
+}
+
+async function fetchAgentAndWorkspaceDirect(userId: string, workspaceId: string): Promise<WorkspaceAccessLookup> {
+  const cacheKey = `${userId}:${workspaceId}`;
+  const useTtlCache = !process.env.VITEST;
+
+  if (useTtlCache) {
+    const cached = getWorkspaceAccessCache().get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.value;
+    }
+  }
+
+  const inFlight = getWorkspaceAccessInFlight();
+  const pending = inFlight.get(cacheKey);
+  if (pending) {
+    return pending;
+  }
+
+  const loadPromise = (async (): Promise<WorkspaceAccessLookup> => {
+    try {
+      const [agentRows, wsRows] = await Promise.all([
+        queryRows<MemberRow>(
+          'SELECT id, name, role, workspace_id, is_super_admin, is_active FROM public.agents WHERE id = $1 LIMIT 1',
+          [userId]
+        ),
+        queryRows<WorkspaceRow>(
+          'SELECT id, owner_id, is_suspended, deleted_at FROM public.workspaces WHERE id = $1 LIMIT 1',
+          [workspaceId]
+        ),
+      ]);
+      const result: WorkspaceAccessLookup = {
+        agent: agentRows[0] || null,
+        workspace: wsRows[0] || null,
+      };
+      if (
+        useTtlCache &&
+        result.agent &&
+        result.agent.is_active !== false &&
+        result.workspace &&
+        !result.workspace.deleted_at &&
+        !result.workspace.is_suspended
+      ) {
+        const cache = getWorkspaceAccessCache();
+        if (cache.size >= WORKSPACE_ACCESS_CACHE_MAX) {
+          const oldestKey = cache.keys().next().value;
+          if (oldestKey !== undefined) cache.delete(oldestKey);
+        }
+        cache.set(cacheKey, {
+          value: result,
+          expiresAt: Date.now() + WORKSPACE_ACCESS_TTL_MS,
+        });
+      }
+      return result;
+    } catch {
+      return { agent: null, workspace: null };
+    }
+  })().finally(() => {
+    inFlight.delete(cacheKey);
+  });
+
+  inFlight.set(cacheKey, loadPromise);
+  return loadPromise;
+}
 
 export interface MemberRow {
   id: string;
@@ -70,26 +171,12 @@ export async function getWorkspaceAccess(workspaceId: string, capability: Capabi
   if (!user) throw new AccessError('Unauthorized: sign in again.', 401);
 
   let agent: MemberRow | null = null;
-  let workspace: { id: string; owner_id: string | null; is_suspended: boolean; deleted_at: string | null } | null = null;
+  let workspace: WorkspaceRow | null = null;
 
   if (!process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL)) {
-    try {
-      const [agentRows, wsRows] = await Promise.all([
-        queryRows<MemberRow>(
-          'SELECT id, name, role, workspace_id, is_super_admin, is_active FROM public.agents WHERE id = $1 LIMIT 1',
-          [user.id]
-        ),
-        queryRows<{ id: string; owner_id: string | null; is_suspended: boolean; deleted_at: string | null }>(
-          'SELECT id, owner_id, is_suspended, deleted_at FROM public.workspaces WHERE id = $1 LIMIT 1',
-          [workspaceId]
-        ),
-      ]);
-      agent = agentRows[0] || null;
-      workspace = wsRows[0] || null;
-    } catch {
-      agent = null;
-      workspace = null;
-    }
+    const direct = await fetchAgentAndWorkspaceDirect(user.id, workspaceId);
+    agent = direct.agent;
+    workspace = direct.workspace;
   }
 
   // Fall back to Supabase client when Neon does not contain the record (e.g., mocked tests or Supabase-only workspaces)

@@ -12,6 +12,38 @@ export interface SessionUser {
   tokenVersion?: number;
 }
 
+const SESSION_USER_TTL_MS = 15_000;
+const SESSION_USER_CACHE_MAX = 500;
+
+interface CachedSessionUserEntry {
+  user: SessionUser;
+  expiresAt: number;
+}
+
+const globalForSessionCache = globalThis as unknown as {
+  __orbatSessionUserCache?: Map<string, CachedSessionUserEntry>;
+  __orbatSessionUserInFlight?: Map<string, Promise<SessionUser | null>>;
+};
+
+function getSessionUserCache(): Map<string, CachedSessionUserEntry> {
+  if (!globalForSessionCache.__orbatSessionUserCache) {
+    globalForSessionCache.__orbatSessionUserCache = new Map();
+  }
+  return globalForSessionCache.__orbatSessionUserCache;
+}
+
+function getSessionUserInFlight(): Map<string, Promise<SessionUser | null>> {
+  if (!globalForSessionCache.__orbatSessionUserInFlight) {
+    globalForSessionCache.__orbatSessionUserInFlight = new Map();
+  }
+  return globalForSessionCache.__orbatSessionUserInFlight;
+}
+
+export function clearSessionUserCache(): void {
+  globalForSessionCache.__orbatSessionUserCache?.clear();
+  globalForSessionCache.__orbatSessionUserInFlight?.clear();
+}
+
 function base64UrlEncode(input: Buffer | string): string {
   return Buffer.from(input)
     .toString('base64')
@@ -148,15 +180,7 @@ async function extractSessionTokenFromRequest(): Promise<string | null> {
   return null;
 }
 
-/**
- * Resolves the authenticated session user purely from Orbat AI HS256 JWT cookies
- * or Bearer headers, backed by PostgreSQL active/token_version verification.
- * Accepts an optional unused argument for gradual signature compatibility.
- */
-export async function sessionUser(_unused?: unknown): Promise<SessionUser | null> {
-  const token = await extractSessionTokenFromRequest();
-  if (!token) return null;
-
+async function resolveSessionUserFromToken(token: string): Promise<SessionUser | null> {
   const payload = decodeNestJwtPayload(token);
   const userId = String(payload?.sub || payload?.id || '').trim();
   if (!payload || !userId) return null;
@@ -221,5 +245,54 @@ export async function sessionUser(_unused?: unknown): Promise<SessionUser | null
   }
 
   return user;
+}
+
+/**
+ * Resolves the authenticated session user purely from Orbat AI HS256 JWT cookies
+ * or Bearer headers, backed by PostgreSQL active/token_version verification.
+ * Accepts an optional unused argument for gradual signature compatibility.
+ */
+export async function sessionUser(_unused?: unknown): Promise<SessionUser | null> {
+  const token = await extractSessionTokenFromRequest();
+  if (!token) return null;
+
+  if (process.env.VITEST) {
+    return resolveSessionUserFromToken(token);
+  }
+
+  const now = Date.now();
+  const cache = getSessionUserCache();
+  const cached = cache.get(token);
+  if (cached && cached.expiresAt > now) {
+    return { ...cached.user };
+  }
+
+  const inFlight = getSessionUserInFlight();
+  const existing = inFlight.get(token);
+  if (existing) {
+    const resolved = await existing;
+    return resolved ? { ...resolved } : null;
+  }
+
+  const promise = resolveSessionUserFromToken(token)
+    .then((resolved) => {
+      if (resolved) {
+        if (cache.size >= SESSION_USER_CACHE_MAX) {
+          const oldestKey = cache.keys().next().value;
+          if (oldestKey !== undefined) cache.delete(oldestKey);
+        }
+        cache.set(token, { user: resolved, expiresAt: Date.now() + SESSION_USER_TTL_MS });
+      } else {
+        cache.delete(token);
+      }
+      return resolved;
+    })
+    .finally(() => {
+      inFlight.delete(token);
+    });
+
+  inFlight.set(token, promise);
+  const resolved = await promise;
+  return resolved ? { ...resolved } : null;
 }
 

@@ -2,7 +2,7 @@
 
 import { listDashboardConversationsAction } from '@/app/actions/inbox';
 import { getTicketsBootstrapAction } from '@/app/actions/tickets';
-import { getOpenUnansweredCountAction, listUnansweredQuestionsAction } from '@/app/actions/unanswered';
+import { getKnowledgeGapsSummaryAction } from '@/app/actions/unanswered';
 import type { ReportsDashboardData, ReportsSummary } from '@/lib/reports/metrics';
 import type { AgentPresence } from './types';
 
@@ -41,34 +41,37 @@ export interface OverviewReport {
   channels: ChannelShare[];
 }
 
-async function fetchReport(workspaceId: string, start: Date, end: Date): Promise<ReportsDashboardData> {
+async function fetchReport(
+  workspaceId: string,
+  start: Date,
+  end: Date,
+  includePrevious = false,
+): Promise<ReportsDashboardData & { previousSummary?: ReportsSummary | null }> {
   const params = new URLSearchParams({
     workspace_id: workspaceId,
     range: 'custom',
     start_date: start.toISOString(),
     end_date: end.toISOString(),
   });
+  if (includePrevious) {
+    params.set('include_previous', '1');
+  }
   const res = await fetch(`/api/reports?${params}`, { cache: 'no-store' });
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new Error(body?.error || 'The report could not be loaded.');
-  return body as ReportsDashboardData;
+  return body as ReportsDashboardData & { previousSummary?: ReportsSummary | null };
 }
 
 export async function getOverviewReport(workspaceId: string, range: OverviewRange): Promise<OverviewReport> {
   const days = OVERVIEW_RANGES.find((r) => r.id === range)?.days ?? 7;
   const end = new Date();
   const start = new Date(end.getTime() - days * 86_400_000);
-  const prevStart = new Date(start.getTime() - days * 86_400_000);
 
-  const [current, previous] = await Promise.all([
-    fetchReport(workspaceId, start, end),
-    // The comparison is a nice-to-have: never fail the screen over it.
-    fetchReport(workspaceId, prevStart, start).catch(() => null),
-  ]);
+  const current = await fetchReport(workspaceId, start, end, true);
 
   return {
     summary: current.summary,
-    previous: previous?.summary ?? null,
+    previous: current.previousSummary ?? null,
     series: current.createdVsSolved.map((p) => ({ date: p.date, label: p.label, created: p.created, solved: p.solved })),
     channels: current.channelBreakdown.map((c) => ({
       key: c.key,
@@ -177,15 +180,7 @@ export interface KnowledgeGaps {
 }
 
 export async function getKnowledgeGaps(workspaceId: string): Promise<KnowledgeGaps> {
-  const [openCount, open] = await Promise.all([
-    getOpenUnansweredCountAction(workspaceId),
-    listUnansweredQuestionsAction(workspaceId, 'open'),
-  ]);
-  const top = open[0];
-  return {
-    openCount,
-    topQuestion: top?.question ? { text: top.question, timesAsked: top.times_asked ?? 1 } : null,
-  };
+  return getKnowledgeGapsSummaryAction(workspaceId);
 }
 
 export interface ActivityItem {

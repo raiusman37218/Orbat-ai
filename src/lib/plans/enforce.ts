@@ -129,14 +129,21 @@ const FALLBACK_LEGACY_PLAN: PlatformPlan = {
 export async function getWorkspaceEffectivePlan(workspaceId: string): Promise<WorkspaceEffectivePlan> {
   const adminClient = serviceClient();
 
-  // 1. Fetch subscription row
-  const { data: subData } = await adminClient
-    .from('workspace_subscriptions')
-    .select('*')
-    .eq('workspace_id', workspaceId)
-    .maybeSingle();
+  // 1. Fetch subscription row and workspace legacy plan metadata in parallel
+  const [{ data: subData }, { data: wsData }] = await Promise.all([
+    adminClient
+      .from('workspace_subscriptions')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .maybeSingle(),
+    adminClient
+      .from('workspaces')
+      .select('plan, created_at')
+      .eq('id', workspaceId)
+      .maybeSingle(),
+  ]);
 
-  let subscription: WorkspaceSubscription | null = subData as WorkspaceSubscription | null;
+  const subscription: WorkspaceSubscription | null = subData as WorkspaceSubscription | null;
   let plan: PlatformPlan = FALLBACK_LEGACY_PLAN;
 
   if (subscription) {
@@ -150,13 +157,6 @@ export async function getWorkspaceEffectivePlan(workspaceId: string): Promise<Wo
       plan = planData as PlatformPlan;
     }
   } else {
-    // Check if workspace has a legacy string plan or starter default
-    const { data: wsData } = await adminClient
-      .from('workspaces')
-      .select('plan, created_at')
-      .eq('id', workspaceId)
-      .maybeSingle();
-
     const planSlug = wsData?.plan || (wsData?.created_at ? 'free' : 'legacy');
     const { data: matchedPlan } = await adminClient
       .from('platform_plans')

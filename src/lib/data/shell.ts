@@ -2,8 +2,8 @@
 
 import { listDashboardConversationsAction } from '@/app/actions/inbox';
 import { listCustomersAction } from '@/app/actions/customers';
-import { getWorkspaceBillingAndUsageAction } from '@/app/actions/plans';
-import { getViewCountsAction, searchTicketsAction } from '@/app/actions/tickets';
+import { getShellUsageSummaryAction } from '@/app/actions/plans';
+import { getShellCountsAction, searchTicketsAction } from '@/app/actions/tickets';
 import { roleCan, type Role } from '@/lib/team/permissions';
 
 /* Live bits of the app shell: sidebar badges, usage card, and ⌘K entity search. */
@@ -16,11 +16,7 @@ export interface ShellCounts {
 }
 
 export async function getShellCounts(workspaceId: string): Promise<ShellCounts> {
-  const counts = await getViewCountsAction(workspaceId);
-  return {
-    inbox: counts['system:unassigned'] ?? 0,
-    tickets: counts['system:my_open'] ?? 0,
-  };
+  return getShellCountsAction(workspaceId);
 }
 
 export type ShellUsage =
@@ -31,28 +27,7 @@ export type ShellUsage =
    so everyone else simply gets no card. */
 export async function getShellUsage(workspaceId: string, role: Role): Promise<ShellUsage | null> {
   if (!roleCan(role, 'manage_settings')) return null;
-  const billing = await getWorkspaceBillingAndUsageAction(workspaceId);
-
-  if (billing.trialDaysRemaining !== null) {
-    return {
-      kind: 'trial',
-      daysLeft: Math.max(0, billing.trialDaysRemaining),
-      trialDays: Math.max(1, billing.plan.trial_days || 14),
-      expired: billing.isTrialExpired,
-    };
-  }
-
-  const ai = billing.limits.find((l) => l.key === 'max_ai_bot_replies_per_month');
-  if (!ai || ai.isUnlimited || !ai.limit) return null;
-  return {
-    kind: 'usage',
-    label: 'AI replies',
-    used: ai.currentUsage,
-    limit: ai.limit,
-    percentage: ai.percentage,
-    planName: billing.plan.name,
-    resets: billing.subscription.current_period_end ?? null,
-  };
+  return getShellUsageSummaryAction(workspaceId);
 }
 
 export interface PaletteEntityHit {

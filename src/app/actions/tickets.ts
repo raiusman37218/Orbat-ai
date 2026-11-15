@@ -12,6 +12,7 @@
 
 import { after } from 'next/server';
 import { createClient } from '@/lib/pg/server';
+import { queryRows } from '@/lib/db';
 import { processAutomationOutbox } from '@/lib/automation/outbox';
 import { getWorkspaceAccess } from '@/lib/team/access';
 import { roleCan, type Capability, type Role } from '@/lib/team/permissions';
@@ -165,9 +166,86 @@ async function countViews(caller: Caller, workspaceId: string, views: ViewDefini
   return Object.fromEntries(results);
 }
 
+async function countSystemViewsFast(
+  caller: Caller,
+  workspaceId: string,
+): Promise<Record<string, number>> {
+  if (!process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL)) {
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
+      const rows = await queryRows<{
+        my_open: number;
+        unassigned: number;
+        all_open: number;
+        pending: number;
+        recently_solved: number;
+      }>(
+        `SELECT
+          COUNT(*) FILTER (WHERE assignee_id = $2 AND status IN ('new', 'open'))::int AS my_open,
+          COUNT(*) FILTER (WHERE assignee_id IS NULL AND status IN ('new', 'open', 'pending', 'on_hold'))::int AS unassigned,
+          COUNT(*) FILTER (WHERE status IN ('new', 'open'))::int AS all_open,
+          COUNT(*) FILTER (WHERE status = 'pending')::int AS pending,
+          COUNT(*) FILTER (WHERE status IN ('solved', 'closed') AND solved_at >= $3)::int AS recently_solved
+         FROM public.tickets
+         WHERE workspace_id = $1`,
+        [workspaceId, caller.agent.id, sevenDaysAgo],
+      );
+      const row = rows[0];
+      if (row) {
+        return {
+          'system:my_open': Number(row.my_open ?? 0),
+          'system:unassigned': Number(row.unassigned ?? 0),
+          'system:all_open': Number(row.all_open ?? 0),
+          'system:pending': Number(row.pending ?? 0),
+          'system:recently_solved': Number(row.recently_solved ?? 0),
+        };
+      }
+    } catch {
+      // Fallback to individual filtered queries below
+    }
+  }
+
+  return countViews(caller, workspaceId, [...SYSTEM_VIEWS]);
+}
+
+export async function getShellCountsAction(workspaceId: string): Promise<{ inbox: number; tickets: number }> {
+  const caller = await assertTicketAccess(workspaceId);
+  if (!process.env.VITEST || Boolean(process.env.TEST_DATABASE_URL)) {
+    try {
+      const rows = await queryRows<{ unassigned: number; my_open: number }>(
+        `SELECT
+          COUNT(*) FILTER (WHERE assignee_id IS NULL AND status IN ('new', 'open', 'pending', 'on_hold'))::int AS unassigned,
+          COUNT(*) FILTER (WHERE assignee_id = $2 AND status IN ('new', 'open'))::int AS my_open
+         FROM public.tickets
+         WHERE workspace_id = $1`,
+        [workspaceId, caller.agent.id],
+      );
+      const row = rows[0];
+      if (row) {
+        return {
+          inbox: Number(row.unassigned ?? 0),
+          tickets: Number(row.my_open ?? 0),
+        };
+      }
+    } catch {
+      // Fallback to filtered queries below
+    }
+  }
+
+  const systemCounts = await countViews(
+    caller,
+    workspaceId,
+    SYSTEM_VIEWS.filter((v) => v.id === 'system:unassigned' || v.id === 'system:my_open'),
+  );
+  return {
+    inbox: systemCounts['system:unassigned'] ?? 0,
+    tickets: systemCounts['system:my_open'] ?? 0,
+  };
+}
+
 export async function getTicketsBootstrapAction(workspaceId: string): Promise<TicketsBootstrap> {
   const caller = await assertTicketAccess(workspaceId);
-  const [{ data: agents }, { data: groups }, { data: members }, { data: openRows }, saved] = await Promise.all([
+  const [{ data: agents }, { data: groups }, { data: members }, { data: openRows }, saved, systemCounts] = await Promise.all([
     caller.supabase
       .from('agents')
       .select('id, name, avatar_url, status, role, is_active, max_open_tickets')
@@ -177,8 +255,10 @@ export async function getTicketsBootstrapAction(workspaceId: string): Promise<Ti
     caller.supabase.from('ticket_group_members').select('group_id, agent_id').eq('workspace_id', workspaceId),
     caller.supabase.from('tickets').select('assignee_id').eq('workspace_id', workspaceId).in('status', ['new', 'open']).not('assignee_id', 'is', null),
     savedViews(caller, workspaceId),
+    countSystemViewsFast(caller, workspaceId),
   ]);
   const views = [...SYSTEM_VIEWS, ...saved];
+  const savedCounts = saved.length > 0 ? await countViews(caller, workspaceId, saved) : {};
   const memberRows = (members as { group_id: string; agent_id: string }[] | null) || [];
   const openCounts = new Map<string, number>();
   for (const t of (openRows as { assignee_id: string }[] | null) || []) openCounts.set(t.assignee_id, (openCounts.get(t.assignee_id) || 0) + 1);
@@ -194,13 +274,18 @@ export async function getTicketsBootstrapAction(workspaceId: string): Promise<Ti
       member_ids: memberRows.filter((m) => m.group_id === g.id).map((m) => m.agent_id),
     })),
     views,
-    counts: await countViews(caller, workspaceId, views),
+    counts: { ...systemCounts, ...savedCounts },
   };
 }
 
 export async function getViewCountsAction(workspaceId: string): Promise<Record<string, number>> {
   const caller = await assertTicketAccess(workspaceId);
-  return countViews(caller, workspaceId, [...SYSTEM_VIEWS, ...(await savedViews(caller, workspaceId))]);
+  const [systemCounts, saved] = await Promise.all([
+    countSystemViewsFast(caller, workspaceId),
+    savedViews(caller, workspaceId),
+  ]);
+  const savedCounts = saved.length > 0 ? await countViews(caller, workspaceId, saved) : {};
+  return { ...systemCounts, ...savedCounts };
 }
 
 export type TicketSlaFilter = 'running' | 'at_risk' | 'breached' | 'paused' | 'met';

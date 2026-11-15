@@ -145,14 +145,25 @@ export async function proxy(request: NextRequest) {
   //    to avoid redirect loops when a JWT cookie is revoked or deleted from DB.
 
   // 5. Rewrite custom Help Center domains and <slug>.HELP_BASE_DOMAIN subdomains to /help/<workspace>
-  try {
-    const { resolveHelpCenterRewriteUrl } = await import('@/lib/help/custom-domain-routing');
-    const rewriteUrl = await resolveHelpCenterRewriteUrl(request);
-    if (rewriteUrl) {
-      return NextResponse.rewrite(rewriteUrl);
+  const isReservedProxyPath =
+    pathname.startsWith('/app') ||
+    pathname.startsWith('/api') ||
+    pathname.startsWith('/login') ||
+    pathname.startsWith('/signup') ||
+    pathname.startsWith('/auth') ||
+    pathname.startsWith('/onboarding') ||
+    pathname.startsWith('/admin');
+
+  if (!isReservedProxyPath) {
+    try {
+      const { resolveHelpCenterRewriteUrl } = await import('@/lib/help/custom-domain-routing');
+      const rewriteUrl = await resolveHelpCenterRewriteUrl(request);
+      if (rewriteUrl) {
+        return NextResponse.rewrite(rewriteUrl);
+      }
+    } catch {
+      // Non-fatal: fall through to standard routing if custom domain resolution fails
     }
-  } catch {
-    // Non-fatal: fall through to standard routing if custom domain resolution fails
   }
 
   return response;

@@ -48,11 +48,26 @@ interface SchemaCache {
 const IDENT_RE = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
 const JSON_PATH_RE = /^([a-zA-Z_][a-zA-Z0-9_]*)((?:->>|->)[a-zA-Z0-9_.\-']+)+$/;
 
-let schemaCache: SchemaCache | null = null;
-const SCHEMA_CACHE_TTL_MS = 5 * 60_000;
+interface PoolSchemaEntry {
+  cache: SchemaCache | null;
+  inflight: Promise<SchemaCache> | null;
+}
+
+const globalForSchema = globalThis as unknown as {
+  __orbatSchemaCacheStore?: WeakMap<Pool, PoolSchemaEntry>;
+};
+
+function getSchemaStore(): WeakMap<Pool, PoolSchemaEntry> {
+  if (!globalForSchema.__orbatSchemaCacheStore) {
+    globalForSchema.__orbatSchemaCacheStore = new WeakMap<Pool, PoolSchemaEntry>();
+  }
+  return globalForSchema.__orbatSchemaCacheStore;
+}
+
+const SCHEMA_CACHE_TTL_MS = 30 * 60_000;
 
 export function clearPgQuerySchemaCache(): void {
-  schemaCache = null;
+  globalForSchema.__orbatSchemaCacheStore = new WeakMap<Pool, PoolSchemaEntry>();
 }
 
 function assertIdent(name: string, label = 'identifier'): string {
@@ -217,38 +232,88 @@ function parseSelectSpec(spec?: string): ParsedSelect {
 }
 
 async function ensureSchemaCache(pool: Pool): Promise<SchemaCache> {
-  if (schemaCache && Date.now() - schemaCache.loadedAt < SCHEMA_CACHE_TTL_MS) {
-    return schemaCache;
+  const store = getSchemaStore();
+  let entry = store.get(pool);
+  if (!entry) {
+    entry = { cache: null, inflight: null };
+    store.set(pool, entry);
   }
 
-  const fks: ForeignKeyMeta[] = [];
-  const columns = new Map<string, Map<string, ColumnTypeMeta>>();
-  const procs = new Map<string, ProcParamMeta>();
+  if (entry.cache && Date.now() - entry.cache.loadedAt < SCHEMA_CACHE_TTL_MS) {
+    return entry.cache;
+  }
 
-  try {
-    const fkRes = await pool.query<{
-      constraint_name: string;
-      source_table: string;
-      source_column: string;
-      target_table: string;
-      target_column: string;
-    }>(`
-      SELECT
-        c.conname AS constraint_name,
-        src.relname AS source_table,
-        a_src.attname AS source_column,
-        tgt.relname AS target_table,
-        a_tgt.attname AS target_column
-      FROM pg_constraint c
-      JOIN pg_class src ON src.oid = c.conrelid
-      JOIN pg_namespace nsrc ON nsrc.oid = src.relnamespace AND nsrc.nspname = 'public'
-      JOIN pg_class tgt ON tgt.oid = c.confrelid
-      JOIN pg_namespace ntgt ON ntgt.oid = tgt.relnamespace AND ntgt.nspname = 'public'
-      JOIN pg_attribute a_src ON a_src.attrelid = src.oid AND a_src.attnum = c.conkey[1]
-      JOIN pg_attribute a_tgt ON a_tgt.attrelid = tgt.oid AND a_tgt.attnum = c.confkey[1]
-      WHERE c.contype = 'f' AND array_length(c.conkey, 1) = 1
-    `);
-    for (const r of fkRes.rows || []) {
+  if (entry.inflight) {
+    return entry.inflight;
+  }
+
+  const loadPromise = (async (): Promise<SchemaCache> => {
+    const fks: ForeignKeyMeta[] = [];
+    const columns = new Map<string, Map<string, ColumnTypeMeta>>();
+    const procs = new Map<string, ProcParamMeta>();
+
+    const [fkRes, colRes, procRes] = await Promise.all([
+      pool
+        .query<{
+          constraint_name: string;
+          source_table: string;
+          source_column: string;
+          target_table: string;
+          target_column: string;
+        }>(`
+          SELECT
+            c.conname AS constraint_name,
+            src.relname AS source_table,
+            a_src.attname AS source_column,
+            tgt.relname AS target_table,
+            a_tgt.attname AS target_column
+          FROM pg_constraint c
+          JOIN pg_class src ON src.oid = c.conrelid
+          JOIN pg_namespace nsrc ON nsrc.oid = src.relnamespace AND nsrc.nspname = 'public'
+          JOIN pg_class tgt ON tgt.oid = c.confrelid
+          JOIN pg_namespace ntgt ON ntgt.oid = tgt.relnamespace AND ntgt.nspname = 'public'
+          JOIN pg_attribute a_src ON a_src.attrelid = src.oid AND a_src.attnum = c.conkey[1]
+          JOIN pg_attribute a_tgt ON a_tgt.attrelid = tgt.oid AND a_tgt.attnum = c.confkey[1]
+          WHERE c.contype = 'f' AND array_length(c.conkey, 1) = 1
+        `)
+        .catch(() => null),
+      pool
+        .query<{
+          table_name: string;
+          column_name: string;
+          udt_name: string;
+        }>(`
+          SELECT table_name, column_name, udt_name
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+        `)
+        .catch(() => null),
+      pool
+        .query<{
+          proname: string;
+          arg_names: string[] | null;
+          arg_types: string[] | null;
+          proretset: boolean;
+          ret_type: string;
+        }>(`
+          SELECT
+            p.proname,
+            p.proargnames AS arg_names,
+            ARRAY(
+              SELECT format_type(t, NULL)
+              FROM unnest(p.proargtypes) WITH ORDINALITY AS u(t, ord)
+              ORDER BY ord
+            ) AS arg_types,
+            p.proretset,
+            format_type(p.prorettype, NULL) AS ret_type
+          FROM pg_proc p
+          JOIN pg_namespace n ON n.oid = p.pronamespace
+          WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
+        `)
+        .catch(() => null),
+    ]);
+
+    for (const r of fkRes?.rows || []) {
       fks.push({
         constraintName: r.constraint_name,
         sourceTable: r.source_table,
@@ -257,21 +322,8 @@ async function ensureSchemaCache(pool: Pool): Promise<SchemaCache> {
         targetColumn: r.target_column,
       });
     }
-  } catch {
-    // Graceful fallback when running against mock pools in unit tests
-  }
 
-  try {
-    const colRes = await pool.query<{
-      table_name: string;
-      column_name: string;
-      udt_name: string;
-    }>(`
-      SELECT table_name, column_name, udt_name
-      FROM information_schema.columns
-      WHERE table_schema = 'public'
-    `);
-    for (const r of colRes.rows || []) {
+    for (const r of colRes?.rows || []) {
       let map = columns.get(r.table_name);
       if (!map) {
         map = new Map();
@@ -279,33 +331,8 @@ async function ensureSchemaCache(pool: Pool): Promise<SchemaCache> {
       }
       map.set(r.column_name, { udtName: r.udt_name });
     }
-  } catch {
-    // Graceful fallback in tests
-  }
 
-  try {
-    const procRes = await pool.query<{
-      proname: string;
-      arg_names: string[] | null;
-      arg_types: string[] | null;
-      proretset: boolean;
-      ret_type: string;
-    }>(`
-      SELECT
-        p.proname,
-        p.proargnames AS arg_names,
-        ARRAY(
-          SELECT format_type(t, NULL)
-          FROM unnest(p.proargtypes) WITH ORDINALITY AS u(t, ord)
-          ORDER BY ord
-        ) AS arg_types,
-        p.proretset,
-        format_type(p.prorettype, NULL) AS ret_type
-      FROM pg_proc p
-      JOIN pg_namespace n ON n.oid = p.pronamespace
-      WHERE n.nspname = 'public' AND p.prokind IN ('f', 'p')
-    `);
-    for (const r of procRes.rows || []) {
+    for (const r of procRes?.rows || []) {
       procs.set(r.proname, {
         argNames: r.arg_names || [],
         argTypes: r.arg_types || [],
@@ -313,12 +340,18 @@ async function ensureSchemaCache(pool: Pool): Promise<SchemaCache> {
         returnType: r.ret_type || 'jsonb',
       });
     }
-  } catch {
-    // Graceful fallback in tests
-  }
 
-  schemaCache = { fks, columns, procs, loadedAt: Date.now() };
-  return schemaCache;
+    const loaded: SchemaCache = { fks, columns, procs, loadedAt: Date.now() };
+    entry!.cache = loaded;
+    return loaded;
+  })().finally(() => {
+    if (entry && entry.inflight === loadPromise) {
+      entry.inflight = null;
+    }
+  });
+
+  entry.inflight = loadPromise;
+  return loadPromise;
 }
 
 function resolveJoinMeta(
@@ -964,50 +997,62 @@ export class PgQueryBuilder<T = any[]> implements PromiseLike<DbResponse<T>> {
       const tableIdent = assertIdent(this.table, 'table');
       const tableCols = cache.columns.get(this.table === 'public_workspaces' ? 'workspaces' : this.table);
 
-      return await runWithContext(this.pool, this.ctx, async (runner) => {
-        if (this.op === 'select') {
-          const parsed = parseSelectSpec(this.selectSpec);
-          const baseAlias = '_b';
-          const { selectSql, joinsSql, joinAliases } = this.buildSelectClause(cache, parsed, baseAlias);
+      if (this.op === 'select') {
+        const parsed = parseSelectSpec(this.selectSpec);
+        const baseAlias = '_b';
+        const { selectSql, joinsSql, joinAliases } = this.buildSelectClause(cache, parsed, baseAlias);
 
-          const params: unknown[] = [];
-          const whereClauses = this.filters.map((fn) => fn(params, baseAlias, joinAliases));
-          const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
+        const params: unknown[] = [];
+        const whereClauses = this.filters.map((fn) => fn(params, baseAlias, joinAliases));
+        const whereSql = whereClauses.length > 0 ? ` WHERE ${whereClauses.join(' AND ')}` : '';
 
-          let exactCount: number | null = null;
-          if (this.countMode) {
-            const countSql = `SELECT COUNT(*)::int AS total FROM public.${tableIdent} AS ${baseAlias}${joinsSql}${whereSql}`;
-            const countRes = await runner.query<{ total: number }>(countSql, params);
-            exactCount = countRes.rows[0]?.total ?? 0;
-          }
+        const countSql = this.countMode
+          ? `SELECT COUNT(*)::int AS total FROM public.${tableIdent} AS ${baseAlias}${joinsSql}${whereSql}`
+          : null;
 
-          if (this.headOnly) {
-            return { data: null as unknown as T, error: null, count: exactCount };
+        if (this.headOnly) {
+          if (!countSql) {
+            return { data: null as unknown as T, error: null, count: null };
           }
-
-          let sql = `SELECT ${selectSql} FROM public.${tableIdent} AS ${baseAlias}${joinsSql}${whereSql}`;
-          if (this.orders.length > 0) {
-            const orderParts = this.orders.map((o) => {
-              const expr = compileColumnExpr(o.column, baseAlias, joinAliases);
-              const dir = o.ascending ? 'ASC' : 'DESC';
-              const nulls =
-                o.nullsFirst === undefined ? '' : o.nullsFirst ? ' NULLS FIRST' : ' NULLS LAST';
-              return `${expr} ${dir}${nulls}`;
-            });
-            sql += ` ORDER BY ${orderParts.join(', ')}`;
-          }
-          if (this.limitVal !== null) {
-            params.push(this.limitVal);
-            sql += ` LIMIT $${params.length}`;
-          }
-          if (this.offsetVal !== null) {
-            params.push(this.offsetVal);
-            sql += ` OFFSET $${params.length}`;
-          }
-
-          const res = await runner.query<QueryResultRow>(sql, params);
-          return this.shapeRowsResponse(res.rows, exactCount);
+          const countRes = await this.pool.query<{ total: number }>(countSql, params);
+          return { data: null as unknown as T, error: null, count: countRes.rows[0]?.total ?? 0 };
         }
+
+        const countParams = countSql ? [...params] : null;
+
+        let sql = `SELECT ${selectSql} FROM public.${tableIdent} AS ${baseAlias}${joinsSql}${whereSql}`;
+        if (this.orders.length > 0) {
+          const orderParts = this.orders.map((o) => {
+            const expr = compileColumnExpr(o.column, baseAlias, joinAliases);
+            const dir = o.ascending ? 'ASC' : 'DESC';
+            const nulls =
+              o.nullsFirst === undefined ? '' : o.nullsFirst ? ' NULLS FIRST' : ' NULLS LAST';
+            return `${expr} ${dir}${nulls}`;
+          });
+          sql += ` ORDER BY ${orderParts.join(', ')}`;
+        }
+        if (this.limitVal !== null) {
+          params.push(this.limitVal);
+          sql += ` LIMIT $${params.length}`;
+        }
+        if (this.offsetVal !== null) {
+          params.push(this.offsetVal);
+          sql += ` OFFSET $${params.length}`;
+        }
+
+        if (countSql && countParams) {
+          const [countRes, res] = await Promise.all([
+            this.pool.query<{ total: number }>(countSql, countParams),
+            this.pool.query<QueryResultRow>(sql, params),
+          ]);
+          return this.shapeRowsResponse(res.rows, countRes.rows[0]?.total ?? 0);
+        }
+
+        const res = await this.pool.query<QueryResultRow>(sql, params);
+        return this.shapeRowsResponse(res.rows, null);
+      }
+
+      return await runWithContext(this.pool, this.ctx, async (runner) => {
 
         if (this.op === 'insert' || this.op === 'upsert') {
           const rowsInput: Array<Record<string, unknown>> = Array.isArray(this.payload)

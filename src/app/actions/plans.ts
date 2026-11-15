@@ -835,6 +835,51 @@ export async function updateWorkspaceSubscriptionAction(input: {
 /**
  * 9. Workspace Settings > Billing Overview
  */
+export type ShellUsageSummary =
+  | { kind: 'trial'; daysLeft: number; trialDays: number; expired: boolean }
+  | { kind: 'usage'; label: string; used: number; limit: number; percentage: number; planName: string; resets: string | null };
+
+/**
+ * Lightweight sidebar usage/trial check: fetches only the workspace's plan and
+ * AI reply usage rather than computing all 9 plan limit metrics.
+ */
+export async function getShellUsageSummaryAction(
+  workspaceId: string
+): Promise<ShellUsageSummary | null> {
+  await assertAdminUser(workspaceId);
+  const effective = await getWorkspaceEffectivePlan(workspaceId);
+
+  if (effective.trialDaysRemaining !== null) {
+    return {
+      kind: 'trial',
+      daysLeft: Math.max(0, effective.trialDaysRemaining),
+      trialDays: Math.max(1, effective.plan.trial_days || 14),
+      expired: effective.isTrialExpired,
+    };
+  }
+
+  const limitVal = effective.effectiveLimits.max_ai_bot_replies_per_month;
+  if (limitVal === null || limitVal === undefined || !limitVal) {
+    return null;
+  }
+
+  const currentUsage = await getWorkspaceCurrentUsage(workspaceId, 'max_ai_bot_replies_per_month');
+  const percentage = Math.min(100, Math.round((currentUsage / limitVal) * 100));
+
+  return {
+    kind: 'usage',
+    label: 'AI replies',
+    used: currentUsage,
+    limit: limitVal,
+    percentage,
+    planName: effective.plan.name,
+    resets: effective.subscription?.current_period_end ?? null,
+  };
+}
+
+/**
+ * 9. Workspace Settings > Billing Overview
+ */
 export async function getWorkspaceBillingAndUsageAction(
   workspaceId: string
 ): Promise<WorkspaceBillingOverview> {

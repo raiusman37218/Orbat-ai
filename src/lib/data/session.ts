@@ -7,7 +7,7 @@
 
 import { redirect } from 'next/navigation';
 import { sessionUser } from '@/lib/auth/session-user';
-import { createClient } from '@/lib/pg/server';
+import { createPgCompatClient } from '@/lib/pg/query-client';
 import { isRole } from '@/lib/team/permissions';
 import { userError } from '@/lib/errors/user-error';
 import type { AgentPresence, ShellSession } from './types';
@@ -16,12 +16,36 @@ export async function requireShellSession(returnTo: string): Promise<ShellSessio
   const user = await sessionUser().catch(() => null);
   if (!user) redirect(`/login?redirect=${encodeURIComponent(returnTo)}`);
 
-  const db = await createClient();
-  const { data: agent, error: agentError } = await db
+  const db = createPgCompatClient({
+    userId: user.id,
+    role: 'authenticated',
+  });
+
+  const agentPromise = db
     .from('agents')
     .select('id, name, email, avatar_url, role, status, workspace_id, is_super_admin')
     .eq('id', user.id)
     .maybeSingle();
+
+  const accessPromise = db
+    .from('platform_access')
+    .select('role')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  const preloadedWorkspacePromise = user.workspaceId
+    ? db
+        .from('workspaces')
+        .select('id, name, logo_url')
+        .eq('id', user.workspaceId)
+        .maybeSingle()
+    : null;
+
+  const [{ data: agent, error: agentError }, accessRes, preloadedWorkspaceRes] = await Promise.all([
+    agentPromise,
+    accessPromise,
+    preloadedWorkspacePromise ?? Promise.resolve(null),
+  ]);
 
   if (agentError) {
     console.error('[App Shell] agent lookup failed:', agentError);
@@ -30,18 +54,14 @@ export async function requireShellSession(returnTo: string): Promise<ShellSessio
   // Signed in but no workspace yet: same place the old dashboard sends them.
   if (!agent?.workspace_id) redirect('/onboarding');
 
-  const [workspaceRes, accessRes] = await Promise.all([
-    db
-      .from('workspaces')
-      .select('id, name, logo_url')
-      .eq('id', agent.workspace_id)
-      .maybeSingle(),
-    db
-      .from('platform_access')
-      .select('role')
-      .eq('user_id', user.id)
-      .maybeSingle(),
-  ]);
+  const workspaceRes =
+    preloadedWorkspaceRes && agent.workspace_id === user.workspaceId
+      ? preloadedWorkspaceRes
+      : await db
+          .from('workspaces')
+          .select('id, name, logo_url')
+          .eq('id', agent.workspace_id)
+          .maybeSingle();
 
   const { data: workspace, error: workspaceError } = workspaceRes;
 
