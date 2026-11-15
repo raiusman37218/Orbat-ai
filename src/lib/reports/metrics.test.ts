@@ -942,4 +942,31 @@ describe('Reports & CSAT Metrics Calculations', () => {
       expect(csv).toContain('90.9%');
     });
   });
+
+  it('handles PostgreSQL Date instances for occurred_at without throwing slice errors', () => {
+    const buckets = generateDateBuckets(new Date('2026-11-14T00:00:00Z'), new Date('2026-11-15T23:59:59Z'));
+    const events = [
+      {
+        id: 1,
+        workspace_id: 'ws-1',
+        ticket_id: 't-1',
+        event_type: 'ticket_created',
+        occurred_at: new Date('2026-11-15T06:00:00Z') as unknown as string,
+        agent_id: null,
+        group_id: null,
+        channel: 'chat',
+        priority: 'normal',
+        tags: [],
+        duration_seconds: null,
+        csat_rating: null,
+        csat_comment: null,
+        metadata: {},
+      },
+    ] as ReportingEvent[];
+
+    const createdVsSolved = calculateCreatedVsSolved(events, buckets);
+    expect(createdVsSolved[1].created).toBe(1);
+    const backlog = calculateBacklogOverTime(0, events, buckets);
+    expect(backlog[1].backlog).toBe(1);
+  });
 });

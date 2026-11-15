@@ -387,7 +387,13 @@ function resolveJoinMeta(
   const candidates = [
     `${embed.alias}_id`,
     `${singularize(embed.targetTable)}_id`,
+    embed.targetTable === 'agents' && effectiveBase === 'messages' ? 'sender_id' : '',
+    embed.targetTable === 'agents' && effectiveBase === 'unanswered_questions' ? 'resolved_by' : '',
     embed.alias === 'agent' ? 'assigned_agent_id' : '',
+    embed.targetTable === 'agents' ? 'assigned_agent_id' : '',
+    embed.targetTable === 'agents' ? 'author_id' : '',
+    embed.targetTable === 'agents' ? 'resolved_by' : '',
+    embed.targetTable === 'agents' ? 'sender_id' : '',
   ].filter(Boolean);
 
   for (const cand of candidates) {
@@ -1127,36 +1133,51 @@ export class PgQueryBuilder<T = any[]> implements PromiseLike<DbResponse<T>> {
   }
 
   private shapeRowsResponse(rows: QueryResultRow[], count: number | null): DbResponse<T> {
+    const normalizedRows = rows.map((row) => {
+      if (!row || typeof row !== 'object') return row;
+      let changed = false;
+      const copy: Record<string, unknown> = {};
+      for (const [key, val] of Object.entries(row)) {
+        if (val instanceof Date) {
+          copy[key] = val.toISOString();
+          changed = true;
+        } else {
+          copy[key] = val;
+        }
+      }
+      return changed ? (copy as QueryResultRow) : row;
+    });
+
     if (this.rowMode === 'single') {
-      if (rows.length === 0) {
+      if (normalizedRows.length === 0) {
         return {
           data: null as unknown as T,
           error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: 'The result contains 0 rows', hint: null },
           count,
         };
       }
-      if (rows.length > 1) {
+      if (normalizedRows.length > 1) {
         return {
           data: null as unknown as T,
-          error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `The result contains ${rows.length} rows`, hint: null },
+          error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `The result contains ${normalizedRows.length} rows`, hint: null },
           count,
         };
       }
-      return { data: rows[0] as unknown as T, error: null, count };
+      return { data: normalizedRows[0] as unknown as T, error: null, count };
     }
 
     if (this.rowMode === 'maybeSingle') {
-      if (rows.length > 1) {
+      if (normalizedRows.length > 1) {
         return {
           data: null as unknown as T,
-          error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `The result contains ${rows.length} rows`, hint: null },
+          error: { code: 'PGRST116', message: 'JSON object requested, multiple (or no) rows returned', details: `The result contains ${normalizedRows.length} rows`, hint: null },
           count,
         };
       }
-      return { data: (rows[0] ?? null) as unknown as T, error: null, count };
+      return { data: (normalizedRows[0] ?? null) as unknown as T, error: null, count };
     }
 
-    return { data: rows as unknown as T, error: null, count };
+    return { data: normalizedRows as unknown as T, error: null, count };
   }
 }
 

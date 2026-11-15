@@ -39,6 +39,8 @@ function createMockPool(handler: (sql: string, params: unknown[]) => { rows?: an
           { table_name: 'conversations', column_name: 'tags', udt_name: '_text' },
           { table_name: 'workspaces', column_name: 'ai_settings', udt_name: 'jsonb' },
           { table_name: 'messages', column_name: 'metadata', udt_name: 'jsonb' },
+          { table_name: 'messages', column_name: 'sender_id', udt_name: 'uuid' },
+          { table_name: 'unanswered_questions', column_name: 'resolved_by', udt_name: 'uuid' },
         ],
       };
     }
@@ -185,5 +187,27 @@ describe('PgCompatClient pure PostgreSQL adapter', () => {
     expect(sqlCall?.sql).toContain('FROM public."visitors" AS _n0_0 WHERE _n0_0."id" = _rel_0."visitor_id" LIMIT 1');
     expect(sqlCall?.sql).toContain('_rel_0."tags" && $1');
     expect(sqlCall?.params).toEqual([['billing', 'vip']]);
+  });
+
+  it('resolves non-FK agent joins on messages (sender_id) and unanswered_questions (resolved_by) and normalizes Date timestamps', async () => {
+    const now = new Date('2026-11-15T10:00:00.000Z');
+    const { pool, calls } = createMockPool(() => ({
+      rows: [{ id: 'row-1', created_at: now, occurred_at: now }],
+    }));
+
+    const db = new PgCompatClient(pool);
+
+    const msgRes = await db.from('messages').select('*, agent:agents(*)').eq('conversation_id', 'conv-1');
+    expect(msgRes.error).toBeNull();
+    expect(calls.at(-1)?.sql).toContain('LEFT JOIN public."agents" AS _rel_0 ON _b."sender_id" = _rel_0."id"');
+    expect(msgRes.data?.[0]?.created_at).toBe('2026-11-15T10:00:00.000Z');
+    expect(msgRes.data?.[0]?.occurred_at).toBe('2026-11-15T10:00:00.000Z');
+
+    const uqRes = await db
+      .from('unanswered_questions')
+      .select('*, resolved_by_agent:agents(id, name, avatar_url)')
+      .eq('workspace_id', 'ws-1');
+    expect(uqRes.error).toBeNull();
+    expect(calls.at(-1)?.sql).toContain('LEFT JOIN public."agents" AS _rel_0 ON _b."resolved_by" = _rel_0."id"');
   });
 });

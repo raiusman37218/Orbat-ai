@@ -232,6 +232,17 @@ export function filterSlaEvents(
 
 /* ── Metric Calculations ──────────────────────────────────────────────── */
 
+function toIsoTimestamp(value: string | Date): string {
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value === 'string') return value;
+  const parsed = new Date(value as unknown as string);
+  return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
+}
+
+function toDateKey(value: string | Date): string {
+  return toIsoTimestamp(value).slice(0, 10);
+}
+
 /** 1. Created vs Solved timeline */
 export function calculateCreatedVsSolved(
   events: ReportingEvent[],
@@ -243,7 +254,7 @@ export function calculateCreatedVsSolved(
   }
 
   for (const e of events) {
-    const dayKey = e.occurred_at.slice(0, 10);
+    const dayKey = toDateKey(e.occurred_at);
     const pt = pointMap.get(dayKey);
     if (!pt) continue;
 
@@ -277,7 +288,7 @@ export function calculateBacklogOverTime(
   }
 
   for (const e of events) {
-    const dayKey = e.occurred_at.slice(0, 10);
+    const dayKey = toDateKey(e.occurred_at);
     if (!dayDelta.has(dayKey)) continue;
 
     if (e.event_type === 'ticket_created') {
@@ -395,7 +406,7 @@ export function calculateCsatMetrics(
         ticketId: e.ticket_id,
         rating: e.csat_rating,
         comment: e.csat_comment,
-        occurredAt: e.occurred_at,
+        occurredAt: toIsoTimestamp(e.occurred_at),
         agentId: e.agent_id,
         channel: e.channel,
       });
