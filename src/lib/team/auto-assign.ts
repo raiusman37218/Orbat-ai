@@ -85,7 +85,7 @@ export function chooseAssignee(input: {
 export async function autoAssignConversation(
   supabase: Client,
   conversationId: string,
-  options: { keepAssignee?: boolean } = {}
+  options: { keepAssignee?: boolean; groupId?: string | null } = {}
 ): Promise<AutoAssignResult> {
   const { data: conv } = await supabase.from('conversations').select('id, workspace_id, assigned_agent_id').eq('id', conversationId).maybeSingle();
   if (!conv) throw userError('Conversation not found');
@@ -97,10 +97,19 @@ export async function autoAssignConversation(
     return { assigned: false, reason: 'Auto-assignment is disabled for this workspace' };
   }
 
-  const [{ data: agents }, { data: shifts }, { data: open }] = await Promise.all([
+  const groupMembersPromise = options.groupId
+    ? supabase
+        .from('ticket_group_members')
+        .select('agent_id')
+        .eq('group_id', options.groupId)
+        .then((res: { data?: { agent_id: string }[] | null }) => res, () => ({ data: null }))
+    : Promise.resolve({ data: null as { agent_id: string }[] | null });
+
+  const [{ data: agents }, { data: shifts }, { data: open }, { data: groupMembers }] = await Promise.all([
     supabase.from('agents').select('id, name, email, avatar_url, status, role, is_active, max_open_tickets').eq('workspace_id', wsId),
     supabase.from('agent_shifts').select('agent_id, weekday, start_minute, end_minute').eq('workspace_id', wsId),
     supabase.from('tickets').select('assignee_id').eq('workspace_id', wsId).in('status', ['new', 'open']).not('assignee_id', 'is', null),
+    groupMembersPromise,
   ]);
   type A = AssignCandidate & { name: string | null; email: string | null; avatar_url: string | null };
   const rows = (agents as Omit<A, 'shifts'>[] | null) || [];
@@ -116,12 +125,17 @@ export async function autoAssignConversation(
 
   const candidates: A[] = rows.map((a) => ({ ...a, shifts: shiftsBy.get(a.id) || [] }));
   const timeZone = (ws?.timezone as string | null) || (ws?.business_hours as { timezone?: string } | null)?.timezone || 'UTC';
-  const choice = chooseAssignee({
-    candidates,
-    load,
-    at: localWeekMinute(new Date(), timeZone),
-    currentAssigneeId: options.keepAssignee ? (conv.assigned_agent_id as string | null) : null,
-  });
+  const at = localWeekMinute(new Date(), timeZone);
+  const currentAssigneeId = options.keepAssignee ? (conv.assigned_agent_id as string | null) : null;
+
+  const groupMemberIds = new Set(
+    ((groupMembers as { agent_id: string }[] | null) || []).map((m) => m.agent_id).filter(Boolean),
+  );
+  const groupCandidates = groupMemberIds.size > 0 ? candidates.filter((a) => groupMemberIds.has(a.id)) : [];
+  const choice =
+    (groupCandidates.length > 0
+      ? chooseAssignee({ candidates: groupCandidates, load, at, currentAssigneeId })
+      : null) || chooseAssignee({ candidates, load, at, currentAssigneeId });
   if (!choice) return { assigned: false, reason: 'Nobody is on shift or online with room for more tickets' };
 
   const chosen = candidates.find((a) => a.id === choice.id)!;

@@ -14,8 +14,10 @@ import {
 } from '@/lib/ai/agent-templates';
 import { freshKnowledgeIndex } from '@/lib/ai/help-answer';
 import { groundedChunkIndex } from '@/lib/ai/grounding';
+import { asksForHuman } from '@/lib/ai/intent';
 import { chat, isConfigured, type ProviderConfig } from '@/lib/ai/provider';
 import { getPlatformAiConfigServerOnly } from '@/lib/ai/platform-gateway';
+import { routeSubAgent } from '@/lib/ai/sub-agents';
 
 export interface AiAgentRow {
   id: string;
@@ -216,6 +218,234 @@ export async function getActivePrimaryAiAgent(workspaceId: string): Promise<AiAg
     [workspaceId],
   );
   return rows[0] ? normalizeAgentRow(rows[0]) : null;
+}
+
+export interface AgentRoutingResult {
+  agent: AiAgentRow | null;
+  reason: string;
+  score: number;
+}
+
+const CHANNEL_ALIASES: Record<string, string> = {
+  '': 'web',
+  chat: 'web',
+  web_chat: 'web',
+  webchat: 'web',
+  widget: 'web',
+  web: 'web',
+  messenger: 'facebook',
+  fb: 'facebook',
+  facebook: 'facebook',
+  ig: 'instagram',
+  instagram: 'instagram',
+  wa: 'whatsapp',
+  whatsapp: 'whatsapp',
+  mail: 'email',
+  email: 'email',
+  phone: 'voice',
+  call: 'voice',
+  voice: 'voice',
+};
+
+const ROUTER_STOPWORDS = new Set([
+  'agent',
+  'agents',
+  'assistant',
+  'bot',
+  'customer',
+  'default',
+  'for',
+  'general',
+  'help',
+  'primary',
+  'service',
+  'specialist',
+  'support',
+  'team',
+  'the',
+  'with',
+]);
+
+/** Normalize channel names across widget, inbox, and social webhooks. */
+export function normalizeAgentChannel(channel?: string | null): string {
+  const raw = (channel || '').trim().toLowerCase();
+  return CHANNEL_ALIASES[raw] ?? raw;
+}
+
+function tokenizeInformative(value: string): string[] {
+  return Array.from(
+    new Set(
+      value
+        .toLowerCase()
+        .replace(/[^a-z0-9\s_-]/g, ' ')
+        .split(/[\s_-]+/)
+        .map((t) => t.trim())
+        .filter((t) => t.length >= 3 && !ROUTER_STOPWORDS.has(t)),
+    ),
+  );
+}
+
+function scoreAgentForMessage(
+  agent: AiAgentRow,
+  message: string,
+  recentUserMessages: string[],
+  routedSubAgentId: string | null,
+): number {
+  const msgLower = message.toLowerCase();
+  const msgTokens = new Set(tokenizeInformative(message));
+  let score = 0;
+
+  // Strongest deterministic signal: explicit sub-agent specialization match.
+  const declaredSub = agent.capabilities?.subAgentId?.trim() || null;
+  if (declaredSub && declaredSub !== 'general' && declaredSub !== 'greeting' && declaredSub === routedSubAgentId) {
+    score += 5;
+  }
+
+  // Match declared capability actions first (phrase match then token match).
+  for (const action of agent.capabilities?.actions || []) {
+    const actionLower = action.trim().toLowerCase();
+    if (!actionLower) continue;
+    if (msgLower.includes(actionLower)) {
+      score += 4;
+      continue;
+    }
+    for (const token of tokenizeInformative(actionLower)) {
+      if (msgTokens.has(token) || msgLower.includes(token)) {
+        score += 2;
+      }
+    }
+  }
+
+  // Match name / role_title / slug keywords.
+  const identityTokens = tokenizeInformative(`${agent.name} ${agent.role_title} ${agent.slug}`);
+  for (const token of identityTokens) {
+    if (msgTokens.has(token) || (token.length >= 4 && msgLower.includes(token))) {
+      score += 2;
+    }
+  }
+
+  // Lighter boost from description & industry keywords (capped to avoid noisy inflation).
+  let descScore = 0;
+  for (const token of tokenizeInformative(`${agent.description} ${agent.industry || ''}`)) {
+    if (msgTokens.has(token)) {
+      descScore += 1;
+      if (descScore >= 3) break;
+    }
+  }
+  score += descScore;
+
+  // Keep context continuity for ultra-short follow-ups ("what about fees?") if history points to a specialist.
+  const wordCount = message.trim().split(/\s+/).filter(Boolean).length;
+  if (score === 0 && wordCount <= 4 && recentUserMessages.length > 0) {
+    const recentText = recentUserMessages.slice(-2).join(' ').toLowerCase();
+    for (const token of identityTokens) {
+      if (recentText.includes(token)) {
+        score += 2;
+        break;
+      }
+    }
+  }
+
+  return score;
+}
+
+/**
+ * Pure multi-agent router across all live workspace agents:
+ * filters by normalized channel first, then prefers clear specialist matches
+ * over the primary live agent.
+ */
+export function selectTargetAiAgent(
+  liveAgents: AiAgentRow[],
+  input: {
+    channel?: string | null;
+    message: string;
+    recentUserMessages?: string[];
+    routedSubAgentId?: string | null;
+  },
+): AgentRoutingResult {
+  const targetChannel = normalizeAgentChannel(input.channel);
+  const eligible = liveAgents.filter(
+    (agent) => agent.status === 'live' && agent.channels.some((c) => normalizeAgentChannel(c) === targetChannel),
+  );
+
+  if (eligible.length === 0) {
+    return { agent: null, reason: 'no_live_agent_for_channel', score: 0 };
+  }
+
+  const primary = eligible.find((a) => a.is_primary) || null;
+  if (eligible.length === 1) {
+    return {
+      agent: eligible[0],
+      reason: eligible[0].is_primary ? 'primary_only' : 'single_channel_match',
+      score: 1,
+    };
+  }
+
+  const recent = input.recentUserMessages || [];
+  const routedSub =
+    input.routedSubAgentId !== undefined
+      ? input.routedSubAgentId
+      : routeSubAgent({
+          message: input.message,
+          asksForHuman: asksForHuman(input.message),
+        }).agent;
+
+  const scored = eligible.map((agent) => ({
+    agent,
+    score: scoreAgentForMessage(agent, input.message, recent, routedSub),
+  }));
+  scored.sort((a, b) => b.score - a.score || Number(b.agent.is_primary) - Number(a.agent.is_primary));
+
+  const top = scored[0];
+  const primaryScore = primary ? scored.find((s) => s.agent.id === primary.id)?.score ?? 0 : 0;
+
+  if (!top.agent.is_primary && top.score >= 2 && top.score > primaryScore) {
+    return { agent: top.agent, reason: 'specialist_match', score: top.score };
+  }
+
+  if (primary) {
+    return { agent: primary, reason: 'primary_fallback', score: primaryScore };
+  }
+
+  return {
+    agent: top.agent,
+    reason: top.score > 0 ? 'specialist_match' : 'channel_fallback',
+    score: top.score,
+  };
+}
+
+/**
+ * Selects the best live workspace AI agent for the incoming channel + message.
+ * Preserves primary fallback and returns null if no live agent serves the channel.
+ */
+export async function resolveTargetAiAgentWithMatch(input: {
+  workspaceId: string;
+  channel?: string | null;
+  message: string;
+  recentUserMessages?: string[];
+}): Promise<AgentRoutingResult> {
+  const rows = await queryRows<Record<string, unknown>>(
+    `SELECT * FROM public.ai_agents
+     WHERE workspace_id = $1 AND status = 'live'
+     ORDER BY is_primary DESC, published_at DESC NULLS LAST, updated_at DESC`,
+    [input.workspaceId],
+  );
+  const liveAgents = rows.map(normalizeAgentRow);
+  return selectTargetAiAgent(liveAgents, {
+    channel: input.channel,
+    message: input.message,
+    recentUserMessages: input.recentUserMessages,
+  });
+}
+
+export async function resolveTargetAiAgent(input: {
+  workspaceId: string;
+  channel?: string | null;
+  message: string;
+  recentUserMessages?: string[];
+}): Promise<AiAgentRow | null> {
+  const result = await resolveTargetAiAgentWithMatch(input);
+  return result.agent;
 }
 
 export async function syncPrimaryAgentToWorkspaceAiSettings(

@@ -163,13 +163,40 @@ vi.mock('@/lib/ai/help-answer', async (importOriginal) => ({
 vi.mock('@/lib/ai/inbound-translation', () => ({ translateVisitorMessage: async () => {} }));
 vi.mock('@/lib/channels/dispatcher', () => ({ dispatchOutboundMessage: async () => {} }));
 vi.mock('@/lib/domain', () => ({ getWorkspaceHelpCenterUrl: () => null }));
+const translateSpy = vi.hoisted(() =>
+  vi.fn(async ({ text }: { text: string; romanize?: boolean }) => ({ translatedText: text })),
+);
 vi.mock('@/lib/ai/translator', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/ai/translator')>();
   return {
     ...actual,
     translateWithGoogleGtx: async () => null,
-    translateAgentReply: async ({ text }: { text: string }) => ({ translatedText: text }),
+    translateAgentReply: translateSpy,
     translateToEnglish: async ({ text }: { text: string }) => ({ englishText: text }),
+  };
+});
+vi.mock('@/lib/ai/agent-runtime', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/agent-runtime')>();
+  return {
+    ...actual,
+    getLanguageConfig: async () => (db.tables.ai_language_configs?.[0] as any) ?? null,
+    resolveTargetAiAgentWithMatch: async (input: {
+      workspaceId: string;
+      channel?: string | null;
+      message: string;
+      recentUserMessages?: string[];
+    }) => {
+      const agents = ((db.tables.ai_agents || []) as any[]).filter(
+        (a) => a.workspace_id === input.workspaceId && a.status === 'live',
+      );
+      return actual.selectTargetAiAgent(agents as any, {
+        channel: input.channel,
+        message: input.message,
+        recentUserMessages: input.recentUserMessages,
+      });
+    },
+    verifyReplyClaimsAgainstKnowledge: async () => ({ verdict: 'verified', claims: [] }),
+    recordAiVerificationLog: async () => {},
   };
 });
 vi.mock('@/lib/agent/external-agent', () => ({ answerWithExternalAgent: vi.fn(async () => null) }));
@@ -224,6 +251,7 @@ function reset() {
   handover.mockClear();
   externalAgent.mockClear();
   externalAgent.mockResolvedValue(null);
+  translateSpy.mockClear();
 }
 
 const conv = () => db.tables.conversations[0];
@@ -741,3 +769,207 @@ describe('Zendesk queue status & AI resume while waiting for an agent', () => {
     expect(conv().ai_paused_reason).toBe('human_reply');
   });
 });
+
+function buildLiveAgent(overrides: Row = {}): Row {
+  return {
+    id: overrides.id ?? 'ag-primary',
+    workspace_id: WS,
+    slug: overrides.slug ?? 'nova',
+    name: overrides.name ?? 'Nova',
+    role_title: overrides.role_title ?? 'Support Specialist',
+    description: overrides.description ?? 'Workspace support bot',
+    avatar_color: '#6366f1',
+    template_id: null,
+    industry: overrides.industry ?? 'saas',
+    status: overrides.status ?? 'live',
+    is_primary: overrides.is_primary ?? true,
+    channels: overrides.channels ?? ['web', 'email'],
+    tone: overrides.tone ?? 'friendly',
+    reply_language_mode: overrides.reply_language_mode ?? 'match_customer',
+    answer_mode: overrides.answer_mode ?? 'agent',
+    system_prompt: overrides.system_prompt ?? 'Always verify account billing terms carefully.',
+    guardrails: overrides.guardrails ?? ['Never promise unapproved refunds'],
+    knowledge_scope: { allArticles: true, sectionIds: [], includeBotKnowledge: true },
+    capabilities: overrides.capabilities ?? {
+      subAgentId: null,
+      frameworks: [],
+      actions: [],
+    },
+    escalation_rules: overrides.escalation_rules ?? {
+      confidenceThreshold: 0.65,
+      handoffOnFrustration: true,
+      maxBotTurns: 6,
+      requireConfirmation: true,
+      blockedTopics: [],
+      handoffGroupId: null,
+    },
+    appearance: overrides.appearance ?? {
+      badgeLabel: 'AI Specialist',
+      showCitations: true,
+      welcomeMessage: '',
+    },
+    ...overrides,
+  };
+}
+
+describe('Part 2: Multi-agent routing and Agent Builder runtime settings', () => {
+  it('routes whatsapp specialist with prompt capabilities, welcomeMessage, badgeLabel, and showCitations=false', async () => {
+    conv().channel = 'whatsapp';
+    db.tables.ai_agents = [
+      buildLiveAgent({ id: 'ag-web-primary', name: 'Web Primary', is_primary: true, channels: ['web'] }),
+      buildLiveAgent({
+        id: 'ag-wa-payout',
+        name: 'Payout Bot',
+        role_title: 'Withdrawal Specialist',
+        is_primary: false,
+        channels: ['whatsapp'],
+        capabilities: {
+          subAgentId: 'payouts',
+          frameworks: ['langgraph'],
+          actions: ['Check withdrawal status'],
+        },
+        appearance: {
+          badgeLabel: 'Payout AI',
+          showCitations: false,
+          welcomeMessage: 'Hi! Ask me anything about withdrawals.',
+        },
+      }),
+    ];
+
+    generate.mockResolvedValueOnce({
+      replyText: 'Withdrawals settle within 24 hours.\n\nSource: [Payout Guide](https://help.test/payouts)',
+      shouldHandover: false,
+      canAnswerFromDocs: true,
+      citation: { id: 'art-1', title: 'Payout Guide', url: 'https://help.test/payouts' },
+      usedArticleIds: ['art-1'],
+      citedArticles: [{ id: 'art-1', title: 'Payout Guide' }],
+    });
+
+    const msg = visitorSays('Where is my withdrawal status?');
+    const { body } = await respond(msg);
+    expect(body.replied).toBe(true);
+
+    const callArgs = generate.mock.calls[0][0];
+    expect(callArgs.botName).toBe('Payout Bot');
+    expect(callArgs.cannedGreeting).toBe('Hi! Ask me anything about withdrawals.');
+    expect(callArgs.systemPrompt).toContain('Role: Withdrawal Specialist');
+    expect(callArgs.systemPrompt).toContain('# DECLARED CAPABILITIES');
+    expect(callArgs.systemPrompt).toContain('Check withdrawal status');
+    expect(callArgs.systemPrompt).toContain('Primary Specialization: payouts');
+
+    const reply = publicBotReplies()[0];
+    expect(reply.content).toBe('Withdrawals settle within 24 hours.');
+    expect(reply.content).not.toContain('Source:');
+    expect(reply.metadata).toMatchObject({
+      agent_id: 'ag-wa-payout',
+      agent_name: 'Payout Bot',
+      agent_role_title: 'Withdrawal Specialist',
+      agent_badge_label: 'Payout AI',
+      agent_routing_reason: 'single_channel_match',
+      cited_article_ids: ['art-1'],
+    });
+  });
+
+  it('lets agent reply_language_mode override workspace native_script setting', async () => {
+    db.tables.ai_language_configs = [{ workspace_id: WS, reply_style: 'native_script' }];
+    db.tables.ai_agents = [
+      buildLiveAgent({ reply_language_mode: 'english_only' }),
+    ];
+
+    generate.mockResolvedValueOnce({
+      replyText: 'Your setup takes 3 minutes.',
+      shouldHandover: false,
+      canAnswerFromDocs: true,
+    });
+
+    const msg = visitorSays('Mera account setup kaise karna hai please bata dein?');
+    const { body } = await respond(msg);
+    expect(body.replied).toBe(true);
+    expect(translateSpy).not.toHaveBeenCalled();
+    expect(publicBotReplies()[0].content).toBe('Your setup takes 3 minutes.');
+
+    generate.mockResolvedValueOnce({
+      replyText: 'Your refund takes 3 business days.',
+      shouldHandover: false,
+      canAnswerFromDocs: true,
+    });
+    const sensitiveMsg = visitorSays('Mera refund kab tak aaye ga please bata dein?');
+    await respond(sensitiveMsg);
+    expect(publicBotReplies()[1].content).toContain("If you'd rather talk to a person");
+    expect(publicBotReplies()[1].content).not.toContain('Agar aap kisi insaan');
+  });
+
+  it('wires requireConfirmation=false, handoffGroupId, confidenceThreshold, and handoffOnFrustration=false', async () => {
+    ws().handoff_settings = { ai: { require_confirmation: true } };
+    db.rpcResults.request_handoff = { data: { ok: true, status: 'waiting_for_agent' }, error: null };
+    db.tables.agents = [
+      { id: 'ag-gen', workspace_id: WS, name: 'General', avatar_url: null, status: 'online', is_active: true, role: 'admin' },
+      { id: 'ag-bill', workspace_id: WS, name: 'Billing', avatar_url: null, status: 'online', is_active: true, role: 'agent' },
+    ];
+    db.tables.ticket_group_members = [{ group_id: 'grp-billing', agent_id: 'ag-bill' }];
+    db.tables.ai_agents = [
+      buildLiveAgent({
+        escalation_rules: {
+          confidenceThreshold: 0.85,
+          handoffOnFrustration: false,
+          maxBotTurns: 6,
+          requireConfirmation: false,
+          blockedTopics: [],
+          handoffGroupId: 'grp-billing',
+        },
+      }),
+    ];
+
+    // retrievalConfidence 'medium' (0.72) < threshold (0.85) triggers request_handoff directly and assigns group agent.
+    generate.mockResolvedValueOnce({
+      replyText: 'I think your plan renews monthly.',
+      shouldHandover: false,
+      canAnswerFromDocs: true,
+      retrievalConfidence: 'medium',
+    });
+
+    const msg = visitorSays('What does my renewal clause say?');
+    const { body } = await respond(msg);
+    expect(body.replied).toBe(true);
+    expect(generate.mock.calls[0][0].handoffOnFrustration).toBe(false);
+    expect(db.rpcCalls.map((c) => c.fn)).toContain('request_handoff');
+    expect(db.rpcCalls.map((c) => c.fn)).not.toContain('offer_handoff');
+    expect(conv().assigned_agent_id).toBe('ag-bill');
+  });
+
+  it('short-circuits blockedTopics and maxBotTurns without invoking LLM generation', async () => {
+    db.tables.ai_agents = [
+      buildLiveAgent({
+        escalation_rules: {
+          confidenceThreshold: 0.65,
+          handoffOnFrustration: true,
+          maxBotTurns: 2,
+          requireConfirmation: true,
+          blockedTopics: ['legal dispute'],
+          handoffGroupId: 'grp-legal',
+        },
+      }),
+    ];
+
+    const blockedMsg = visitorSays('Can you advise on my legal dispute notice?');
+    const blockedRes = await respond(blockedMsg);
+    expect(blockedRes.body.replied).toBe(true);
+    expect(generate).not.toHaveBeenCalled();
+    expect(publicBotReplies()[0].content).toContain('Our team handles this topic personally');
+
+    // Reset thread messages with 2 prior AI turns to verify maxBotTurns enforcement.
+    db.tables.messages = [];
+    db.tables.ai_agents[0].escalation_rules.blockedTopics = [];
+    visitorSays('First question');
+    insertRow('messages', { conversation_id: CONV, sender_type: 'ai', content: 'First answer', is_internal: false });
+    visitorSays('Second question');
+    insertRow('messages', { conversation_id: CONV, sender_type: 'ai', content: 'Second answer', is_internal: false });
+
+    const thirdMsg = visitorSays('Third follow up question');
+    const thirdRes = await respond(thirdMsg);
+    expect(thirdRes.body.replied).toBe(true);
+    expect(generate).not.toHaveBeenCalled();
+    expect(db.rpcCalls.some((c) => c.fn === 'offer_handoff')).toBe(true);
+  });
+});
+

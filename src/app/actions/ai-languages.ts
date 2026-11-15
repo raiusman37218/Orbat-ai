@@ -379,7 +379,7 @@ export async function testLanguagePipelineAction(
     const englishPrompt = buildSupportAgentPrompt({
       botName: `${wsName} Support`,
       businessName: wsName,
-      industry: wsRows[0]?.industry ?? null,
+      industry: wsRows[0]?.industry || 'generic',
       knowledge: knowledgeBlock || 'No published workspace knowledge articles matched this query.',
       lang: 'en',
     });

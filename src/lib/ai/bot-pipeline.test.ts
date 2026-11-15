@@ -157,6 +157,7 @@ async function ask(
     turns?: { role: 'user' | 'assistant'; content: string }[];
     providerConfig?: ProviderConfig | null;
     businessHours?: BusinessHoursConfig | null;
+    industry?: string | null;
   } = {}
 ) {
   return generateHelpDeskResponseWithHandover({
@@ -168,6 +169,7 @@ async function ask(
     businessHours: opts.businessHours ?? null,
     helpCenterUrl: HELP_URL,
     workspaceName: 'Acme Store',
+    industry: opts.industry,
   });
 }
 
@@ -567,6 +569,19 @@ describe('routing other intents', () => {
     expect(r.replyText).toContain(expected);
     expect(r.shouldHandover).toBe(false);
     expect(r.internalNote).toBeUndefined();
+  });
+
+  it('strict mode small-talk quick replies follow workspace industry without leaking prop-firm chips', async () => {
+    const realEstate = await ask('hi', { industry: 'Real estate' });
+    expect(realEstate.intent).toBe('small_talk');
+    const reText = (realEstate.quickReplies || []).map((q) => `${q.label} ${q.value}`).join(' ');
+    expect(reText).toContain('Listings & Tours');
+    expect(reText).not.toMatch(/trading rules|challenge prices|payouts/i);
+
+    const generic = await ask('hi', { industry: 'generic' });
+    const genText = (generic.quickReplies || []).map((q) => `${q.label} ${q.value}`).join(' ');
+    expect(genText).toContain('Pricing & Plans');
+    expect(genText).not.toMatch(/trading rules|challenge prices|payouts/i);
   });
 
   it('hands a request for a person to the inbox, with a summary, and turns the bot off', async () => {

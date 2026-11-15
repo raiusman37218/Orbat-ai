@@ -168,6 +168,13 @@ async function seedDefaultPoliciesForAgent(
   }
 }
 
+function verificationScopeSql(alias = ''): string {
+  const p = alias ? `${alias}.` : '';
+  return `AND COALESCE(${p}channel, '') <> 'playground'
+     AND COALESCE((${p}metadata->>'playground')::boolean, false) = false
+     AND (${p}agent_id = $2 OR ($3::boolean AND ${p}agent_id IS NULL))`;
+}
+
 export async function getAiQualityBootstrapAction(
   workspaceId: string,
   requestedAgentId?: string | null,
@@ -190,6 +197,8 @@ export async function getAiQualityBootstrapAction(
     await seedDefaultPoliciesForAgent(workspaceId, activeAgent);
   }
 
+  const scopeParams = activeAgent ? [workspaceId, activeAgent.id, activeAgent.is_primary] : null;
+
   const [policyRows, topicStatsRows, verifKpiRow, verifRows, learningRows, unansweredRows] =
     await Promise.all([
       activeAgent
@@ -200,7 +209,7 @@ export async function getAiQualityBootstrapAction(
             [workspaceId, activeAgent.id],
           )
         : Promise.resolve([]),
-      activeAgent
+      scopeParams
         ? queryRows<{
             topic_key: string;
             total_cnt: string;
@@ -220,37 +229,44 @@ export async function getAiQualityBootstrapAction(
              WHERE workspace_id = $1
                AND created_at >= now() - interval '30 days'
                AND topic IS NOT NULL
-               AND (agent_id = $2 OR agent_id IS NULL)
+               ${verificationScopeSql()}
              GROUP BY LOWER(TRIM(topic))`,
-            [workspaceId, activeAgent.id],
+            scopeParams,
           )
         : Promise.resolve([]),
-      queryRows<{
-        checked_cnt: string;
-        supported_cnt: string;
-        fixed_cnt: string;
-        human_cnt: string;
-        review_cnt: string;
-      }>(
-        `SELECT
-           COUNT(*)::text AS checked_cnt,
-           COUNT(*) FILTER (WHERE verdict = 'supported')::text AS supported_cnt,
-           COUNT(*) FILTER (WHERE verdict = 'blocked_fixed')::text AS fixed_cnt,
-           COUNT(*) FILTER (WHERE verdict = 'blocked_human')::text AS human_cnt,
-           COUNT(*) FILTER (WHERE verdict = 'needs_review' AND human_review IS NULL)::text AS review_cnt
-         FROM public.ai_verification_logs
-         WHERE workspace_id = $1 AND created_at >= now() - interval '30 days'`,
-        [workspaceId],
-      ),
-      queryRows<Record<string, unknown>>(
-        `SELECT v.*, COALESCE(v.agent_name, a.name, 'AI Assistant') AS resolved_agent_name
-         FROM public.ai_verification_logs v
-         LEFT JOIN public.ai_agents a ON a.id = v.agent_id
-         WHERE v.workspace_id = $1
-         ORDER BY v.created_at DESC
-         LIMIT 50`,
-        [workspaceId],
-      ),
+      scopeParams
+        ? queryRows<{
+            checked_cnt: string;
+            supported_cnt: string;
+            fixed_cnt: string;
+            human_cnt: string;
+            review_cnt: string;
+          }>(
+            `SELECT
+               COUNT(*)::text AS checked_cnt,
+               COUNT(*) FILTER (WHERE verdict = 'supported')::text AS supported_cnt,
+               COUNT(*) FILTER (WHERE verdict = 'blocked_fixed')::text AS fixed_cnt,
+               COUNT(*) FILTER (WHERE verdict = 'blocked_human')::text AS human_cnt,
+               COUNT(*) FILTER (WHERE verdict = 'needs_review' AND human_review IS NULL)::text AS review_cnt
+             FROM public.ai_verification_logs
+             WHERE workspace_id = $1
+               AND created_at >= now() - interval '30 days'
+               ${verificationScopeSql()}`,
+            scopeParams,
+          )
+        : Promise.resolve([]),
+      scopeParams
+        ? queryRows<Record<string, unknown>>(
+            `SELECT v.*, COALESCE(v.agent_name, a.name, 'AI Assistant') AS resolved_agent_name
+             FROM public.ai_verification_logs v
+             LEFT JOIN public.ai_agents a ON a.id = v.agent_id
+             WHERE v.workspace_id = $1
+               ${verificationScopeSql('v')}
+             ORDER BY v.created_at DESC
+             LIMIT 50`,
+            scopeParams,
+          )
+        : Promise.resolve([]),
       canManage
         ? queryRows<Record<string, unknown>>(
             `SELECT id, question, answer, status, grounding, occurrences, reject_reason, last_seen_at

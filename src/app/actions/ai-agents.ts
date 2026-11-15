@@ -97,6 +97,7 @@ export interface ActivityLogItem {
 
 export interface AiAgentsBootstrap {
   canManage: boolean;
+  canEditContent: boolean;
   agents: AiAgentListItem[];
   kpis: {
     allReplies30d: number;
@@ -124,6 +125,7 @@ export interface AiAgentsBootstrap {
 export async function getAiAgentsBootstrapAction(workspaceId: string): Promise<AiAgentsBootstrap> {
   const { role } = await getWorkspaceAccess(workspaceId, 'view');
   const canManage = role === 'owner' || role === 'admin';
+  const canEditContent = role === 'owner' || role === 'admin' || role === 'agent';
 
   await ensurePrimaryAiAgent(workspaceId);
 
@@ -150,7 +152,7 @@ export async function getAiAgentsBootstrapAction(workspaceId: string): Promise<A
     }>(
       `SELECT
          detail->>'agent_id' AS agent_id,
-         COUNT(*) FILTER (WHERE event = 'replied')::text AS replied_cnt,
+         COUNT(*) FILTER (WHERE event IN ('reply_delivered', 'replied'))::text AS replied_cnt,
          COUNT(*) FILTER (WHERE event IN ('handover','handoff_requested','blocked_human'))::text AS handover_cnt
        FROM public.ai_reply_events
        WHERE workspace_id = $1 AND created_at >= now() - interval '30 days'
@@ -172,7 +174,7 @@ export async function getAiAgentsBootstrapAction(workspaceId: string): Promise<A
        ev AS (
          SELECT
            date_trunc('week', created_at)::date AS wk,
-           COUNT(*) FILTER (WHERE event = 'replied') AS resolved_cnt,
+           COUNT(*) FILTER (WHERE event IN ('reply_delivered', 'replied')) AS resolved_cnt,
            COUNT(*) FILTER (WHERE event IN ('handover','handoff_requested','blocked_human','quota_exceeded')) AS escalated_cnt
          FROM public.ai_reply_events
          WHERE workspace_id = $1 AND created_at >= date_trunc('week', now() - interval '9 weeks')
@@ -236,7 +238,11 @@ export async function getAiAgentsBootstrapAction(workspaceId: string): Promise<A
     queryRows<{ median_sec: string | null }>(
       `SELECT percentile_cont(0.5) WITHIN GROUP (ORDER BY latency_ms / 1000.0)::text AS median_sec
        FROM public.ai_verification_logs
-       WHERE workspace_id = $1 AND latency_ms IS NOT NULL AND created_at >= now() - interval '30 days'`,
+       WHERE workspace_id = $1
+         AND latency_ms IS NOT NULL
+         AND COALESCE(channel, '') <> 'playground'
+         AND COALESCE((metadata->>'playground')::boolean, false) = false
+         AND created_at >= now() - interval '30 days'`,
       [workspaceId],
     ),
   ]);
@@ -342,6 +348,7 @@ export async function getAiAgentsBootstrapAction(workspaceId: string): Promise<A
 
   return {
     canManage,
+    canEditContent,
     agents,
     kpis: {
       allReplies30d: totalReplies,
@@ -365,7 +372,7 @@ export async function getAiAgentsBootstrapAction(workspaceId: string): Promise<A
     reviewQueue,
     activityLogs: activityRows.map((a) => ({
       id: String(a.id),
-      event: String(a.event || 'replied'),
+      event: String(a.event || 'reply_delivered'),
       reason: a.reason ? String(a.reason) : null,
       conversationId: String(a.conversation_id),
       createdAt: String(a.created_at),
@@ -900,6 +907,7 @@ export async function runAgentPlaygroundAction(
   input: {
     agentId?: string | null;
     agentName: string;
+    industry?: string | null;
     tone: string;
     systemPrompt: string;
     guardrails: string[];
@@ -1033,10 +1041,20 @@ export async function runAgentPlaygroundAction(
       .filter(Boolean)
       .join('\n\n');
 
+    let agentIndustry: string | null = null;
+    if (!input.industry && input.agentId && input.agentId !== 'new') {
+      const agentRows = await queryRows<{ industry: string | null }>(
+        `SELECT industry FROM public.ai_agents WHERE id = $1 AND workspace_id = $2 LIMIT 1`,
+        [input.agentId, workspaceId],
+      );
+      agentIndustry = agentRows[0]?.industry ?? null;
+    }
+    const resolvedIndustry = input.industry || agentIndustry || ws?.industry || 'generic';
+
     const prompt = buildSupportAgentPrompt({
       botName: input.agentName || 'AI Assistant',
       businessName: wsName,
-      industry: ws?.industry ?? null,
+      industry: resolvedIndustry,
       knowledge: knowledgeBlock || 'No published articles exist in this workspace yet.',
       lang: targetLang,
       customInstructions,

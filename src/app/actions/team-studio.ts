@@ -220,7 +220,7 @@ export async function getTeamCommandCenterAction(workspaceId: string): Promise<T
     queryRows<{ active_ai: string; replies_today: string }>(
       `SELECT
          (SELECT COUNT(*) FROM public.conversations WHERE workspace_id = $1 AND status = 'open' AND handoff_status IN ('bot_active', 'handoff_offered') AND ai_enabled = true)::text AS active_ai,
-         (SELECT COUNT(*) FROM public.ai_reply_events WHERE workspace_id = $1 AND event = 'replied' AND created_at >= date_trunc('day', now()))::text AS replies_today`,
+         (SELECT COUNT(*) FROM public.ai_reply_events WHERE workspace_id = $1 AND event IN ('reply_delivered', 'replied') AND created_at >= date_trunc('day', now()))::text AS replies_today`,
       [workspaceId],
     ),
     queryRows<{ name: string }>(

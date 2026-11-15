@@ -86,6 +86,21 @@ export const FINANCE_GLOSSARY = `# HOW FINANCIAL CLIENTS TALK
 - "security", "2FA", "authenticator", "password", "lock": account security and protection.
 - "fees", "charges", "commission": fee schedules and transaction costs.`;
 
+/**
+ * Normalize an industry label (e.g. "Real estate", "Public sector", "SaaS") into
+ * a canonical lowercase underscore key for prompt and template routing.
+ */
+export function normalizeIndustryKey(industry: string | null | undefined): string {
+  const cleaned = (industry || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[\s-]+/g, '_');
+  if (!cleaned) return '';
+  if (cleaned === 'e_commerce') return 'ecommerce';
+  if (cleaned === 'general') return 'generic';
+  return cleaned;
+}
+
 export const GENERIC_GLOSSARY = `# HOW CUSTOMERS TALK (map their words to our policies; numbers and details always come from the HELP CENTER)
 - "price", "pricing", "plans", "cost", "how much", "kitna hai": pricing structure, tiers, and payment options.
 - "discount", "coupon", "promo", "code", "offer": active promotions, coupons, and discounts.
@@ -94,12 +109,60 @@ export const GENERIC_GLOSSARY = `# HOW CUSTOMERS TALK (map their words to our po
 - "contact", "support", "hours", "email", "phone": support availability and contact channels.
 - "getting started", "how it works", "features": onboarding and service overviews.`;
 
+const EXTRA_DOMAIN_PROFILES: Record<string, { role: string; scope: string; glossary: string }> = {
+  real_estate: {
+    role: 'a real estate and property support specialist',
+    scope: 'property listings, viewings, leases, mortgages, closing timelines, and HOA or agency policies',
+    glossary: `# HOW CUSTOMERS TALK (map their words to our policies; numbers and details always come from the HELP CENTER)
+- "viewing", "tour", "visit", "open house", "appointment": scheduling property tours and availability.
+- "rent", "lease", "deposit", "utilities", "renewal": rental terms, security deposits, and lease policies.
+- "buy", "mortgage", "closing", "escrow", "down payment": purchase steps, financing, and closing requirements.
+- "maintenance", "repair", "hoa", "landlord": property management, HOA rules, and maintenance requests.`,
+  },
+  insurance: {
+    role: 'an insurance policy and claims support specialist',
+    scope: 'coverage plans, premiums, deductibles, policy renewals, claims filing, and exclusions',
+    glossary: `# HOW CUSTOMERS TALK (map their words to our policies; numbers and details always come from the HELP CENTER)
+- "quote", "premium", "coverage", "deductible", "plan": policy tiers, coverage limits, and pricing.
+- "claim", "file a claim", "reimbursement", "adjuster", "status": claims submission, required proof, and timelines.
+- "renewal", "cancel", "endorsement", "beneficiary": policy changes, cancellations, and renewals.
+- "excluded", "covered", "waiting period", "copay": covered events, waiting periods, and exclusions.`,
+  },
+  travel: {
+    role: 'a travel and hospitality support specialist',
+    scope: 'bookings, itineraries, cancellations, baggage or check-in rules, refunds, and travel policies',
+    glossary: `# HOW CUSTOMERS TALK (map their words to our policies; numbers and details always come from the HELP CENTER)
+- "booking", "reservation", "itinerary", "confirmation", "pnr": booking lookups, confirmations, and changes.
+- "cancel", "refund", "reschedule", "change fee", "voucher": cancellation windows, credits, and rebooking rules.
+- "check-in", "baggage", "seat", "upgrade", "boarding": check-in timing, allowances, and add-ons.
+- "visa", "id", "insurance", "delay": travel requirements and disruption policies.`,
+  },
+  telecom: {
+    role: 'a telecom and connectivity support specialist',
+    scope: 'mobile and internet plans, SIM/eSIM activation, roaming, billing cycles, and troubleshooting',
+    glossary: `# HOW CUSTOMERS TALK (map their words to our policies; numbers and details always come from the HELP CENTER)
+- "plan", "data", "unlimited", "throttle", "speed": data allowances, speeds, and plan pricing.
+- "sim", "esim", "activation", "port", "number transfer": SIM/eSIM setup and number porting steps.
+- "roaming", "international", "travel pass", "coverage": international roaming rates and coverage zones.
+- "bill", "autopay", "outage", "router", "signal": billing questions, outages, and connection troubleshooting.`,
+  },
+  public_sector: {
+    role: 'a public-sector constituent services assistant',
+    scope: 'citizen programs, permits, eligibility requirements, applications, processing times, and office hours',
+    glossary: `# HOW CUSTOMERS TALK (map their words to our policies; numbers and details always come from the HELP CENTER)
+- "apply", "application", "form", "permit", "license": application workflows, forms, and submission channels.
+- "eligible", "requirements", "documents", "id": eligibility criteria and required documentation.
+- "status", "processing time", "wait", "appointment": turnaround times, tracking, and appointments.
+- "fee", "waiver", "office hours", "contact": fee schedules, exemptions, and service locations.`,
+  },
+};
+
 export function getDomainPersonaAndGlossary(
   industry: string | null | undefined,
   botName: string,
   brand: string
 ): { persona: string; glossary: string } {
-  const ind = (industry || '').toLowerCase().trim();
+  const ind = normalizeIndustryKey(industry);
 
   if (ind === 'ecommerce' || ind === 'retail' || ind === 'store') {
     return {
@@ -136,24 +199,33 @@ export function getDomainPersonaAndGlossary(
     };
   }
 
-  if (ind === 'finance' || ind === 'real_estate' || ind === 'fintech') {
+  const extra = EXTRA_DOMAIN_PROFILES[ind];
+  if (extra) {
+    return {
+      persona: `You are ${botName}, ${extra.role} at ${brand}. Your customers inquire about ${extra.scope}. You have been trained on every published rule, price, policy and FAQ ${brand} publishes; all of it is in the HELP CENTER section at the end. Customers should feel they are chatting with an experienced specialist who actually solves their problem, not a bot that sends them away.`,
+      glossary: extra.glossary,
+    };
+  }
+
+  if (ind === 'finance' || ind === 'fintech') {
     return {
       persona: `You are ${botName}, a client advisory and support specialist at ${brand}. Your clients are inquiring about account verification, KYC compliance, 2FA security, transaction limits, settlements, and service terms. You have been trained on every published policy, limit, and FAQ ${brand} publishes.`,
       glossary: FINANCE_GLOSSARY,
     };
   }
 
-  if (ind === 'generic' || ind === 'general') {
+  // Prop-firm persona & glossary: explicit trading/prop-firm domains, or omitted industry in legacy helper callers
+  if (ind === '' || ind === 'prop_firm' || ind === 'trading' || ind === 'funded_trading') {
     return {
-      persona: `You are ${botName}, a senior customer support agent at ${brand}. You help visitors and customers with our services, products, pricing plans, company policies, and general inquiries. You have been trained on every rule, price, policy and FAQ ${brand} publishes; all of it is in the HELP CENTER section at the end. Customers should feel they are chatting with an experienced support specialist who actually solves their problem, not a bot that sends them away.`,
-      glossary: GENERIC_GLOSSARY,
+      persona: `You are ${botName}, a senior support agent at ${brand}, a proprietary trading (prop) firm that funds traders once they pass its challenge. Your customers are traders: buying challenges, trading under the firm's rules, passing phases, getting funded and getting paid. You have been trained on every rule, price, policy and FAQ ${brand} publishes; all of it is in the HELP CENTER section at the end. Traders should feel they are chatting with an experienced prop-firm support agent who actually solves their problem, not a bot that sends them away.`,
+      glossary: PROP_FIRM_GLOSSARY,
     };
   }
 
-  // Default: Prop-firm persona and glossary (preserves full backwards compatibility)
+  // Default for generic or any other non-empty unrecognized industry: never leak prop-firm copy
   return {
-    persona: `You are ${botName}, a senior support agent at ${brand}, a proprietary trading (prop) firm that funds traders once they pass its challenge. Your customers are traders: buying challenges, trading under the firm's rules, passing phases, getting funded and getting paid. You have been trained on every rule, price, policy and FAQ ${brand} publishes; all of it is in the HELP CENTER section at the end. Traders should feel they are chatting with an experienced prop-firm support agent who actually solves their problem, not a bot that sends them away.`,
-    glossary: PROP_FIRM_GLOSSARY,
+    persona: `You are ${botName}, a senior customer support agent at ${brand}. You help visitors and customers with our services, products, pricing plans, company policies, and general inquiries. You have been trained on every rule, price, policy and FAQ ${brand} publishes; all of it is in the HELP CENTER section at the end. Customers should feel they are chatting with an experienced support specialist who actually solves their problem, not a bot that sends them away.`,
+    glossary: GENERIC_GLOSSARY,
   };
 }
 

@@ -18,6 +18,7 @@
  * definitions and runs the same router in its "Test the router" box.
  */
 import { understandMessage } from './understanding';
+import { normalizeIndustryKey } from './support-agent';
 
 export type SubAgentId =
   | 'greeting'
@@ -687,6 +688,67 @@ export function routeSubAgent(input: RouteInput): RouteResult {
   return { agent: 'general', reason: 'No specific topic', certainty: 'none' };
 }
 
+const EXTRA_DOMAIN_WELCOME: Record<string, { en: string; roman_ur: string }> = {
+  real_estate: {
+    en: 'property listings, viewings, leases, financing and agency policies',
+    roman_ur: 'property listings, viewings, rent/lease aur policies',
+  },
+  insurance: {
+    en: 'coverage plans, premiums, deductibles, claims and renewals',
+    roman_ur: 'coverage plans, premiums, claims aur renewals',
+  },
+  travel: {
+    en: 'bookings, itineraries, cancellations, baggage rules and travel policies',
+    roman_ur: 'bookings, cancellations, baggage rules aur travel policies',
+  },
+  telecom: {
+    en: 'plans, SIM/eSIM activation, roaming, billing and connection support',
+    roman_ur: 'plans, SIM/eSIM activation, roaming aur billing',
+  },
+  public_sector: {
+    en: 'programs, permits, eligibility requirements, applications and processing times',
+    roman_ur: 'programs, permits, eligibility aur application status',
+  },
+};
+
+const EXTRA_DOMAIN_CHIPS: Record<string, Array<{ label: string; value: string }>> = {
+  real_estate: [
+    { label: '🏠 Listings & Tours', value: 'What properties are available and how do I schedule a viewing?' },
+    { label: '📄 Leases & Deposits', value: 'What are your lease terms and security deposit requirements?' },
+    { label: '🏦 Financing & Closing', value: 'What are the steps for financing and closing?' },
+    { label: '📞 Contact & Office Hours', value: 'What are your office hours and contact details?' },
+    { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
+  ],
+  insurance: [
+    { label: '🛡️ Coverage Plans', value: 'What insurance coverage plans and deductibles do you offer?' },
+    { label: '📝 File a Claim', value: 'How do I file a claim and what documents are needed?' },
+    { label: '🔄 Renewals & Changes', value: 'How can I update or renew my policy?' },
+    { label: '📞 Contact & Support', value: 'What are your support hours and channels?' },
+    { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
+  ],
+  travel: [
+    { label: '✈️ Bookings & Changes', value: 'How do I manage or modify my booking?' },
+    { label: '↩️ Cancellations & Refunds', value: 'What is your cancellation and refund policy?' },
+    { label: '🧳 Baggage & Check-in', value: 'What are the baggage allowances and check-in rules?' },
+    { label: '📞 Contact & Support', value: 'How can I reach travel support?' },
+    { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
+  ],
+  telecom: [
+    { label: '📶 Plans & Data', value: 'What mobile and internet plans do you offer?' },
+    { label: '📲 SIM / eSIM Setup', value: 'How do I activate my SIM or eSIM?' },
+    { label: '🌍 Roaming & Coverage', value: 'What are your international roaming rates and coverage?' },
+    { label: '🧾 Billing & Troubleshooting', value: 'How do I check my bill or troubleshoot my connection?' },
+    { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
+  ],
+  public_sector: [
+    { label: '📋 Programs & Permits', value: 'What programs or permits are available?' },
+    { label: '✅ Eligibility & Documents', value: 'What documents and criteria are required to apply?' },
+    { label: '⏱️ Application Status', value: 'How can I check my application status and processing times?' },
+    { label: '🏛️ Office Hours & Fees', value: 'What are your office hours, locations, and fee schedules?' },
+    { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
+  ],
+};
+
 /** Welcome message adapted to workspace industry/domain. */
 export function getDomainWelcome(
   industry: string | null | undefined,
@@ -695,7 +757,7 @@ export function getDomainWelcome(
   name?: string | null
 ): string {
   const who = name ? ` ${name}` : '';
-  const ind = (industry || '').toLowerCase().trim();
+  const ind = normalizeIndustryKey(industry);
 
   if (ind === 'ecommerce' || ind === 'retail' || ind === 'store') {
     if (lang === 'roman_ur') {
@@ -732,30 +794,39 @@ export function getDomainWelcome(
     return `Hi${who}! 👋 Welcome to ${brand}. I can help with admissions, courses, tuition, installment options, and portal access. How can I assist you?`;
   }
 
-  if (ind === 'finance' || ind === 'real_estate' || ind === 'fintech') {
+  const extraWelcome = EXTRA_DOMAIN_WELCOME[ind];
+  if (extraWelcome) {
+    if (lang === 'roman_ur') {
+      return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main ${extraWelcome.roman_ur} mein madad kar sakta hoon. Bataiye kya poochna chahte hain?`;
+    }
+    return `Hi${who}! 👋 Welcome to ${brand}. I can help with ${extraWelcome.en}. How can I assist you?`;
+  }
+
+  if (ind === 'finance' || ind === 'fintech') {
     if (lang === 'roman_ur') {
       return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main account verification, KYC, security, transfer limits aur advisory mein madad kar sakta hoon. Bataiye kya poochna chahte hain?`;
     }
     return `Hi${who}! 👋 Welcome to ${brand}. I can help with account verification, KYC, security, transfer limits and client advisory. How can I assist you?`;
   }
 
-  if (ind === 'generic' || ind === 'general') {
+  // Prop-firm welcome: explicit trading/prop-firm domains, or omitted industry in legacy callers
+  if (ind === '' || ind === 'prop_firm' || ind === 'trading' || ind === 'funded_trading') {
     if (lang === 'roman_ur') {
-      return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main hamari services, pricing, policies aur aam sawalaat mein aapki madad kar sakta hoon. Bataiye kya poochna chahte hain?`;
+      return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main challenge prices aur offers, trading rules, payouts, aapke account, platform setup aur KYC mein madad kar sakta hoon. Bataiye kya jaanna chahte hain?`;
     }
-    return `Hi${who}! 👋 Welcome to ${brand}. I can help with our services, pricing, policies and general questions. How can I help you today?`;
+    return `Hi${who}! 👋 Welcome to ${brand}. I can help with challenge prices and offers, trading rules, payouts, your account, platform setup and KYC. What would you like to know?`;
   }
 
-  // Default: Prop-firm welcome (preserves backwards compatibility)
+  // Generic / fallback welcome for all other non-empty industries
   if (lang === 'roman_ur') {
-    return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main challenge prices aur offers, trading rules, payouts, aapke account, platform setup aur KYC mein madad kar sakta hoon. Bataiye kya jaanna chahte hain?`;
+    return `Assalam o Alaikum${who}! 👋 ${brand} mein khush aamdeed. Main hamari services, pricing, policies aur aam sawalaat mein aapki madad kar sakta hoon. Bataiye kya poochna chahte hain?`;
   }
-  return `Hi${who}! 👋 Welcome to ${brand}. I can help with challenge prices and offers, trading rules, payouts, your account, platform setup and KYC. What would you like to know?`;
+  return `Hi${who}! 👋 Welcome to ${brand}. I can help with our services, pricing, policies and general questions. How can I help you today?`;
 }
 
 /** Suggested quick reply chips for the greeting / welcome screen */
 export function getDomainQuickChips(industry?: string | null): Array<{ label: string; value: string }> {
-  const ind = (industry || '').toLowerCase().trim();
+  const ind = normalizeIndustryKey(industry);
 
   if (ind === 'ecommerce' || ind === 'retail' || ind === 'store') {
     return [
@@ -807,7 +878,12 @@ export function getDomainQuickChips(industry?: string | null): Array<{ label: st
     ];
   }
 
-  if (ind === 'finance' || ind === 'real_estate' || ind === 'fintech') {
+  const extraChips = EXTRA_DOMAIN_CHIPS[ind];
+  if (extraChips) {
+    return extraChips;
+  }
+
+  if (ind === 'finance' || ind === 'fintech') {
     return [
       { label: '💳 Accounts & Verification', value: 'What documents are needed for KYC verification?' },
       { label: '🔒 Security & 2FA', value: 'How do you secure accounts and data?' },
@@ -817,22 +893,23 @@ export function getDomainQuickChips(industry?: string | null): Array<{ label: st
     ];
   }
 
-  if (ind === 'generic' || ind === 'general') {
+  // Prop-firm quick chips: explicit trading/prop-firm domains, or omitted industry in legacy callers
+  if (ind === '' || ind === 'prop_firm' || ind === 'trading' || ind === 'funded_trading') {
     return [
-      { label: '💰 Pricing & Plans', value: 'What pricing plans and services do you offer?' },
-      { label: '❓ Getting Started', value: 'How do I get started with your service?' },
-      { label: '📄 Policies & FAQs', value: 'Where can I read your policies and FAQs?' },
-      { label: '📞 Contact & Support', value: 'What are your support hours and channels?' },
+      { label: '💰 Pricing & Plans', value: 'What are the challenge prices and account sizes?' },
+      { label: '📋 Trading Rules', value: 'What are the trading rules and drawdown limits?' },
+      { label: '💸 Payouts', value: 'How and when can I request a payout?' },
+      { label: '🔐 Account & KYC', value: 'What documents are required for KYC verification?' },
       { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
     ];
   }
 
-  // Default: Prop-firm quick chips (preserves backwards compatibility)
+  // Generic / fallback quick chips for all other non-empty industries
   return [
-    { label: '💰 Pricing & Plans', value: 'What are the challenge prices and account sizes?' },
-    { label: '📋 Trading Rules', value: 'What are the trading rules and drawdown limits?' },
-    { label: '💸 Payouts', value: 'How and when can I request a payout?' },
-    { label: '🔐 Account & KYC', value: 'What documents are required for KYC verification?' },
+    { label: '💰 Pricing & Plans', value: 'What pricing plans and services do you offer?' },
+    { label: '❓ Getting Started', value: 'How do I get started with your service?' },
+    { label: '📄 Policies & FAQs', value: 'Where can I read your policies and FAQs?' },
+    { label: '📞 Contact & Support', value: 'What are your support hours and channels?' },
     { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
   ];
 }

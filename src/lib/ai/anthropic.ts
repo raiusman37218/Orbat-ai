@@ -1296,6 +1296,7 @@ async function respondToVisitor({
   resuming = false,
   answerMode = 'strict',
   subAgents = null,
+  handoffOnFrustration = true,
 }: {
   workspaceId: string;
   conversationId: string;
@@ -1323,6 +1324,8 @@ async function respondToVisitor({
   answerMode?: 'agent' | 'strict';
   /** ai_settings.sub_agents: specialists switched off and their extra instructions. */
   subAgents?: SubAgentSettings | null;
+  /** Agent Builder escalation rule: hand over immediately on frustration/anger. */
+  handoffOnFrustration?: boolean;
 }): Promise<HelpDeskResponseResult> {
   const brand = workspaceName?.trim() || 'our team';
   // The screenshot note (vision.ts) is English; the reply follows the visitor's own words.
@@ -1466,7 +1469,7 @@ async function respondToVisitor({
   // still goes to the team.
   const isAngry = intent.isComplaint || STRONG_FRUSTRATION.test(incomingMessage);
   const agentTakesAnger = agentMode && !BOT_FRUSTRATION.test(incomingMessage) && !asksForHuman(incomingMessage);
-  if (isAngry && !agentTakesAnger) {
+  if (handoffOnFrustration && isAngry && !agentTakesAnger) {
     return handover(formatHandoverCustomerMessage({ lang, businessHours }), {
       disableAi: true,
       priority: 'urgent',
@@ -1722,13 +1725,7 @@ async function respondToVisitor({
         : smallTalkReply(intent.smallTalkKind ?? 'greeting', lang, brand, name, null, incomingMessage);
       const strictGreetingQuickReplies: Array<{ label: string; value: string }> | null =
         (greeting && !ongoing) || isAnotherQuestion
-          ? [
-              { label: '💰 Pricing & Plans', value: 'What are the challenge prices and account sizes?' },
-              { label: '📋 Trading Rules', value: 'What are the trading rules and drawdown limits?' },
-              { label: '💸 Payouts', value: 'How and when can I request a payout?' },
-              { label: '🔐 Account & KYC', value: 'What documents are required for KYC verification?' },
-              { label: '🧑‍💼 Talk to a person', value: 'I want to speak with a team member.' },
-            ]
+          ? getDomainQuickChips(industry)
           : null;
       return {
         replyText: text,
@@ -1851,6 +1848,7 @@ export async function executeHandoverToHuman({
   priority = 'high',
   controlVersion = null,
   announce = true,
+  handoffGroupId = null,
 }: {
   supabase: ReturnType<typeof serviceClient>;
   conversationId: string;
@@ -1873,6 +1871,8 @@ export async function executeHandoverToHuman({
    * reply already told the visitor; two messages saying the same was noise.
    */
   announce?: boolean;
+  /** Optional Agent Builder target team group ID to prefer when assigning human agents. */
+  handoffGroupId?: string | null;
 }) {
   try {
     // 0. Idempotency guard: refuse to create a second handover note for the same visitor message
@@ -1978,7 +1978,10 @@ export async function executeHandoverToHuman({
     let assignment: Awaited<ReturnType<typeof autoAssignConversation>> | null = null;
     if (!humanTookOver) {
       try {
-        assignment = await autoAssignConversation(serviceClient(), conversationId, { keepAssignee: true });
+        assignment = await autoAssignConversation(serviceClient(), conversationId, {
+          keepAssignee: true,
+          groupId: handoffGroupId,
+        });
       } catch (e) {
         console.warn('[Auto-Assign Error during Handover]:', e);
       }
@@ -1988,16 +1991,26 @@ export async function executeHandoverToHuman({
     // Fallback: if nobody is strictly online or on shift, assign the best active workspace agent
     if (!assignedTo && !humanTookOver) {
       try {
-        const { data: fallbackAgents } = await supabase
-          .from('agents')
-          .select('id, name, email, avatar_url, status, role, is_active')
-          .eq('workspace_id', workspaceId)
-          .neq('is_active', false)
-          .neq('role', 'light_agent');
+        const [{ data: fallbackAgents }, groupRes] = await Promise.all([
+          supabase
+            .from('agents')
+            .select('id, name, email, avatar_url, status, role, is_active')
+            .eq('workspace_id', workspaceId)
+            .neq('is_active', false)
+            .neq('role', 'light_agent'),
+          handoffGroupId
+            ? supabase.from('ticket_group_members').select('agent_id').eq('group_id', handoffGroupId)
+            : Promise.resolve({ data: null as { agent_id: string }[] | null }),
+        ]);
 
         if (fallbackAgents && fallbackAgents.length > 0) {
+          const groupMemberIds = new Set(
+            ((groupRes?.data as { agent_id: string }[] | null) || []).map((m) => m.agent_id).filter(Boolean),
+          );
+          const groupPool = groupMemberIds.size > 0 ? fallbackAgents.filter((a) => groupMemberIds.has(a.id)) : [];
+          const pool = groupPool.length > 0 ? groupPool : fallbackAgents;
           const rank = (s: string | null) => (s === 'online' ? 0 : s === 'away' ? 1 : 2);
-          const sorted = [...fallbackAgents].sort((a, b) => rank(a.status) - rank(b.status));
+          const sorted = [...pool].sort((a, b) => rank(a.status) - rank(b.status));
           const chosen = sorted[0];
           assignedTo = {
             id: chosen.id,

@@ -94,6 +94,7 @@ export function AiAgentsScreen() {
 
   const data = state.data;
   const canManage = Boolean(data?.canManage);
+  const canEditContent = Boolean(data?.canEditContent);
 
   const filteredReviews = useMemo(() => {
     const rows = data?.reviewQueue ?? [];
@@ -187,11 +188,15 @@ export function AiAgentsScreen() {
     {
       key: 'event',
       header: 'Event',
-      cell: (r) => (
-        <Badge tone={r.event === 'replied' ? 'ok' : r.event === 'handover' ? 'warn' : 'neutral'}>
-          {r.event.replace(/_/g, ' ')}
-        </Badge>
-      ),
+      cell: (r) => {
+        const tone =
+          r.event === 'reply_delivered' || r.event === 'replied'
+            ? 'ok'
+            : r.event === 'handover' || r.event === 'handoff_requested' || r.event === 'blocked_human'
+              ? 'warn'
+              : 'neutral';
+        return <Badge tone={tone}>{r.event.replace(/_/g, ' ')}</Badge>;
+      },
     },
     {
       key: 'channel',
@@ -655,24 +660,28 @@ export function AiAgentsScreen() {
                               Reviewed: {item.humanReview}
                             </Badge>
                           ) : null}
-                          <Button
-                            variant={item.humanReview === 'correct' ? 'primary' : 'secondary'}
-                            size="sm"
-                            disabled={reviewingId === item.id}
-                            leading={<ThumbsUp size={13} />}
-                            onClick={() => handleVerdict(item.id, 'correct')}
-                          >
-                            Correct
-                          </Button>
-                          <Button
-                            variant={item.humanReview === 'wrong' ? 'danger' : 'secondary'}
-                            size="sm"
-                            disabled={reviewingId === item.id}
-                            leading={<ThumbsDown size={13} />}
-                            onClick={() => handleVerdict(item.id, 'wrong')}
-                          >
-                            Wrong
-                          </Button>
+                          {canEditContent ? (
+                            <>
+                              <Button
+                                variant={item.humanReview === 'correct' ? 'primary' : 'secondary'}
+                                size="sm"
+                                disabled={reviewingId === item.id}
+                                leading={<ThumbsUp size={13} />}
+                                onClick={() => handleVerdict(item.id, 'correct')}
+                              >
+                                Correct
+                              </Button>
+                              <Button
+                                variant={item.humanReview === 'wrong' ? 'danger' : 'secondary'}
+                                size="sm"
+                                disabled={reviewingId === item.id}
+                                leading={<ThumbsDown size={13} />}
+                                onClick={() => handleVerdict(item.id, 'wrong')}
+                              >
+                                Wrong
+                              </Button>
+                            </>
+                          ) : null}
                         </div>
                       </div>
 

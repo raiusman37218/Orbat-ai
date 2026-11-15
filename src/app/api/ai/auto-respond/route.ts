@@ -44,15 +44,61 @@ import { recordPolicyOutcome } from '@/lib/ai/learning/policy';
 import { looksLikeImageUrl, messageWithImage, readScreenshot, type ImageReading } from '@/lib/ai/vision';
 import { canAiRespond } from '@/lib/handoff/state-machine';
 import {
-  getActivePrimaryAiAgent,
   getLanguageConfig,
   recordAiVerificationLog,
+  resolveTargetAiAgentWithMatch,
   verifyReplyClaimsAgainstKnowledge,
+  type AgentRoutingResult,
 } from '@/lib/ai/agent-runtime';
 import type { HandoffStatus } from '@/types/database';
 import { evaluateHandoffTrigger } from '@/lib/ai/handoff-detect';
 
 export const maxDuration = 60;
+
+/** Maps categorical retrieval confidence to a numeric score for threshold checks. */
+function retrievalConfidenceScore(confidence?: string | null): number | undefined {
+  if (confidence === 'high') return 0.92;
+  if (confidence === 'medium') return 0.72;
+  if (confidence === 'low') return 0.4;
+  return undefined;
+}
+
+interface PreferredAgentRow {
+  id: string;
+  name: string | null;
+  avatar_url: string | null;
+  status: string | null;
+  is_active: boolean | null;
+  role: string | null;
+}
+
+/** Picks the best active human agent, preferring members of `handoffGroupId` when set. */
+async function pickPreferredGroupAgent(
+  supabase: ReturnType<typeof serviceClient>,
+  workspaceId: string,
+  handoffGroupId?: string | null,
+): Promise<{ id: string; name: string | null; avatar_url: string | null } | null> {
+  const [{ data: ags }, groupRes] = await Promise.all([
+    supabase.from('agents').select('id, name, avatar_url, status, is_active, role').eq('workspace_id', workspaceId),
+    handoffGroupId
+      ? supabase.from('ticket_group_members').select('agent_id').eq('group_id', handoffGroupId)
+      : Promise.resolve({ data: null as { agent_id: string }[] | null }),
+  ]);
+  const eligible = ((ags as PreferredAgentRow[] | null) || []).filter(
+    (a) => a.is_active !== false && a.role !== 'light_agent',
+  );
+  if (eligible.length === 0) return null;
+
+  const groupIds = new Set(
+    ((groupRes?.data as { agent_id: string }[] | null) || []).map((m) => m.agent_id).filter(Boolean),
+  );
+  const groupPool = groupIds.size > 0 ? eligible.filter((a) => groupIds.has(a.id)) : [];
+  const pool = groupPool.length > 0 ? groupPool : eligible;
+  const rank = (s: string | null) => (s === 'online' ? 0 : s === 'away' ? 1 : 2);
+  const sorted = [...pool].sort((a, b) => rank(a.status) - rank(b.status));
+  const chosen = sorted[0];
+  return chosen ? { id: chosen.id, name: chosen.name, avatar_url: chosen.avatar_url } : null;
+}
 
 /** The parts of workspaces.handoff_settings this route reads. */
 interface HandoffSettingsView {
@@ -885,25 +931,52 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       hasKey: Boolean(platformConfig?.config?.apiKey),
     });
 
-    const [activeAiAgent, langConfig] = await Promise.all([
-      getActivePrimaryAiAgent(workspace_id).catch(() => null),
+    const recentUserMessages = recentTurns.filter((t) => t.role === 'user').map((t) => t.content);
+    const [agentRouting, langConfig] = await Promise.all([
+      resolveTargetAiAgentWithMatch({
+        workspaceId: workspace_id,
+        channel: conv.channel || 'web',
+        message: visitorMsg.content || '',
+        recentUserMessages,
+      }).catch((): AgentRoutingResult => ({ agent: null, reason: 'unavailable', score: 0 })),
       getLanguageConfig(workspace_id).catch(() => null),
     ]);
+    const activeAiAgent = agentRouting.agent;
 
     const botName = activeAiAgent?.name || aiSettings?.bot_name || workspace?.greeting_title || 'Support Agent';
     const effectiveSystemPrompt = (() => {
       if (!activeAiAgent) return aiSettings?.system_prompt || null;
+      const roleLine = activeAiAgent.role_title ? `\nRole: ${activeAiAgent.role_title}` : '';
+      const toneLine = activeAiAgent.tone ? `\nTone: ${activeAiAgent.tone}` : '';
+      const actions = activeAiAgent.capabilities?.actions || [];
+      const capabilitiesBlock = actions.length
+        ? `\n\n# DECLARED CAPABILITIES\n${actions.map((a) => `- ${a}`).join('\n')}`
+        : '';
+      const specializationLine = activeAiAgent.capabilities?.subAgentId
+        ? `\nPrimary Specialization: ${activeAiAgent.capabilities.subAgentId}`
+        : '';
       const guardrailsBlock = activeAiAgent.guardrails.length
         ? `\n\n# GUARDRAILS\n${activeAiAgent.guardrails.map((g) => `- ${g}`).join('\n')}`
         : '';
-      const toneLine = activeAiAgent.tone ? `\nTone: ${activeAiAgent.tone}` : '';
-      return `${activeAiAgent.system_prompt || aiSettings?.system_prompt || ''}${toneLine}${guardrailsBlock}`.trim() || null;
+      return (
+        `${activeAiAgent.system_prompt || aiSettings?.system_prompt || ''}${roleLine}${toneLine}${specializationLine}${capabilitiesBlock}${guardrailsBlock}`.trim() ||
+        null
+      );
     })();
     const effectiveAnswerMode = activeAiAgent?.answer_mode || (aiSettings?.answer_mode === 'strict' ? 'strict' : 'agent');
+    const effectiveReplyStyle = activeAiAgent?.reply_language_mode || langConfig?.reply_style || 'match_customer';
+    const showCitations = activeAiAgent ? activeAiAgent.appearance?.showCitations !== false : true;
+    const effectiveConfidenceThreshold =
+      activeAiAgent?.escalation_rules?.confidenceThreshold ?? handoffSettings?.ai?.confidence_threshold ?? 0.65;
+    const effectiveHandoffOnFrustration = activeAiAgent?.escalation_rules?.handoffOnFrustration ?? true;
+    const effectiveHandoffGroupId = activeAiAgent?.escalation_rules?.handoffGroupId ?? null;
+    const effectiveCannedGreeting =
+      activeAiAgent?.appearance?.welcomeMessage?.trim() || aiSettings?.greeting_message || null;
 
     console.log('[Auto-Respond Step 5] Generating RAG response:', {
       botName,
       activeAgentId: activeAiAgent?.id ?? null,
+      routingReason: agentRouting.reason,
       workspace: workspace?.name,
       incomingLength: visitorMsg.content?.length,
     });
@@ -947,6 +1020,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
     // flagging a message the pipeline did answer.
     let pipelineHandover = false;
     let handoffExplicit = false;
+    let blockedTopicMatched = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       const timeoutPromise = new Promise<never>((_, reject) => {
@@ -958,6 +1032,23 @@ async function executeAutoRespond(req: NextRequest, body: any) {
 
       const convId = conversation_id;
       const visitorText = messageWithImage(visitorMsg.content as string, imageReading);
+      const blockedTopics = activeAiAgent?.escalation_rules?.blockedTopics || [];
+      const matchedBlockedTopic = blockedTopics.find((t) =>
+        t.trim() ? visitorText.toLowerCase().includes(t.trim().toLowerCase()) : false,
+      );
+      const maxBotTurns = activeAiAgent?.escalation_rules?.maxBotTurns;
+      const sessionCutoff = Math.max(resolvedAt, agentExplicitlyResumed ? -Infinity : lastHumanAt);
+      const priorBotTurns = msgs.filter(
+        (m) =>
+          m.sender_type === 'ai' &&
+          !m.is_internal &&
+          !m.metadata?.is_welcome &&
+          !m.metadata?.system_event &&
+          Date.parse(m.created_at) <= targetAt &&
+          Date.parse(m.created_at) > sessionCutoff,
+      ).length;
+      const maxTurnsExceeded = typeof maxBotTurns === 'number' && maxBotTurns > 0 && priorBotTurns >= maxBotTurns;
+
       const builtIn = () =>
         generateHelpDeskResponseWithHandover({
           workspaceId: workspace_id,
@@ -971,50 +1062,93 @@ async function executeAutoRespond(req: NextRequest, body: any) {
           turns: recentTurns,
           helpCenterUrl: helpCenterUrlFor(workspace),
           workspaceName: workspace?.name,
-          industry: (workspace as any)?.industry || null,
+          industry:
+            activeAiAgent?.industry ||
+            (workspace as { industry?: string | null } | null | undefined)?.industry ||
+            'generic',
           hasHumanReplied: lastHumanAt > -Infinity && lastHumanAt > resolvedAt,
           botFailureCount: (conv as any)?.bot_failure_count || 0,
           runningSummary,
           businessHours: workspace?.business_hours || null,
-          cannedGreeting: aiSettings?.greeting_message || null,
+          cannedGreeting: effectiveCannedGreeting,
           humanContext,
           resuming: botState === 'ai_resuming',
           // Agent mode unless the workspace chose the strict path in settings.
           answerMode: effectiveAnswerMode,
           subAgents: aiSettings?.sub_agents ?? null,
+          handoffOnFrustration: effectiveHandoffOnFrustration,
         });
 
-      // The workspace's own agent (Settings → AI bot → LangGraph) answers
-      // first when it is on. A request for a person always goes the built-in
-      // way, so reaching the team never depends on someone else's endpoint.
-      const generate = async () => {
-        if (!isAskingForHuman) {
-          const external = await answerWithExternalAgent({
-            workspaceId: workspace_id,
-            conversationId: convId,
-            incomingMessage: visitorText,
-            channel: conv.channel || 'web',
-            visitorName: (conv.visitor as { name?: string | null } | null)?.name || null,
-            turns: [...recentTurns, { role: 'user' as const, content: visitorText }],
-            humanContext,
-            workspaceSystemPrompt: aiSettings?.system_prompt || null,
-          });
-          if (external) return external;
-        }
-        return builtIn();
-      };
-
-      result = await Promise.race([generate(), timeoutPromise]);
-      pipelineHandover = Boolean(result.shouldHandover);
-
-      const blockedTopics = activeAiAgent?.escalation_rules?.blockedTopics || [];
-      const matchedBlockedTopic = blockedTopics.find((t) =>
-        t.trim() ? visitorText.toLowerCase().includes(t.trim().toLowerCase()) : false,
-      );
-      if (matchedBlockedTopic && !pipelineHandover) {
-        result.shouldHandover = true;
-        result.handoverReason = `Blocked topic policy matched: ${matchedBlockedTopic}`;
+      if (matchedBlockedTopic && !isAskingForHuman) {
+        blockedTopicMatched = true;
         pipelineHandover = true;
+        const blockLang = effectiveReplyStyle === 'english_only' ? 'en' : replyLanguageOf(visitorMsg.content || visitorText);
+        const notice = getExpectedReplyTimeNotice(blockLang);
+        result = {
+          replyText: localized(blockLang, {
+            en: `Our team handles this topic personally, so I've passed your message to them. ${notice}`,
+            roman_ur: `Ye topic hamari team khud dekhti hai, is liye maine aapka message unhe bhej diya hai. ${notice}`,
+            ur: `یہ موضوع ہماری ٹیم خود دیکھتی ہے، اس لیے میں نے آپ کا پیغام انہیں بھیج دیا ہے۔ ${notice}`,
+          }),
+          shouldHandover: true,
+          canAnswerFromDocs: false,
+          intent: 'out_of_scope',
+          intentSource: 'rules',
+          disableAi: false,
+          handoverReason: `Blocked topic policy matched: ${matchedBlockedTopic}`,
+          priority: 'high',
+          citation: null,
+          citedArticles: [],
+          usedArticleIds: [],
+          quickReplies: null,
+          engine: 'built_in',
+        };
+      } else if (maxTurnsExceeded && !isAskingForHuman) {
+        pipelineHandover = true;
+        const turnLang = effectiveReplyStyle === 'english_only' ? 'en' : replyLanguageOf(visitorMsg.content || visitorText);
+        const notice = getExpectedReplyTimeNotice(turnLang);
+        result = {
+          replyText: localized(turnLang, {
+            en: `Let me connect you directly with a member of our team to help you further. ${notice}`,
+            roman_ur: `Aapki behtar madad ke liye main aapko abhi hamari team ke member se connect karta hoon. ${notice}`,
+            ur: `آپ کی بہتر مدد کے لیے میں آپ کو ابھی ہماری ٹیم کے رکن سے منسلک کرتا ہوں۔ ${notice}`,
+          }),
+          shouldHandover: true,
+          canAnswerFromDocs: false,
+          intent: 'out_of_scope',
+          intentSource: 'rules',
+          disableAi: false,
+          handoverReason: `Max bot turns reached (${maxBotTurns})`,
+          priority: 'high',
+          citation: null,
+          citedArticles: [],
+          usedArticleIds: [],
+          quickReplies: null,
+          engine: 'built_in',
+        };
+      } else {
+        // The workspace's own agent (Settings -> AI bot -> LangGraph) answers
+        // first when it is on. A request for a person always goes the built-in
+        // way, so reaching the team never depends on someone else's endpoint.
+        const generate = async () => {
+          if (!isAskingForHuman) {
+            const external = await answerWithExternalAgent({
+              workspaceId: workspace_id,
+              conversationId: convId,
+              incomingMessage: visitorText,
+              channel: conv.channel || 'web',
+              visitorName: (conv.visitor as { name?: string | null } | null)?.name || null,
+              turns: [...recentTurns, { role: 'user' as const, content: visitorText }],
+              humanContext,
+              workspaceSystemPrompt: effectiveSystemPrompt || aiSettings?.system_prompt || null,
+            });
+            if (external) return external;
+          }
+          return builtIn();
+        };
+
+        result = await Promise.race([generate(), timeoutPromise]);
+        pipelineHandover = Boolean(result.shouldHandover);
       }
 
       // Spec C triggers the pipeline does not look for (keywords, repeated
@@ -1026,7 +1160,9 @@ async function executeAutoRespond(req: NextRequest, body: any) {
         const handoffEval = evaluateHandoffTrigger({
           incomingMessage: visitorText,
           turns: recentTurns,
-          confidenceThreshold: handoffSettings?.ai?.confidence_threshold ?? 0.65,
+          aiConfidence: retrievalConfidenceScore(result.retrievalConfidence),
+          confidenceThreshold: effectiveConfidenceThreshold,
+          handoffOnFrustration: effectiveHandoffOnFrustration,
           cooldownMessageCount: handoffSettings?.ai?.cooldown_message_count ?? 5,
           customKeywords: handoffSettings?.ai?.keywords,
         });
@@ -1061,6 +1197,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
         priority: 'high',
         internalNote: `🤖 [AI Timeout/Failover]: Bot response took too long or failed (${timeoutErr?.message || 'timeout'}). Handed to a human agent so the visitor was not kept waiting.`,
         controlVersion,
+        handoffGroupId: effectiveHandoffGroupId,
       });
       await logAiEvent(supabase, {
         workspaceId: workspace_id,
@@ -1141,11 +1278,23 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       replyLanguageOf(replyBody) === 'roman_ur' ? 'ur' : isLikelyEnglishText(replyBody) ? 'en' : detectLanguage(replyBody).code;
     const providerConfig = providerConfigFrom(aiSettings);
 
-    if (langConfig?.reply_style === 'english_only') {
-      replyBody = englishBody;
+    if (effectiveReplyStyle === 'english_only') {
+      if (replyLang !== 'en') {
+        try {
+          const t = await translateToEnglish({ text: replyBody, providerConfig });
+          if (t.englishText?.trim()) {
+            replyBody = t.englishText.trim();
+            englishBody = replyBody;
+          }
+        } catch (err) {
+          console.warn('[Auto-Respond] English-only translation failed, sending as written:', err);
+        }
+      } else {
+        replyBody = englishBody;
+      }
     } else if (visitorLang.code !== 'en' && replyLang === 'en') {
       try {
-        const wantRoman = langConfig?.reply_style === 'native_script' ? false : visitorLang.roman;
+        const wantRoman = effectiveReplyStyle === 'native_script' ? false : visitorLang.roman;
         const t = await translateAgentReply({
           text: replyBody,
           targetLanguageCode: visitorLang.code,
@@ -1193,7 +1342,9 @@ async function executeAutoRespond(req: NextRequest, body: any) {
     //   queued  - already in the offline queue, talking to AI assist: nothing
     //             more to do, the team has it;
     //   legacy  - the handoff system is off: the older direct handover.
-    const requireConfirmation = handoffSettings?.ai?.require_confirmation !== false;
+    const requireConfirmation = activeAiAgent
+      ? activeAiAgent.escalation_rules.requireConfirmation
+      : handoffSettings?.ai?.require_confirmation !== false;
     const handoffAction: 'none' | 'offer' | 'request' | 'queued' | 'legacy' = !result.shouldHandover
       ? 'none'
       : !handoffModeOn
@@ -1209,7 +1360,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
 
     let effectiveCitation = citationLine;
     if (handoffAction === 'offer') {
-      const offerLang = replyLanguageOf(visitorMsg.content);
+      const offerLang = effectiveReplyStyle === 'english_only' ? 'en' : replyLanguageOf(visitorMsg.content);
       const onChannel = Boolean(conv.channel && conv.channel !== 'web');
       const channelHint = onChannel
         ? localized(offerLang, {
@@ -1233,6 +1384,15 @@ async function executeAutoRespond(req: NextRequest, body: any) {
             });
         replyBody = `${offerText}${channelHint}`;
         englishBody = "Sure, I'll connect you with our team.";
+        effectiveCitation = '';
+      } else if (blockedTopicMatched) {
+        const offerText = localized(offerLang, {
+          en: "Our team handles this topic personally. Would you like me to connect you with a specialist now?",
+          roman_ur: 'Ye topic hamari team khud dekhti hai. Kya main aapko abhi specialist se connect kar doon?',
+          ur: 'یہ موضوع ہماری ٹیم خود دیکھتی ہے۔ کیا میں آپ کو ابھی کسی ماہر سے منسلک کر دوں؟',
+        });
+        replyBody = `${offerText}${channelHint}`;
+        englishBody = "Our team handles this topic personally. Would you like me to connect you with a specialist now?";
         effectiveCitation = '';
       } else if (pipelineHandover) {
         // The pipeline's text announces a handover that has not happened
@@ -1265,17 +1425,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
           if (a) preassignedAgent = a;
         }
         if (!preassignedAgent) {
-          const { data: ags } = await supabase
-            .from('agents')
-            .select('id, name, avatar_url, status')
-            .eq('workspace_id', workspace_id)
-            .neq('is_active', false)
-            .neq('role', 'light_agent');
-          if (ags && ags.length > 0) {
-            const rank = (s: string | null) => (s === 'online' ? 0 : s === 'away' ? 1 : 2);
-            const sorted = [...ags].sort((a, b) => rank(a.status) - rank(b.status));
-            preassignedAgent = sorted[0];
-          }
+          preassignedAgent = await pickPreferredGroupAgent(supabase, workspace_id, effectiveHandoffGroupId);
         }
 
         // If visitor asked for human and an agent name is available, append professional connecting notice
@@ -1283,7 +1433,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
         if (preassignedAgent?.name && result.intent === 'wants_human' && conv.channel && conv.channel !== 'web') {
           const agentName = preassignedAgent.name;
           const connectingNotice =
-            visitorLang.code === 'ur'
+            effectiveReplyStyle !== 'english_only' && visitorLang.code === 'ur'
               ? visitorLang.roman
                 ? `\n\n🔄 Main aapko hamare available support agent **${agentName}** se connect kar raha hoon...`
                 : `\n\n🔄 میں آپ کو ہمارے دستیاب سپورٹ ایجنٹ **${agentName}** سے منسلک کر رہا ہوں۔`
@@ -1297,8 +1447,9 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       }
     }
 
-    aiResponseText = `${replyBody}${effectiveCitation}`;
-    const aiEnglishTranslation = `${englishBody}${effectiveCitation}`;
+    const visibleCitation = showCitations ? effectiveCitation : '';
+    aiResponseText = `${replyBody}${visibleCitation}`;
+    const aiEnglishTranslation = `${englishBody}${visibleCitation}`;
     const detected = { code: visitorLang.code, name: getLanguageInfo(visitorLang.code).name };
     const citedArticleIds = result.usedArticleIds || (result.citation?.id ? [result.citation.id] : []);
     const citedArticles = result.citedArticles || (result.citation ? [{ id: result.citation.id, title: result.citation.title }] : []);
@@ -1309,6 +1460,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       control_version: controlVersion,
       delivered_language: detected.code,
       cited_articles_count: citedArticles.length,
+      show_citations: showCitations,
     });
 
     const replyMetadata = {
@@ -1324,6 +1476,10 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       bot_engine: result.engine ?? 'built_in',
       agent_id: activeAiAgent?.id ?? null,
       agent_name: botName,
+      agent_role_title: activeAiAgent?.role_title ?? null,
+      agent_badge_label: activeAiAgent?.appearance?.badgeLabel ?? null,
+      agent_routing_reason: agentRouting.reason,
+      handoff_group_id: effectiveHandoffGroupId,
       retrieval_confidence: result.retrievalConfidence ?? null,
       cited_article_id: result.citation?.id ?? null,
       cited_article_ids: citedArticleIds,
@@ -1496,6 +1652,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
           priority: result.priority || 'high',
           // The reply just delivered already tells the visitor what happens next.
           announce: false,
+          handoffGroupId: effectiveHandoffGroupId,
         });
 
         const finalAgent = (handoverResult as any)?.assignedAgent || preassignedAgent;
@@ -1570,6 +1727,19 @@ async function executeAutoRespond(req: NextRequest, body: any) {
           await runLegacyHandover();
         } else {
           handoffOutcome = `request_${requestRes?.status || requestRes?.reason || 'unknown'}`;
+          if (effectiveHandoffGroupId && !conv.assigned_agent_id) {
+            try {
+              const preferredAgent = await pickPreferredGroupAgent(supabase, workspace_id, effectiveHandoffGroupId);
+              if (preferredAgent) {
+                await supabase
+                  .from('conversations')
+                  .update({ assigned_agent_id: preferredAgent.id })
+                  .eq('id', conversation_id);
+              }
+            } catch (groupErr) {
+              console.warn('[Auto-Respond] Group pre-assignment after request_handoff failed:', groupErr);
+            }
+          }
         }
       } else if (handoffAction === 'legacy') {
         await runLegacyHandover();
@@ -1584,6 +1754,8 @@ async function executeAutoRespond(req: NextRequest, body: any) {
         // help-centre questions the team then answered.
         detail: {
           agent_id: activeAiAgent?.id ?? null,
+          agent_routing_reason: agentRouting.reason,
+          handoff_group_id: effectiveHandoffGroupId,
           disable_ai: Boolean(result.disableAi),
           priority: result.priority || 'high',
           intent: result.intent ?? null,

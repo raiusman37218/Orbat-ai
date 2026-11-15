@@ -256,6 +256,7 @@ function AgentBuilderEditor({
       const res = await runAgentPlayground(workspaceId, {
         agentId: !bundle.isNew ? bundle.agent.id : null,
         agentName: name || 'Support Assistant',
+        industry: industry || null,
         tone,
         systemPrompt,
         guardrails,

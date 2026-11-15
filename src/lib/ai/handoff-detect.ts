@@ -16,6 +16,7 @@ export interface HandoffEvaluationInput {
   aiConfidence?: number;
   confidenceThreshold?: number;
   customKeywords?: string[];
+  handoffOnFrustration?: boolean;
   cooldownMessageCount?: number;
   lastHandoffOfferedAtTurn?: number;
   currentTurnIndex?: number;
@@ -138,7 +139,7 @@ export function evaluateHandoffTrigger(input: HandoffEvaluationInput): HandoffEv
   }
 
   // 3. Frustration / Anger Detection
-  if (detectFrustration(text)) {
+  if (input.handoffOnFrustration !== false && detectFrustration(text)) {
     return {
       needsHandoff: true,
       isExplicit: false,

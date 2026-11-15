@@ -129,8 +129,8 @@ function TemplateInspectorBody({
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-2 border-t border-o-border pt-3">
-        {canManage ? (
+      {canManage ? (
+        <div className="flex flex-wrap gap-2 border-t border-o-border pt-3">
           <Button
             variant="ai"
             size="md"
@@ -141,15 +141,15 @@ function TemplateInspectorBody({
           >
             Use this template
           </Button>
-        ) : null}
-        <ButtonLink
-          href={`/app/agents/new?template=${encodeURIComponent(tpl.id)}`}
-          variant="secondary"
-          size="md"
-        >
-          Customize draft
-        </ButtonLink>
-      </div>
+          <ButtonLink
+            href={`/app/agents/new?template=${encodeURIComponent(tpl.id)}`}
+            variant="secondary"
+            size="md"
+          >
+            Customize draft
+          </ButtonLink>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -170,7 +170,7 @@ export function AgentTemplatesScreen() {
     () => getAiAgentsBootstrap(workspaceId),
     ['ai-templates-auth', workspaceId],
   );
-  const canManage = authState.data ? authState.data.canManage : true;
+  const canManage = Boolean(authState.data?.canManage);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
