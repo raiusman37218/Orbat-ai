@@ -1,11 +1,6 @@
 import { NextResponse } from 'next/server';
 import { resolveServerBackendBaseUrl } from '@/lib/backend-url';
-
-/**
- * Sanitizes the `next` redirect parameter.
- * Accepts `next` only if it starts with exactly one `/`; rejects `//`, `/\`,
- * and anything containing `://` or `@`. Falls back to `/app`.
- */
+import { exchangeGoogleOAuthAndSignIn } from '@/lib/auth/backend-auth-fallback';
 import { authPathForMode, parseOAuthState } from '@/lib/data/auth-rules';
 
 export function sanitizeNextPath(raw: string | null | undefined, fallback = '/app'): string {
@@ -56,6 +51,42 @@ export function resolveBaseUrl(request: Request, origin: string): string {
   return origin;
 }
 
+function buildAuthenticatedRedirect(
+  baseUrl: string,
+  stateNext: string,
+  tokens: {
+    accessToken: string;
+    refreshToken?: string;
+    user?: unknown;
+    workspace?: { id?: string } | null;
+  },
+) {
+  const effectiveNext = sanitizeNextPath(stateNext, '/app');
+  const targetPath =
+    tokens.workspace?.id || effectiveNext !== '/app' ? effectiveNext : '/onboarding';
+  const res = NextResponse.redirect(`${baseUrl}${targetPath}`);
+  const cookieOpts = {
+    path: '/',
+    maxAge: 604800,
+    sameSite: 'lax' as const,
+    secure: baseUrl.startsWith('https://'),
+  };
+  res.cookies.set('orbat_access_token', tokens.accessToken, cookieOpts);
+  if (tokens.refreshToken) {
+    res.cookies.set('orbat_refresh_token', tokens.refreshToken, {
+      ...cookieOpts,
+      maxAge: 2592000,
+    });
+  }
+  if (tokens.user) {
+    res.cookies.set('orbat_user', JSON.stringify(tokens.user), cookieOpts);
+  }
+  if (tokens.workspace) {
+    res.cookies.set('orbat_workspace', JSON.stringify(tokens.workspace), cookieOpts);
+  }
+  return res;
+}
+
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
@@ -70,72 +101,65 @@ export async function GET(request: Request) {
   }
 
   if (code) {
-    // 1. Exchange code with NestJS Backend (passing exact callback URL so Google redirect_uri matches)
     const backendUrl = resolveServerBackendBaseUrl();
-    if (!backendUrl) {
-      return NextResponse.redirect(
-        `${baseUrl}${errorAuthPath}?error=${encodeURIComponent(
-          'Backend URL is not configured on the frontend deployment (set BACKEND_URL or NEXT_PUBLIC_BACKEND_URL).'
-        )}`
-      );
+    let backendErrorMessage: string | null = null;
+    let shouldTryDirectFallback = !backendUrl;
+
+    if (backendUrl) {
+      try {
+        const backendRes = await fetch(`${backendUrl}/auth/google`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            code,
+            redirectUri: `${baseUrl}/auth/callback`,
+          }),
+        });
+
+        if (backendRes.ok) {
+          const authData = await backendRes.json();
+          const tokens = authData.data || authData;
+          if (!tokens?.accessToken) {
+            return NextResponse.redirect(
+              `${baseUrl}${errorAuthPath}?error=${encodeURIComponent('Authentication failed: missing access token.')}`,
+            );
+          }
+          return buildAuthenticatedRedirect(baseUrl, stateNext, tokens);
+        }
+
+        if (backendRes.status >= 500) {
+          shouldTryDirectFallback = true;
+        } else {
+          const errBody = await backendRes.json().catch(() => null);
+          backendErrorMessage = errBody?.message || errBody?.error || null;
+        }
+      } catch (e: unknown) {
+        shouldTryDirectFallback = true;
+        backendErrorMessage = e instanceof Error ? e.message : String(e);
+      }
     }
 
-    let backendErrorMessage: string | null = null;
-    try {
-      const backendRes = await fetch(`${backendUrl}/auth/google`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          code,
-          redirectUri: `${baseUrl}/auth/callback`,
-        }),
-      });
-
-      if (backendRes.ok) {
-        const authData = await backendRes.json();
-        const tokens = authData.data || authData;
-        if (!tokens?.accessToken) {
-          return NextResponse.redirect(
-            `${baseUrl}${errorAuthPath}?error=${encodeURIComponent('Authentication failed: missing access token.')}`
-          );
-        }
-        const effectiveNext = sanitizeNextPath(stateNext, '/app');
-        const targetPath =
-          tokens.workspace?.id || effectiveNext !== '/app' ? effectiveNext : '/onboarding';
-        const res = NextResponse.redirect(`${baseUrl}${targetPath}`);
-        const cookieOpts = {
-          path: '/',
-          maxAge: 604800,
-          sameSite: 'lax' as const,
-          secure: baseUrl.startsWith('https://'),
-        };
-        res.cookies.set('orbat_access_token', tokens.accessToken, cookieOpts);
-        if (tokens.refreshToken) {
-          res.cookies.set('orbat_refresh_token', tokens.refreshToken, {
-            ...cookieOpts,
-            maxAge: 2592000,
-          });
-        }
-        if (tokens.user) {
-          res.cookies.set('orbat_user', JSON.stringify(tokens.user), cookieOpts);
-        }
-        if (tokens.workspace) {
-          res.cookies.set('orbat_workspace', JSON.stringify(tokens.workspace), cookieOpts);
-        }
-        return res;
+    if (shouldTryDirectFallback) {
+      try {
+        const directTokens = await exchangeGoogleOAuthAndSignIn(
+          {
+            code,
+            redirectUri: `${baseUrl}/auth/callback`,
+          },
+          baseUrl,
+        );
+        return buildAuthenticatedRedirect(baseUrl, stateNext, directTokens);
+      } catch (fallbackErr: unknown) {
+        backendErrorMessage =
+          fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
       }
-
-      const errBody = await backendRes.json().catch(() => null);
-      backendErrorMessage = errBody?.message || errBody?.error || null;
-    } catch (e: unknown) {
-      backendErrorMessage = e instanceof Error ? e.message : String(e);
     }
 
     const errorToDisplay = backendErrorMessage || 'Authentication failed.';
     return NextResponse.redirect(
       `${baseUrl}${errorAuthPath}?error=${encodeURIComponent(
-        Array.isArray(errorToDisplay) ? errorToDisplay.join(', ') : errorToDisplay
-      )}`
+        Array.isArray(errorToDisplay) ? errorToDisplay.join(', ') : errorToDisplay,
+      )}`,
     );
   }
 

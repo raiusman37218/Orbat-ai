@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { resolveServerBackendBaseUrl } from '@/lib/backend-url';
+import { handleBackendAuthFallback } from '@/lib/auth/backend-auth-fallback';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,8 +18,18 @@ async function proxyToBackend(
   req: NextRequest,
   context: { params: Promise<{ path: string[] }> },
 ) {
+  const { path } = await context.params;
+  const rawSubPath = (path || []).join('/').replace(/^\/+/, '');
+  const subPath = rawSubPath.replace(/^api\/v1(?:\/|$)/i, '');
+  const method = req.method.toUpperCase();
+  const isAuthRoute = subPath === 'auth' || subPath.startsWith('auth/');
+
   const backendBase = resolveServerBackendBaseUrl();
   if (!backendBase) {
+    if (isAuthRoute) {
+      const fallbackRes = await handleBackendAuthFallback(subPath, method, req);
+      if (fallbackRes) return fallbackRes;
+    }
     return NextResponse.json(
       {
         success: false,
@@ -31,16 +42,17 @@ async function proxyToBackend(
     );
   }
 
-  const { path } = await context.params;
-  const rawSubPath = (path || []).join('/').replace(/^\/+/, '');
-  const subPath = rawSubPath.replace(/^api\/v1(?:\/|$)/i, '');
   const reqUrl = req.nextUrl ?? new URL(req.url);
   const targetUrl = `${backendBase}${subPath ? `/${subPath}` : ''}${reqUrl.search || ''}`;
 
   try {
     const parsedTarget = new URL(targetUrl);
     const requestHost = (req.headers.get('host') || reqUrl.host || '').toLowerCase();
-    if (requestHost && parsedTarget.host.toLowerCase() === requestHost && parsedTarget.pathname.startsWith('/api/backend')) {
+    if (
+      requestHost &&
+      parsedTarget.host.toLowerCase() === requestHost &&
+      parsedTarget.pathname.startsWith('/api/backend')
+    ) {
       return NextResponse.json(
         {
           success: false,
@@ -69,7 +81,6 @@ async function proxyToBackend(
     if (value) headers.set(name, value);
   }
 
-  const method = req.method.toUpperCase();
   const hasBody = method !== 'GET' && method !== 'HEAD';
   const body = hasBody ? await req.arrayBuffer() : undefined;
 
@@ -93,6 +104,15 @@ async function proxyToBackend(
       headers: responseHeaders,
     });
   } catch (err: any) {
+    if (isAuthRoute) {
+      const clonedReq = new Request(req.url, {
+        method,
+        headers: req.headers,
+        body: hasBody && body && body.byteLength > 0 ? body.slice(0) : undefined,
+      });
+      const fallbackRes = await handleBackendAuthFallback(subPath, method, clonedReq);
+      if (fallbackRes) return fallbackRes;
+    }
     return NextResponse.json(
       {
         success: false,

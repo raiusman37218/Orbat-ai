@@ -94,5 +94,25 @@ describe('backend-url & Vercel proxy routing', () => {
     const forwardedHeaders = fetchSpy.mock.calls[0][1].headers as Headers;
     expect(forwardedHeaders.get('authorization')).toBe('Bearer tok-123');
   });
+
+  it('/api/backend falls back to built-in Next.js Google OAuth URL handler when BACKEND_URL is not configured', async () => {
+    process.env.VERCEL = '1';
+    process.env.GOOGLE_CLIENT_ID = 'google-client-test-id.apps.googleusercontent.com';
+
+    const req = new Request(
+      'https://front.vercel.app/api/backend/api/v1/auth/google/url?redirectUri=https%3A%2F%2Ffront.vercel.app%2Fauth%2Fcallback&state=mode%3Dsignup',
+    );
+    const res = await GET(req as any, {
+      params: Promise.resolve({ path: ['api', 'v1', 'auth', 'google', 'url'] }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    expect(json.data.configured).toBe(true);
+    expect(json.data.url).toContain('client_id=google-client-test-id.apps.googleusercontent.com');
+    expect(json.data.url).toContain(
+      encodeURIComponent('https://front.vercel.app/auth/callback'),
+    );
+  });
 });
 
