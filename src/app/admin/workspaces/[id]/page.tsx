@@ -42,7 +42,7 @@ export default async function WorkspacePage({ params }: PageProps) {
             Access denied. Platform super administrator privileges are required to view this workspace.
           </p>
           <a
-            href="/dashboard"
+            href="/app"
             className="inline-block px-4 py-2 rounded-xl bg-accent text-accent-ink text-xs font-semibold hover:opacity-90 transition-opacity"
           >
             Return to Dashboard

@@ -327,8 +327,8 @@ export async function createWorkspaceCheckoutAction(params: {
     customPriceUsd: priceUsd,
     variantId,
     discountCode: params.discountCode,
-    successUrl: `${appOrigin}/dashboard?checkout=success&plan=${plan.slug}&period=${params.billingPeriod}`,
-    cancelUrl: `${appOrigin}/dashboard?checkout=cancelled`,
+    successUrl: `${appOrigin}/app/billing?checkout=success&plan=${plan.slug}&period=${params.billingPeriod}`,
+    cancelUrl: `${appOrigin}/app/billing?checkout=cancelled`,
   });
 
   return { checkoutUrl: session.checkoutUrl };
@@ -350,7 +350,7 @@ export async function createWorkspaceCustomerPortalAction(
   const res = await provider.createCustomerPortalSession({
     workspaceId,
     customerId: sub?.lemonsqueezy_customer_id || undefined,
-    returnUrl: `${appOrigin}/dashboard`,
+    returnUrl: `${appOrigin}/app/billing`,
   });
 
   return { portalUrl: res.portalUrl };
@@ -998,7 +998,7 @@ export async function sendTestSystemEmailAction(params: {
     grace_period_days: '7',
     limit_name: 'Monthly Tickets',
     login_url: 'https://zentry.io/login',
-    billing_url: 'https://zentry.io/dashboard/settings/billing',
+    billing_url: 'https://orbatai.com/app/billing',
   };
 
   let subject = tpl.subject;

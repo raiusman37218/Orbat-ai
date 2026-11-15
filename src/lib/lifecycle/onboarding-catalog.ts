@@ -42,7 +42,7 @@ export const GETTING_STARTED_STEPS: GettingStartedStepDefinition[] = [
     title: 'Add the chat widget to your site',
     description: 'Customize your launcher and paste the one-line script into your store or website.',
     ctaLabel: 'Set up widget',
-    href: '/v2/widget',
+    href: '/widget',
   },
   {
     key: 'channels',

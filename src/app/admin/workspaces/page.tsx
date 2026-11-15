@@ -1,11 +1,5 @@
-import React from 'react';
-import { WorkspacesView } from '@/components/admin/WorkspacesView';
+import { redirect } from 'next/navigation';
 
-export const metadata = {
-  title: 'Workspaces — Orbat AI Super Admin',
-  description: 'Manage and monitor all tenant workspaces across the platform.',
-};
-
-export default function AdminWorkspacesPage() {
-  return <WorkspacesView />;
+export default function AdminWorkspacesRedirectPage() {
+  redirect('/admin?tab=workspaces');
 }

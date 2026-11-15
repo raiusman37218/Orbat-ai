@@ -1,11 +1,5 @@
-import React from 'react';
-import { PlatformAiView } from '@/components/admin/PlatformAiView';
+import { redirect } from 'next/navigation';
 
-export const metadata = {
-  title: 'AI Model & Usage — Orbat AI Super Admin',
-  description: 'Manage platform LLM credentials, provider configuration, plan AI limits, and workspace usage.',
-};
-
-export default function AdminAiPage() {
-  return <PlatformAiView />;
+export default function AdminAiRedirectPage() {
+  redirect('/admin?tab=ai');
 }

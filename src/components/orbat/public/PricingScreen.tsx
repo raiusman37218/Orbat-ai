@@ -84,13 +84,13 @@ export function PricingScreen() {
             </span>
           </Link>
           <nav className="hidden items-center gap-6 text-[14px] font-medium text-o-text-2 sm:flex">
-            <Link href="/v2/pricing" className="text-o-text no-underline">
+            <Link href="/pricing" className="text-o-text no-underline">
               Pricing
             </Link>
-            <Link href="/v2/help" className="no-underline hover:text-o-text">
+            <Link href="/help" className="no-underline hover:text-o-text">
               Help center
             </Link>
-            <Link href="/v2/widget" className="no-underline hover:text-o-text">
+            <Link href="/widget" className="no-underline hover:text-o-text">
               Widget showcase
             </Link>
           </nav>
@@ -173,7 +173,7 @@ export function PricingScreen() {
                       : Number(plan.monthly_price || 0);
                   const ctaHref = data.isSignedIn
                     ? `/app/billing?plan=${encodeURIComponent(plan.slug)}&billing=${cadence}`
-                    : `/v2/onboarding?plan=${encodeURIComponent(plan.slug)}&billing=${cadence}`;
+                    : `/onboarding?plan=${encodeURIComponent(plan.slug)}&billing=${cadence}`;
 
                   return (
                     <Card
@@ -329,7 +329,7 @@ export function PricingScreen() {
               </div>
               <div className="mt-6">
                 <Link
-                  href="/v2/onboarding?mode=payg"
+                  href="/onboarding?mode=payg"
                   className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-o-lime px-6 text-[15px] font-semibold text-o-forest no-underline"
                 >
                   Start free Pay-as-you-go trial

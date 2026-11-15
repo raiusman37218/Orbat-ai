@@ -112,12 +112,12 @@ export function InviteAccept({ token }: { token: string }) {
         });
         const loginData = await loginRes.json().catch(() => null);
         if (!loginRes.ok || !loginData?.accessToken) {
-          router.push(`/login?redirect=/dashboard`);
+          router.push(`/login?redirect=/app`);
           return;
         }
         saveAuthSession(loginData);
       }
-      router.push('/dashboard');
+      router.push('/app');
       router.refresh();
     } catch (err) {
       setError(errorMessage(err, 'Something went wrong. Try again.'));
@@ -150,7 +150,7 @@ export function InviteAccept({ token }: { token: string }) {
               title={view.problem === 'used' ? 'Already accepted' : view.problem === 'expired' ? 'Invitation expired' : 'Invitation not valid'}
               message={view.message}
             />
-            <Link href={view.problem === 'used' ? '/login?redirect=/dashboard' : '/login'} className="btn btn-sm btn-secondary">
+            <Link href={view.problem === 'used' ? '/login?redirect=/app' : '/login'} className="btn btn-sm btn-secondary">
               Go to sign in
             </Link>
           </div>

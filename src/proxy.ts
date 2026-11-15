@@ -71,6 +71,18 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
 
+  // 0. Legacy /v2/* cut-over redirects (preserve query string cleanly)
+  if (pathname === '/v2' || pathname.startsWith('/v2/')) {
+    const rest = pathname.slice(3); // '' or '/...'
+    let targetPath = '/';
+    if (rest && rest !== '/landing') {
+      targetPath = rest;
+    }
+    const targetUrl = new URL(targetPath, request.url);
+    targetUrl.search = request.nextUrl.search;
+    return NextResponse.redirect(targetUrl);
+  }
+
   // 1. Native NestJS / Orbat JWT authentication check
   const nestToken = request.cookies.get('orbat_access_token')?.value;
   let userId: string | null = null;
@@ -90,14 +102,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 2. Protect /dashboard: Requires valid session
-  if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
-    if (!userId) {
-      const loginUrl = new URL('/login', request.url);
-      loginUrl.searchParams.set('redirect', pathname + request.nextUrl.search);
-      return NextResponse.redirect(loginUrl);
-    }
-  }
+  // 2. Legacy /dashboard/* routes now redirect directly via src/app/dashboard/** to /app/*
 
   // 3. Protect /admin: Requires logged in user / super-admin
   if ((pathname === '/admin' || pathname.startsWith('/admin/')) && !pathname.startsWith('/admin/invite')) {

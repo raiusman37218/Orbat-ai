@@ -8,11 +8,11 @@ export const metadata: Metadata = {
 export default async function InboxPage({
   searchParams,
 }: {
-  searchParams: Promise<{ c?: string | string[] }>;
+  searchParams: Promise<{ c?: string | string[]; conv?: string | string[]; conversation?: string | string[] }>;
 }) {
   const params = await searchParams;
-  const raw = Array.isArray(params.c) ? params.c[0] : params.c;
-  const initialConversationId = raw?.trim() || null;
+  const pick = (v?: string | string[]) => (Array.isArray(v) ? v[0] : v);
+  const initialConversationId = (pick(params.c) ?? pick(params.conv) ?? pick(params.conversation))?.trim() || null;
 
   return <InboxScreen initialConversationId={initialConversationId} />;
 }

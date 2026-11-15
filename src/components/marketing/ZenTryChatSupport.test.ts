@@ -16,7 +16,7 @@ describe('Orbat AI Live Chat Support Integration', () => {
   });
 
   it('removed the dummy placeholder workspace ID from landing page', () => {
-    const pagePath = join(process.cwd(), 'src/app/page.tsx');
+    const pagePath = join(process.cwd(), 'src/app/(orbat)/page.tsx');
     const pageContent = readFileSync(pagePath, 'utf8');
     expect(pageContent).not.toContain('c0000000-0000-0000-0000-000000000001');
   });
@@ -24,6 +24,10 @@ describe('Orbat AI Live Chat Support Integration', () => {
   it('correctly determines route inclusion and exclusion rules', () => {
     const isExcludedRoute = (pathname: string) =>
       pathname.startsWith('/widget') ||
+      pathname.startsWith('/portal') ||
+      pathname.startsWith('/onboarding') ||
+      pathname.startsWith('/v2/') ||
+      pathname.startsWith('/app') ||
       pathname.startsWith('/dashboard') ||
       pathname.startsWith('/admin') ||
       pathname.startsWith('/help') ||

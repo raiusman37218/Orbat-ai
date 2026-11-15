@@ -1,10 +1,12 @@
 'use client';
 
+import { listDashboardConversationsAction } from '@/app/actions/inbox';
+import { listCustomersAction } from '@/app/actions/customers';
 import { getWorkspaceBillingAndUsageAction } from '@/app/actions/plans';
-import { getViewCountsAction } from '@/app/actions/tickets';
+import { getViewCountsAction, searchTicketsAction } from '@/app/actions/tickets';
 import { roleCan, type Role } from '@/lib/team/permissions';
 
-/* Live bits of the app shell: sidebar badges and the usage / trial card. */
+/* Live bits of the app shell: sidebar badges, usage card, and ⌘K entity search. */
 
 export interface ShellCounts {
   /** Shown on "Inbox": every unsolved ticket nobody owns yet. */
@@ -51,4 +53,74 @@ export async function getShellUsage(workspaceId: string, role: Role): Promise<Sh
     planName: billing.plan.name,
     resets: billing.subscription.current_period_end ?? null,
   };
+}
+
+export interface PaletteEntityHit {
+  id: string;
+  label: string;
+  hint: string;
+  href: string;
+}
+
+export interface PaletteSearchResults {
+  conversations: PaletteEntityHit[];
+  tickets: PaletteEntityHit[];
+  customers: PaletteEntityHit[];
+}
+
+export async function searchCommandPalette(
+  workspaceId: string,
+  rawQuery: string,
+): Promise<PaletteSearchResults> {
+  const q = rawQuery.trim();
+  if (q.length < 2) {
+    return { conversations: [], tickets: [], customers: [] };
+  }
+  const needle = q.toLowerCase();
+
+  const [convRes, ticketRes, customerRes] = await Promise.allSettled([
+    listDashboardConversationsAction(workspaceId, 0, 25),
+    searchTicketsAction(workspaceId, q),
+    listCustomersAction(workspaceId, { q, pageSize: 10 }),
+  ]);
+
+  const conversations: PaletteEntityHit[] =
+    convRes.status === 'fulfilled'
+      ? convRes.value.conversations
+          .filter((c) => {
+            const hay = `${c.visitor?.name ?? ''} ${c.visitor?.email ?? ''} ${c.last_message?.content ?? ''} ${c.status ?? ''} ${c.id}`.toLowerCase();
+            return hay.includes(needle);
+          })
+          .slice(0, 5)
+          .map((c) => ({
+            id: c.id,
+            label: c.visitor?.name || c.visitor?.email || `Conversation ${c.id.slice(0, 8)}`,
+            hint: c.last_message?.content
+              ? `${c.status} · ${c.last_message.content.slice(0, 60)}`
+              : `${c.status} · ${c.channel || 'web'}`,
+            href: `/app/inbox?conversation=${encodeURIComponent(c.id)}`,
+          }))
+      : [];
+
+  const tickets: PaletteEntityHit[] =
+    ticketRes.status === 'fulfilled'
+      ? ticketRes.value.tickets.slice(0, 5).map((t) => ({
+          id: t.id,
+          label: `#TCK-${t.number} · ${t.subject}`,
+          hint: `${t.status}${t.requester?.name || t.requester?.email ? ` · ${t.requester.name || t.requester.email}` : ''}`,
+          href: `/app/tickets?id=${encodeURIComponent(t.id)}`,
+        }))
+      : [];
+
+  const customers: PaletteEntityHit[] =
+    customerRes.status === 'fulfilled'
+      ? customerRes.value.customers.slice(0, 5).map((c) => ({
+          id: c.id,
+          label: c.name || c.email || `Visitor ${c.id.slice(0, 8)}`,
+          hint: [c.email, c.company].filter(Boolean).join(' · ') || 'Customer profile',
+          href: `/app/customers?id=${encodeURIComponent(c.id)}`,
+        }))
+      : [];
+
+  return { conversations, tickets, customers };
 }

@@ -1,11 +1,5 @@
-import React from 'react';
-import { SystemHealthView } from '@/components/admin/SystemHealthView';
+import { redirect } from 'next/navigation';
 
-export const metadata = {
-  title: 'System Health & Diagnostics — Orbat AI Super Admin',
-  description: 'Monitor channels, webhooks, email delivery, and background automation health.',
-};
-
-export default function AdminHealthPage() {
-  return <SystemHealthView />;
+export default function AdminHealthRedirectPage() {
+  redirect('/admin?tab=overview');
 }

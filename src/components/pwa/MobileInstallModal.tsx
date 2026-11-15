@@ -50,7 +50,7 @@ export function MobileInstallModal({ isOpen, onClose }: MobileInstallModalProps)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const currentOrigin = window.location.origin;
-    const mobileUrl = `${currentOrigin}/dashboard`;
+    const mobileUrl = `${currentOrigin}/app`;
 
     QRCode.toDataURL(mobileUrl, {
       width: 260,
@@ -66,7 +66,7 @@ export function MobileInstallModal({ isOpen, onClose }: MobileInstallModalProps)
 
   const handleCopyLink = () => {
     if (typeof window === 'undefined') return;
-    navigator.clipboard.writeText(`${window.location.origin}/dashboard`);
+    navigator.clipboard.writeText(`${window.location.origin}/app`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2500);
   };
@@ -385,8 +385,8 @@ export function MobileInstallModal({ isOpen, onClose }: MobileInstallModalProps)
                 <div className="flex items-center gap-2 p-1.5 rounded-xl bg-surface-2 border border-line">
                   <span className="px-2 text-xs font-mono text-ink-2 truncate flex-1 select-all">
                     {typeof window !== 'undefined'
-                      ? `${window.location.origin}/dashboard`
-                      : 'https://.../dashboard'}
+                      ? `${window.location.origin}/app`
+                      : 'https://.../app'}
                   </span>
                   <button
                     onClick={handleCopyLink}

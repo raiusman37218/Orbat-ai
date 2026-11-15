@@ -272,7 +272,7 @@ export function CustomerPortalScreen({
                 }))}
               />
             )}
-            <ButtonLink href="/v2/help" variant="secondary" size="sm">
+            <ButtonLink href="/help" variant="secondary" size="sm">
               Help center
             </ButtonLink>
             {data?.signedIn && (
@@ -298,7 +298,7 @@ export function CustomerPortalScreen({
           <EmptyState
             title="No workspace available"
             body="Open onboarding to initialize a workspace and submit your first ticket."
-            action={<ButtonLink href="/v2/onboarding">Set up workspace</ButtonLink>}
+            action={<ButtonLink href="/onboarding">Set up workspace</ButtonLink>}
           />
         ) : !data.signedIn ? (
           <Card size="lg" className="mx-auto max-w-[560px]">
@@ -392,7 +392,7 @@ export function CustomerPortalScreen({
 
             <div className="mt-6 border-t border-o-border pt-4 text-[13.5px] text-o-text-2">
               Opening a brand-new issue?{' '}
-              <Link href="/v2/help#contact" className="font-semibold text-o-forest">
+              <Link href="/help#contact" className="font-semibold text-o-forest">
                 Contact support
               </Link>
             </div>

@@ -110,7 +110,7 @@ export function OnboardingWizardScreen({
             <ButtonLink href="/signup" variant="primary">
               Create free account
             </ButtonLink>
-            <ButtonLink href="/login?redirect=/v2/onboarding" variant="secondary">
+            <ButtonLink href="/login?redirect=/onboarding" variant="secondary">
               Sign in
             </ButtonLink>
           </div>
@@ -721,7 +721,7 @@ function OnboardingWizardLoaded({
               <div className="rounded-2xl border border-o-border bg-o-surface-2/60 p-4 text-[14px]">
                 <p className="font-semibold text-o-text">Ready to provision:</p>
                 <ul className="mt-2 flex flex-col gap-1.5 text-o-text-2">
-                  <li>Workspace: <strong>{companyName || 'My Workspace'}</strong> (/v2/help/{liveSlug})</li>
+                  <li>Workspace: <strong>{companyName || 'My Workspace'}</strong> (/help/{liveSlug})</li>
                   <li>AI agent draft: <strong>{agentName || 'Nova'}</strong> ({selectedIndustry.agentTemplate})</li>
                   <li>Compliance baselines: <strong>{frameworks.join(', ') || 'Default GDPR'}</strong></li>
                   <li>Channels selected: <strong>{channels.join(', ')}</strong></li>
@@ -767,7 +767,7 @@ function OnboardingWizardLoaded({
           <Card className="bg-o-forest text-o-on-forest" size="lg">
             <CardHeader
               title={companyName || 'Your Workspace'}
-              sub={`orbatai.com/v2/help/${liveSlug}`}
+              sub={`orbatai.com/help/${liveSlug}`}
               actions={<Badge tone="solid">Live preview</Badge>}
             />
 

@@ -107,6 +107,17 @@ export function InboxScreen({
   const [mobileShowThread, setMobileShowThread] = useState(
     Boolean(initialConversationId),
   );
+  const [prevInitConvId, setPrevInitConvId] = useState<string | null>(
+    initialConversationId,
+  );
+  if (initialConversationId !== prevInitConvId) {
+    setPrevInitConvId(initialConversationId);
+    if (initialConversationId) {
+      setUserSelectedId(initialConversationId);
+      setActiveView('all');
+      setMobileShowThread(true);
+    }
+  }
   const [userContextOpen, setUserContextOpen] = useState<boolean | null>(null);
 
   // Composer lifted state (for R / N shortcuts + Customer drawer switch)

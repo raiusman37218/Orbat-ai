@@ -1,11 +1,5 @@
-import React from 'react';
-import { PlatformOpsView } from '@/components/admin/PlatformOpsView';
+import { redirect } from 'next/navigation';
 
-export const metadata = {
-  title: 'Platform Operations & Control — Orbat AI Super Admin',
-  description: 'Manage global feature flags, announcements, system settings, email templates, and platform staff.',
-};
-
-export default function AdminPlatformOpsPage() {
-  return <PlatformOpsView />;
+export default function AdminPlatformRedirectPage() {
+  redirect('/admin?tab=settings');
 }

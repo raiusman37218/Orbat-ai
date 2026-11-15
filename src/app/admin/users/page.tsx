@@ -1,11 +1,5 @@
-import React from 'react';
-import { UsersView } from '@/components/admin/UsersView';
+import { redirect } from 'next/navigation';
 
-export const metadata = {
-  title: 'Platform Users — Orbat AI Super Admin',
-  description: 'Manage users across all workspaces and control account active status.',
-};
-
-export default function AdminUsersPage() {
-  return <UsersView />;
+export default function AdminUsersRedirectPage() {
+  redirect('/admin?tab=staff');
 }

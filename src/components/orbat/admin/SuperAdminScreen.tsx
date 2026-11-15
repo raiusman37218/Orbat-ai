@@ -62,7 +62,7 @@ import {
 import { useData } from '@/lib/data/use-data';
 import { cn } from '@/lib/utils';
 
-type AdminNavId =
+export type AdminNavId =
   | 'overview'
   | 'workspaces'
   | 'plans'
@@ -83,7 +83,7 @@ const NAV_ITEMS: Array<{
   { id: 'settings', label: 'Platform settings', icon: Settings },
 ];
 
-export function SuperAdminScreen() {
+export function SuperAdminScreen({ initialTab = 'overview' }: { initialTab?: AdminNavId }) {
   const { data, error, loading, reload } = useData(
     () => loadSuperAdminConsole(),
     ['super-admin-console'],
@@ -138,7 +138,7 @@ export function SuperAdminScreen() {
             action={
               <>
                 {!data?.authenticated ? (
-                  <ButtonLink href="/login?redirect=/v2/admin" variant="primary">
+                  <ButtonLink href="/login?redirect=/admin" variant="primary">
                     Sign in to ORBAT
                   </ButtonLink>
                 ) : (
@@ -162,19 +162,26 @@ export function SuperAdminScreen() {
     );
   }
 
-  return <SuperAdminConsoleLoaded key={data.callerEmail} bundle={data} onReload={reload} />;
+  return <SuperAdminConsoleLoaded key={data.callerEmail} bundle={data} initialTab={initialTab} onReload={reload} />;
 }
 
 function SuperAdminConsoleLoaded({
   bundle,
+  initialTab,
   onReload,
 }: {
   bundle: SuperAdminConsoleBundle;
+  initialTab: AdminNavId;
   onReload: () => void;
 }) {
   const router = useRouter();
   const { show } = useOrbToast();
-  const [section, setSection] = useState<AdminNavId>('overview');
+  const [section, setSection] = useState<AdminNavId>(initialTab);
+  const [prevInitialTab, setPrevInitialTab] = useState<AdminNavId>(initialTab);
+  if (initialTab !== prevInitialTab) {
+    setPrevInitialTab(initialTab);
+    setSection(initialTab);
+  }
 
   // Workspaces filters & suspend confirm
   const [wsSearch, setWsSearch] = useState('');
@@ -965,7 +972,7 @@ function SuperAdminConsoleLoaded({
             <Card>
               <CardHeader
                 title="Pay-as-you-go (PAYG) rates"
-                sub="Metered unit prices shown on the public /v2/pricing page and applied to PAYG usage."
+                sub="Metered unit prices shown on the public /pricing page and applied to PAYG usage."
                 actions={
                   <Button
                     size="sm"
@@ -1365,7 +1372,7 @@ function SuperAdminConsoleLoaded({
         busy={revokingStaff}
         variant="danger"
         title={`Remove super admin access for ${revokeTarget?.email}?`}
-        body="They will lose immediate access to /v2/admin while keeping normal workspace memberships."
+        body="They will lose immediate access to /admin while keeping normal workspace memberships."
         confirmLabel="Revoke access"
       />
 

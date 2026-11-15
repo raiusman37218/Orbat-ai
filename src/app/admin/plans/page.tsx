@@ -1,11 +1,5 @@
-import React from 'react';
-import { PlansManagementView } from '@/components/admin/PlansManagementView';
+import { redirect } from 'next/navigation';
 
-export const metadata = {
-  title: 'Plans, Pricing & Billing — Orbat AI Super Admin',
-  description: 'Manage platform subscription tiers, pricing, Lemon Squeezy payment gateway, resource limits, features, and coupons.',
-};
-
-export default function AdminPlansPage() {
-  return <PlansManagementView />;
+export default function AdminPlansRedirectPage() {
+  redirect('/admin?tab=plans');
 }

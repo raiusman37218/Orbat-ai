@@ -40,7 +40,7 @@ export function SupportSessionBanner() {
         } else {
           setSession(null);
         }
-      } catch (e) {
+      } catch {
         // Silently catch in non-session environments
       }
     };
@@ -56,7 +56,7 @@ export function SupportSessionBanner() {
     setExiting(true);
     await endSupportSessionAction();
     setSession(null);
-    router.push('/admin/workspaces');
+    router.push('/admin?tab=workspaces');
     router.refresh();
   };
 

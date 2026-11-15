@@ -4,7 +4,7 @@ import { resolveServerBackendBaseUrl } from '@/lib/backend-url';
 /**
  * Sanitizes the `next` redirect parameter.
  * Accepts `next` only if it starts with exactly one `/`; rejects `//`, `/\`,
- * and anything containing `://` or `@`. Falls back to `/dashboard`.
+ * and anything containing `://` or `@`. Falls back to `/app`.
  */
 import { authPathForMode, parseOAuthState } from '@/lib/data/auth-rules';
 

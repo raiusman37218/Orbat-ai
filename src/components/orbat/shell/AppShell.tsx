@@ -139,6 +139,7 @@ export function AppShell({ session, children }: { session: ShellSession; childre
       <CommandPalette
         open={paletteOpen}
         onClose={closePalette}
+        workspaceId={wsId}
         groups={groups}
         theme={theme}
         onToggleTheme={toggle}

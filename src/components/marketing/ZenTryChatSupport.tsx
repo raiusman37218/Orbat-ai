@@ -10,12 +10,14 @@ import { WidgetLoader } from './WidgetLoader';
  */
 export const ZENTRY_WORKSPACE_ID = 'b2d91676-2e98-46b7-8543-6e0711c78c44';
 
+type WidgetApi = { close?: () => void; isOpen?: () => boolean };
+
 /**
  * Embeds Orbat AI Live Chat Support widget on public visitor pages.
  *
  * Route exclusions:
- * - /widget: Avoid nested widget recursion.
- * - /dashboard, /app: Avoid overlaying agent workspace controls (old and new UI).
+ * - /widget, /portal, /onboarding: Standalone flows & custom portal screens.
+ * - /dashboard, /app, /v2/: Avoid overlaying agent workspace controls.
  * - /admin: Avoid overlaying super admin panel.
  * - /help: Customer help centers render their own workspace-specific HelpWidget.
  * - /csat: Customer satisfaction feedback page.
@@ -24,7 +26,10 @@ export function ZenTryChatSupport() {
   const pathname = usePathname() || '';
 
   const isExcluded =
+    pathname.startsWith('/portal') ||
     pathname.startsWith('/widget') ||
+    pathname.startsWith('/onboarding') ||
+    pathname.startsWith('/v2/') ||
     pathname.startsWith('/dashboard') ||
     pathname === '/app' ||
     pathname.startsWith('/app/') ||
@@ -39,14 +44,14 @@ export function ZenTryChatSupport() {
     if (isExcluded) {
       root.style.display = 'none';
       try {
-        const api =
-          (window as any).Zentry ||
-          (window as any)['Zen-try'] ||
-          (window as any).Chatify;
+        const w = window as unknown as Record<string, WidgetApi | undefined>;
+        const api = w.Zentry || w['Zen-try'] || w.Chatify;
         if (api && typeof api.close === 'function' && typeof api.isOpen === 'function' && api.isOpen()) {
           api.close();
         }
-      } catch {}
+      } catch {
+        /* ignore non-critical widget cleanup errors */
+      }
     } else {
       root.style.display = '';
     }

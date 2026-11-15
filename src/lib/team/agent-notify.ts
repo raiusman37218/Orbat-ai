@@ -131,7 +131,7 @@ export async function notifyTeamByEmail(input: {
       visitorName,
       preview,
       reason: input.reason,
-      conversationUrl: `${await appUrl()}/dashboard?conversation=${input.conversationId}`,
+      conversationUrl: `${await appUrl()}/app/inbox?conversation=${input.conversationId}`,
       onShift: choice.reason === 'on_shift' || choice.reason === 'assignee_on_shift',
     });
 

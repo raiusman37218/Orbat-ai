@@ -101,7 +101,7 @@ export function GettingStartedScreen() {
         description="Complete the 7-step launch checklist to connect your knowledge base, configure channels, and take your AI agent live."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <ButtonLink variant="secondary" size="sm" href="/v2/onboarding">
+            <ButtonLink variant="secondary" size="sm" href="/onboarding">
               Re-open setup wizard
             </ButtonLink>
             <ButtonLink variant="primary" size="sm" href="/app/inbox" trailing={<ArrowRight size={15} />}>
@@ -413,7 +413,7 @@ export function GettingStartedScreen() {
                       Browse guides, inspect system health, or reach {data.supportEmail}.
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <ButtonLink size="sm" variant="secondary" href="/v2/help">
+                      <ButtonLink size="sm" variant="secondary" href="/help">
                         Help center
                       </ButtonLink>
                       <ButtonLink size="sm" variant="quiet" href="/app/states">

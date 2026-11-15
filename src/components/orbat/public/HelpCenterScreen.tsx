@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ArrowLeft,
   ArrowRight,
@@ -89,8 +89,10 @@ const COPY_BY_LANG: Record<
 
 export function HelpCenterScreen({
   initialWorkspaceKey,
+  initialArticleKey,
 }: {
   initialWorkspaceKey?: string | null;
+  initialArticleKey?: string | null;
 }) {
   const { show } = useOrbToast();
   const [selectedWsKey, setSelectedWsKey] = useState<string>(initialWorkspaceKey || '');
@@ -104,7 +106,30 @@ export function HelpCenterScreen({
   const [searching, setSearching] = useState(false);
   const [searchResult, setSearchResult] = useState<HelpSearchAiResult | null>(null);
   const [selectedSectionId, setSelectedSectionId] = useState<string | null>(null);
-  const [activeArticle, setActiveArticle] = useState<PublicHelpArticleSummary | null>(null);
+  const [pickedArticle, setPickedArticle] = useState<PublicHelpArticleSummary | null | 'closed'>(null);
+  const resolvedArticleKey =
+    initialArticleKey ??
+    (typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('article')
+      : null);
+  const activeArticle =
+    pickedArticle === 'closed'
+      ? null
+      : (pickedArticle ??
+          (resolvedArticleKey && data?.articles
+            ? (data.articles.find(
+                (a) => a.id === resolvedArticleKey || a.slug === resolvedArticleKey,
+              ) ?? null)
+            : null));
+  const viewedInitialKeyRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (!resolvedArticleKey || !data?.workspace || !activeArticle) return;
+    if (pickedArticle !== null) return;
+    if (viewedInitialKeyRef.current === activeArticle.id) return;
+    viewedInitialKeyRef.current = activeArticle.id;
+    void recordHelpArticleView(data.workspace.id, activeArticle.id).catch(() => {});
+  }, [activeArticle, data, pickedArticle, resolvedArticleKey]);
   const [votedArticleIds, setVotedArticleIds] = useState<Record<string, boolean>>({});
 
   // Order lookup
@@ -148,7 +173,7 @@ export function HelpCenterScreen({
   }
 
   async function handleOpenArticle(article: PublicHelpArticleSummary) {
-    setActiveArticle(article);
+    setPickedArticle(article);
     if (!data?.workspace) return;
     try {
       await recordHelpArticleView(data.workspace.id, article.id);
@@ -162,8 +187,8 @@ export function HelpCenterScreen({
     try {
       const counts = await voteHelpArticleHelpful(data.workspace.id, articleId, helpful);
       setVotedArticleIds((prev) => ({ ...prev, [articleId]: helpful }));
-      setActiveArticle((prev) =>
-        prev && prev.id === articleId
+      setPickedArticle((prev) =>
+        prev && prev !== 'closed' && prev.id === articleId
           ? {
               ...prev,
               helpfulCount: counts.helpfulCount,
@@ -171,6 +196,7 @@ export function HelpCenterScreen({
             }
           : prev,
       );
+      reload();
       show({ message: 'Thanks for your feedback.', tone: 'ok' });
     } catch (err) {
       show({
@@ -267,7 +293,7 @@ export function HelpCenterScreen({
                 value={data.workspace?.id || ''}
                 onChange={(e) => {
                   setSelectedWsKey(e.target.value);
-                  setActiveArticle(null);
+                  setPickedArticle('closed');
                   setSearchResult(null);
                   setSelectedSectionId(null);
                 }}
@@ -290,7 +316,7 @@ export function HelpCenterScreen({
             />
 
             <ButtonLink
-              href={wsSlugOrId ? `/v2/portal?ws=${encodeURIComponent(wsSlugOrId)}` : '/v2/portal'}
+              href={wsSlugOrId ? `/portal?ws=${encodeURIComponent(wsSlugOrId)}` : '/portal'}
               variant="secondary"
               size="sm"
             >
@@ -361,7 +387,7 @@ export function HelpCenterScreen({
             body="Create a workspace via onboarding and publish your first knowledge article to see it live here."
             action={
               <>
-                <ButtonLink href="/v2/onboarding" variant="primary">
+                <ButtonLink href="/onboarding" variant="primary">
                   Set up workspace
                 </ButtonLink>
                 <ButtonLink href="/app/knowledge" variant="secondary">
@@ -432,7 +458,7 @@ export function HelpCenterScreen({
                   <Button
                     size="sm"
                     variant="secondary"
-                    onClick={() => setActiveArticle(null)}
+                    onClick={() => setPickedArticle('closed')}
                     leading={<ArrowLeft size={15} />}
                   >
                     All help articles
@@ -656,8 +682,8 @@ export function HelpCenterScreen({
                       <ButtonLink
                         href={
                           wsSlugOrId
-                            ? `/v2/portal?ws=${encodeURIComponent(wsSlugOrId)}`
-                            : '/v2/portal'
+                            ? `/portal?ws=${encodeURIComponent(wsSlugOrId)}`
+                            : '/portal'
                         }
                         variant="primary"
                         trailing={<ArrowRight size={15} />}

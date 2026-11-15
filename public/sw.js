@@ -121,7 +121,7 @@ self.addEventListener('push', (event) => {
     badge: '/icon-192.png',
     vibrate: [100, 50, 100],
     data: {
-      url: data.url || '/dashboard',
+      url: data.url || '/app',
     },
   };
 
@@ -131,12 +131,12 @@ self.addEventListener('push', (event) => {
 // 6. Notification Click Handler
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || '/dashboard';
+  const targetUrl = (event.notification.data && event.notification.data.url) || '/app';
 
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
       for (const client of clientList) {
-        if (client.url.includes('/dashboard') && 'focus' in client) {
+        if (client.url.includes('/app') && 'focus' in client) {
           return client.focus();
         }
       }

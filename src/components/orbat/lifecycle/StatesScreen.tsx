@@ -322,7 +322,7 @@ export function StatesScreen() {
               title="You are all caught up"
               body="No open conversations match your current queue filters."
               action={
-                <ButtonLink href="/v2/widget" variant="secondary" size="sm">
+                <ButtonLink href="/widget" variant="secondary" size="sm">
                   Test live widget
                 </ButtonLink>
               }

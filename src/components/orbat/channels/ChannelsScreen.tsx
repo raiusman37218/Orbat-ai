@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
   CheckCircle2,
@@ -113,8 +113,17 @@ export function ChannelsScreen() {
   const { workspace } = useShellSession();
   const { show } = useOrbToast();
 
-  const [tab, setTab] = useState<ChannelsTab>('channels');
-  const [selectedChannel, setSelectedChannel] = useState<ChannelKey>('widget');
+  const [tab, setTab] = useState<ChannelsTab>(() => {
+    if (typeof window === 'undefined') return 'channels';
+    return new URLSearchParams(window.location.search).get('tab') === 'integrations'
+      ? 'integrations'
+      : 'channels';
+  });
+  const [selectedChannel, setSelectedChannel] = useState<ChannelKey>(() => {
+    if (typeof window === 'undefined') return 'widget';
+    const ch = new URLSearchParams(window.location.search).get('channel') as ChannelKey | null;
+    return ch && CHANNEL_LIST.some((c) => c.key === ch) ? ch : 'widget';
+  });
   const [busyKey, setBusyKey] = useState<string | null>(null);
 
   // Widget edit modal/draft
@@ -160,6 +169,39 @@ export function ChannelsScreen() {
     ['channels-studio', workspace?.id],
     { enabled: Boolean(workspace?.id) },
   );
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const ch = params.get('channel');
+    const result = params.get('channel_result');
+    const message = params.get('channel_message');
+    if (result !== 'connected' && result !== 'error') return;
+
+    params.delete('channel_result');
+    params.delete('channel_message');
+    params.delete('settings');
+    const next = params.toString();
+    window.history.replaceState(
+      {},
+      '',
+      `${window.location.pathname}${next ? `?${next}` : ''}`,
+    );
+
+    const timer = window.setTimeout(() => {
+      show({
+        message:
+          message ||
+          (result === 'connected'
+            ? `${ch || 'Channel'} connected.`
+            : `Could not connect ${ch || 'channel'}.`),
+        tone: result === 'connected' ? 'ok' : 'bad',
+      });
+      if (result === 'connected') reload();
+    }, 0);
+
+    return () => window.clearTimeout(timer);
+  }, [reload, show]);
 
   if (!workspace) return null;
 

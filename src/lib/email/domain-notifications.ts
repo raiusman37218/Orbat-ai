@@ -122,7 +122,7 @@ export async function sendDomainFailed24hEmail(params: DomainFailedEmailParams):
   const { hostRecord } = splitDomain(clean);
   const brand = workspace.brand_color || DEFAULT_BRAND_COLOR;
   // Workspace owners manage domains in their dashboard, not the platform admin panel.
-  const settingsUrl = `${getPlatformOrigin()}/dashboard`;
+  const settingsUrl = `${getPlatformOrigin()}/app/channels`;
 
   const { email, name } = await getWorkspaceOwnerEmail(workspace.id, workspace.owner_id);
   if (!email) {

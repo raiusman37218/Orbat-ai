@@ -88,6 +88,11 @@ export function TicketsScreen({
   const [searchInput, setSearchInput] = useState('');
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [openTicketId, setOpenTicketId] = useState<string | null>(initialTicketId);
+  const [prevInitTicketId, setPrevInitTicketId] = useState<string | null>(initialTicketId);
+  if (initialTicketId !== prevInitTicketId) {
+    setPrevInitTicketId(initialTicketId);
+    if (initialTicketId) setOpenTicketId(initialTicketId);
+  }
   const [newTicketOpen, setNewTicketOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [saveViewOpen, setSaveViewOpen] = useState(false);

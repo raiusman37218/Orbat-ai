@@ -16,8 +16,8 @@ export const dynamic = 'force-dynamic';
  * Channels settings page with the outcome in the URL.
  */
 function back(appUrl: string, outcome: 'connected' | 'error', message?: string) {
-  const url = new URL('/dashboard', appUrl);
-  url.searchParams.set('settings', 'channels');
+  const url = new URL('/app/channels', appUrl);
+  url.searchParams.set('tab', 'channels');
   url.searchParams.set('channel', 'instagram');
   url.searchParams.set('channel_result', outcome);
   if (message) url.searchParams.set('channel_message', message.slice(0, 400));

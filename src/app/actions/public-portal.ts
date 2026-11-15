@@ -435,7 +435,7 @@ export async function searchHelpCenterAndAskAction(
     getRequestOrigin().catch(() => 'https://orbatai.com'),
   ]);
 
-  const helpUrl = `${origin}/v2/help/${workspaceId}`;
+  const helpUrl = `${origin}/help/${workspaceId}`;
   try {
     const retrieved = await buildModelContext(workspaceId, q, {
       articlesOnly: true,
@@ -632,7 +632,7 @@ export async function submitHelpCenterTicketAction(input: {
   if (!visitorId) {
     const insertedVisitor = await queryRows<{ id: string }>(
       `INSERT INTO public.visitors (workspace_id, name, email, current_page_url, channel)
-       VALUES ($1, $2, $3, '/v2/help', 'web_form')
+       VALUES ($1, $2, $3, '/help', 'web_form')
        RETURNING id`,
       [input.workspaceId, cleanName, cleanEmail],
     );
@@ -1341,7 +1341,7 @@ export async function getWidgetStudioBundleAction(
     },
     availableWorkspaces,
     canEdit,
-    embedSnippet: `<script src="${origin}/api/widget/bundle.js" data-workspace="${workspace.id}" async></script>`,
+    embedSnippet: `<script src="${origin}/widget.js" data-workspace-id="${workspace.id}" async></script>`,
     teamAgents: agents,
     helpArticles: articles,
     launcherIcons: LAUNCHER_ICONS,

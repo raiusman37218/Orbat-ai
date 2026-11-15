@@ -352,7 +352,7 @@ const FOOTER_COLS = [
       { t: 'Inbox', href: '/app/inbox' },
       { t: 'AI agents', href: '/app/agents' },
       { t: 'Voice', href: '/app/calls' },
-      { t: 'Pricing', href: '/v2/pricing' },
+      { t: 'Pricing', href: '/pricing' },
     ],
   },
   {
@@ -367,7 +367,7 @@ const FOOTER_COLS = [
   {
     h: 'Resources',
     links: [
-      { t: 'Help center', href: '/v2/help' },
+      { t: 'Help center', href: '/help' },
       { t: 'Trust center', href: '/app/compliance' },
       { t: 'Status', href: '/app/states' },
     ],
@@ -434,13 +434,13 @@ export function LandingPage() {
             <a className="o-lp-navl" href="#industries">
               Industries
             </a>
-            <Link className="o-lp-navl" href="/v2/pricing">
+            <Link className="o-lp-navl" href="/pricing">
               Pricing
             </Link>
             <a className="o-lp-navl" href="#security">
               Security
             </a>
-            <Link className="o-lp-navl" href="/v2/help">
+            <Link className="o-lp-navl" href="/help">
               Resources
             </Link>
           </nav>
@@ -522,13 +522,13 @@ export function LandingPage() {
             <a className="o-lp-navl" href="#industries" onClick={() => setMobileMenuOpen(false)}>
               Industries
             </a>
-            <Link className="o-lp-navl" href="/v2/pricing" onClick={() => setMobileMenuOpen(false)}>
+            <Link className="o-lp-navl" href="/pricing" onClick={() => setMobileMenuOpen(false)}>
               Pricing
             </Link>
             <a className="o-lp-navl" href="#security" onClick={() => setMobileMenuOpen(false)}>
               Security
             </a>
-            <Link className="o-lp-navl" href="/v2/help" onClick={() => setMobileMenuOpen(false)}>
+            <Link className="o-lp-navl" href="/help" onClick={() => setMobileMenuOpen(false)}>
               Resources
             </Link>
             <div style={{ display: 'flex', gap: 8, paddingTop: 8, flexWrap: 'wrap' }}>

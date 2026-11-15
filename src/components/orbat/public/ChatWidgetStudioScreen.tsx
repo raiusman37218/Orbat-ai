@@ -163,7 +163,7 @@ export function ChatWidgetStudioScreen({
           <EmptyState
             title="No workspace found for widget preview"
             body="Create your workspace first to customize its live messenger widget and script tag."
-            action={<ButtonLink href="/v2/onboarding">Start workspace setup</ButtonLink>}
+            action={<ButtonLink href="/onboarding">Start workspace setup</ButtonLink>}
           />
         ) : (
           <WidgetStudioEditor

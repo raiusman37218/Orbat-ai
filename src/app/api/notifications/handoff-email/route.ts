@@ -109,7 +109,7 @@ export async function POST(req: NextRequest) {
 
       const visitor = (Array.isArray(conv?.visitor) ? conv.visitor[0] : conv?.visitor) as { name?: string | null; email?: string | null } | null;
       const visitorName = visitor?.name?.trim() || visitor?.email?.trim() || 'A customer';
-      const conversationUrl = `${appBaseUrl}/dashboard?conversation=${conversation_id}`;
+      const conversationUrl = `${appBaseUrl}/app/inbox?conversation=${conversation_id}`;
 
       // Find agents with email_missed enabled in preferences
       const [{ data: agents }, { data: prefs }] = await Promise.all([
@@ -177,7 +177,7 @@ export async function POST(req: NextRequest) {
 
       const visitor = (Array.isArray(conv?.visitor) ? conv?.visitor[0] : conv?.visitor) as { name?: string | null; email?: string | null } | null;
       const visitorName = visitor?.name?.trim() || visitor?.email?.trim() || 'A customer';
-      const conversationUrl = `${appBaseUrl}/dashboard?conversation=${conversation_id}`;
+      const conversationUrl = `${appBaseUrl}/app/inbox?conversation=${conversation_id}`;
       const targetRole = alert_to || 'owner';
 
       const roles = targetRole === 'supervisors' ? ['owner', 'admin'] : ['owner'];
@@ -289,7 +289,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ sent: 0, reason: 'no_agents_with_summary_enabled' });
       }
 
-      const dashboardUrl = `${appBaseUrl}/dashboard`;
+      const dashboardUrl = `${appBaseUrl}/app/handoff`;
       let sentCount = 0;
 
       for (const target of targetAgents) {

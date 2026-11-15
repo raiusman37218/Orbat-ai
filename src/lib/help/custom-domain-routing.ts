@@ -13,6 +13,13 @@ const RESERVED_PREFIXES = [
   '/invite',
   '/onboarding',
   '/widget',
+  '/app',
+  '/portal',
+  '/pricing',
+  '/checkout',
+  '/forgot',
+  '/sso',
+  '/v2',
 ];
 
 const RESERVED_EXACT_PATHS = new Set(['/favicon.ico', '/robots.txt', '/manifest.json']);

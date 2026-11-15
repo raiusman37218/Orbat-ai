@@ -1,11 +1,5 @@
-import React from 'react';
-import { AuditLogView } from '@/components/admin/AuditLogView';
+import { redirect } from 'next/navigation';
 
-export const metadata = {
-  title: 'Audit Log — Orbat AI Super Admin',
-  description: 'Immutable record of platform super admin actions and events.',
-};
-
-export default function AdminAuditPage() {
-  return <AuditLogView />;
+export default function AdminAuditRedirectPage() {
+  redirect('/admin?tab=overview');
 }

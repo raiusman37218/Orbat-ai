@@ -97,6 +97,11 @@ export function CustomersScreen({
   const workspaceId = workspace.id;
 
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(initialCustomerId);
+  const [prevInitCustomerId, setPrevInitCustomerId] = useState<string | null>(initialCustomerId);
+  if (initialCustomerId !== prevInitCustomerId) {
+    setPrevInitCustomerId(initialCustomerId);
+    if (initialCustomerId) setSelectedCustomerId(initialCustomerId);
+  }
 
   const [segmentSlug, setSegmentSlug] = useState<BuiltInSegmentSlug>('all');
   const [customSegmentId, setCustomSegmentId] = useState<string | null>(null);

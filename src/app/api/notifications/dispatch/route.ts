@@ -120,7 +120,7 @@ export async function POST(req: NextRequest) {
         const visitorEmail = conv.visitor?.email || 'None';
         const channel = conv.channel || 'web';
         const initialText = message?.content || 'A customer started a new chat session.';
-        const inboxUrl = `${appBaseUrl}/dashboard?conversation=${conv.id}`;
+        const inboxUrl = `${appBaseUrl}/app/inbox?conversation=${conv.id}`;
 
         const slackPayload = {
           text: `💬 *New Conversation Started by ${visitorName}*`,
@@ -238,7 +238,7 @@ export async function POST(req: NextRequest) {
       }
 
       const visitorName = conv.visitor?.name || 'A customer';
-      const ticketUrl = `${appBaseUrl}/dashboard?conversation=${conv.id}`;
+      const ticketUrl = `${appBaseUrl}/app/inbox?conversation=${conv.id}`;
       const emailSubject = `[Zen-try] New message from ${visitorName} (Ticket #${conv.id.slice(0, 8)})`;
       const messageSnippet = message.content || 'Sent an attachment';
 
