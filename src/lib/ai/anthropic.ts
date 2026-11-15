@@ -82,6 +82,7 @@ import {
   isRestrictedKnowledgeScope,
   type AgentKnowledgeScope,
   type AgentRagConfig,
+  type RagTrace,
 } from './agent-templates';
 import type { BusinessHoursConfig, Conversation } from '@/types/database';
 
@@ -248,6 +249,8 @@ export interface HelpDeskResponseResult {
   subAgent?: SubAgentId;
   /** Served from the answer cache: no retrieval decision was made. */
   cached?: boolean;
+  /** Retrieval stage diagnostics when semantic/Advanced RAG ran. */
+  ragTrace?: RagTrace;
   /**
    * Short option chips shown below the bot's reply in the widget. Each chip
    * sends its value (or label when value is absent) as the visitor's next
@@ -536,6 +539,7 @@ async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<He
     highConfidence: input.highConfidence,
     knowledgeScope: input.knowledgeScope,
     minScore: input.ragConfig?.minScore,
+    ragConfig: input.ragConfig,
   });
 
   // A one-word or vague message that matched nothing: one short clarifying
@@ -552,6 +556,7 @@ async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<He
       citedArticles: [],
       usedArticleIds: [],
       retrievalConfidence: 'low',
+      ragTrace: context.ragTrace,
     };
   }
 
@@ -581,6 +586,7 @@ async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<He
       citedArticles: [],
       usedArticleIds: [],
       retrievalConfidence: 'low',
+      ragTrace: context.ragTrace,
     };
   };
 
@@ -626,6 +632,7 @@ async function answerHelpCenterQuestionUnder(input: HelpCenterInput): Promise<He
       citedArticles,
       usedArticleIds,
       retrievalConfidence: context.confidence,
+      ragTrace: context.ragTrace,
       quickReplies: [
         { label: '👍 Yes, that helped', value: 'Yes, that helped!' },
         { label: '❓ Another question', value: 'I have another question.' },
@@ -1037,6 +1044,7 @@ async function answerAsSupportAgent(input: SupportAgentInput): Promise<HelpDeskR
         articlesOnly: true,
         knowledgeScope: input.knowledgeScope,
         minScore: input.ragConfig?.minScore,
+        ragConfig: input.ragConfig,
       });
       const priorityIds = context.sources.map((s) => (s.kind === 'knowledge' ? `knowledge:${s.id}` : s.id));
       knowledge = await loadFullKnowledge(workspaceId, {

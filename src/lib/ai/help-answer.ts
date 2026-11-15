@@ -20,6 +20,8 @@ import {
   isRestrictedKnowledgeScope,
   matchesKnowledgeScope,
   type AgentKnowledgeScope,
+  type AgentRagConfig,
+  type RagTrace,
 } from './agent-templates';
 
 /**
@@ -571,6 +573,7 @@ export interface RetrievedContext extends ModelContext {
   queryEmbedding?: number[] | null;
   chunks?: RetrievedChunk[];
   belowThreshold?: boolean;
+  ragTrace?: RagTrace;
   /** How well the best passage fits the question. */
   confidence: RetrievalConfidence;
   /**
@@ -609,6 +612,8 @@ export async function buildModelContext(
     knowledgeScope?: Partial<AgentKnowledgeScope> | null;
     /** Optional stricter minimum semantic similarity/combined score configured per agent. */
     minScore?: number;
+    /** Per-agent RAG mode & Advanced RAG feature toggles. */
+    ragConfig?: Partial<AgentRagConfig> | null;
   } = {}
 ): Promise<RetrievedContext> {
   // The live keyword index reads the published articles and the team's
@@ -622,6 +627,7 @@ export async function buildModelContext(
   let rewrittenQuery: string | undefined;
   let searchedQueries: string[] = [];
   let queryEmbedding: number[] | null | undefined;
+  let ragTrace: RagTrace | undefined;
   try {
     const messages = options.recentMessages || options.turns || (options.history || []).map((h) => ({ role: 'user', content: h }));
     const semantic = await buildSemanticModelContext({
@@ -634,10 +640,12 @@ export async function buildModelContext(
       messageEmbedding: options.queryEmbedding,
       knowledgeScope: options.knowledgeScope,
       minScore: options.minScore,
+      ragConfig: options.ragConfig,
     });
     rewrittenQuery = semantic.rewrittenQuery;
     searchedQueries = semantic.queries ?? [];
     queryEmbedding = semantic.queryEmbedding;
+    ragTrace = semantic.ragTrace;
 
     if (!semantic.belowThreshold && semantic.text) {
       const top = semantic.chunks[0];
@@ -679,6 +687,7 @@ export async function buildModelContext(
         queryEmbedding,
         chunks: semantic.chunks,
         belowThreshold: false,
+        ragTrace: semantic.ragTrace,
         confidence,
         sources,
       };
@@ -693,6 +702,7 @@ export async function buildModelContext(
     belowThreshold: true,
     rewrittenQuery,
     queryEmbedding,
+    ragTrace,
     confidence: 'low',
     sources: [],
   });

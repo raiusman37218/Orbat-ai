@@ -7,6 +7,10 @@ import {
   Code,
   ExternalLink,
   FolderPlus,
+  Globe,
+  RefreshCw,
+  Upload,
+  FileText,
   History,
   List,
   Plus,
@@ -38,6 +42,8 @@ import { useShellSession } from '@/components/orbat/shell/session-context';
 import { fmtInt, fmtPct, timeAgo } from '@/components/orbat/overview/format';
 import {
   createKnowledgeCollection,
+  importKnowledgeSource,
+  reindexWorkspaceKnowledge,
   deleteKnowledgeArticle,
   getKnowledgeArticleDetail,
   getKnowledgeHub,
@@ -108,6 +114,102 @@ export function KnowledgeScreen() {
 
   const data = hubState.data;
   const canEdit = Boolean(data?.canEdit);
+
+  // Document / URL import & re-index state (Part 5)
+  const [importOpen, setImportOpen] = useState(false);
+  const [importTab, setImportTab] = useState<'file' | 'url'>('file');
+  const [importUrl, setImportUrl] = useState('');
+  const [importTitle, setImportTitle] = useState('');
+  const [importSectionId, setImportSectionId] = useState('');
+  const [importPublish, setImportPublish] = useState(true);
+  const [importFile, setImportFile] = useState<{
+    name: string;
+    mimeType: string;
+    size: number;
+    base64Data: string;
+  } | null>(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const [reindexBusy, setReindexBusy] = useState(false);
+
+  const handleSelectImportFile = (file: File | null) => {
+    if (!file) {
+      setImportFile(null);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.show({ tone: 'bad', message: 'File exceeds the 5 MB upload limit.' });
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = typeof reader.result === 'string' ? reader.result : '';
+      const base64 = result.includes(',') ? result.split(',')[1] || '' : result;
+      setImportFile({
+        name: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        size: file.size,
+        base64Data: base64,
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleImportSubmit = async () => {
+    setImportBusy(true);
+    try {
+      const res =
+        importTab === 'file'
+          ? await importKnowledgeSource(workspaceId, {
+              mode: 'file',
+              fileName: importFile?.name || '',
+              mimeType: importFile?.mimeType,
+              base64Data: importFile?.base64Data || '',
+              title: importTitle.trim() || undefined,
+              sectionId: importSectionId || null,
+              publishImmediately: importPublish,
+            })
+          : await importKnowledgeSource(workspaceId, {
+              mode: 'url',
+              url: importUrl.trim(),
+              title: importTitle.trim() || undefined,
+              sectionId: importSectionId || null,
+              publishImmediately: importPublish,
+            });
+      if (!res.success) {
+        toast.show({ tone: 'bad', message: res.error || 'Import failed.' });
+        return;
+      }
+      toast.show({
+        tone: 'ok',
+        message: `Imported "${res.title || 'Source'}" (${res.chunkCount ?? 0} chunks indexed).`,
+      });
+      setImportOpen(false);
+      setImportUrl('');
+      setImportTitle('');
+      setImportFile(null);
+      hubState.reload();
+    } finally {
+      setImportBusy(false);
+    }
+  };
+
+  const handleReindexAll = async () => {
+    setReindexBusy(true);
+    try {
+      const res = await reindexWorkspaceKnowledge(workspaceId);
+      if (!res.success) {
+        toast.show({ tone: 'bad', message: res.error || 'Re-index failed.' });
+        return;
+      }
+      toast.show({
+        tone: 'ok',
+        message: `Re-indexed ${fmtInt(res.indexedArticles ?? 0)} article(s) across ${fmtInt(res.totalChunks ?? 0)} vector chunk(s).`,
+      });
+      hubState.reload();
+    } finally {
+      setReindexBusy(false);
+    }
+  };
 
   const filteredArticles = useMemo(() => {
     const list = data?.articles ?? [];
@@ -666,6 +768,26 @@ export function KnowledgeScreen() {
                 <Button
                   variant="secondary"
                   size="md"
+                  loading={reindexBusy}
+                  leading={<RefreshCw size={14} />}
+                  onClick={handleReindexAll}
+                >
+                  Re-index
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
+                  leading={<Upload size={14} />}
+                  onClick={() => {
+                    setImportSectionId(data?.sections[0]?.id ?? '');
+                    setImportOpen(true);
+                  }}
+                >
+                  Import File / URL
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="md"
                   leading={<FolderPlus size={14} />}
                   onClick={() => setNewColOpen(true)}
                 >
@@ -693,6 +815,42 @@ export function KnowledgeScreen() {
         <ErrorState title="Could not load Knowledge Base" body={hubState.error} onRetry={hubState.reload} />
       ) : data ? (
         <div className="space-y-4">
+          {data.knowledgeSources && data.knowledgeSources.length > 0 ? (
+            <Card>
+              <CardHeader
+                title="Imported documents & URLs"
+                sub={`${data.knowledgeSources.length} ingested source(s) synced with pgvector chunks`}
+              />
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                {data.knowledgeSources.slice(0, 6).map((src) => (
+                  <div
+                    key={src.id}
+                    className="flex items-center justify-between gap-2.5 rounded-[12px] border border-o-border bg-o-surface-2 px-3 py-2"
+                  >
+                    <div className="flex min-w-0 items-center gap-2">
+                      {src.sourceType === 'url' ? (
+                        <Globe size={14} className="shrink-0 text-o-ai-text" />
+                      ) : (
+                        <FileText size={14} className="shrink-0 text-o-ai-text" />
+                      )}
+                      <div className="min-w-0">
+                        <div className="truncate text-[12.5px] font-semibold text-o-text">
+                          {src.title}
+                        </div>
+                        <div className="truncate text-[11px] text-o-text-3">
+                          {src.sourceUrl || src.fileName || 'Document'} · {fmtInt(src.chunkCount)} chunks
+                        </div>
+                      </div>
+                    </div>
+                    <Badge tone={src.status === 'failed' ? 'bad' : 'ok'}>
+                      {src.status === 'failed' ? 'Failed' : 'Indexed'}
+                    </Badge>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          ) : null}
+
           {/* Knowledge Gap Detector + Team Answers */}
           {data.gaps.length > 0 ? (
             <Card className="border-o-ai/30 bg-o-ai-soft/25">
@@ -960,6 +1118,115 @@ export function KnowledgeScreen() {
               placeholder="Shown on your Help Center index page"
             />
           </Field>
+        </div>
+      </Modal>
+
+      <Modal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        title="Import Knowledge Source"
+        description="Upload PDF, DOCX, TXT, or Markdown files, or ingest a public webpage URL into your RAG vector store."
+        footer={
+          <>
+            <Button variant="ghost" size="md" onClick={() => setImportOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="ai"
+              size="md"
+              loading={importBusy}
+              disabled={importTab === 'file' ? !importFile : !importUrl.trim()}
+              onClick={handleImportSubmit}
+            >
+              Import & index
+            </Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => setImportTab('file')}
+              className={`flex-1 rounded-[10px] border px-3 py-2 text-[13px] font-medium transition-colors ${
+                importTab === 'file'
+                  ? 'border-o-ai bg-o-ai-soft text-o-ai-text'
+                  : 'border-o-border bg-o-surface text-o-text-2 hover:bg-o-surface-2'
+              }`}
+            >
+              <Upload size={13} className="mr-1.5 inline" />
+              Upload document
+            </button>
+            <button
+              type="button"
+              onClick={() => setImportTab('url')}
+              className={`flex-1 rounded-[10px] border px-3 py-2 text-[13px] font-medium transition-colors ${
+                importTab === 'url'
+                  ? 'border-o-ai bg-o-ai-soft text-o-ai-text'
+                  : 'border-o-border bg-o-surface text-o-text-2 hover:bg-o-surface-2'
+              }`}
+            >
+              <Globe size={13} className="mr-1.5 inline" />
+              Website URL
+            </button>
+          </div>
+
+          {importTab === 'file' ? (
+            <div className="space-y-1.5">
+              <Field label="Document file (PDF, DOCX, TXT, MD, CSV, HTML — max 5 MB)">
+                <input
+                  type="file"
+                  accept=".pdf,.docx,.txt,.md,.markdown,.csv,.json,.html,.htm"
+                  onChange={(e) => handleSelectImportFile(e.target.files?.[0] ?? null)}
+                  className="block w-full rounded-[10px] border border-o-border bg-o-surface px-3 py-2 text-[13px] text-o-text file:mr-3 file:rounded-md file:border-0 file:bg-o-ai-soft file:px-2.5 file:py-1 file:text-[12px] file:font-semibold file:text-o-ai-text"
+                />
+              </Field>
+              {importFile ? (
+                <div className="text-[12px] text-o-text-3">
+                  Selected: <strong className="text-o-text">{importFile.name}</strong> ({Math.max(1, Math.round(importFile.size / 1024))} KB)
+                </div>
+              ) : null}
+            </div>
+          ) : (
+            <Field label="Public documentation or Help Center URL">
+              <Input
+                value={importUrl}
+                onChange={(e) => setImportUrl(e.target.value)}
+                placeholder="https://docs.example.com/refund-policy"
+              />
+            </Field>
+          )}
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <Field label="Article title (optional override)">
+              <Input
+                value={importTitle}
+                onChange={(e) => setImportTitle(e.target.value)}
+                placeholder="Auto-detected from file / title"
+              />
+            </Field>
+            {data && data.sections.length > 0 ? (
+              <Field label="Target collection">
+                <Select
+                  value={importSectionId}
+                  onChange={(e) => setImportSectionId(e.target.value)}
+                  options={[
+                    { value: '', label: 'General (no collection)' },
+                    ...data.sections.map((s) => ({ value: s.id, label: s.name })),
+                  ]}
+                />
+              </Field>
+            ) : null}
+          </div>
+
+          <label className="flex cursor-pointer items-center gap-2 text-[12.5px] text-o-text-2">
+            <input
+              type="checkbox"
+              checked={importPublish}
+              onChange={(e) => setImportPublish(e.target.checked)}
+            />
+            <span>Publish immediately and generate pgvector search chunks</span>
+          </label>
         </div>
       </Modal>
     </PageContainer>

@@ -28,6 +28,7 @@ import {
   type AgentModelConfig,
   type AgentRagConfig,
   type AgentRagMode,
+  type RagTrace,
   type AgentReplyLanguageMode,
   type AgentRoutingRules,
   type AgentStatus,
@@ -971,6 +972,7 @@ export interface PlaygroundResult {
   usingModel: boolean;
   latencyMs: number;
   ragMode?: AgentRagMode;
+  ragTrace?: RagTrace;
   retrievalMethod?: 'semantic_rag' | 'keyword_fallback' | 'none';
   verificationVerdict?: 'supported' | 'blocked_fixed' | 'blocked_human' | 'needs_review';
   topic?: string;
@@ -1104,7 +1106,7 @@ export async function runAgentPlaygroundAction(
     const effectiveRagConfig = normalizeAgentRagConfig(input.ragConfig ?? savedAgent?.rag_config);
     const normalizedScope = normalizeKnowledgeScope(input.knowledgeScope);
 
-    // Run live Semantic RAG (with keyword fallback) strictly scoped by the agent's collections & Bot Knowledge toggle.
+    // Run live Semantic RAG (with keyword fallback & Advanced RAG stages) strictly scoped by the agent's collections & Bot Knowledge toggle.
     const retrieved = await buildModelContext(workspaceId, userMessage, {
       history: (input.history || []).map((h) => h.content),
       turns: input.history || [],
@@ -1113,6 +1115,7 @@ export async function runAgentPlaygroundAction(
       articlesOnly: true,
       knowledgeScope: normalizedScope,
       minScore: effectiveRagConfig.minScore,
+      ragConfig: effectiveRagConfig,
     });
 
     const priorityIds = retrieved.sources.map((s) =>
@@ -1320,6 +1323,7 @@ export async function runAgentPlaygroundAction(
         language: input.language,
         answerMode: effectiveAnswerMode,
         ragMode: effectiveRagConfig.mode,
+        ragTrace: retrieved.ragTrace ?? null,
         retrievalMethod,
       },
     });
@@ -1337,6 +1341,7 @@ export async function runAgentPlaygroundAction(
         usingModel,
         latencyMs,
         ragMode: effectiveRagConfig.mode,
+        ragTrace: retrieved.ragTrace,
         retrievalMethod,
         verificationVerdict,
         topic: autonomy.topic,

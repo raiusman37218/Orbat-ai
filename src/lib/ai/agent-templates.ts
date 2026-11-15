@@ -21,8 +21,20 @@ export interface AgentRagConfig {
   mode: AgentRagMode;
   topK: number;
   rerank: boolean;
+  hyde?: boolean;
+  parentChild?: boolean;
+  correctiveFallback?: boolean;
   minScore: number;
   citations: boolean;
+}
+
+export interface RagTrace {
+  mode: AgentRagMode;
+  hydeUsed: boolean;
+  reranked: boolean;
+  parentExpanded: boolean;
+  correctiveRetried: boolean;
+  candidateCount: number;
 }
 
 export interface AgentModelConfig {
@@ -187,8 +199,41 @@ export function normalizeAgentRagConfig(cfg?: Partial<AgentRagConfig> | null): A
     mode: cfg?.mode === 'advanced' ? 'advanced' : 'standard',
     topK,
     rerank: Boolean(cfg?.rerank),
+    ...(typeof cfg?.hyde === 'boolean' ? { hyde: cfg.hyde } : {}),
+    ...(typeof cfg?.parentChild === 'boolean' ? { parentChild: cfg.parentChild } : {}),
+    ...(typeof cfg?.correctiveFallback === 'boolean'
+      ? { correctiveFallback: cfg.correctiveFallback }
+      : {}),
     minScore,
     citations: cfg?.citations !== false,
+  };
+}
+
+export interface ResolvedRagOptions {
+  mode: AgentRagMode;
+  topK: number;
+  rerank: boolean;
+  hyde: boolean;
+  parentChild: boolean;
+  correctiveFallback: boolean;
+  minScore: number;
+  citations: boolean;
+}
+
+/** Resolves effective Advanced RAG toggles (defaulting sub-features on when `mode === 'advanced'`). */
+export function resolveEffectiveRagOptions(cfg?: Partial<AgentRagConfig> | null): ResolvedRagOptions {
+  const base = normalizeAgentRagConfig(cfg);
+  const isAdvanced = base.mode === 'advanced';
+  return {
+    mode: base.mode,
+    topK: base.topK,
+    rerank: typeof cfg?.rerank === 'boolean' ? cfg.rerank : isAdvanced,
+    hyde: typeof cfg?.hyde === 'boolean' ? cfg.hyde : isAdvanced,
+    parentChild: typeof cfg?.parentChild === 'boolean' ? cfg.parentChild : isAdvanced,
+    correctiveFallback:
+      typeof cfg?.correctiveFallback === 'boolean' ? cfg.correctiveFallback : isAdvanced,
+    minScore: base.minScore,
+    citations: base.citations,
   };
 }
 

@@ -1,5 +1,12 @@
 'use server';
 
+import {
+  extractKnowledgeDocumentFromBuffer,
+  fetchAndExtractUrl,
+  MAX_INGEST_FILE_BYTES,
+} from '@/lib/ai/document-ingest';
+import { syncWorkspaceArticleEmbeddings } from '@/lib/ai/semantic-retrieval';
+
 import { query, queryRows } from '@/lib/db';
 import { serviceClient } from '@/lib/pg/service';
 import { getWorkspaceAccess } from '@/lib/team/access';
@@ -102,6 +109,23 @@ export interface KnowledgeHubBootstrap {
     archivedCount: number;
     openUnansweredCount: number;
   };
+  knowledgeSources?: KnowledgeSourceItem[];
+}
+
+export interface KnowledgeSourceItem {
+  id: string;
+  sourceType: 'file' | 'url';
+  title: string;
+  sourceUrl: string | null;
+  fileName: string | null;
+  mimeType: string | null;
+  fileSize: number | null;
+  sectionId: string | null;
+  articleId: string | null;
+  status: 'processing' | 'indexed' | 'failed';
+  chunkCount: number;
+  errorMessage: string | null;
+  createdAt: string;
 }
 
 export async function getKnowledgeHubAction(
@@ -111,7 +135,7 @@ export async function getKnowledgeHubAction(
   const canEdit = role === 'owner' || role === 'admin' || role === 'agent';
   const canManage = role === 'owner' || role === 'admin';
 
-  const [wsRows, sectionRows, articleRows, unansweredRows, bkRows, embedStatus] =
+  const [wsRows, sectionRows, articleRows, unansweredRows, bkRows, embedStatus, sourceRows] =
     await Promise.all([
       queryRows<{
         id: string;
@@ -163,6 +187,15 @@ export async function getKnowledgeHubAction(
         [workspaceId],
       ).catch(() => [{ cnt: '0' }]),
       describeEmbeddingProvider().catch(() => ({ provider: 'local', model: 'fallback' })),
+      queryRows<Record<string, unknown>>(
+        `SELECT id, source_type, title, source_url, file_name, mime_type, file_size,
+                section_id, article_id, status, chunk_count, error_message, created_at
+         FROM public.knowledge_sources
+         WHERE workspace_id = $1
+         ORDER BY created_at DESC
+         LIMIT 50`,
+        [workspaceId],
+      ).catch(() => []),
     ]);
 
   const ws = wsRows[0];
@@ -270,6 +303,22 @@ export async function getKnowledgeHubAction(
       archivedCount: articles.filter((a) => a.status === 'archived').length,
       openUnansweredCount: teamAnswers.length,
     },
+    knowledgeSources: (sourceRows || []).map((src) => ({
+      id: String(src.id),
+      sourceType: src.source_type === 'url' ? 'url' : 'file',
+      title: String(src.title || 'Untitled'),
+      sourceUrl: src.source_url ? String(src.source_url) : null,
+      fileName: src.file_name ? String(src.file_name) : null,
+      mimeType: src.mime_type ? String(src.mime_type) : null,
+      fileSize: src.file_size != null ? Number(src.file_size) : null,
+      sectionId: src.section_id ? String(src.section_id) : null,
+      articleId: src.article_id ? String(src.article_id) : null,
+      status:
+        src.status === 'processing' || src.status === 'failed' ? src.status : 'indexed',
+      chunkCount: Number(src.chunk_count || 0),
+      errorMessage: src.error_message ? String(src.error_message) : null,
+      createdAt: String(src.created_at),
+    })),
   };
 }
 
@@ -689,5 +738,161 @@ export async function runKnowledgeAiToolAction(
     return { success: true, output };
   } catch (err) {
     return { success: false, error: errorMessage(err, 'Knowledge AI tool failed.') };
+  }
+}
+
+export type ImportKnowledgeSourceInput =
+  | {
+      mode: 'file';
+      fileName: string;
+      mimeType?: string | null;
+      base64Data: string;
+      title?: string;
+      sectionId?: string | null;
+      publishImmediately?: boolean;
+    }
+  | {
+      mode: 'url';
+      url: string;
+      title?: string;
+      sectionId?: string | null;
+      publishImmediately?: boolean;
+    };
+
+export async function importKnowledgeSourceAction(
+  workspaceId: string,
+  input: ImportKnowledgeSourceInput,
+): Promise<{
+  success: boolean;
+  articleId?: string;
+  sourceId?: string;
+  title?: string;
+  chunkCount?: number;
+  error?: string;
+}> {
+  try {
+    const { user } = await getWorkspaceAccess(workspaceId, 'edit_content');
+
+    let extractedTitle = '';
+    let extractedSummary = '';
+    let extractedContent = '';
+    let sourceUrl: string | null = null;
+    let fileName: string | null = null;
+    let mimeType: string | null = null;
+    let fileSize: number | null = null;
+
+    if (input.mode === 'file') {
+      const b64 = (input.base64Data || '').replace(/^data:[^;]+;base64,/, '').trim();
+      if (!b64) {
+        return { success: false, error: 'Uploaded file data is missing.' };
+      }
+      const buffer = Buffer.from(b64, 'base64');
+      if (buffer.length > MAX_INGEST_FILE_BYTES) {
+        return { success: false, error: 'Uploaded file exceeds the 5 MB size limit.' };
+      }
+      const parsed = extractKnowledgeDocumentFromBuffer({
+        fileName: input.fileName || 'document.txt',
+        mimeType: input.mimeType,
+        buffer,
+        titleOverride: input.title,
+      });
+      extractedTitle = parsed.title;
+      extractedSummary = parsed.summary;
+      extractedContent = parsed.content;
+      fileName = input.fileName || 'document.txt';
+      mimeType = input.mimeType || parsed.format;
+      fileSize = buffer.length;
+    } else {
+      const parsed = await fetchAndExtractUrl(input.url);
+      extractedTitle = (input.title || '').trim() || parsed.title;
+      extractedSummary = parsed.summary;
+      extractedContent = parsed.content;
+      sourceUrl = parsed.finalUrl;
+    }
+
+    const publishNow = input.publishImmediately !== false;
+    const saved = await saveKnowledgeArticleAction(workspaceId, {
+      title: extractedTitle,
+      sectionId: input.sectionId || null,
+      summary: extractedSummary,
+      content: extractedContent,
+      status: publishNow ? 'published' : 'draft',
+      changeSummary:
+        input.mode === 'url'
+          ? `Imported from URL: ${sourceUrl || input.url}`
+          : `Imported from file: ${fileName || 'upload'}`,
+    });
+
+    if (!saved.success || !saved.article) {
+      return { success: false, error: saved.error || 'Could not save imported content.' };
+    }
+
+    const chunkCountRows = await queryRows<{ cnt: string }>(
+      `SELECT COUNT(*)::text AS cnt FROM public.article_chunks WHERE workspace_id = $1 AND article_id = $2`,
+      [workspaceId, saved.article.id],
+    ).catch(() => [{ cnt: '0' }]);
+    const chunkCount = Number(chunkCountRows[0]?.cnt || 0);
+
+    let sourceId: string | undefined;
+    try {
+      const inserted = await queryRows<{ id: string }>(
+        `INSERT INTO public.knowledge_sources (
+           workspace_id, source_type, title, source_url, file_name, mime_type, file_size,
+           section_id, article_id, status, chunk_count, created_by
+         )
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+         RETURNING id`,
+        [
+          workspaceId,
+          input.mode,
+          extractedTitle,
+          sourceUrl,
+          fileName,
+          mimeType,
+          fileSize,
+          input.sectionId || null,
+          saved.article.id,
+          'indexed',
+          chunkCount,
+          user?.id || null,
+        ],
+      );
+      sourceId = inserted[0]?.id;
+    } catch {
+      // Non-fatal if knowledge_sources table migration has not been applied yet
+    }
+
+    return {
+      success: true,
+      articleId: saved.article.id,
+      sourceId,
+      title: extractedTitle,
+      chunkCount,
+    };
+  } catch (err) {
+    return { success: false, error: errorMessage(err, 'Failed to import knowledge source.') };
+  }
+}
+
+export async function reindexWorkspaceKnowledgeAction(
+  workspaceId: string,
+): Promise<{
+  success: boolean;
+  indexedArticles?: number;
+  totalChunks?: number;
+  error?: string;
+}> {
+  try {
+    await getWorkspaceAccess(workspaceId, 'edit_content');
+    const result = await syncWorkspaceArticleEmbeddings(workspaceId);
+    invalidateHelpIndex(workspaceId);
+    refreshHelpCenter(workspaceId);
+    return {
+      success: true,
+      indexedArticles: result.indexedArticles,
+      totalChunks: result.totalChunks,
+    };
+  } catch (err) {
+    return { success: false, error: errorMessage(err, 'Could not re-index Knowledge Base embeddings.') };
   }
 }

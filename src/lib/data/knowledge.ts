@@ -5,29 +5,35 @@ import {
   deleteKnowledgeArticleAction,
   getKnowledgeArticleDetailAction,
   getKnowledgeHubAction,
+  importKnowledgeSourceAction,
+  reindexWorkspaceKnowledgeAction,
   restoreArticleVersionAction,
   runKnowledgeAiToolAction,
   saveKnowledgeArticleAction,
   saveTeamAnswerAction,
   type ArticleVersionSnapshot,
+  type ImportKnowledgeSourceInput,
   type KnowledgeArticleDetail,
   type KnowledgeArticleStatus,
   type KnowledgeArticleSummary,
   type KnowledgeGapItem,
   type KnowledgeHubBootstrap,
   type KnowledgeSectionItem,
+  type KnowledgeSourceItem,
   type TeamAnswerItem,
 } from '@/app/actions/knowledge-hub';
 import { useWorkspaceLive } from '@/lib/realtime/use-workspace-live';
 
 export type {
   ArticleVersionSnapshot,
+  ImportKnowledgeSourceInput,
   KnowledgeArticleDetail,
   KnowledgeArticleStatus,
   KnowledgeArticleSummary,
   KnowledgeGapItem,
   KnowledgeHubBootstrap,
   KnowledgeSectionItem,
+  KnowledgeSourceItem,
   TeamAnswerItem,
 };
 
@@ -77,6 +83,17 @@ export function runKnowledgeAiTool(
   input: Parameters<typeof runKnowledgeAiToolAction>[1],
 ) {
   return runKnowledgeAiToolAction(workspaceId, input);
+}
+
+export function importKnowledgeSource(
+  workspaceId: string,
+  input: ImportKnowledgeSourceInput,
+) {
+  return importKnowledgeSourceAction(workspaceId, input);
+}
+
+export function reindexWorkspaceKnowledge(workspaceId: string) {
+  return reindexWorkspaceKnowledgeAction(workspaceId);
 }
 
 export function useKnowledgeLiveSync(

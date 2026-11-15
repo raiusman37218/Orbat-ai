@@ -708,18 +708,65 @@ function AgentBuilderEditor({
                 }}
               />
 
-              <div className="rounded-[12px] border border-o-border bg-o-surface-2 p-3.5 space-y-3">
-                <div className="flex items-center justify-between gap-2">
+              <div className="rounded-[12px] border border-o-border bg-o-surface-2 p-3.5 space-y-3.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <div className="text-[12.5px] font-semibold text-o-text">
-                      Retrieval parameters (Standard RAG)
+                      RAG engine &amp; retrieval pipeline
                     </div>
                     <p className="text-[11.5px] text-o-text-3">
-                      Controls how many scoped pgvector chunks are retrieved and the minimum match floor.
+                      Switch between fast Standard pgvector RAG and high-accuracy Advanced RAG with reranking, HyDE, adjacent context, and corrective fallback.
                     </p>
                   </div>
-                  <Badge tone="neutral">{ragConfig.mode}</Badge>
+                  <Badge tone={ragConfig.mode === 'advanced' ? 'ai' : 'neutral'}>
+                    {ragConfig.mode === 'advanced' ? 'Advanced RAG' : 'Standard RAG'}
+                  </Badge>
                 </div>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {([
+                    {
+                      id: 'standard' as const,
+                      title: 'Standard RAG (Fast)',
+                      sub: 'Hybrid pgvector + FTS + RRF query expansion',
+                    },
+                    {
+                      id: 'advanced' as const,
+                      title: 'Advanced RAG (High Accuracy)',
+                      sub: 'HyDE + AI reranker + parent chunks + corrective gate',
+                    },
+                  ]).map((opt) => {
+                    const active = ragConfig.mode === opt.id;
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        disabled={!canManage}
+                        onClick={() => {
+                          setRagConfig((prev) => ({
+                            ...prev,
+                            mode: opt.id,
+                            topK: opt.id === 'advanced' && prev.topK < 8 ? 8 : prev.topK,
+                            rerank: opt.id === 'advanced',
+                            hyde: opt.id === 'advanced',
+                            parentChild: opt.id === 'advanced',
+                            correctiveFallback: opt.id === 'advanced',
+                          }));
+                          markDirty();
+                        }}
+                        className={`rounded-[10px] border p-2.5 text-left transition-colors ${
+                          active
+                            ? 'border-o-ai bg-o-ai-soft/60 text-o-text'
+                            : 'border-o-border bg-o-surface text-o-text-2 hover:bg-o-bg'
+                        }`}
+                      >
+                        <div className="text-[12.5px] font-semibold">{opt.title}</div>
+                        <div className="text-[11px] text-o-text-3">{opt.sub}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <Field label="Top-K chunks">
                     <Select
@@ -759,6 +806,64 @@ function AgentBuilderEditor({
                       ]}
                     />
                   </Field>
+                </div>
+
+                <div className="space-y-2 border-t border-o-border pt-3">
+                  <Toggle
+                    label="AI relevance reranker"
+                    description="Retrieves a wider candidate pool (15+) and scores each chunk directly against the question."
+                    checked={typeof ragConfig.rerank === 'boolean' ? ragConfig.rerank : ragConfig.mode === 'advanced'}
+                    disabled={!canManage}
+                    onChange={(checked) => {
+                      setRagConfig((prev) => ({ ...prev, rerank: checked }));
+                      markDirty();
+                    }}
+                  />
+                  <Toggle
+                    label="HyDE hypothetical query expansion"
+                    description="Drafts a neutral synthetic Help Center passage to bridge vocabulary gaps before vector search."
+                    checked={typeof ragConfig.hyde === 'boolean' ? ragConfig.hyde : ragConfig.mode === 'advanced'}
+                    disabled={!canManage}
+                    onChange={(checked) => {
+                      setRagConfig((prev) => ({ ...prev, hyde: checked }));
+                      markDirty();
+                    }}
+                  />
+                  <Toggle
+                    label="Adjacent-chunk context (Parent expansion)"
+                    description="Stitches neighboring chunks (chunk ± 1) from matched articles so policies and tables never get cut mid-way."
+                    checked={typeof ragConfig.parentChild === 'boolean' ? ragConfig.parentChild : ragConfig.mode === 'advanced'}
+                    disabled={!canManage}
+                    onChange={(checked) => {
+                      setRagConfig((prev) => ({ ...prev, parentChild: checked }));
+                      markDirty();
+                    }}
+                  />
+                  <Toggle
+                    label="Corrective RAG gate"
+                    description="Retries with normalized keyword extraction if initial candidates fall below the sensitivity floor."
+                    checked={
+                      typeof ragConfig.correctiveFallback === 'boolean'
+                        ? ragConfig.correctiveFallback
+                        : ragConfig.mode === 'advanced'
+                    }
+                    disabled={!canManage}
+                    onChange={(checked) => {
+                      setRagConfig((prev) => ({ ...prev, correctiveFallback: checked }));
+                      markDirty();
+                    }}
+                  />
+                  <Toggle
+                    label="Include Help Center source citations"
+                    description="Appends clickable cited Help Center articles to verified answers."
+                    checked={showCitations}
+                    disabled={!canManage}
+                    onChange={(checked) => {
+                      setShowCitations(checked);
+                      setRagConfig((prev) => ({ ...prev, citations: checked }));
+                      markDirty();
+                    }}
+                  />
                 </div>
               </div>
             </div>
@@ -1147,6 +1252,10 @@ function AgentBuilderEditor({
                               : 'No doc match'}
                         </Badge>
                       ) : null}
+                      {entry.meta.ragTrace?.reranked ? <Badge tone="ai">Reranked</Badge> : null}
+                      {entry.meta.ragTrace?.hydeUsed ? <Badge tone="ai">HyDE</Badge> : null}
+                      {entry.meta.ragTrace?.parentExpanded ? <Badge tone="ai">Context+</Badge> : null}
+                      {entry.meta.ragTrace?.correctiveRetried ? <Badge tone="warn">Corrective retry</Badge> : null}
                       {entry.meta.topic ? <Badge tone="neutral">{entry.meta.topic}</Badge> : null}
                       {entry.meta.verificationVerdict ? (
                         <Badge

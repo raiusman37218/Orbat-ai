@@ -5,7 +5,14 @@ import { getPlatformAiConfigServerOnly } from './platform-gateway';
 import type { RetrievedChunk } from '@/types/database';
 import { userError } from '@/lib/errors/user-error';
 import { searchQueriesFor, understandMessage } from './understanding';
-import { normalizeKnowledgeScope, type AgentKnowledgeScope } from './agent-templates';
+import {
+  normalizeKnowledgeScope,
+  resolveEffectiveRagOptions,
+  type AgentKnowledgeScope,
+  type AgentRagConfig,
+  type RagTrace,
+} from './agent-templates';
+import { buildHydePassage, rerankRetrievedChunks } from './reranker';
 
 /**
  * Semantic retrieval and embedding engine with pgvector.
@@ -876,13 +883,118 @@ export async function hybridSearchBotKnowledge({
   }));
 }
 
+function stripChunkHeaderPrefix(raw: string): string {
+  return (raw || '')
+    .replace(/^Article:[^\r\n]*\r?\n(?:Section:[^\r\n]*\r?\n)?\r?\n*/i, '')
+    .trim();
+}
+
+function buildRelaxedCorrectiveQuery(original: string, rewritten: string): string {
+  const combined = `${rewritten} ${original}`
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, ' ')
+    .split(/\s+/)
+    .filter((w) => w.length >= 4);
+  const unique = Array.from(new Set(combined)).slice(0, 8);
+  return unique.join(' ').trim() || rewritten || original;
+}
+
+/**
+ * Fetches immediate neighbor chunks (`chunk_index - 1`, `chunk_index + 1`) from the
+ * same article / knowledge entry so split paragraphs and multi-row tables stay intact.
+ * Strictly preserves workspace and article/knowledge boundaries.
+ */
+export async function expandAdjacentChunks({
+  workspaceId,
+  chunks,
+  includeBotKnowledge = true,
+}: {
+  workspaceId: string;
+  chunks: RetrievedChunk[];
+  includeBotKnowledge?: boolean;
+}): Promise<{ chunks: RetrievedChunk[]; expandedCount: number }> {
+  if (!chunks.length) {
+    return { chunks: [], expandedCount: 0 };
+  }
+
+  const targets = chunks.slice(0, 4);
+  const existingKeys = new Set(
+    chunks.map((c) => `${c.source === 'knowledge' ? 'knowledge' : 'article'}:${c.article_id}:${c.chunk_index}`),
+  );
+
+  const articleIds = new Set<string>();
+  const kbIds = new Set<string>();
+  for (const c of targets) {
+    if (c.source === 'knowledge') {
+      if (includeBotKnowledge) kbIds.add(c.article_id);
+    } else {
+      articleIds.add(c.article_id);
+    }
+  }
+
+  const supabase = serviceClient();
+  const [articleNeighborRes, kbNeighborRes] = await Promise.all([
+    articleIds.size > 0
+      ? supabase
+          .from('article_chunks')
+          .select('article_id, chunk_index, content')
+          .eq('workspace_id', workspaceId)
+          .in('article_id', [...articleIds])
+      : Promise.resolve({ data: null, error: null }),
+    includeBotKnowledge && kbIds.size > 0
+      ? supabase
+          .from('bot_knowledge_chunks')
+          .select('knowledge_id, chunk_index, content')
+          .eq('workspace_id', workspaceId)
+          .in('knowledge_id', [...kbIds])
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  const neighborText = new Map<string, string>();
+  for (const row of ((articleNeighborRes?.data as { article_id?: string; chunk_index?: number; content?: string }[] | null) || [])) {
+    if (row.article_id && typeof row.chunk_index === 'number' && row.content) {
+      neighborText.set(`article:${row.article_id}:${row.chunk_index}`, stripChunkHeaderPrefix(row.content));
+    }
+  }
+  for (const row of ((kbNeighborRes?.data as { knowledge_id?: string; chunk_index?: number; content?: string }[] | null) || [])) {
+    if (row.knowledge_id && typeof row.chunk_index === 'number' && row.content) {
+      neighborText.set(`knowledge:${row.knowledge_id}:${row.chunk_index}`, stripChunkHeaderPrefix(row.content));
+    }
+  }
+
+  let expandedCount = 0;
+  const updated = chunks.map((chunk, i) => {
+    if (i >= 4) return chunk;
+    const src = chunk.source === 'knowledge' ? 'knowledge' : 'article';
+    const prevKey = `${src}:${chunk.article_id}:${chunk.chunk_index - 1}`;
+    const nextKey = `${src}:${chunk.article_id}:${chunk.chunk_index + 1}`;
+    const prevBody = chunk.chunk_index > 0 && !existingKeys.has(prevKey) ? neighborText.get(prevKey) : undefined;
+    const nextBody = !existingKeys.has(nextKey) ? neighborText.get(nextKey) : undefined;
+
+    if (!prevBody && !nextBody) return chunk;
+
+    expandedCount += 1;
+    const parts: string[] = [];
+    if (prevBody) parts.push(`[Previous section]\n${prevBody.slice(-850)}`);
+    parts.push(chunk.content);
+    if (nextBody) parts.push(`[Continuation]\n${nextBody.slice(0, 850)}`);
+
+    return {
+      ...chunk,
+      content: parts.join('\n\n'),
+    };
+  });
+
+  return { chunks: updated, expandedCount };
+}
+
 /**
  * Builds the AI model context from semantic retrieved chunks:
- * 1. Rewrites visitor query into standalone English query using last 6 messages.
- * 2. Embeds the query.
- * 3. Retrieves top 6 chunks via hybrid search.
- * 4. Filters out chunks below similarity threshold so unrelated articles are never sent.
- * 5. Assembles clean context blocks with article URLs for the model.
+ * 1. Rewrites visitor query (plus optional HyDE hypothetical passage in Advanced RAG).
+ * 2. Embeds query variants.
+ * 3. Retrieves candidate chunks via pgvector hybrid search (wider pool for rerank).
+ * 4. Runs optional Corrective fallback, AI/lexical Reranker, and Parent-Child expansion.
+ * 5. Filters below threshold and assembles clean context blocks with URLs and RagTrace.
  */
 export async function buildSemanticModelContext({
   workspaceId,
@@ -893,6 +1005,7 @@ export async function buildSemanticModelContext({
   messageEmbedding,
   knowledgeScope,
   minScore,
+  ragConfig,
 }: {
   workspaceId: string;
   visitorMessage: string;
@@ -906,6 +1019,8 @@ export async function buildSemanticModelContext({
   knowledgeScope?: Partial<AgentKnowledgeScope> | null;
   /** Optional stricter similarity/combined score floor configured on the agent. */
   minScore?: number;
+  /** Per-agent RAG mode & Advanced RAG feature toggles. */
+  ragConfig?: Partial<AgentRagConfig> | null;
 }): Promise<{
   text: string;
   used: { id: string; title: string; source: 'article' | 'knowledge' }[];
@@ -915,7 +1030,30 @@ export async function buildSemanticModelContext({
   queryEmbedding?: number[] | null;
   chunks: RetrievedChunk[];
   belowThreshold: boolean;
+  ragTrace: RagTrace;
 }> {
+  const ragOpts = resolveEffectiveRagOptions({
+    mode: ragConfig?.mode,
+    topK: ragConfig?.topK ?? limit,
+    rerank: ragConfig?.rerank,
+    hyde: ragConfig?.hyde,
+    parentChild: ragConfig?.parentChild,
+    correctiveFallback: ragConfig?.correctiveFallback,
+    minScore: ragConfig?.minScore ?? minScore,
+    citations: ragConfig?.citations,
+  });
+  const effectiveLimit = ragOpts.topK;
+  const effectiveMinScore = ragOpts.minScore;
+  const emptyTrace = (partial?: Partial<RagTrace>): RagTrace => ({
+    mode: ragOpts.mode,
+    hydeUsed: false,
+    reranked: false,
+    parentExpanded: false,
+    correctiveRetried: false,
+    candidateCount: 0,
+    ...partial,
+  });
+
   const normalizedScope = knowledgeScope ? normalizeKnowledgeScope(knowledgeScope) : null;
   const searchArticles =
     !normalizedScope || normalizedScope.allArticles || normalizedScope.sectionIds.length > 0;
@@ -933,6 +1071,7 @@ export async function buildSemanticModelContext({
       queryEmbedding: messageEmbedding ?? null,
       chunks: [],
       belowThreshold: true,
+      ragTrace: emptyTrace(),
     };
   }
 
@@ -942,17 +1081,22 @@ export async function buildSemanticModelContext({
     if (platform?.config) activeConfig = platform.config;
   }
 
-  // 1. What the message is asking, as up to four search queries: the
-  // model's FAQ-style wordings, each separate question, the normalised
-  // request (typos, shorthand and Roman Urdu mapped, venting removed) and the
-  // visitor's own words (understanding.ts).
+  // 1. Expand visitor query variants, plus optional HyDE hypothetical passage.
   const queries = await expandVisitorQueries({ visitorMessage, recentMessages, providerConfig: activeConfig });
   if (!queries.length) queries.push(visitorMessage.trim());
   const rewrittenQuery = queries[0];
 
-  // 2. One embedding request for all of them.
-  let embeddings: (number[] | null)[] = queries.map((q) => (messageEmbedding?.length && q === visitorMessage.trim() ? messageEmbedding : null));
-  const missing = queries.filter((_, i) => !embeddings[i]);
+  const hydePassage = ragOpts.hyde
+    ? await buildHydePassage({ question: rewrittenQuery || visitorMessage, providerConfig: activeConfig })
+    : null;
+  const hydeUsed = Boolean(hydePassage);
+  const searchQueries = hydePassage ? [...queries, hydePassage] : [...queries];
+
+  // 2. Embed expanded queries (+ HyDE passage) in a single batched call.
+  let embeddings: (number[] | null)[] = searchQueries.map((q) =>
+    messageEmbedding?.length && q === visitorMessage.trim() ? messageEmbedding : null,
+  );
+  const missing = searchQueries.filter((_, i) => !embeddings[i]);
   if (missing.length) {
     try {
       const made = await generateEmbeddings(missing, activeConfig);
@@ -964,55 +1108,139 @@ export async function buildSemanticModelContext({
   }
   const queryEmbedding = embeddings[0] ?? null;
 
-  // 3. Hybrid search over articles and Bot knowledge for every query, merged
-  // by reciprocal rank fusion: the passage most wordings agree on wins, the
-  // way an agent recognises the FAQ behind a badly typed question.
-  const lists = await Promise.all(
-    queries.map(async (queryText, i) => {
-      const [articleChunks, knowledgeChunks] = await Promise.all([
-        searchArticles
-          ? hybridSearchWorkspaceChunks({
-              workspaceId,
-              queryText,
-              queryEmbedding: embeddings[i],
-              limit,
-              sectionIds: articleSectionIds,
-            })
-          : Promise.resolve([]),
-        includeBotKnowledge
-          ? hybridSearchBotKnowledge({ workspaceId, queryText, queryEmbedding: embeddings[i], limit })
-          : Promise.resolve([]),
-      ]);
-      return [...articleChunks, ...knowledgeChunks].sort((a, b) => b.combined_score - a.combined_score || b.similarity - a.similarity);
-    })
-  );
-  const chunks: RetrievedChunk[] = fuseRankings(lists).slice(0, limit);
+  // 3. Hybrid search across wider candidate pool when reranking / Advanced RAG is active.
+  const candidateLimit =
+    ragOpts.rerank || ragOpts.mode === 'advanced' ? Math.max(15, effectiveLimit * 2) : effectiveLimit;
 
-  if (!chunks.length) {
-    return { text: '', used: [], rewrittenQuery, queries, queryEmbedding, chunks: [], belowThreshold: true };
+  const runHybridQuery = async (queryText: string, queryEmb?: number[] | null) => {
+    const [articleChunks, knowledgeChunks] = await Promise.all([
+      searchArticles
+        ? hybridSearchWorkspaceChunks({
+            workspaceId,
+            queryText,
+            queryEmbedding: queryEmb,
+            limit: candidateLimit,
+            sectionIds: articleSectionIds,
+          })
+        : Promise.resolve([]),
+      includeBotKnowledge
+        ? hybridSearchBotKnowledge({
+            workspaceId,
+            queryText,
+            queryEmbedding: queryEmb,
+            limit: candidateLimit,
+          })
+        : Promise.resolve([]),
+    ]);
+    return [...articleChunks, ...knowledgeChunks].sort(
+      (a, b) => b.combined_score - a.combined_score || b.similarity - a.similarity,
+    );
+  };
+
+  const lists = await Promise.all(searchQueries.map((qText, i) => runHybridQuery(qText, embeddings[i])));
+  let candidatePool: RetrievedChunk[] = fuseRankings(lists);
+  let correctiveRetried = false;
+
+  // 4. Corrective RAG Gate: retry once with normalized keyword query when initial candidates are weak.
+  const correctiveFloor = Math.max(0.28, effectiveMinScore);
+  const bestInitialScore = candidatePool.length
+    ? Math.max(...candidatePool.map((c) => Math.max(Number(c.combined_score || 0), Number(c.similarity || 0))))
+    : 0;
+  if (ragOpts.correctiveFallback && (!candidatePool.length || bestInitialScore < correctiveFloor)) {
+    const relaxedQuery = buildRelaxedCorrectiveQuery(visitorMessage, rewrittenQuery);
+    if (relaxedQuery && !searchQueries.includes(relaxedQuery)) {
+      correctiveRetried = true;
+      const retryHits = await runHybridQuery(relaxedQuery, queryEmbedding).catch(() => []);
+      if (retryHits.length > 0) {
+        candidatePool = fuseRankings([...lists, retryHits]);
+      }
+    }
   }
 
-  // 4. Threshold check: if top match is below threshold, refuse to pass unrelated articles
+  const candidateCount = candidatePool.length;
+  if (!candidatePool.length) {
+    return {
+      text: '',
+      used: [],
+      rewrittenQuery,
+      queries,
+      queryEmbedding,
+      chunks: [],
+      belowThreshold: true,
+      ragTrace: emptyTrace({ hydeUsed, correctiveRetried, candidateCount: 0 }),
+    };
+  }
+
+  // 5. Optional AI / hybrid reranker narrows candidate pool down to topK crisp matches.
+  let reranked = false;
+  let chunks: RetrievedChunk[];
+  if (ragOpts.rerank) {
+    const rerankRes = await rerankRetrievedChunks({
+      query: rewrittenQuery || visitorMessage,
+      queries,
+      chunks: candidatePool,
+      topK: effectiveLimit,
+      providerConfig: activeConfig,
+    });
+    chunks = rerankRes.chunks;
+    reranked = rerankRes.reranked;
+  } else {
+    chunks = candidatePool.slice(0, effectiveLimit);
+  }
+
+  if (!chunks.length) {
+    return {
+      text: '',
+      used: [],
+      rewrittenQuery,
+      queries,
+      queryEmbedding,
+      chunks: [],
+      belowThreshold: true,
+      ragTrace: emptyTrace({ hydeUsed, reranked, correctiveRetried, candidateCount }),
+    };
+  }
+
+  // 6. Threshold check: refuse weak matches to prevent hallucinated grounding.
   const topChunk = chunks[0];
   const baseBelowThreshold =
     topChunk.similarity < 0.42 && topChunk.keyword_score < 0.20 && topChunk.combined_score < 0.38;
   const stricterMinScore =
-    typeof minScore === 'number' &&
-    minScore > 0.25 &&
-    Math.max(topChunk.similarity, topChunk.combined_score) < minScore;
+    typeof effectiveMinScore === 'number' &&
+    effectiveMinScore > 0.25 &&
+    Math.max(topChunk.similarity, topChunk.combined_score) < effectiveMinScore;
   const isBelowThreshold = baseBelowThreshold || stricterMinScore;
 
   if (isBelowThreshold) {
-    return { text: '', used: [], rewrittenQuery, queries, queryEmbedding, chunks: [], belowThreshold: true };
+    return {
+      text: '',
+      used: [],
+      rewrittenQuery,
+      queries,
+      queryEmbedding,
+      chunks: [],
+      belowThreshold: true,
+      ragTrace: emptyTrace({ hydeUsed, reranked, correctiveRetried, candidateCount }),
+    };
   }
 
-  // 5. Select only top chunks above similarity threshold, and cap context at ~9,000 chars
-  // Long articles (rule lists) were cut before the part that answered.
+  // 7. Filter secondary chunks, optionally stitch parent/adjacent neighbor context, and cap prompt chars.
   const MAX_KNOWLEDGE_CHARS = 9000;
-  const maxContextChunks = limit > 6 ? Math.min(limit, 12) : 5;
-  const eligibleChunks = chunks
+  const maxContextChunks = effectiveLimit > 6 ? Math.min(effectiveLimit, 12) : 5;
+  let eligibleChunks = chunks
     .filter((c, i) => i === 0 || c.similarity >= 0.38 || c.combined_score >= 0.35)
     .slice(0, maxContextChunks);
+
+  let parentExpanded = false;
+  if (ragOpts.parentChild && eligibleChunks.length > 0) {
+    const expanded = await expandAdjacentChunks({
+      workspaceId,
+      chunks: eligibleChunks,
+      includeBotKnowledge,
+    }).catch(() => ({ chunks: eligibleChunks, expandedCount: 0 }));
+    eligibleChunks = expanded.chunks;
+    parentExpanded = expanded.expandedCount > 0;
+  }
 
   const usedMap = new Map<string, { id: string; title: string; source: 'article' | 'knowledge' }>();
   const blocks: string[] = [];
@@ -1055,5 +1283,6 @@ export async function buildSemanticModelContext({
     queryEmbedding,
     chunks: finalChunks,
     belowThreshold: false,
+    ragTrace: emptyTrace({ hydeUsed, reranked, parentExpanded, correctiveRetried, candidateCount }),
   };
 }
