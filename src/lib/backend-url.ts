@@ -15,6 +15,22 @@ function normalizeOriginOrUrl(raw: string): string {
   return `${isLocal ? 'http' : 'https'}://${trimmed}`;
 }
 
+export function isLocalhostUrl(url: string | undefined | null): boolean {
+  if (!url || typeof url !== 'string') return false;
+  return /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?(\/|$)/i.test(url.trim());
+}
+
+function isNonLocalBrowser(): boolean {
+  if (typeof window === 'undefined') return false;
+  const host = window.location.hostname;
+  return Boolean(host && host !== 'localhost' && host !== '127.0.0.1');
+}
+
+function isProductionOrVercelServer(): boolean {
+  const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
+  return isVercel || process.env.NODE_ENV === 'production';
+}
+
 export function normalizeBackendBaseUrl(raw: string | undefined | null): string | null {
   if (!raw || typeof raw !== 'string') return null;
   const normalized = normalizeOriginOrUrl(raw);
@@ -31,21 +47,18 @@ export function normalizeSocketBaseUrl(raw: string | undefined | null): string |
 
 /**
  * Browser-safe Backend REST API base URL (`.../api/v1`).
- * When deployed on a non-localhost domain without NEXT_PUBLIC_BACKEND_URL baked in,
- * routes through `/api/backend/api/v1` so server-side `BACKEND_URL` or clear error reporting works.
+ * When deployed on a non-localhost domain without NEXT_PUBLIC_BACKEND_URL baked in
+ * (or when NEXT_PUBLIC_BACKEND_URL was accidentally left as localhost from .env.local),
+ * routes through `/api/backend/api/v1` so built-in Next.js handlers or server-side BACKEND_URL work.
  */
 export function resolveClientBackendBaseUrl(): string {
+  const nonLocal = isNonLocalBrowser() || isProductionOrVercelServer();
   const configured = normalizeBackendBaseUrl(process.env.NEXT_PUBLIC_BACKEND_URL);
-  if (configured) return configured;
-
-  if (typeof window !== 'undefined') {
-    const host = window.location.hostname;
-    if (host && host !== 'localhost' && host !== '127.0.0.1') {
-      return '/api/backend/api/v1';
-    }
+  if (configured && !(nonLocal && isLocalhostUrl(configured))) {
+    return configured;
   }
 
-  if (process.env.VERCEL === '1' || process.env.VERCEL === 'true') {
+  if (nonLocal) {
     return '/api/backend/api/v1';
   }
 
@@ -55,16 +68,19 @@ export function resolveClientBackendBaseUrl(): string {
 /**
  * Server-side Backend REST API base URL (`.../api/v1`).
  * Checks runtime `BACKEND_URL` first, then `NEXT_PUBLIC_BACKEND_URL`.
- * Returns `null` on Vercel/production when unconfigured so callers never stall on `localhost:4000`.
+ * Returns `null` on Vercel/production when unconfigured or left as localhost
+ * so callers immediately use the built-in Next.js database fallback instead of failing on localhost:4000.
  */
 export function resolveServerBackendBaseUrl(): string | null {
+  const isProdOrVercel = isProductionOrVercelServer();
   const configured = normalizeBackendBaseUrl(
     process.env.BACKEND_URL || process.env.NEXT_PUBLIC_BACKEND_URL,
   );
-  if (configured) return configured;
+  if (configured && !(isProdOrVercel && isLocalhostUrl(configured))) {
+    return configured;
+  }
 
-  const isVercel = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
-  if (isVercel || process.env.NODE_ENV === 'production') {
+  if (isProdOrVercel) {
     return null;
   }
 
@@ -73,13 +89,16 @@ export function resolveServerBackendBaseUrl(): string | null {
 
 /**
  * Client Socket.IO base URL (without `/api/v1`).
- * Returns `null` in production when no Socket/Backend URL is configured.
+ * Returns `null` in production when no Socket/Backend URL is configured or when left as localhost.
  */
 export function resolveClientSocketUrl(): string | null {
+  const nonLocal = isNonLocalBrowser() || isProductionOrVercelServer();
   const configured = normalizeSocketBaseUrl(
     process.env.NEXT_PUBLIC_SOCKET_URL || process.env.NEXT_PUBLIC_BACKEND_URL,
   );
-  if (configured) return configured;
+  if (configured && !(nonLocal && isLocalhostUrl(configured))) {
+    return configured;
+  }
 
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
@@ -89,8 +108,9 @@ export function resolveClientSocketUrl(): string | null {
     return null;
   }
 
-  return process.env.NODE_ENV === 'production' || process.env.VERCEL === '1'
-    ? null
-    : LOCAL_DEFAULT_SOCKET_URL;
+  return isProdOrVercelFallback();
 }
 
+function isProdOrVercelFallback(): string | null {
+  return isProductionOrVercelServer() ? null : LOCAL_DEFAULT_SOCKET_URL;
+}

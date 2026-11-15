@@ -40,6 +40,28 @@ export function getBackendBaseUrl(): string {
   return resolveClientBackendBaseUrl();
 }
 
+const SAME_ORIGIN_BACKEND_PROXY = '/api/backend/api/v1';
+
+async function fetchAuthEndpoint(path: string, init?: RequestInit): Promise<Response> {
+  const primaryBase = getBackendBaseUrl();
+  try {
+    const res = await fetch(`${primaryBase}${path}`, init);
+    if (
+      res.status >= 502 &&
+      primaryBase !== SAME_ORIGIN_BACKEND_PROXY &&
+      typeof window !== 'undefined'
+    ) {
+      return await fetch(`${SAME_ORIGIN_BACKEND_PROXY}${path}`, init);
+    }
+    return res;
+  } catch (err) {
+    if (primaryBase !== SAME_ORIGIN_BACKEND_PROXY && typeof window !== 'undefined') {
+      return await fetch(`${SAME_ORIGIN_BACKEND_PROXY}${path}`, init);
+    }
+    throw err;
+  }
+}
+
 export function getBackendSocketUrl(): string {
   return resolveClientSocketUrl() || '';
 }
@@ -195,7 +217,7 @@ export async function refreshBackendSession(): Promise<string | null> {
   if (!inFlightRefresh) {
     inFlightRefresh = (async () => {
       try {
-        const res = await fetch(`${getBackendBaseUrl()}/auth/refresh`, {
+        const res = await fetchAuthEndpoint('/auth/refresh', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ refreshToken }),
@@ -228,7 +250,7 @@ export async function refreshBackendSession(): Promise<string | null> {
 }
 
 export async function backendLogin(email: string, password: string): Promise<AuthResponse> {
-  const res = await fetch(`${getBackendBaseUrl()}/auth/login`, {
+  const res = await fetchAuthEndpoint('/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
@@ -253,7 +275,7 @@ export async function backendSignup(
   password: string,
   workspaceName?: string
 ): Promise<AuthResponse> {
-  const res = await fetch(`${getBackendBaseUrl()}/auth/signup`, {
+  const res = await fetchAuthEndpoint('/auth/signup', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -283,7 +305,7 @@ export async function backendGoogleAuth(payload: {
   credential?: string;
   redirectUri?: string;
 }): Promise<AuthResponse> {
-  const res = await fetch(`${getBackendBaseUrl()}/auth/google`, {
+  const res = await fetchAuthEndpoint('/auth/google', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -312,7 +334,7 @@ export async function backendGetGoogleUrl(state?: string): Promise<{ configured:
       query.set('state', state);
     }
     const qs = query.toString();
-    const res = await fetch(`${getBackendBaseUrl()}/auth/google/url${qs ? `?${qs}` : ''}`);
+    const res = await fetchAuthEndpoint(`/auth/google/url${qs ? `?${qs}` : ''}`);
     const body = await res.json().catch(() => null);
     if (!res.ok || !body) {
       return {
@@ -331,7 +353,7 @@ export async function backendGetMe(): Promise<BackendUser> {
   let token = getAuthToken() || (await refreshBackendSession());
   if (!token) throw new Error('Not authenticated.');
 
-  let res = await fetch(`${getBackendBaseUrl()}/auth/me`, {
+  let res = await fetchAuthEndpoint('/auth/me', {
     headers: { Authorization: `Bearer ${token}` },
   });
 
@@ -339,7 +361,7 @@ export async function backendGetMe(): Promise<BackendUser> {
     const refreshed = await refreshBackendSession();
     if (refreshed) {
       token = refreshed;
-      res = await fetch(`${getBackendBaseUrl()}/auth/me`, {
+      res = await fetchAuthEndpoint('/auth/me', {
         headers: { Authorization: `Bearer ${token}` },
       });
     }

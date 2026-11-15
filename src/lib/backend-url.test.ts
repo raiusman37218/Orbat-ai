@@ -44,6 +44,14 @@ describe('backend-url & Vercel proxy routing', () => {
     expect(resolveClientSocketUrl()).toBeNull();
   });
 
+  it('ignores localhost NEXT_PUBLIC_BACKEND_URL when deployed on Vercel/production so browser never fetches localhost:4000', () => {
+    process.env.VERCEL = '1';
+    process.env.NEXT_PUBLIC_BACKEND_URL = 'http://localhost:4000/api/v1';
+    expect(resolveClientBackendBaseUrl()).toBe('/api/backend/api/v1');
+    expect(resolveServerBackendBaseUrl()).toBeNull();
+    expect(resolveClientSocketUrl()).toBeNull();
+  });
+
   it('prefers explicit BACKEND_URL on server and NEXT_PUBLIC_SOCKET_URL for realtime', () => {
     process.env.VERCEL = '1';
     process.env.NEXT_PUBLIC_BACKEND_URL = 'https://api-rest.vercel.app';
