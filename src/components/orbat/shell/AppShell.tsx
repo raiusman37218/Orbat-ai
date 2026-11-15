@@ -53,8 +53,8 @@ export function AppShell({ session, children }: { session: ShellSession; childre
   const closePalette = useCallback(() => setPaletteOpen(false), []);
   const handleSignOut = useCallback(async () => {
     await signOut();
-    router.replace('/login');
-  }, [router]);
+    window.location.assign('/login');
+  }, []);
 
   // ⌘K / Ctrl+K anywhere; "?" opens shortcuts when not typing.
   useEffect(() => {

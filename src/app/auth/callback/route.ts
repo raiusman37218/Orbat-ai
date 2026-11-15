@@ -48,6 +48,11 @@ export function resolveBaseUrl(request: Request, origin: string): string {
       return `https://${forwardedHost.trim()}`;
     }
   }
+  const isInternalOrigin = /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)(:\d+)?$/i.test(origin);
+  const configuredAppUrl = (process.env.NEXT_PUBLIC_APP_URL || '').trim().replace(/\/+$/, '');
+  if (isInternalOrigin && /^https?:\/\//i.test(configuredAppUrl)) {
+    return configuredAppUrl;
+  }
   return origin;
 }
 

@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { Alert, Button, Field, Input } from '@/components/orbat/primitives';
 import { getAuthProviders, signIn, startGoogleSignIn, type AuthProviders } from '@/lib/data/auth';
@@ -11,7 +10,6 @@ import { AuthHeading, OrDivider } from './AuthLayout';
 import { GoogleMark, PasswordInput, ProviderButton } from './parts';
 
 export function SignInForm({ redirectTo, initialError }: { redirectTo: string; initialError?: string | null }) {
-  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [tried, setTried] = useState(false);
@@ -50,8 +48,7 @@ export function SignInForm({ redirectTo, initialError }: { redirectTo: string; i
     setLoading(true);
     try {
       await signIn(email, password);
-      router.replace(redirectTo);
-      router.refresh();
+      window.location.assign(redirectTo);
     } catch (err) {
       setError(errorMessage(err, 'Invalid email or password.'));
       setLoading(false);

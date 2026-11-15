@@ -149,44 +149,62 @@ export function clearAuthSession() {
 
 export function getAuthToken(): string | null {
   if (typeof window === 'undefined') return null;
-  const local = localStorage.getItem('orbat_access_token');
-  if (local) return local;
   const rawCookie = getBrowserCookie('orbat_access_token');
-  if (!rawCookie) return null;
-  try {
-    const decoded = decodeURIComponent(rawCookie.trim());
-    localStorage.setItem('orbat_access_token', decoded);
-    return decoded;
-  } catch {
-    return rawCookie.trim();
+  if (rawCookie) {
+    let decoded = rawCookie.trim();
+    try {
+      decoded = decodeURIComponent(decoded);
+    } catch {
+      // keep raw trimmed value
+    }
+    if (decoded) {
+      try {
+        if (localStorage.getItem('orbat_access_token') !== decoded) {
+          localStorage.setItem('orbat_access_token', decoded);
+        }
+      } catch {
+        // ignore storage quota errors
+      }
+      return decoded;
+    }
   }
+  return null;
 }
 
 export function getRefreshToken(): string | null {
   if (typeof window === 'undefined') return null;
-  const local = localStorage.getItem('orbat_refresh_token');
-  if (local) return local;
   const rawCookie = getBrowserCookie('orbat_refresh_token');
-  if (!rawCookie) return null;
-  try {
-    const decoded = decodeURIComponent(rawCookie.trim());
-    localStorage.setItem('orbat_refresh_token', decoded);
-    return decoded;
-  } catch {
-    return rawCookie.trim();
+  if (rawCookie) {
+    let decoded = rawCookie.trim();
+    try {
+      decoded = decodeURIComponent(decoded);
+    } catch {
+      // keep raw trimmed value
+    }
+    if (decoded) {
+      try {
+        if (localStorage.getItem('orbat_refresh_token') !== decoded) {
+          localStorage.setItem('orbat_refresh_token', decoded);
+        }
+      } catch {
+        // ignore
+      }
+      return decoded;
+    }
   }
+  return localStorage.getItem('orbat_refresh_token');
 }
 
 export function getStoredUser(): BackendUser | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem('orbat_user');
-    if (raw) return JSON.parse(raw) as BackendUser;
     const fromCookie = parseJsonCookie<BackendUser>(getBrowserCookie('orbat_user'));
     if (fromCookie) {
       localStorage.setItem('orbat_user', JSON.stringify(fromCookie));
+      return fromCookie;
     }
-    return fromCookie;
+    const raw = localStorage.getItem('orbat_user');
+    return raw ? (JSON.parse(raw) as BackendUser) : null;
   } catch {
     return null;
   }
@@ -195,13 +213,13 @@ export function getStoredUser(): BackendUser | null {
 export function getStoredWorkspace(): BackendWorkspace | null {
   if (typeof window === 'undefined') return null;
   try {
-    const raw = localStorage.getItem('orbat_workspace');
-    if (raw) return JSON.parse(raw) as BackendWorkspace;
     const fromCookie = parseJsonCookie<BackendWorkspace>(getBrowserCookie('orbat_workspace'));
     if (fromCookie) {
       localStorage.setItem('orbat_workspace', JSON.stringify(fromCookie));
+      return fromCookie;
     }
-    return fromCookie;
+    const raw = localStorage.getItem('orbat_workspace');
+    return raw ? (JSON.parse(raw) as BackendWorkspace) : null;
   } catch {
     return null;
   }

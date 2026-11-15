@@ -116,20 +116,8 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // 4. Redirect already-logged-in users away from /login and /signup
-  if ((pathname === '/login' || pathname === '/signup') && userId) {
-    const rawRedirect = request.nextUrl.searchParams.get('redirect');
-    const safeTarget =
-      rawRedirect &&
-      rawRedirect.startsWith('/') &&
-      !rawRedirect.startsWith('//') &&
-      !rawRedirect.startsWith('/\\') &&
-      !rawRedirect.includes('://') &&
-      !rawRedirect.includes('@')
-        ? rawRedirect
-        : '/app';
-    return NextResponse.redirect(new URL(safeTarget, request.url));
-  }
+  // 4. /login and /signup check full DB-backed sessionUser() in their Server Components
+  //    to avoid redirect loops when a JWT cookie is revoked or deleted from DB.
 
   // 5. Rewrite custom Help Center domains and <slug>.HELP_BASE_DOMAIN subdomains to /help/<workspace>
   try {
