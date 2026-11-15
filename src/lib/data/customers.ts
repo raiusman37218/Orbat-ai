@@ -3,18 +3,40 @@
 import {
   addCustomerNoteAction,
   addCustomerOrderAction,
+  createCrmCompanyAction,
+  createCrmDealAction,
+  createCrmTaskAction,
   createCustomerAction,
   createCustomerSegmentAction,
+  deleteCrmCompanyAction,
+  deleteCrmDealAction,
+  deleteCrmTaskAction,
   deleteCustomerNoteAction,
   deleteCustomerSegmentAction,
+  getCrmPickerOptionsAction,
   getCustomerProfileAction,
   getCustomersBootstrapAction,
   importCustomersCsvAction,
+  listCrmCompaniesAction,
+  listCrmDealsAction,
+  listCrmTasksAction,
   listCustomersAction,
   refreshCustomerAiSummaryAction,
   startCustomerConversationAction,
+  updateCrmCompanyAction,
+  updateCrmDealAction,
+  updateCrmTaskAction,
   updateCustomerAction,
   type BuiltInSegmentSlug,
+  type CrmCompanyRecord,
+  type CrmDealRecord,
+  type CrmDealStage,
+  type CrmDealsSummary,
+  type CrmPickerOptions,
+  type CrmTaskKind,
+  type CrmTaskPriority,
+  type CrmTaskRecord,
+  type CrmTaskStatus,
   type CustomerConversationItem,
   type CustomerNoteRecord,
   type CustomerOrderRecord,
@@ -34,6 +56,15 @@ import { downloadCsv, parseCsvRecords } from './csv';
 
 export type {
   BuiltInSegmentSlug,
+  CrmCompanyRecord,
+  CrmDealRecord,
+  CrmDealStage,
+  CrmDealsSummary,
+  CrmPickerOptions,
+  CrmTaskKind,
+  CrmTaskPriority,
+  CrmTaskRecord,
+  CrmTaskStatus,
   CustomerConversationItem,
   CustomerNoteRecord,
   CustomerOrderRecord,
@@ -210,4 +241,86 @@ export function useCustomersLiveSync(
     pollMs: 12_000,
     onRefresh,
   });
+}
+
+export async function getCrmPickerOptions(workspaceId: string): Promise<CrmPickerOptions> {
+  return getCrmPickerOptionsAction(workspaceId);
+}
+
+export async function listCrmDeals(
+  workspaceId: string,
+  params: Parameters<typeof listCrmDealsAction>[1] = {},
+) {
+  return listCrmDealsAction(workspaceId, params);
+}
+
+export async function createCrmDeal(
+  workspaceId: string,
+  input: Parameters<typeof createCrmDealAction>[1],
+) {
+  return createCrmDealAction(workspaceId, input);
+}
+
+export async function updateCrmDeal(
+  workspaceId: string,
+  dealId: string,
+  patch: Parameters<typeof updateCrmDealAction>[2],
+) {
+  return updateCrmDealAction(workspaceId, dealId, patch);
+}
+
+export async function deleteCrmDeal(workspaceId: string, dealId: string) {
+  return deleteCrmDealAction(workspaceId, dealId);
+}
+
+export async function listCrmTasks(
+  workspaceId: string,
+  params: Parameters<typeof listCrmTasksAction>[1] = {},
+) {
+  return listCrmTasksAction(workspaceId, params);
+}
+
+export async function createCrmTask(
+  workspaceId: string,
+  input: Parameters<typeof createCrmTaskAction>[1],
+) {
+  return createCrmTaskAction(workspaceId, input);
+}
+
+export async function updateCrmTask(
+  workspaceId: string,
+  taskId: string,
+  patch: Parameters<typeof updateCrmTaskAction>[2],
+) {
+  return updateCrmTaskAction(workspaceId, taskId, patch);
+}
+
+export async function deleteCrmTask(workspaceId: string, taskId: string) {
+  return deleteCrmTaskAction(workspaceId, taskId);
+}
+
+export async function listCrmCompanies(
+  workspaceId: string,
+  params: Parameters<typeof listCrmCompaniesAction>[1] = {},
+) {
+  return listCrmCompaniesAction(workspaceId, params);
+}
+
+export async function createCrmCompany(
+  workspaceId: string,
+  input: Parameters<typeof createCrmCompanyAction>[1],
+) {
+  return createCrmCompanyAction(workspaceId, input);
+}
+
+export async function updateCrmCompany(
+  workspaceId: string,
+  companyId: string,
+  patch: Parameters<typeof updateCrmCompanyAction>[2],
+) {
+  return updateCrmCompanyAction(workspaceId, companyId, patch);
+}
+
+export async function deleteCrmCompany(workspaceId: string, companyId: string) {
+  return deleteCrmCompanyAction(workspaceId, companyId);
 }

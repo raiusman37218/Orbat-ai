@@ -5,8 +5,13 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
+  Briefcase,
+  Calendar,
+  CheckCircle2,
+  Circle,
   Eye,
   MessageSquare,
+  Pencil,
   Plus,
   RefreshCw,
   ShoppingBag,
@@ -33,12 +38,19 @@ import {
 import { fmtInt, timeAgo } from '@/components/orbat/overview/format';
 import {
   addCustomerNote,
+  deleteCrmDeal,
+  deleteCrmTask,
   deleteCustomerNote,
   formatMoneyCents,
   getCustomerProfile,
   refreshCustomerSummary,
   startCustomerConversation,
+  updateCrmDeal,
+  updateCrmTask,
   updateCustomer,
+  type CrmDealRecord,
+  type CrmDealStage,
+  type CrmTaskRecord,
 } from '@/lib/data/customers';
 import { useData } from '@/lib/data/use-data';
 import { errorMessage } from '@/lib/errors/user-error';
@@ -47,6 +59,15 @@ import {
   CreateCustomerTicketModal,
   EditCustomerModal,
 } from './CustomerModals';
+import {
+  CRM_DEAL_STAGES,
+  DealModal,
+  TaskModal,
+  dealStageMeta,
+  isTaskOverdue,
+  taskKindLabel,
+  taskPriorityTone,
+} from './CrmSalesViews';
 
 export function segmentBadgeTone(segment: string | null | undefined): BadgeTone {
   switch ((segment || '').toLowerCase()) {
@@ -88,7 +109,7 @@ function formatDateShort(iso: string | null | undefined): string {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-type ProfileTab = 'timeline' | 'convos' | 'orders' | 'tickets';
+type ProfileTab = 'timeline' | 'deals' | 'tasks' | 'convos' | 'orders' | 'tickets';
 
 interface TimelineEntry {
   id: string;
@@ -96,7 +117,7 @@ interface TimelineEntry {
   title: string;
   meta: string;
   href?: string;
-  kind: 'convo' | 'ticket' | 'order' | 'page';
+  kind: 'convo' | 'ticket' | 'order' | 'page' | 'deal' | 'task';
 }
 
 export function CustomerProfileView({
@@ -125,6 +146,11 @@ export function CustomerProfileView({
   const [editOpen, setEditOpen] = useState(false);
   const [orderOpen, setOrderOpen] = useState(false);
   const [ticketOpen, setTicketOpen] = useState(false);
+  const [dealModalOpen, setDealModalOpen] = useState(false);
+  const [editingDeal, setEditingDeal] = useState<CrmDealRecord | null>(null);
+  const [taskModalOpen, setTaskModalOpen] = useState(false);
+  const [editingTask, setEditingTask] = useState<CrmTaskRecord | null>(null);
+  const [salesBusyId, setSalesBusyId] = useState<string | null>(null);
 
   const [msgBusy, setMsgBusy] = useState(false);
   const [summaryBusy, setSummaryBusy] = useState(false);
@@ -145,6 +171,26 @@ export function CustomerProfileView({
   const timeline = useMemo<TimelineEntry[]>(() => {
     if (!data) return [];
     const items: TimelineEntry[] = [];
+
+    for (const d of data.deals ?? []) {
+      items.push({
+        id: `d-${d.id}`,
+        at: d.updated_at || d.created_at,
+        title: `Deal: ${d.title} · ${formatMoneyCents(d.value_cents, d.currency)}`,
+        meta: `${dealStageMeta(d.stage).label} · ${d.probability}% probability`,
+        kind: 'deal',
+      });
+    }
+
+    for (const tk of data.tasks ?? []) {
+      items.push({
+        id: `tk-${tk.id}`,
+        at: tk.completed_at || tk.due_at || tk.created_at,
+        title: `Task (${taskKindLabel(tk.kind)}): ${tk.title}`,
+        meta: `${tk.status === 'completed' ? 'Completed' : 'Open'} · ${tk.priority} priority`,
+        kind: 'task',
+      });
+    }
 
     for (const c of data.conversations) {
       items.push({
@@ -195,6 +241,63 @@ export function CustomerProfileView({
   const reloadAll = () => {
     profileState.reload();
     onChanged();
+  };
+
+  const handleDealStageChange = async (deal: CrmDealRecord, nextStage: CrmDealStage) => {
+    if (deal.stage === nextStage) return;
+    setSalesBusyId(deal.id);
+    try {
+      await updateCrmDeal(workspaceId, deal.id, { stage: nextStage });
+      toast.show({ tone: nextStage === 'won' ? 'ok' : 'info', message: `Moved deal to ${dealStageMeta(nextStage).label}` });
+      reloadAll();
+    } catch (err) {
+      toast.show({ tone: 'bad', message: errorMessage(err) });
+    } finally {
+      setSalesBusyId(null);
+    }
+  };
+
+  const handleDeleteDeal = async (dealId: string) => {
+    setSalesBusyId(dealId);
+    try {
+      await deleteCrmDeal(workspaceId, dealId);
+      toast.show({ tone: 'ok', message: 'Deal deleted' });
+      reloadAll();
+    } catch (err) {
+      toast.show({ tone: 'bad', message: errorMessage(err) });
+    } finally {
+      setSalesBusyId(null);
+    }
+  };
+
+  const handleToggleTask = async (task: CrmTaskRecord) => {
+    setSalesBusyId(task.id);
+    const nextStatus = task.status === 'completed' ? 'open' : 'completed';
+    try {
+      await updateCrmTask(workspaceId, task.id, { status: nextStatus });
+      toast.show({
+        tone: nextStatus === 'completed' ? 'ok' : 'info',
+        message: nextStatus === 'completed' ? 'Task completed' : 'Task reopened',
+      });
+      reloadAll();
+    } catch (err) {
+      toast.show({ tone: 'bad', message: errorMessage(err) });
+    } finally {
+      setSalesBusyId(null);
+    }
+  };
+
+  const handleDeleteTask = async (taskId: string) => {
+    setSalesBusyId(taskId);
+    try {
+      await deleteCrmTask(workspaceId, taskId);
+      toast.show({ tone: 'ok', message: 'Task deleted' });
+      reloadAll();
+    } catch (err) {
+      toast.show({ tone: 'bad', message: errorMessage(err) });
+    } finally {
+      setSalesBusyId(null);
+    }
   };
 
   const handleStartMessage = async () => {
@@ -350,8 +453,13 @@ export function CustomerProfileView({
     },
   ];
 
+  const customerDeals = data.deals ?? [];
+  const customerTasks = data.tasks ?? [];
+
   const tabItems: TabItem<ProfileTab>[] = [
     { id: 'timeline', label: 'Activity timeline', count: timeline.length },
+    { id: 'deals', label: 'Deals', count: customerDeals.length },
+    { id: 'tasks', label: 'Tasks', count: customerTasks.length },
     { id: 'convos', label: 'Conversations', count: data.conversations.length },
     { id: 'orders', label: 'Orders', count: data.orders.length },
     { id: 'tickets', label: 'Tickets', count: data.tickets.length },
@@ -421,6 +529,32 @@ export function CustomerProfileView({
               <Button
                 variant="secondary"
                 size="md"
+                leading={<Briefcase size={14} aria-hidden="true" />}
+                onClick={() => {
+                  setEditingDeal(null);
+                  setDealModalOpen(true);
+                }}
+              >
+                New deal
+              </Button>
+            ) : null}
+            {canAddNote ? (
+              <Button
+                variant="secondary"
+                size="md"
+                leading={<CheckCircle2 size={14} aria-hidden="true" />}
+                onClick={() => {
+                  setEditingTask(null);
+                  setTaskModalOpen(true);
+                }}
+              >
+                Add task
+              </Button>
+            ) : null}
+            {canEdit ? (
+              <Button
+                variant="secondary"
+                size="md"
                 leading={<Ticket size={14} aria-hidden="true" />}
                 onClick={() => setTicketOpen(true)}
               >
@@ -462,27 +596,31 @@ export function CustomerProfileView({
               {timeline.length === 0 ? (
                 <EmptyState
                   title="No customer activity yet"
-                  body="Conversations, support tickets, orders, and page visits will appear here chronologically."
+                  body="Conversations, deals, tasks, tickets, orders, and page visits will appear here chronologically."
                 />
               ) : (
                 <ul className="divide-y divide-o-border px-4">
                   {timeline.map((item) => {
                     const toneClass =
-                      item.kind === 'order'
+                      item.kind === 'order' || item.kind === 'deal'
                         ? 'bg-o-ok-soft text-o-ok'
                         : item.kind === 'ticket'
                           ? 'bg-o-warn-soft text-o-warn'
-                          : item.kind === 'convo'
+                          : item.kind === 'convo' || item.kind === 'task'
                             ? 'bg-o-accent-soft text-o-accent-text'
                             : 'bg-o-surface-2 text-o-text-2';
                     const Icon =
                       item.kind === 'order'
                         ? ShoppingBag
-                        : item.kind === 'ticket'
-                          ? Ticket
-                          : item.kind === 'convo'
-                            ? MessageSquare
-                            : Eye;
+                        : item.kind === 'deal'
+                          ? Briefcase
+                          : item.kind === 'task'
+                            ? CheckCircle2
+                            : item.kind === 'ticket'
+                              ? Ticket
+                              : item.kind === 'convo'
+                                ? MessageSquare
+                                : Eye;
                     return (
                       <li key={item.id} className="flex items-start gap-3 py-3">
                         <span
@@ -508,6 +646,203 @@ export function CustomerProfileView({
                         <span className="o-num shrink-0 text-[12px] text-o-text-3">
                           {timeAgo(item.at)}
                         </span>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Card>
+          ) : null}
+
+          {tab === 'deals' ? (
+            <Card flush>
+              {customerDeals.length === 0 ? (
+                <EmptyState
+                  title="No deals linked yet"
+                  body="Track B2B opportunities and quotes associated with this contact."
+                  action={
+                    canEdit ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => {
+                          setEditingDeal(null);
+                          setDealModalOpen(true);
+                        }}
+                      >
+                        Create deal
+                      </Button>
+                    ) : null
+                  }
+                />
+              ) : (
+                <ul className="divide-y divide-o-border">
+                  {customerDeals.map((d) => {
+                    const meta = dealStageMeta(d.stage);
+                    return (
+                      <li
+                        key={d.id}
+                        className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 hover:bg-o-surface-2/60"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="text-[13.5px] font-semibold text-o-text">{d.title}</span>
+                            <Badge tone={meta.tone}>{meta.label}</Badge>
+                            {d.company_name ? <Badge tone="neutral">{d.company_name}</Badge> : null}
+                          </div>
+                          <div className="mt-0.5 text-[12px] text-o-text-3">
+                            {d.probability}% win probability
+                            {d.expected_close_date ? ` · Close ${formatDateShort(d.expected_close_date)}` : ''}
+                            {d.owner_name ? ` · Owner: ${d.owner_name}` : ''}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <span className="o-num text-[14px] font-bold text-o-text">
+                            {formatMoneyCents(d.value_cents, d.currency)}
+                          </span>
+                          {canEdit ? (
+                            <>
+                              <select
+                                aria-label={`Stage for ${d.title}`}
+                                value={d.stage}
+                                disabled={salesBusyId === d.id}
+                                onChange={(e) => handleDealStageChange(d, e.target.value as CrmDealStage)}
+                                className="h-7 rounded-md border border-o-border bg-o-surface-2 px-1.5 text-[12px] text-o-text"
+                              >
+                                {CRM_DEAL_STAGES.map((opt) => (
+                                  <option key={opt.key} value={opt.key}>
+                                    {opt.shortLabel}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                aria-label={`Edit ${d.title}`}
+                                onClick={() => {
+                                  setEditingDeal(d);
+                                  setDealModalOpen(true);
+                                }}
+                                className="rounded p-1 text-o-text-3 hover:bg-o-surface-2 hover:text-o-text"
+                              >
+                                <Pencil size={13} aria-hidden="true" />
+                              </button>
+                              <button
+                                type="button"
+                                aria-label={`Delete ${d.title}`}
+                                disabled={salesBusyId === d.id}
+                                onClick={() => handleDeleteDeal(d.id)}
+                                className="rounded p-1 text-o-text-3 hover:bg-o-surface-2 hover:text-o-bad"
+                              >
+                                <Trash2 size={13} aria-hidden="true" />
+                              </button>
+                            </>
+                          ) : null}
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </Card>
+          ) : null}
+
+          {tab === 'tasks' ? (
+            <Card flush>
+              {customerTasks.length === 0 ? (
+                <EmptyState
+                  title="No follow-up tasks yet"
+                  body="Schedule calls, emails, demos, or to-dos for this customer."
+                  action={
+                    canAddNote ? (
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={() => {
+                          setEditingTask(null);
+                          setTaskModalOpen(true);
+                        }}
+                      >
+                        Add task
+                      </Button>
+                    ) : null
+                  }
+                />
+              ) : (
+                <ul className="divide-y divide-o-border">
+                  {customerTasks.map((tk) => {
+                    const done = tk.status === 'completed';
+                    const overdue = isTaskOverdue(tk);
+                    return (
+                      <li
+                        key={tk.id}
+                        className="flex flex-wrap items-start gap-3 px-4 py-3 hover:bg-o-surface-2/60"
+                      >
+                        {canAddNote ? (
+                          <button
+                            type="button"
+                            disabled={salesBusyId === tk.id}
+                            aria-label={done ? `Mark ${tk.title} open` : `Complete ${tk.title}`}
+                            onClick={() => handleToggleTask(tk)}
+                            className={`mt-0.5 shrink-0 ${
+                              done ? 'text-o-ok' : 'text-o-text-3 hover:text-o-accent-text'
+                            }`}
+                          >
+                            {done ? <CheckCircle2 size={17} /> : <Circle size={17} />}
+                          </button>
+                        ) : null}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span
+                              className={`text-[13.5px] font-semibold ${
+                                done ? 'line-through text-o-text-3' : 'text-o-text'
+                              }`}
+                            >
+                              {tk.title}
+                            </span>
+                            <Badge tone="neutral">{taskKindLabel(tk.kind)}</Badge>
+                            <Badge tone={taskPriorityTone(tk.priority)}>{tk.priority}</Badge>
+                            {overdue ? <Badge tone="bad">Overdue</Badge> : null}
+                          </div>
+                          {tk.description ? (
+                            <p className="mt-0.5 mb-0 text-[12.5px] text-o-text-2">{tk.description}</p>
+                          ) : null}
+                          <div className="mt-1 flex flex-wrap items-center gap-3 text-[12px] text-o-text-3">
+                            {tk.due_at ? (
+                              <span className={`inline-flex items-center gap-1 ${overdue ? 'text-o-bad font-medium' : ''}`}>
+                                <Calendar size={12} aria-hidden="true" />
+                                Due {formatDateShort(tk.due_at)}
+                              </span>
+                            ) : null}
+                            {tk.deal_title ? <span>Deal: {tk.deal_title}</span> : null}
+                            <span>Assignee: {tk.assignee_name || 'Unassigned'}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {canAddNote ? (
+                            <button
+                              type="button"
+                              aria-label={`Edit ${tk.title}`}
+                              onClick={() => {
+                                setEditingTask(tk);
+                                setTaskModalOpen(true);
+                              }}
+                              className="rounded p-1 text-o-text-3 hover:bg-o-surface-2 hover:text-o-text"
+                            >
+                              <Pencil size={13} aria-hidden="true" />
+                            </button>
+                          ) : null}
+                          {canEdit ? (
+                            <button
+                              type="button"
+                              aria-label={`Delete ${tk.title}`}
+                              disabled={salesBusyId === tk.id}
+                              onClick={() => handleDeleteTask(tk.id)}
+                              className="rounded p-1 text-o-text-3 hover:bg-o-surface-2 hover:text-o-bad"
+                            >
+                              <Trash2 size={13} aria-hidden="true" />
+                            </button>
+                          ) : null}
+                        </div>
                       </li>
                     );
                   })}
@@ -889,6 +1224,24 @@ export function CustomerProfileView({
           reloadAll();
           router.push(`/app/tickets?id=${encodeURIComponent(ticketId)}`);
         }}
+      />
+
+      <DealModal
+        open={dealModalOpen}
+        workspaceId={workspaceId}
+        deal={editingDeal}
+        defaultVisitorId={customer.id}
+        onClose={() => setDealModalOpen(false)}
+        onSaved={reloadAll}
+      />
+
+      <TaskModal
+        open={taskModalOpen}
+        workspaceId={workspaceId}
+        task={editingTask}
+        defaultVisitorId={customer.id}
+        onClose={() => setTaskModalOpen(false)}
+        onSaved={reloadAll}
       />
     </div>
   );

@@ -21,8 +21,10 @@ import {
   Select,
   SkeletonRows,
   Table,
+  Tabs,
   useOrbToast,
   type Column,
+  type TabItem,
 } from '@/components/orbat/primitives';
 import { PageContainer, PageHeader } from '@/components/orbat/shell/PageContainer';
 import { useShellSession } from '@/components/orbat/shell/session-context';
@@ -46,8 +48,11 @@ import {
   NewSegmentModal,
 } from './CustomerModals';
 import { CustomerProfileView, segmentBadgeTone } from './CustomerProfileView';
+import { CrmCompaniesView, CrmTasksView, DealsPipelineView } from './CrmSalesViews';
 
 const PAGE_SIZE = 25;
+
+type CrmTab = 'contacts' | 'deals' | 'tasks' | 'companies';
 
 type OptionalCol = 'segment' | 'location' | 'orders' | 'ltv' | 'sentiment' | 'last_seen';
 
@@ -103,6 +108,7 @@ export function CustomersScreen({
     if (initialCustomerId) setSelectedCustomerId(initialCustomerId);
   }
 
+  const [crmTab, setCrmTab] = useState<CrmTab>('contacts');
   const [segmentSlug, setSegmentSlug] = useState<BuiltInSegmentSlug>('all');
   const [customSegmentId, setCustomSegmentId] = useState<string | null>(null);
   const [searchInput, setSearchInput] = useState('');
@@ -358,47 +364,92 @@ export function CustomersScreen({
       : []),
   ];
 
+  const crmTabs: TabItem<CrmTab>[] = [
+    { id: 'contacts', label: 'Contacts', count: allCount },
+    { id: 'deals', label: 'Deals pipeline', count: boot?.crmCounts?.openDeals ?? 0 },
+    { id: 'tasks', label: 'Tasks & follow-ups', count: boot?.crmCounts?.openTasks ?? 0 },
+    { id: 'companies', label: 'Companies', count: boot?.crmCounts?.companies ?? 0 },
+  ];
+
   return (
     <PageContainer>
       <PageHeader
-        title="Customers"
-        description={`${fmtInt(allCount)} people · synced across connected channels`}
+        title="CRM & Customers"
+        description={`${fmtInt(allCount)} contacts · ${fmtInt(boot?.crmCounts?.openDeals ?? 0)} open deals · ${fmtInt(boot?.crmCounts?.openTasks ?? 0)} open tasks`}
         actions={
-          <>
-            {canEdit ? (
+          crmTab === 'contacts' ? (
+            <>
+              {canEdit ? (
+                <Button
+                  variant="secondary"
+                  size="md"
+                  leading={<Upload size={14} aria-hidden="true" />}
+                  onClick={() => setImportOpen(true)}
+                >
+                  Import CSV
+                </Button>
+              ) : null}
               <Button
                 variant="secondary"
                 size="md"
-                leading={<Upload size={14} aria-hidden="true" />}
-                onClick={() => setImportOpen(true)}
+                leading={<Download size={14} aria-hidden="true" />}
+                disabled={customers.length === 0}
+                onClick={() => exportCustomersToCsv(customers)}
               >
-                Import CSV
+                Export
               </Button>
-            ) : null}
-            <Button
-              variant="secondary"
-              size="md"
-              leading={<Download size={14} aria-hidden="true" />}
-              disabled={customers.length === 0}
-              onClick={() => exportCustomersToCsv(customers)}
-            >
-              Export
-            </Button>
-            {canEdit ? (
-              <Button
-                variant="primary"
-                size="md"
-                leading={<Plus size={14} aria-hidden="true" />}
-                onClick={() => setAddOpen(true)}
-              >
-                Add customer
-              </Button>
-            ) : null}
-          </>
+              {canEdit ? (
+                <Button
+                  variant="primary"
+                  size="md"
+                  leading={<Plus size={14} aria-hidden="true" />}
+                  onClick={() => setAddOpen(true)}
+                >
+                  Add customer
+                </Button>
+              ) : null}
+            </>
+          ) : undefined
         }
       />
 
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
+      <Tabs
+        items={crmTabs}
+        value={crmTab}
+        onChange={setCrmTab}
+        label="CRM sections"
+        className="mb-4"
+      />
+
+      {crmTab === 'deals' ? (
+        <DealsPipelineView
+          workspaceId={workspaceId}
+          canEdit={canEdit}
+          onOpenCustomer={openProfile}
+          onCountsChanged={reloadAll}
+        />
+      ) : null}
+
+      {crmTab === 'tasks' ? (
+        <CrmTasksView
+          workspaceId={workspaceId}
+          canAddNote={canAddNote}
+          canEdit={canEdit}
+          onOpenCustomer={openProfile}
+          onCountsChanged={reloadAll}
+        />
+      ) : null}
+
+      {crmTab === 'companies' ? (
+        <CrmCompaniesView
+          workspaceId={workspaceId}
+          canEdit={canEdit}
+          onCountsChanged={reloadAll}
+        />
+      ) : null}
+
+      {crmTab === 'contacts' ? (
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         {/* Left segments panel */}
         <nav
           aria-label="Segments"
@@ -695,6 +746,7 @@ export function CustomersScreen({
           </Card>
         </div>
       </div>
+      ) : null}
 
       {/* Modals */}
       <AddCustomerModal
