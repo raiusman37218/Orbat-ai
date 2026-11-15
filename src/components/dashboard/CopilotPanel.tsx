@@ -34,6 +34,7 @@ import {
 } from '@/types/database';
 import {
   askCopilotQuestionAction,
+  dismissCopilotSuggestedMessageAction,
   generateCopilotNextStepsAction,
   generateCopilotSummaryAction,
   getCopilotPanelStateAction,
@@ -42,7 +43,11 @@ import {
   rewriteCopilotTextAction,
   suggestCopilotReplyAction,
 } from '@/app/actions/copilot';
-import { CopilotAvailability } from '@/lib/ai/copilot/service';
+import {
+  CopilotAutonomyMeta,
+  CopilotAvailability,
+  CopilotVerificationMeta,
+} from '@/lib/ai/copilot/service';
 import { CopilotReplyLanguage } from '@/lib/ai/copilot/prompts';
 import { cn, formatTimeAgo } from '@/lib/utils';
 import { errorMessage } from '@/lib/errors/user-error';
@@ -56,6 +61,9 @@ export interface ActiveDraftSuggestion {
   resolvedLanguage: 'en' | 'ur' | 'roman_ur';
   eventId: string | null;
   feedback?: 'up' | 'down' | null;
+  suggestionMessageId?: string | null;
+  autonomy?: CopilotAutonomyMeta | null;
+  verification?: CopilotVerificationMeta | null;
 }
 
 interface CopilotPanelProps {
@@ -293,6 +301,23 @@ export function CopilotPanel({
         setRewritePreview(null);
         setRewriteError(null);
 
+        if (state.pendingDraft) {
+          setDraftResult({
+            text: state.pendingDraft.text,
+            sources: state.pendingDraft.sources,
+            knowledgeFound: state.pendingDraft.knowledgeFound,
+            noteForAgent: state.pendingDraft.noteForAgent,
+            missingKnowledgeRecorded: false,
+            resolvedLanguage: state.pendingDraft.resolvedLanguage,
+            eventId: null,
+            suggestionMessageId: state.pendingDraft.messageId,
+            autonomy: state.pendingDraft.autonomy,
+            verification: state.pendingDraft.verification,
+          });
+        } else if (!externalDraft) {
+          setDraftResult(null);
+        }
+
         // Requirement 1: Generate automatically ONLY when opening a conversation
         // that has enough messages (>= 3) and no current summary.
         if (
@@ -336,6 +361,8 @@ export function CopilotPanel({
           missingKnowledgeRecorded: Boolean(res.missingKnowledgeRecorded),
           resolvedLanguage: res.resolvedLanguage || 'en',
           eventId: res.eventId || null,
+          autonomy: res.autonomy || null,
+          verification: res.verification || null,
         });
         setAvailability((prev) =>
           prev ? { ...prev, requestsUsed: prev.requestsUsed + 1 } : prev
@@ -352,8 +379,17 @@ export function CopilotPanel({
 
   const handleDiscardDraft = async () => {
     const evId = draftResult?.eventId;
+    const suggestionMsgId = draftResult?.suggestionMessageId;
     setDraftResult(null);
     onClearExternalDraft?.();
+    if (suggestionMsgId) {
+      dismissCopilotSuggestedMessageAction(
+        workspace.id,
+        conversation.id,
+        suggestionMsgId,
+        'discarded'
+      ).catch(() => {});
+    }
     if (evId) {
       try {
         await recordCopilotDraftDispositionAction(workspace.id, evId, 'discarded');
@@ -365,6 +401,15 @@ export function CopilotPanel({
 
   const handleUseDraft = () => {
     if (!draftResult) return;
+    const suggestionMsgId = draftResult.suggestionMessageId;
+    if (suggestionMsgId) {
+      dismissCopilotSuggestedMessageAction(
+        workspace.id,
+        conversation.id,
+        suggestionMsgId,
+        'used'
+      ).catch(() => {});
+    }
     onUseDraft(draftResult.text, draftResult.eventId);
     setDraftResult(null);
     onClearExternalDraft?.();
@@ -750,6 +795,63 @@ export function CopilotPanel({
                       eventId={draftResult.eventId}
                     />
                   </div>
+
+                  {(draftResult.autonomy || draftResult.verification) && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {draftResult.autonomy && (
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border',
+                            draftResult.autonomy.locked || draftResult.autonomy.level <= 2
+                              ? 'border-warn-line bg-warn-soft text-ink'
+                              : 'border-line bg-surface-2 text-ink-2'
+                          )}
+                        >
+                          {draftResult.autonomy.locked ? (
+                            <Lock className="w-3 h-3 text-warn" />
+                          ) : (
+                            <ShieldAlert className="w-3 h-3 text-accent" />
+                          )}
+                          <span>
+                            {draftResult.autonomy.locked
+                              ? `Locked · ${draftResult.autonomy.topic}`
+                              : `L${draftResult.autonomy.level} ${draftResult.autonomy.levelLabel} · ${draftResult.autonomy.topic}`}
+                          </span>
+                        </span>
+                      )}
+                      {draftResult.verification && (
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium border',
+                            draftResult.verification.verdict === 'needs_review'
+                              ? 'border-warn-line bg-warn-soft text-ink'
+                              : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                          )}
+                        >
+                          {draftResult.verification.verdict === 'needs_review' ? (
+                            <AlertTriangle className="w-3 h-3 text-warn" />
+                          ) : (
+                            <CheckCircle2 className="w-3 h-3" />
+                          )}
+                          <span>
+                            {draftResult.verification.verdict === 'needs_review'
+                              ? 'Verify claims before sending'
+                              : 'Claims grounded'}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {draftResult.knowledgeFound &&
+                    draftResult.noteForAgent &&
+                    (draftResult.autonomy?.locked ||
+                      (draftResult.autonomy && draftResult.autonomy.level <= 2) ||
+                      draftResult.verification?.verdict === 'needs_review') && (
+                      <div className="p-2 rounded-lg border border-warn-line bg-warn-soft text-2xs text-ink-2 whitespace-pre-line">
+                        {draftResult.noteForAgent}
+                      </div>
+                    )}
 
                   {!draftResult.knowledgeFound && (
                     <div className="p-2.5 rounded-lg border border-warn-line bg-warn-soft text-2xs text-warn space-y-1.5">

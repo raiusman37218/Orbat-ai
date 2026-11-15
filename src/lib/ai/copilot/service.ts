@@ -2,6 +2,8 @@ import { serviceClient } from '@/lib/pg/service';
 import { getWorkspaceEffectivePlan } from '@/lib/plans/enforce';
 import { chat, ProviderConfig, ProviderError } from '@/lib/ai/provider';
 import { buildModelContext, recordUnanswered } from '@/lib/ai/help-answer';
+import { verifyClaimsAgainstPassages } from '@/lib/ai/claim-verifier';
+import { resolveWorkspaceTopicAutonomy } from '@/lib/ai/trust-ladder';
 import { getWorkspaceHelpCenterUrl } from '@/lib/domain';
 import {
   CopilotActionType,
@@ -767,6 +769,22 @@ export async function generateCopilotSummary(params: {
   };
 }
 
+export interface CopilotAutonomyMeta {
+  topic: string;
+  level: 1 | 2 | 3 | 4;
+  levelLabel: 'Shadow' | 'Suggest' | 'Supervised' | 'Autonomous';
+  locked: boolean;
+  lockReason: string | null;
+  agentName: string | null;
+}
+
+export interface CopilotVerificationMeta {
+  verdict: 'supported' | 'needs_review';
+  confidence: number;
+  method: 'semantic_llm' | 'grounded_heuristic';
+  unsupportedClaims: string[];
+}
+
 /**
  * 2. Suggest Reply (grounded in workspace knowledge, matching customer language)
  */
@@ -784,6 +802,8 @@ export async function generateCopilotSuggestedReply(params: {
   missingKnowledgeRecorded?: boolean;
   resolvedLanguage?: 'en' | 'ur' | 'roman_ur';
   eventId?: string | null;
+  autonomy?: CopilotAutonomyMeta | null;
+  verification?: CopilotVerificationMeta | null;
   error?: string;
   retryable?: boolean;
   availability?: CopilotAvailability;
@@ -915,13 +935,76 @@ export async function generateCopilotSuggestedReply(params: {
     }
   }
 
-  const noteForAgent = !modelKnowledgeFound
+  const baseNote = !modelKnowledgeFound
     ? sanitizeModelOutput(
         (typeof parsed?.note_for_agent === 'string' && parsed.note_for_agent.trim()) ||
           'Information was not found in workspace knowledge. A clarifying / escalation draft was prepared and the missing question was logged.'
       )
     : typeof parsed?.note_for_agent === 'string' && parsed.note_for_agent.trim()
     ? sanitizeModelOutput(parsed.note_for_agent.trim())
+    : null;
+
+  const [verificationRes, autonomyRes] = await Promise.all([
+    hasKnowledge && !injectionAttempt && draft.trim()
+      ? verifyClaimsAgainstPassages({
+          replyText: draft,
+          passages: retrieved.text,
+          sources: (retrieved.sources || []).map((s) => ({
+            id: s.id,
+            title: s.title,
+            content: '',
+            kind: s.kind,
+          })),
+          citedTitles: uniqueSources.map((s) => s.title),
+          languageCode: langInfo.resolved,
+          customerQuestion: latestCustomer,
+        }).catch(() => null)
+      : Promise.resolve(null),
+    resolveWorkspaceTopicAutonomy({
+      workspaceId: params.workspaceId,
+      message: latestCustomer,
+      citedArticleIds: uniqueSources.filter((s) => s.kind === 'article').map((s) => s.id),
+    }).catch(() => null),
+  ]);
+
+  const guardrailWarnings: string[] = [];
+  if (autonomyRes?.locked) {
+    guardrailWarnings.push(
+      `🔒 Trust Ladder locked "${autonomyRes.topic}" (${autonomyRes.lockReason || 'Human only'}) — manual review required before sending.`
+    );
+  } else if (autonomyRes && autonomyRes.level <= 2) {
+    guardrailWarnings.push(
+      `🛡️ Trust Ladder Level ${autonomyRes.level} (${autonomyRes.levelLabel}) for "${autonomyRes.topic}" — review before sending.`
+    );
+  }
+  if (verificationRes?.verdict === 'needs_review') {
+    const snippet =
+      verificationRes.unsupportedClaims.length > 0
+        ? verificationRes.unsupportedClaims.slice(0, 2).join('; ')
+        : 'unverified numbers or policy claims';
+    guardrailWarnings.push(
+      `⚠️ Claim verification flagged (${snippet}) — verify against workspace knowledge before sending.`
+    );
+  }
+
+  const noteForAgent = [baseNote, ...guardrailWarnings].filter(Boolean).join('\n') || null;
+  const autonomy: CopilotAutonomyMeta | null = autonomyRes
+    ? {
+        topic: autonomyRes.topic,
+        level: autonomyRes.level,
+        levelLabel: autonomyRes.levelLabel,
+        locked: autonomyRes.locked,
+        lockReason: autonomyRes.lockReason,
+        agentName: autonomyRes.agentName,
+      }
+    : null;
+  const verification: CopilotVerificationMeta | null = verificationRes
+    ? {
+        verdict: verificationRes.verdict,
+        confidence: verificationRes.confidence,
+        method: verificationRes.method,
+        unsupportedClaims: verificationRes.unsupportedClaims,
+      }
     : null;
 
   return {
@@ -933,6 +1016,8 @@ export async function generateCopilotSuggestedReply(params: {
     missingKnowledgeRecorded,
     resolvedLanguage: langInfo.resolved,
     eventId: callRes.eventId,
+    autonomy,
+    verification,
   };
 }
 

@@ -13,7 +13,9 @@ import {
 } from '@/types/database';
 import { CopilotReplyLanguage } from '@/lib/ai/copilot/prompts';
 import {
+  CopilotAutonomyMeta,
   CopilotAvailability,
+  CopilotVerificationMeta,
   askCopilotQuestion,
   checkCopilotAvailability,
   generateCopilotNextSteps,
@@ -38,12 +40,117 @@ async function assertConversationInWorkspace(
   }
 }
 
+export interface CopilotPendingDraft {
+  messageId: string;
+  text: string;
+  sources: CopilotSource[];
+  knowledgeFound: boolean;
+  noteForAgent: string | null;
+  resolvedLanguage: 'en' | 'ur' | 'roman_ur';
+  autonomy: CopilotAutonomyMeta | null;
+  verification: CopilotVerificationMeta | null;
+}
+
 export interface CopilotPanelState {
   availability: CopilotAvailability;
   summary: CopilotSummary | null;
   nextSteps: CopilotNextSteps | null;
   copilotMessages: CopilotMessage[];
   nonInternalMessageCount: number;
+  pendingDraft?: CopilotPendingDraft | null;
+}
+
+const AUTONOMY_LEVEL_LABEL: Record<number, CopilotAutonomyMeta['levelLabel']> = {
+  1: 'Shadow',
+  2: 'Suggest',
+  3: 'Supervised',
+  4: 'Autonomous',
+};
+
+function parsePendingSuggestionRow(
+  row: { id?: string; created_at?: string; metadata?: unknown } | undefined,
+  latestHumanReplyAt: string | undefined,
+): CopilotPendingDraft | null {
+  if (!row?.id || !row.metadata || typeof row.metadata !== 'object') return null;
+  const meta = row.metadata as Record<string, unknown>;
+  if (meta.is_copilot_suggestion !== true || meta.draft_discarded === true || meta.draft_used === true) {
+    return null;
+  }
+  if (latestHumanReplyAt && row.created_at && Date.parse(row.created_at) <= Date.parse(latestHumanReplyAt)) {
+    return null;
+  }
+  const text =
+    (typeof meta.suggested_draft === 'string' && meta.suggested_draft.trim()) ||
+    (typeof meta.draft_reply === 'string' && meta.draft_reply.trim()) ||
+    '';
+  if (!text) return null;
+
+  const citedRaw = Array.isArray(meta.cited_articles) ? meta.cited_articles : [];
+  const sources: CopilotSource[] = citedRaw
+    .map((item): CopilotSource | null => {
+      if (!item || typeof item !== 'object') return null;
+      const rec = item as Record<string, unknown>;
+      const id = String(rec.id || '').trim();
+      const title = String(rec.title || '').trim();
+      if (!id || !title) return null;
+      return { id, title, slug: null, url: null, kind: 'article' };
+    })
+    .filter((s): s is CopilotSource => Boolean(s));
+
+  const levelNum = Math.min(4, Math.max(1, Number(meta.autonomy_level || 2))) as 1 | 2 | 3 | 4;
+  const autonomy: CopilotAutonomyMeta | null =
+    typeof meta.autonomy_topic === 'string' && meta.autonomy_topic.trim()
+      ? {
+          topic: meta.autonomy_topic.trim(),
+          level: levelNum,
+          levelLabel: AUTONOMY_LEVEL_LABEL[levelNum] || 'Suggest',
+          locked: Boolean(meta.autonomy_locked),
+          lockReason: typeof meta.lock_reason === 'string' ? meta.lock_reason : null,
+          agentName: typeof meta.agent_name === 'string' ? meta.agent_name : null,
+        }
+      : null;
+
+  const rawVerif =
+    meta.verification && typeof meta.verification === 'object'
+      ? (meta.verification as Record<string, unknown>)
+      : null;
+  const rawClaims = Array.isArray(rawVerif?.claims) ? rawVerif.claims : [];
+  const unsupportedClaims = rawClaims
+    .filter((c): c is Record<string, unknown> => Boolean(c && typeof c === 'object' && (c as Record<string, unknown>).supported === false))
+    .map((c) => String(c.claim || '').trim())
+    .filter(Boolean);
+  const verification: CopilotVerificationMeta | null = rawVerif
+    ? {
+        verdict: rawVerif.verdict === 'needs_review' ? 'needs_review' : 'supported',
+        confidence: Number(rawVerif.confidence ?? 0.75),
+        method: rawVerif.method === 'semantic_llm' ? 'semantic_llm' : 'grounded_heuristic',
+        unsupportedClaims,
+      }
+    : null;
+
+  const notes: string[] = [
+    autonomy
+      ? `Pre-draft prepared under Trust Ladder Level ${autonomy.level} (${autonomy.levelLabel}) for "${autonomy.topic}" — review before sending.`
+      : 'Pre-draft prepared under Trust Ladder Suggest mode — review before sending.',
+  ];
+  if (verification?.verdict === 'needs_review') {
+    notes.push(
+      `⚠️ Claim verification flagged ${
+        unsupportedClaims.length > 0 ? unsupportedClaims.slice(0, 2).join('; ') : 'unverified details'
+      }.`,
+    );
+  }
+
+  return {
+    messageId: String(row.id),
+    text,
+    sources,
+    knowledgeFound: sources.length > 0 && verification?.verdict !== 'needs_review',
+    noteForAgent: notes.join('\n'),
+    resolvedLanguage: 'en',
+    autonomy,
+    verification,
+  };
 }
 
 /**
@@ -57,28 +164,60 @@ export async function getCopilotPanelStateAction(
   const { supabase } = await getWorkspaceAccess(workspaceId, 'view');
   await assertConversationInWorkspace(workspaceId, conversationId);
 
-  const [availability, { data: conv }, { data: chatMsgs }, { count: msgCount }] =
-    await Promise.all([
-      checkCopilotAvailability(workspaceId),
-      supabase
-        .from('conversations')
-        .select('id, workspace_id, copilot_summary, copilot_next_steps')
-        .eq('id', conversationId)
-        .eq('workspace_id', workspaceId)
-        .maybeSingle(),
-      supabase
-        .from('copilot_messages')
-        .select('*')
-        .eq('workspace_id', workspaceId)
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
-        .limit(50),
-      supabase
-        .from('messages')
-        .select('id', { count: 'exact', head: true })
-        .eq('conversation_id', conversationId)
-        .eq('is_internal', false),
-    ]);
+  const [
+    availability,
+    { data: conv },
+    { data: chatMsgs },
+    { count: msgCount },
+    { data: internalMsgs },
+    { data: latestHuman },
+  ] = await Promise.all([
+    checkCopilotAvailability(workspaceId),
+    supabase
+      .from('conversations')
+      .select('id, workspace_id, copilot_summary, copilot_next_steps')
+      .eq('id', conversationId)
+      .eq('workspace_id', workspaceId)
+      .maybeSingle(),
+    supabase
+      .from('copilot_messages')
+      .select('*')
+      .eq('workspace_id', workspaceId)
+      .eq('conversation_id', conversationId)
+      .order('created_at', { ascending: true })
+      .limit(50),
+    supabase
+      .from('messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('conversation_id', conversationId)
+      .eq('is_internal', false),
+    supabase
+      .from('messages')
+      .select('id, created_at, metadata')
+      .eq('conversation_id', conversationId)
+      .eq('is_internal', true)
+      .eq('sender_type', 'ai')
+      .order('created_at', { ascending: false })
+      .limit(5),
+    supabase
+      .from('messages')
+      .select('created_at')
+      .eq('conversation_id', conversationId)
+      .eq('is_internal', false)
+      .eq('sender_type', 'agent')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+
+  const latestHumanAt = (latestHuman as { created_at?: string } | null)?.created_at;
+  const candidateRow = ((internalMsgs || []) as Array<{ id?: string; created_at?: string; metadata?: unknown }>).find(
+    (r) =>
+      r.metadata &&
+      typeof r.metadata === 'object' &&
+      (r.metadata as Record<string, unknown>).is_copilot_suggestion === true,
+  );
+  const pendingDraft = parsePendingSuggestionRow(candidateRow, latestHumanAt);
 
   return {
     availability,
@@ -89,6 +228,7 @@ export async function getCopilotPanelStateAction(
       sources: Array.isArray(m.sources) ? (m.sources as CopilotSource[]) : [],
     })),
     nonInternalMessageCount: msgCount ?? 0,
+    pendingDraft,
   };
 }
 
@@ -237,6 +377,41 @@ export async function recordCopilotDraftDispositionAction(
     .update({ draft_disposition: disposition })
     .eq('id', eventId)
     .eq('workspace_id', workspaceId);
+
+  return { success: true };
+}
+
+/** Marks a Trust Ladder Level 2 internal draft suggestion as used or discarded so it does not re-appear. */
+export async function dismissCopilotSuggestedMessageAction(
+  workspaceId: string,
+  conversationId: string,
+  messageId: string,
+  disposition: 'used' | 'discarded',
+): Promise<{ success: boolean }> {
+  await getWorkspaceAccess(workspaceId, 'reply');
+  await assertConversationInWorkspace(workspaceId, conversationId);
+  if (!messageId) return { success: false };
+
+  const adminClient = serviceClient();
+  const { data: msg } = await adminClient
+    .from('messages')
+    .select('id, metadata')
+    .eq('id', messageId)
+    .eq('conversation_id', conversationId)
+    .maybeSingle();
+
+  if (!msg) return { success: false };
+  const prevMeta = (msg.metadata && typeof msg.metadata === 'object' ? msg.metadata : {}) as Record<string, unknown>;
+  await adminClient
+    .from('messages')
+    .update({
+      metadata: {
+        ...prevMeta,
+        ...(disposition === 'used' ? { draft_used: true } : { draft_discarded: true }),
+      },
+    })
+    .eq('id', messageId)
+    .eq('conversation_id', conversationId);
 
   return { success: true };
 }

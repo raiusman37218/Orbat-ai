@@ -13,7 +13,7 @@ import {
   type AgentStatus,
 } from '@/lib/ai/agent-templates';
 import { freshKnowledgeIndex } from '@/lib/ai/help-answer';
-import { groundedChunkIndex } from '@/lib/ai/grounding';
+import { verifyClaimsAgainstPassages, type ClaimVerificationResult } from '@/lib/ai/claim-verifier';
 import { asksForHuman } from '@/lib/ai/intent';
 import { chat, isConfigured, type ProviderConfig } from '@/lib/ai/provider';
 import { getPlatformAiConfigServerOnly } from '@/lib/ai/platform-gateway';
@@ -606,53 +606,36 @@ export async function resolveWorkspaceLlmConfig(workspaceId: string): Promise<Pr
 
 /**
  * Verifies claims inside an AI draft reply against the workspace's loaded help chunks.
+ * Uses semantic LLM checking when available and strict figure/policy grounding offline,
+ * with no citedTitle pass-through loophole.
  */
 export async function verifyReplyClaimsAgainstKnowledge(
   workspaceId: string,
   replyText: string,
   citedTitle: string | null,
-): Promise<{ verdict: 'supported' | 'needs_review'; claims: VerificationClaim[] }> {
-  const sentences = replyText
-    .split(/(?<=[.!?])\s+/)
-    .map((s) => s.trim())
-    .filter((s) => s.length >= 18)
-    .slice(0, 4);
-
-  if (sentences.length === 0) {
-    return { verdict: 'supported', claims: [] };
-  }
-
+  options?: {
+    languageCode?: string | null;
+    customerQuestion?: string | null;
+    skipLlm?: boolean;
+  },
+): Promise<ClaimVerificationResult> {
   const index = await freshKnowledgeIndex(workspaceId);
-  const articles = index.docs.map((d) => d.article);
-  const articleKnowledge = articles
-    .slice(0, 20)
-    .map((a, idx) => `[CHUNK ${idx + 1}] ${a.title}\n${a.content.slice(0, 1200)}`)
-    .join('\n\n');
+  const sources = index.docs.map((d) => ({
+    id: d.article.id,
+    title: d.article.title,
+    content: d.article.content,
+  }));
 
-  const claims: VerificationClaim[] = sentences.map((sentence) => {
-    const matchedIdx = groundedChunkIndex(sentence, articleKnowledge, 'en');
-    const sourceArt = matchedIdx !== null ? articles[matchedIdx] : null;
-    if (sourceArt) {
-      return { claim: sentence, supported: true, source: sourceArt.title };
-    }
-    if (citedTitle) {
-      return { claim: sentence, supported: true, source: citedTitle };
-    }
-    const hasNumbers = /\d+(?:\.\d+)?%?/.test(sentence);
-    return {
-      claim: sentence,
-      supported: !hasNumbers,
-      source: hasNumbers
-        ? 'No exact match found in indexed Help Center articles for figure'
-        : 'Conversational phrasing grounded in workspace instructions',
-    };
+  return verifyClaimsAgainstPassages({
+    replyText,
+    sources,
+    citedTitles: citedTitle ? [citedTitle] : [],
+    languageCode: options?.languageCode ?? null,
+    customerQuestion: options?.customerQuestion ?? null,
+    verifyWithLlm: options?.skipLlm
+      ? null
+      : (system, userPrompt) => tryWorkspaceChat(workspaceId, system, userPrompt, 450),
   });
-
-  const anyUnsupported = claims.some((c) => !c.supported);
-  return {
-    verdict: anyUnsupported ? 'needs_review' : 'supported',
-    claims,
-  };
 }
 
 /** Runs an LLM helper when configured, returning null cleanly if unconfigured. */

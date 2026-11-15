@@ -99,6 +99,15 @@ export const DEFAULT_AGENT_APPEARANCE: AgentAppearance = {
   welcomeMessage: '',
 };
 
+export type AutonomyLevel = 1 | 2 | 3 | 4;
+
+export const DEFAULT_CORE_AUTONOMY_TOPICS = [
+  'General inquiries',
+  'Billing & refunds',
+  'Account & access',
+  'Technical troubleshooting',
+] as const;
+
 export const AUTONOMY_LEVEL_DEFS = [
   {
     level: 1 as const,

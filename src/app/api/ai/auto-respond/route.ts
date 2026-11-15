@@ -50,6 +50,13 @@ import {
   verifyReplyClaimsAgainstKnowledge,
   type AgentRoutingResult,
 } from '@/lib/ai/agent-runtime';
+import type { ClaimVerificationResult } from '@/lib/ai/claim-verifier';
+import {
+  getArticleSectionNames,
+  getAutonomyPoliciesForAgent,
+  resolveAutonomyDecision,
+  type AutonomyDecision,
+} from '@/lib/ai/trust-ladder';
 import type { HandoffStatus } from '@/types/database';
 import { evaluateHandoffTrigger } from '@/lib/ai/handoff-detect';
 
@@ -61,6 +68,56 @@ function retrievalConfidenceScore(confidence?: string | null): number | undefine
   if (confidence === 'medium') return 0.72;
   if (confidence === 'low') return 0.4;
   return undefined;
+}
+
+/** Numeric confidence logged to `ai_verification_logs` when claim verifier does not supply one. */
+function numericConfidenceFromRetrieval(confidence?: string | null): number | null {
+  if (confidence === 'high') return 0.9;
+  if (confidence === 'medium') return 0.7;
+  if (confidence === 'low') return 0.4;
+  return null;
+}
+
+/** Runs pre-delivery claim verification with a tight timeout so slow verifiers never stall auto-respond. */
+async function runTimedClaimCheck(
+  workspaceId: string,
+  replyText: string,
+  citedTitle: string | null,
+  options: { languageCode?: string | null; customerQuestion?: string | null },
+  timeoutMs = 5000,
+): Promise<ClaimVerificationResult | null> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    const task = verifyReplyClaimsAgainstKnowledge(workspaceId, replyText, citedTitle, options).catch(() => null);
+    const guard = new Promise<null>((resolve) => {
+      timer = setTimeout(() => resolve(null), timeoutMs);
+    });
+    return await Promise.race([task, guard]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** Stores an internal shadow draft, Copilot pre-draft, or safety block note without messaging the visitor. */
+async function saveInternalDraftNote(params: {
+  supabase: ReturnType<typeof serviceClient>;
+  conversationId: string;
+  visitorMessageId: string;
+  content: string;
+  metadata: Record<string, unknown>;
+}): Promise<void> {
+  const { error } = await params.supabase.from('messages').insert({
+    conversation_id: params.conversationId,
+    sender_type: 'ai',
+    sender_id: null,
+    content: params.content,
+    is_internal: true,
+    reply_to_message_id: params.visitorMessageId,
+    metadata: params.metadata,
+  });
+  if (error && error.code !== '23505') {
+    console.error('[Auto-Respond] Failed saving internal AI draft note:', error.message);
+  }
 }
 
 interface PreferredAgentRow {
@@ -1332,6 +1389,245 @@ async function executeAutoRespond(req: NextRequest, body: any) {
         console.warn('[Auto-Respond] English copy of the reply failed:', err);
       }
     }
+    const citedArticleIds = result.usedArticleIds || (result.citation?.id ? [result.citation.id] : []);
+    const citedArticles = result.citedArticles || (result.citation ? [{ id: result.citation.id, title: result.citation.title }] : []);
+    const detected = { code: visitorLang.code, name: getLanguageInfo(visitorLang.code).name };
+    const numericConfidence = numericConfidenceFromRetrieval(result.retrievalConfidence);
+    const rawEnglishDraft = `${englishBody}${showCitations ? citationLine : ''}`;
+
+    // Trust Ladder & pre-delivery claim verification (Part 3 enforcement):
+    // 1. Resolve canonical/custom topic against ai_autonomy_policies & cited Help sections
+    // 2. Run pre-delivery claim verification BEFORE sending to catch unsupported figures/policies
+    // 3. Enforce Locked, Level 1 Shadow, Level 2 Suggest, Level 3 Supervised, Level 4 Autonomous
+    const [agentPolicies, citedSectionNames] = activeAiAgent?.id
+      ? await Promise.all([
+          getAutonomyPoliciesForAgent(workspace_id, activeAiAgent.id).catch(() => []),
+          getArticleSectionNames(workspace_id, citedArticleIds).catch(() => []),
+        ])
+      : [[], []];
+    const autonomyDecision: AutonomyDecision = resolveAutonomyDecision({
+      policies: agentPolicies,
+      message: visitorText,
+      subAgent: result.subAgent ?? null,
+      citedSectionNames,
+      defaultLevelWhenUnconfigured: 4,
+    });
+
+    let preVerif: ClaimVerificationResult | null = null;
+    let claimCheckFailed = false;
+    let escalationOverride: 'verification_blocked' | 'autonomy_locked' | null = null;
+
+    if (!pipelineHandover && result.intent !== 'wants_human') {
+      preVerif = await runTimedClaimCheck(workspace_id, englishBody, citedArticles[0]?.title ?? null, {
+        languageCode: detected.code,
+        customerQuestion: visitorText,
+      });
+      claimCheckFailed = preVerif?.verdict === 'needs_review';
+      const guardLang = effectiveReplyStyle === 'english_only' ? 'en' : replyLanguageOf(visitorMsg.content || visitorText);
+
+      if (claimCheckFailed) {
+        const failedDetail = preVerif?.unsupportedClaims?.length
+          ? ` Unsupported claim(s): ${preVerif.unsupportedClaims.slice(0, 2).join('; ')}`
+          : '';
+        await saveInternalDraftNote({
+          supabase,
+          conversationId: conversation_id,
+          visitorMessageId: targetVisitorMsgId,
+          content: `🛡️ Verification blocked ungrounded AI reply (${autonomyDecision.topic}).${failedDetail}\n\nBlocked draft:\n${replyBody}`,
+          metadata: {
+            answered_message_id: targetVisitorMsgId,
+            handover_for_message_id: targetVisitorMsgId,
+            is_shadow_draft: true,
+            verification_blocked: true,
+            autonomy_level: autonomyDecision.level,
+            autonomy_topic: autonomyDecision.topic,
+            autonomy_mode: autonomyDecision.mode,
+            agent_id: activeAiAgent?.id ?? null,
+            draft_reply: replyBody,
+            english_translation: rawEnglishDraft,
+            verification: preVerif,
+          },
+        });
+        replyBody = localized(guardLang, {
+          en: "I want to make sure you get completely accurate details on this, so I'm connecting you with a member of our team.",
+          roman_ur: 'Main aapko bilkul sahi maloomat dena chahta hoon, is liye main aapko hamari team ke member se connect kar raha hoon.',
+          ur: 'میں چاہتا ہوں کہ آپ کو اس بارے میں بالکل درست معلومات ملیں، اس لیے میں آپ کو ہماری ٹیم کے رکن سے منسلک کر رہا ہوں۔',
+        });
+        englishBody =
+          "I want to make sure you get completely accurate details on this, so I'm connecting you with a member of our team.";
+        result.shouldHandover = true;
+        pipelineHandover = true;
+        escalationOverride = 'verification_blocked';
+        result.handoverReason = `Pre-delivery claim verification flagged unsupported details${
+          preVerif?.unsupportedClaims?.[0] ? `: ${preVerif.unsupportedClaims[0].slice(0, 120)}` : ''
+        }`;
+      } else if (autonomyDecision.mode === 'human_only') {
+        await saveInternalDraftNote({
+          supabase,
+          conversationId: conversation_id,
+          visitorMessageId: targetVisitorMsgId,
+          content: `🔒 Trust Ladder locked topic "${autonomyDecision.topic}" (${
+            autonomyDecision.lockReason || 'Human only'
+          }). Draft withheld from visitor:\n\n${replyBody}`,
+          metadata: {
+            answered_message_id: targetVisitorMsgId,
+            handover_for_message_id: targetVisitorMsgId,
+            is_shadow_draft: true,
+            autonomy_locked: true,
+            autonomy_level: autonomyDecision.level,
+            autonomy_topic: autonomyDecision.topic,
+            autonomy_mode: autonomyDecision.mode,
+            lock_reason: autonomyDecision.lockReason,
+            agent_id: activeAiAgent?.id ?? null,
+            draft_reply: replyBody,
+            english_translation: rawEnglishDraft,
+            verification: preVerif,
+          },
+        });
+        replyBody = localized(guardLang, {
+          en: "Our team handles this topic personally so you get the right assistance. Let me connect you with a specialist.",
+          roman_ur: 'Ye topic hamari team khud handle karti hai taake aapko sahi madad mil sake. Main aapko specialist se connect karta hoon.',
+          ur: 'یہ موضوع ہماری ٹیم خود دیکھتی ہے تاکہ آپ کو صحیح مدد مل سکے۔ میں آپ کو ماہر سے منسلک کرتا ہوں۔',
+        });
+        englishBody =
+          'Our team handles this topic personally so you get the right assistance. Let me connect you with a specialist.';
+        result.shouldHandover = true;
+        pipelineHandover = true;
+        blockedTopicMatched = true;
+        escalationOverride = 'autonomy_locked';
+        result.handoverReason =
+          autonomyDecision.lockReason || `Autonomy policy locked for topic: ${autonomyDecision.topic}`;
+      } else if (autonomyDecision.mode === 'shadow' || autonomyDecision.mode === 'suggest') {
+        const mode = autonomyDecision.mode;
+        const draftCitation = showCitations ? citationLine : '';
+        const draftForTeam = `${replyBody}${draftCitation}`;
+        const draftEnglish = `${englishBody}${draftCitation}`;
+        const header =
+          mode === 'shadow'
+            ? `👁️ Shadow draft (Level 1 — ${autonomyDecision.topic}): Not sent to visitor.`
+            : `💡 Suggested reply ready in Copilot (Level 2 — ${autonomyDecision.topic}): Review & approve before sending.`;
+
+        await saveInternalDraftNote({
+          supabase,
+          conversationId: conversation_id,
+          visitorMessageId: targetVisitorMsgId,
+          content: `${header}\n\n${draftForTeam}`,
+          metadata: {
+            answered_message_id: targetVisitorMsgId,
+            handover_for_message_id: targetVisitorMsgId,
+            is_shadow_draft: mode === 'shadow',
+            is_copilot_suggestion: mode === 'suggest',
+            autonomy_level: autonomyDecision.level,
+            autonomy_topic: autonomyDecision.topic,
+            autonomy_mode: mode,
+            agent_id: activeAiAgent?.id ?? null,
+            agent_name: botName,
+            draft_reply: draftForTeam,
+            suggested_draft: draftForTeam,
+            english_translation: draftEnglish,
+            cited_articles: citedArticles,
+            cited_article_ids: citedArticleIds,
+            verification: preVerif
+              ? {
+                  verdict: preVerif.verdict,
+                  confidence: preVerif.confidence,
+                  method: preVerif.method,
+                  claims: preVerif.claims,
+                }
+              : null,
+          },
+        });
+
+        try {
+          await supabase
+            .from('conversations')
+            .update({ priority: 'high', updated_at: new Date().toISOString() })
+            .eq('id', conversation_id);
+        } catch {
+          // Non-fatal priority bump
+        }
+
+        if (handoffModeOn && (currentHandoffStatus === 'bot_active' || currentHandoffStatus === 'handoff_offered')) {
+          try {
+            await supabase.rpc('request_handoff', {
+              p_conversation_id: conversation_id,
+              p_reason: `autonomy_${mode}: ${autonomyDecision.topic}`,
+              p_summary: rawEnglishDraft.slice(0, 280),
+            });
+            if (effectiveHandoffGroupId && !conv.assigned_agent_id) {
+              const preferredAgent = await pickPreferredGroupAgent(supabase, workspace_id, effectiveHandoffGroupId);
+              if (preferredAgent) {
+                await supabase
+                  .from('conversations')
+                  .update({ assigned_agent_id: preferredAgent.id })
+                  .eq('id', conversation_id);
+              }
+            }
+          } catch {
+            // Non-fatal handoff queue
+          }
+        }
+
+        notifyTeamByEmailLater({
+          workspaceId: workspace_id,
+          conversationId: conversation_id,
+          event: 'customer_reply',
+          preview: visitorMsg.content,
+        });
+
+        await logAiEvent(supabase, {
+          workspaceId: workspace_id,
+          conversationId: conversation_id,
+          visitorMessageId: targetVisitorMsgId,
+          event: 'reply_suppressed',
+          reason: `autonomy_${mode}`,
+          detail: {
+            agent_id: activeAiAgent?.id ?? null,
+            agent_name: botName,
+            topic: autonomyDecision.topic,
+            autonomy_level: autonomyDecision.level,
+            cited_count: citedArticles.length,
+          },
+        }).catch(() => {});
+
+        await recordAiVerificationLog({
+          workspaceId: workspace_id,
+          agentId: activeAiAgent?.id ?? null,
+          agentName: botName,
+          conversationId: conversation_id,
+          messageId: null,
+          channel: conv.channel || 'web',
+          topic: autonomyDecision.topic,
+          customerQuestion: visitorText,
+          draftReply: draftEnglish,
+          finalReply: null,
+          verdict: 'blocked_human',
+          claims: preVerif?.claims ?? [],
+          outcomeNote:
+            mode === 'shadow'
+              ? `Shadow mode (Level 1 — ${autonomyDecision.topic}): silent draft saved for review`
+              : `Suggest mode (Level 2 — ${autonomyDecision.topic}): Copilot pre-draft saved for approval`,
+          confidence: preVerif?.confidence ?? numericConfidence,
+          metadata: {
+            detected_language: detected.code,
+            bot_intent: result.intent ?? null,
+            autonomy_level: autonomyDecision.level,
+            autonomy_mode: mode,
+            verification_method: preVerif?.method ?? null,
+          },
+        }).catch(() => {});
+
+        return json({
+          replied: false,
+          reason: `autonomy_${mode}`,
+          topic: autonomyDecision.topic,
+          autonomy_level: autonomyDecision.level,
+          shadow_draft_saved: mode === 'shadow',
+          draft_suggested: mode === 'suggest',
+        });
+      }
+    }
+
     // What follows this reply when someone should take over:
     //   offer   - the bot says it will connect them and shows [Connect to
     //             agent] (or "1" / "agent" on channels without buttons); the
@@ -1358,7 +1654,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       : 'offer';
     const askedForPerson = result.intent === 'wants_human';
 
-    let effectiveCitation = citationLine;
+    let effectiveCitation = escalationOverride ? '' : citationLine;
     if (handoffAction === 'offer') {
       const offerLang = effectiveReplyStyle === 'english_only' ? 'en' : replyLanguageOf(visitorMsg.content);
       const onChannel = Boolean(conv.channel && conv.channel !== 'web');
@@ -1384,6 +1680,9 @@ async function executeAutoRespond(req: NextRequest, body: any) {
             });
         replyBody = `${offerText}${channelHint}`;
         englishBody = "Sure, I'll connect you with our team.";
+        effectiveCitation = '';
+      } else if (escalationOverride === 'verification_blocked') {
+        replyBody = `${replyBody}${channelHint}`;
         effectiveCitation = '';
       } else if (blockedTopicMatched) {
         const offerText = localized(offerLang, {
@@ -1450,9 +1749,6 @@ async function executeAutoRespond(req: NextRequest, body: any) {
     const visibleCitation = showCitations ? effectiveCitation : '';
     aiResponseText = `${replyBody}${visibleCitation}`;
     const aiEnglishTranslation = `${englishBody}${visibleCitation}`;
-    const detected = { code: visitorLang.code, name: getLanguageInfo(visitorLang.code).name };
-    const citedArticleIds = result.usedArticleIds || (result.citation?.id ? [result.citation.id] : []);
-    const citedArticles = result.citedArticles || (result.citation ? [{ id: result.citation.id, title: result.citation.title }] : []);
 
     console.log('[Auto-Respond Step 6] Delivering AI reply:', {
       conversation_id,
@@ -1479,6 +1775,10 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       agent_role_title: activeAiAgent?.role_title ?? null,
       agent_badge_label: activeAiAgent?.appearance?.badgeLabel ?? null,
       agent_routing_reason: agentRouting.reason,
+      autonomy_topic: autonomyDecision.topic,
+      autonomy_level: autonomyDecision.level,
+      autonomy_mode: autonomyDecision.mode,
+      verification_verdict: preVerif?.verdict ?? null,
       handoff_group_id: effectiveHandoffGroupId,
       retrieval_confidence: result.retrievalConfidence ?? null,
       cited_article_id: result.citation?.id ?? null,
@@ -1582,22 +1882,34 @@ async function executeAutoRespond(req: NextRequest, body: any) {
       }).catch(() => {});
     }
 
-    const numericConfidence =
-      result.retrievalConfidence === 'high'
-        ? 0.9
-        : result.retrievalConfidence === 'medium'
-          ? 0.7
-          : result.retrievalConfidence === 'low'
-            ? 0.4
-            : null;
-
     const logVerificationTask = async () => {
       try {
-        const verif = await verifyReplyClaimsAgainstKnowledge(
-          workspace_id,
-          aiEnglishTranslation,
-          citedArticles[0]?.title ?? null,
-        );
+        const verif =
+          preVerif ??
+          (await verifyReplyClaimsAgainstKnowledge(
+            workspace_id,
+            rawEnglishDraft,
+            citedArticles[0]?.title ?? null,
+            { languageCode: detected.code, customerQuestion: visitorText },
+          ));
+        const finalVerdict =
+          result.shouldHandover || escalationOverride || autonomyDecision.locked
+            ? 'blocked_human'
+            : autonomyDecision.queueForSupervisorAudit || verif.verdict === 'needs_review'
+              ? 'needs_review'
+              : 'supported';
+        const outcomeNote =
+          escalationOverride === 'verification_blocked'
+            ? `Pre-delivery claim check blocked ungrounded reply (${autonomyDecision.topic})`
+            : escalationOverride === 'autonomy_locked'
+              ? `Locked autonomy policy blocked auto-reply (${autonomyDecision.topic})`
+              : result.shouldHandover
+                ? `Escalated (${result.handoverReason || 'handoff triggered'})`
+                : autonomyDecision.queueForSupervisorAudit
+                  ? `Level 3 Supervised (${autonomyDecision.topic}): queued for supervisor audit`
+                  : citedArticles.length > 0
+                    ? `Verified against ${citedArticles.length} cited source(s)`
+                    : 'Grounded reply delivered';
         await recordAiVerificationLog({
           workspaceId: workspace_id,
           agentId: activeAiAgent?.id ?? null,
@@ -1605,21 +1917,21 @@ async function executeAutoRespond(req: NextRequest, body: any) {
           conversationId: conversation_id,
           messageId: insertedMsg?.id ? String(insertedMsg.id) : null,
           channel: conv.channel || 'web',
-          topic: result.intent ?? null,
+          topic: autonomyDecision.topic,
           customerQuestion: visitorText,
-          draftReply: aiEnglishTranslation,
+          draftReply: rawEnglishDraft,
           finalReply: aiResponseText,
-          verdict: result.shouldHandover ? 'blocked_human' : verif.verdict,
+          verdict: finalVerdict,
           claims: verif.claims,
-          outcomeNote: result.shouldHandover
-            ? `Escalated (${result.handoverReason || 'handoff triggered'})`
-            : citedArticles.length > 0
-              ? `Verified against ${citedArticles.length} cited source(s)`
-              : 'Grounded reply delivered',
-          confidence: numericConfidence,
+          outcomeNote,
+          confidence: preVerif?.confidence ?? numericConfidence,
           metadata: {
             detected_language: detected.code,
             bot_intent: result.intent ?? null,
+            autonomy_level: autonomyDecision.level,
+            autonomy_mode: autonomyDecision.mode,
+            escalation_override: escalationOverride,
+            verification_method: verif.method ?? null,
           },
         });
       } catch {

@@ -5,6 +5,8 @@ import { getWorkspaceAccess } from '@/lib/team/access';
 import { errorMessage, userError } from '@/lib/errors/user-error';
 import {
   AUTONOMY_LEVEL_DEFS,
+  DEFAULT_CORE_AUTONOMY_TOPICS,
+  type AutonomyLevel,
 } from '@/lib/ai/agent-templates';
 import {
   ensurePrimaryAiAgent,
@@ -22,7 +24,7 @@ import {
   saveQuickQaAnswerAction,
 } from '@/app/actions/unanswered';
 
-export type AutonomyLevel = 1 | 2 | 3 | 4;
+export type { AutonomyLevel };
 
 export interface AutonomyPolicyRow {
   id: string;
@@ -90,13 +92,6 @@ export interface AiQualityBootstrap {
   answerCards: AnswerCardItem[];
 }
 
-const DEFAULT_CORE_TOPICS = [
-  'General inquiries',
-  'Billing & refunds',
-  'Account & access',
-  'Technical troubleshooting',
-];
-
 function levelNameFor(level: number): string {
   const found = AUTONOMY_LEVEL_DEFS.find((d) => d.level === level);
   return found ? found.name : 'Suggest';
@@ -133,7 +128,7 @@ async function seedDefaultPoliciesForAgent(
     }
   }
 
-  for (const topic of DEFAULT_CORE_TOPICS) {
+  for (const topic of DEFAULT_CORE_AUTONOMY_TOPICS) {
     if (!topicSet.has(topic)) {
       topicSet.set(topic, {
         level: 2,

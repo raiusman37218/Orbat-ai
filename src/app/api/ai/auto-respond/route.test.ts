@@ -166,6 +166,16 @@ vi.mock('@/lib/domain', () => ({ getWorkspaceHelpCenterUrl: () => null }));
 const translateSpy = vi.hoisted(() =>
   vi.fn(async ({ text }: { text: string; romanize?: boolean }) => ({ translatedText: text })),
 );
+const verifyClaimsSpy = vi.hoisted(() =>
+  vi.fn(async () => ({
+    verdict: 'verified' as string,
+    claims: [] as Array<{ claim: string; supported: boolean; source: string }>,
+    confidence: 0.9,
+    method: 'grounded_heuristic' as const,
+    unsupportedClaims: [] as string[],
+  })),
+);
+const verificationLogSpy = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock('@/lib/ai/translator', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/ai/translator')>();
   return {
@@ -195,8 +205,34 @@ vi.mock('@/lib/ai/agent-runtime', async (importOriginal) => {
         recentUserMessages: input.recentUserMessages,
       });
     },
-    verifyReplyClaimsAgainstKnowledge: async () => ({ verdict: 'verified', claims: [] }),
-    recordAiVerificationLog: async () => {},
+    verifyReplyClaimsAgainstKnowledge: verifyClaimsSpy,
+    recordAiVerificationLog: verificationLogSpy,
+  };
+});
+vi.mock('@/lib/ai/trust-ladder', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/ai/trust-ladder')>();
+  return {
+    ...actual,
+    getAutonomyPoliciesForAgent: async (workspaceId: string, agentId: string) =>
+      ((db.tables.ai_autonomy_policies || []) as any[])
+        .filter((p) => p.workspace_id === workspaceId && p.agent_id === agentId)
+        .map((p) => ({
+          id: p.id ?? null,
+          topic: p.topic,
+          level: p.level,
+          locked: Boolean(p.locked),
+          lockReason: p.lock_reason ?? null,
+        })),
+    getArticleSectionNames: async (workspaceId: string, articleIds: string[]) => {
+      const articles = ((db.tables.help_articles || []) as any[]).filter(
+        (a) => a.workspace_id === workspaceId && articleIds.includes(a.id),
+      );
+      const sectionIds = new Set(articles.map((a) => a.section_id).filter(Boolean));
+      return ((db.tables.help_sections || []) as any[])
+        .filter((s) => s.workspace_id === workspaceId && sectionIds.has(s.id))
+        .map((s) => String(s.name || '').trim())
+        .filter(Boolean);
+    },
   };
 });
 vi.mock('@/lib/agent/external-agent', () => ({ answerWithExternalAgent: vi.fn(async () => null) }));
@@ -252,6 +288,15 @@ function reset() {
   externalAgent.mockClear();
   externalAgent.mockResolvedValue(null);
   translateSpy.mockClear();
+  verifyClaimsSpy.mockReset();
+  verifyClaimsSpy.mockResolvedValue({
+    verdict: 'verified',
+    claims: [],
+    confidence: 0.9,
+    method: 'grounded_heuristic',
+    unsupportedClaims: [],
+  });
+  verificationLogSpy.mockClear();
 }
 
 const conv = () => db.tables.conversations[0];
@@ -972,4 +1017,214 @@ describe('Part 2: Multi-agent routing and Agent Builder runtime settings', () =>
     expect(db.rpcCalls.some((c) => c.fn === 'offer_handoff')).toBe(true);
   });
 });
+
+describe('Part 3: Trust Ladder enforcement & pre-delivery claim verification', () => {
+  const internalNotes = () => db.tables.messages.filter((m) => m.sender_type === 'ai' && Boolean(m.is_internal));
+
+  it('blocks locked topics (human_only) and pre-delivery verification failures before sending draft to visitor', async () => {
+    db.tables.ai_agents = [buildLiveAgent()];
+    db.tables.ai_autonomy_policies = [
+      {
+        id: 'pol-bill-locked',
+        workspace_id: WS,
+        agent_id: 'ag-primary',
+        topic: 'Billing & refunds',
+        level: 4,
+        locked: true,
+        lock_reason: 'Finance team must approve refunds personally',
+      },
+    ];
+
+    generate.mockResolvedValueOnce({
+      replyText: 'Your $500 refund is approved instantly.',
+      shouldHandover: false,
+      canAnswerFromDocs: true,
+    });
+
+    const lockedMsg = visitorSays('Please give me a refund on my latest charge.');
+    const lockedRes = await respond(lockedMsg);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(lockedRes.body.replied).toBe(true);
+    expect(lockedRes.body.handed_over).toBe(true);
+    expect(publicBotReplies()[0].content).not.toContain('$500');
+    expect(publicBotReplies()[0].content).toContain('handles this topic personally');
+    expect(internalNotes()).toHaveLength(1);
+    expect(internalNotes()[0].metadata.autonomy_locked).toBe(true);
+    expect(verificationLogSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verdict: 'blocked_human',
+        topic: 'Billing & refunds',
+      }),
+    );
+
+    // Next: unlock topic to Level 4, but fail pre-delivery claim verification
+    db.tables.messages = [];
+    db.clock += 5000;
+    verificationLogSpy.mockClear();
+    db.tables.ai_autonomy_policies = [
+      { id: 'pol-gen', workspace_id: WS, agent_id: 'ag-primary', topic: 'General inquiries', level: 4, locked: false },
+    ];
+    generate.mockResolvedValueOnce({
+      replyText: 'Every plan includes a $999 instant loyalty bonus.',
+      shouldHandover: false,
+      canAnswerFromDocs: true,
+    });
+    verifyClaimsSpy.mockResolvedValueOnce({
+      verdict: 'needs_review',
+      claims: [{ claim: 'Every plan includes a $999 instant loyalty bonus.', supported: false, source: 'Unverified' }],
+      confidence: 0.35,
+      method: 'grounded_heuristic',
+      unsupportedClaims: ['Every plan includes a $999 instant loyalty bonus.'],
+    });
+
+    const unsafeMsg = visitorSays('Do you offer a loyalty bonus?');
+    const unsafeRes = await respond(unsafeMsg);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(unsafeRes.body.replied).toBe(true);
+    expect(unsafeRes.body.handed_over).toBe(true);
+    expect(publicBotReplies()[0].content).not.toContain('$999');
+    expect(publicBotReplies()[0].content).toContain('accurate details');
+    expect(internalNotes()).toHaveLength(1);
+    expect(internalNotes()[0].metadata.verification_blocked).toBe(true);
+    expect(verificationLogSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verdict: 'blocked_human',
+        topic: 'General inquiries',
+        draftReply: 'Every plan includes a $999 instant loyalty bonus.',
+      }),
+    );
+  });
+
+  it('suppresses public replies in Level 1 Shadow and Level 2 Suggest while saving internal drafts', async () => {
+    ws().handoff_settings = { ai: { require_confirmation: true } };
+    db.rpcResults.request_handoff = { data: { ok: true, status: 'waiting_for_agent' }, error: null };
+    db.tables.ai_agents = [buildLiveAgent()];
+    db.tables.ai_autonomy_policies = [
+      { id: 'pol-tech', workspace_id: WS, agent_id: 'ag-primary', topic: 'Technical troubleshooting', level: 1, locked: false },
+      { id: 'pol-bill', workspace_id: WS, agent_id: 'ag-primary', topic: 'Billing & refunds', level: 2, locked: false },
+    ];
+
+    // Level 1 Shadow
+    generate.mockResolvedValueOnce({
+      replyText: 'Restart your MT5 terminal and reconnect.',
+      shouldHandover: false,
+      canAnswerFromDocs: true,
+      subAgent: 'platform',
+    });
+    const shadowMsg = visitorSays('My MT5 terminal shows a connection error.');
+    const shadowRes = await respond(shadowMsg);
+
+    expect(shadowRes.body.replied).toBe(false);
+    expect(shadowRes.body.reason).toBe('autonomy_shadow');
+    expect(shadowRes.body.shadow_draft_saved).toBe(true);
+    expect(shadowRes.body.topic).toBe('Technical troubleshooting');
+    expect(publicBotReplies()).toHaveLength(0);
+    expect(internalNotes()).toHaveLength(1);
+    expect(internalNotes()[0].metadata).toMatchObject({
+      is_shadow_draft: true,
+      autonomy_level: 1,
+      autonomy_topic: 'Technical troubleshooting',
+      draft_reply: 'Restart your MT5 terminal and reconnect.',
+    });
+    expect(db.rpcCalls.some((c) => c.fn === 'request_handoff')).toBe(true);
+    expect(suppressedReasons()).toContain('autonomy_shadow');
+    expect(verificationLogSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verdict: 'blocked_human',
+        topic: 'Technical troubleshooting',
+        finalReply: null,
+      }),
+    );
+
+    // Level 2 Suggest (Copilot pre-draft)
+    verificationLogSpy.mockClear();
+    generate.mockResolvedValueOnce({
+      replyText: 'Invoices can be downloaded under Settings > Billing.',
+      shouldHandover: false,
+      canAnswerFromDocs: true,
+    });
+    const suggestMsg = visitorSays('Where can I download my latest invoice?');
+    const suggestRes = await respond(suggestMsg);
+
+    expect(suggestRes.body.replied).toBe(false);
+    expect(suggestRes.body.reason).toBe('autonomy_suggest');
+    expect(suggestRes.body.draft_suggested).toBe(true);
+    expect(suggestRes.body.topic).toBe('Billing & refunds');
+    expect(publicBotReplies()).toHaveLength(0);
+    expect(internalNotes()).toHaveLength(2);
+    expect(internalNotes()[1].metadata).toMatchObject({
+      is_copilot_suggestion: true,
+      autonomy_level: 2,
+      autonomy_topic: 'Billing & refunds',
+      suggested_draft: 'Invoices can be downloaded under Settings > Billing.',
+    });
+    expect(verificationLogSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verdict: 'blocked_human',
+        topic: 'Billing & refunds',
+        finalReply: null,
+      }),
+    );
+  });
+
+  it('delivers Level 3 Supervised (queued for needs_review audit) and Level 4 Autonomous (supported)', async () => {
+    db.tables.ai_agents = [buildLiveAgent()];
+    db.tables.ai_autonomy_policies = [
+      { id: 'pol-acc', workspace_id: WS, agent_id: 'ag-primary', topic: 'Account & access', level: 3, locked: false },
+      { id: 'pol-gen', workspace_id: WS, agent_id: 'ag-primary', topic: 'General inquiries', level: 4, locked: false },
+    ];
+
+    // Level 3 Supervised -> sends publicly + logs needs_review for Supervisor Audit Queue
+    generate.mockResolvedValueOnce({
+      replyText: 'Go to Account Security to reset 2FA.',
+      shouldHandover: false,
+      canAnswerFromDocs: true,
+    });
+    const l3Msg = visitorSays('How do I reset 2FA on my account?');
+    const l3Res = await respond(l3Msg);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(l3Res.body.replied).toBe(true);
+    expect(publicBotReplies()).toHaveLength(1);
+    expect(publicBotReplies()[0].metadata).toMatchObject({
+      autonomy_level: 3,
+      autonomy_mode: 'supervised',
+      autonomy_topic: 'Account & access',
+    });
+    expect(verificationLogSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verdict: 'needs_review',
+        topic: 'Account & access',
+      }),
+    );
+
+    // Level 4 Autonomous -> sends publicly + logs supported
+    verificationLogSpy.mockClear();
+    generate.mockResolvedValueOnce({
+      replyText: 'Our support desk operates 24/7.',
+      shouldHandover: false,
+      canAnswerFromDocs: true,
+    });
+    const l4Msg = visitorSays('What are your weekend hours?');
+    const l4Res = await respond(l4Msg);
+    await new Promise((r) => setTimeout(r, 0));
+
+    expect(l4Res.body.replied).toBe(true);
+    expect(publicBotReplies()).toHaveLength(2);
+    expect(publicBotReplies()[1].metadata).toMatchObject({
+      autonomy_level: 4,
+      autonomy_mode: 'autonomous',
+      autonomy_topic: 'General inquiries',
+    });
+    expect(verificationLogSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verdict: 'supported',
+        topic: 'General inquiries',
+      }),
+    );
+  });
+});
+
 

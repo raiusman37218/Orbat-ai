@@ -491,4 +491,38 @@ describe('Agent Copilot — Security, Availability, Grounding & Logging', () => 
     expect(mockBuildModelContext).not.toHaveBeenCalled();
     expect(mockRecordUnanswered).not.toHaveBeenCalled();
   });
+
+  it('flags fabricated figures in Suggest Reply via claim verification metadata', async () => {
+    mockBuildModelContext.mockResolvedValue({
+      text: '[1] Refund Policy\nRefunds are processed within 7 business days up to $100.',
+      used: ['Refund Policy'],
+      belowThreshold: false,
+      confidence: 'high',
+      sources: [{ id: 'art-ref', title: 'Refund Policy', slug: 'refund-policy', kind: 'article' }],
+      queryEmbedding: null,
+      rewrittenQuery: 'How fast is a refund?',
+    });
+
+    mockChat.mockResolvedValue({
+      text: JSON.stringify({
+        draft: 'You will receive a $500 instant refund in 24 hours.',
+        knowledge_found: true,
+        cited_chunk_numbers: [1],
+      }),
+      tokensIn: 180,
+      tokensOut: 40,
+      model: 'claude-sonnet-4-6',
+    });
+
+    const res = await generateCopilotSuggestedReply({
+      workspaceId: 'ws-a',
+      conversationId: 'conv-a',
+      userId: 'user-1',
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.verification?.verdict).toBe('needs_review');
+    expect(res.verification?.unsupportedClaims.length).toBeGreaterThanOrEqual(1);
+    expect(res.noteForAgent).toContain('Claim verification flagged');
+  });
 });
