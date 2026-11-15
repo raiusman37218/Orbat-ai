@@ -35,6 +35,7 @@ import {
   Ticket,
   Trash2,
   UserPlus,
+  X,
 } from 'lucide-react';
 import {
   Avatar,
@@ -56,6 +57,7 @@ import {
   generateInboxSummary,
   getLanguageInfo,
   rateInboxBotReply,
+  resolveInboxLangGraphApproval,
   returnInboxConversationToAi,
   setInboxLanguageOverride,
   snoozeInboxConversation,
@@ -66,6 +68,7 @@ import {
   type InboxCannedReply,
   type InboxConversationDetail,
   type InboxCopilotState,
+  type InboxLangGraphApproval,
   type InboxMessageItem,
 } from '@/lib/data/inbox';
 import { cn, formatTime } from '@/lib/utils';
@@ -111,6 +114,137 @@ function priorityBadgeTone(p: ConversationPriority): BadgeTone {
     default:
       return 'neutral';
   }
+}
+
+function LangGraphApprovalCard({
+  workspaceId,
+  conversationId,
+  messageId,
+  approval,
+  createdAt,
+  onResolved,
+}: {
+  workspaceId: string;
+  conversationId: string;
+  messageId: string;
+  approval: InboxLangGraphApproval;
+  createdAt: string;
+  onResolved: () => Promise<void>;
+}) {
+  const toast = useOrbToast();
+  const [draft, setDraft] = useState(approval.finalReply || approval.draftReply);
+  const [submitting, setSubmitting] = useState<'approve' | 'reject' | null>(null);
+
+  const handleDecision = async (approved: boolean) => {
+    setSubmitting(approved ? 'approve' : 'reject');
+    try {
+      await resolveInboxLangGraphApproval(workspaceId, {
+        conversationId,
+        messageId,
+        threadId: approval.threadId,
+        approved,
+        editedReply: approved ? draft : null,
+      });
+      toast.show({
+        message: approved
+          ? 'LangGraph reply approved and delivered'
+          : 'LangGraph draft rejected cleanly',
+        tone: 'ok',
+      });
+      await onResolved();
+    } catch (err) {
+      toast.show({
+        message: err instanceof Error ? err.message : 'Approval action failed',
+        tone: 'bad',
+      });
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-2xl rounded-[14px] border border-o-border bg-o-surface p-3.5 shadow-sm text-o-text">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex items-center gap-1.5 text-[12px] font-semibold">
+          <Bot className="h-3.5 w-3.5 text-o-accent" aria-hidden="true" />
+          LangGraph Approval · {approval.agentName}
+          <Badge tone="neutral">{approval.topic}</Badge>
+          <Badge
+            tone={
+              approval.status === 'approved'
+                ? 'ok'
+                : approval.status === 'rejected'
+                  ? 'bad'
+                  : 'warn'
+            }
+          >
+            {approval.status === 'approved'
+              ? 'Approved & Sent'
+              : approval.status === 'rejected'
+                ? 'Rejected'
+                : `Paused · Level ${approval.autonomyLevel}`}
+          </Badge>
+        </span>
+        <span className="text-[11px] text-o-text-3">{formatTime(createdAt)}</span>
+      </div>
+
+      <p className="mt-1.5 text-[12px] text-o-text-2">{approval.reason}</p>
+
+      {approval.pendingActions.length > 0 && (
+        <div className="mt-2 rounded-[10px] border border-o-border bg-o-bg px-2.5 py-2">
+          <div className="text-[10.5px] font-semibold uppercase tracking-wide text-o-text-3">
+            Staged Workflow Actions
+          </div>
+          <ul className="mt-1 space-y-1 text-[12px] text-o-text-2">
+            {approval.pendingActions.map((act, idx) => (
+              <li key={`${act.toolName}-${idx}`} className="flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3 text-o-accent shrink-0" aria-hidden="true" />
+                <span>{act.summary || act.toolName}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {approval.status === 'pending' ? (
+        <div className="mt-2.5 space-y-2.5">
+          <textarea
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            rows={3}
+            aria-label="Proposed LangGraph AI reply"
+            className="w-full rounded-[10px] border border-o-border bg-o-bg px-3 py-2 text-[13px] leading-relaxed text-o-text focus:border-o-accent focus:outline-none"
+          />
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={submitting !== null}
+              onClick={() => handleDecision(false)}
+            >
+              <X className="h-3.5 w-3.5" aria-hidden="true" />
+              {submitting === 'reject' ? 'Rejecting…' : 'Reject'}
+            </Button>
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={submitting !== null || !draft.trim()}
+              onClick={() => handleDecision(true)}
+            >
+              <Check className="h-3.5 w-3.5" aria-hidden="true" />
+              {submitting === 'approve' ? 'Sending…' : 'Approve & Send'}
+            </Button>
+          </div>
+        </div>
+      ) : (
+        draft && (
+          <p className="mt-2 whitespace-pre-wrap break-words rounded-[10px] bg-o-bg px-3 py-2 text-[12.5px] text-o-text-2">
+            {draft}
+          </p>
+        )
+      )}
+    </div>
+  );
 }
 
 export function ConversationThread({
@@ -1144,7 +1278,16 @@ export function ConversationThread({
                     </div>
                   )}
 
-                  {msg.isInternal ? (
+                  {msg.isInternal && msg.langgraphApproval ? (
+                    <LangGraphApprovalCard
+                      workspaceId={workspaceId}
+                      conversationId={msg.conversationId}
+                      messageId={msg.id}
+                      approval={msg.langgraphApproval}
+                      createdAt={msg.createdAt}
+                      onResolved={onRefresh}
+                    />
+                  ) : msg.isInternal ? (
                     <div className="mx-auto max-w-2xl rounded-[14px] border border-o-note-border bg-o-note px-3.5 py-2.5 text-o-text">
                       <div className="flex items-center justify-between gap-2">
                         <span className="flex items-center gap-1.5 text-[11.5px] font-semibold">

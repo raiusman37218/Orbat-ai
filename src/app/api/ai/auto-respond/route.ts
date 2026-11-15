@@ -8,6 +8,8 @@ import {
 } from '@/lib/ai/anthropic';
 import { dispatchOutboundMessage } from '@/lib/channels/dispatcher';
 import { answerWithExternalAgent } from '@/lib/agent/external-agent';
+import { runLangGraphAgent } from '@/lib/agent/engines/langgraph-engine';
+import type { PendingApprovalPayload } from '@/lib/agent/engines/types';
 import { providerConfigFrom, warmHelpIndex } from '@/lib/ai/help-answer';
 import { getPlatformAiConfigServerOnly } from '@/lib/ai/platform-gateway';
 import {
@@ -17,6 +19,7 @@ import {
   getExpectedReplyTimeNotice,
   localized,
   replyLanguageOf,
+  type VisitorIntent,
 } from '@/lib/ai/intent';
 import {
   botControlState,
@@ -1193,6 +1196,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
         // The workspace's own agent (Settings -> AI bot -> LangGraph) answers
         // first when it is on. A request for a person always goes the built-in
         // way, so reaching the team never depends on someone else's endpoint.
+        let langgraphPaused: PendingApprovalPayload | null = null;
         const generate = async () => {
           if (!isAskingForHuman) {
             const external = await answerWithExternalAgent({
@@ -1204,13 +1208,155 @@ async function executeAutoRespond(req: NextRequest, body: any) {
               turns: [...recentTurns, { role: 'user' as const, content: visitorText }],
               humanContext,
               workspaceSystemPrompt: effectiveSystemPrompt || aiSettings?.system_prompt || null,
+              workflowKey: activeAiAgent?.engine_config?.workflowKey ?? null,
+              perAgentWebhookUrl: activeAiAgent?.engine_config?.externalWebhookUrl ?? null,
+              knowledgeScope: activeAiAgent?.knowledge_scope ?? null,
+              ragConfig: activeAiAgent?.rag_config ?? null,
             });
             if (external) return external;
+
+            if (activeAiAgent?.engine_type === 'langgraph') {
+              const visitorObj = conv.visitor as { name?: string | null; email?: string | null } | null;
+              const lgResult = await runLangGraphAgent({
+                workspaceId: workspace_id,
+                workspaceName: workspace?.name || 'Workspace',
+                conversationId: convId,
+                visitorMessageId: targetVisitorMsgId,
+                visitorId: conv.visitor_id ?? null,
+                visitorName: visitorObj?.name ?? null,
+                visitorEmail: visitorObj?.email ?? null,
+                channel: conv.channel || 'web',
+                helpCenterUrl: helpCenterUrlFor(workspace),
+                message: visitorText,
+                history: recentTurns,
+                humanContext: humanContext ? `${humanContext.lastReply} (${humanContext.at})` : null,
+                providerConfig: providerConfigFrom(aiSettings),
+                agent: {
+                  id: activeAiAgent.id,
+                  name: botName,
+                  industry:
+                    activeAiAgent.industry ||
+                    (workspace as { industry?: string | null } | null | undefined)?.industry ||
+                    'generic',
+                  tone: activeAiAgent.tone ?? null,
+                  systemPrompt: effectiveSystemPrompt,
+                  guardrails: activeAiAgent.guardrails,
+                  escalationRules: activeAiAgent.escalation_rules,
+                  knowledgeScope: activeAiAgent.knowledge_scope,
+                  answerMode: effectiveAnswerMode,
+                  replyLanguageMode: effectiveReplyStyle,
+                  ragConfig: activeAiAgent.rag_config
+                    ? { ...activeAiAgent.rag_config, citations: showCitations }
+                    : { citations: showCitations },
+                  engineType: 'langgraph',
+                  engineConfig: activeAiAgent.engine_config,
+                  modelConfig: activeAiAgent.model_config,
+                  handoffGroupId: effectiveHandoffGroupId,
+                },
+              }).catch((err) => {
+                console.warn('[Auto-Respond] LangGraph execution failed, falling back to built-in:', err);
+                return null;
+              });
+
+              if (lgResult) {
+                if (lgResult.action === 'awaiting_approval' && lgResult.pendingApproval) {
+                  langgraphPaused = lgResult.pendingApproval;
+                }
+                return {
+                  replyText: lgResult.replyText,
+                  shouldHandover: lgResult.shouldHandover,
+                  handoverReason: lgResult.handoverReason ?? undefined,
+                  canAnswerFromDocs: lgResult.canAnswerFromDocs,
+                  intent: lgResult.intent as VisitorIntent,
+                  intentSource: 'rules' as const,
+                  disableAi: false,
+                  priority: 'high' as const,
+                  citation: null,
+                  citedArticles: lgResult.citedArticles,
+                  usedArticleIds: lgResult.usedArticleIds,
+                  retrievalConfidence: lgResult.retrievalConfidence,
+                  quickReplies: null,
+                  engine: 'langgraph' as const,
+                };
+              }
+            }
           }
           return builtIn();
         };
 
         result = await Promise.race([generate(), timeoutPromise]);
+        if (langgraphPaused) {
+          const paused: PendingApprovalPayload = langgraphPaused;
+          const actionsSummary = paused.pendingActions.length
+            ? `\n\nStaged CRM/workflow actions:\n${paused.pendingActions.map((a) => `• ${a.summary}`).join('\n')}`
+            : '';
+          await saveInternalDraftNote({
+            supabase,
+            conversationId: conversation_id,
+            visitorMessageId: targetVisitorMsgId,
+            content: `⏸️ LangGraph workflow paused (${paused.topic} · Level ${paused.autonomyLevel}): ${paused.reason}\n\nProposed reply:\n${paused.draftReply}${actionsSummary}`,
+            metadata: {
+              answered_message_id: targetVisitorMsgId,
+              handover_for_message_id: targetVisitorMsgId,
+              is_copilot_suggestion: true,
+              autonomy_level: paused.autonomyLevel,
+              autonomy_topic: paused.topic,
+              agent_id: activeAiAgent?.id ?? null,
+              agent_name: botName,
+              draft_reply: paused.draftReply,
+              langgraph_approval: {
+                runId: paused.runId,
+                threadId: paused.threadId,
+                agentId: paused.agentId,
+                agentName: paused.agentName,
+                topic: paused.topic,
+                autonomyLevel: paused.autonomyLevel,
+                reason: paused.reason,
+                draftReply: paused.draftReply,
+                pendingActions: paused.pendingActions,
+                status: 'pending',
+              },
+            },
+          });
+          if (handoffModeOn && (currentHandoffStatus === 'bot_active' || currentHandoffStatus === 'handoff_offered')) {
+            try {
+              await supabase.rpc('request_handoff', {
+                p_conversation_id: conversation_id,
+                p_reason: `langgraph_approval: ${paused.topic}`,
+                p_summary: paused.draftReply.slice(0, 280),
+              });
+            } catch {
+              // Non-fatal handoff queue
+            }
+          }
+          notifyTeamByEmailLater({
+            workspaceId: workspace_id,
+            conversationId: conversation_id,
+            event: 'customer_reply',
+            preview: visitorMsg.content,
+          });
+          await logAiEvent(supabase, {
+            workspaceId: workspace_id,
+            conversationId: conversation_id,
+            visitorMessageId: targetVisitorMsgId,
+            event: 'reply_suppressed',
+            reason: `langgraph_paused_approval:${paused.topic}`,
+            detail: {
+              agent_id: activeAiAgent?.id ?? null,
+              agent_name: botName,
+              thread_id: paused.threadId,
+              run_id: paused.runId,
+              pending_actions: paused.pendingActions.length,
+            },
+          }).catch(() => {});
+          return json({
+            replied: false,
+            paused_for_approval: true,
+            thread_id: paused.threadId,
+            run_id: paused.runId,
+            topic: paused.topic,
+          });
+        }
         pipelineHandover = Boolean(result.shouldHandover);
       }
 

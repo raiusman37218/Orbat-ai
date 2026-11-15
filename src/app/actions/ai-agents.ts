@@ -51,6 +51,8 @@ import {
   resolveAutonomyDecision,
 } from '@/lib/ai/trust-ladder';
 import { detectLanguage, getLanguageInfo, isRomanizedText, translateAgentReply } from '@/lib/ai/translator';
+import { runLangGraphAgent } from '@/lib/agent/engines/langgraph-engine';
+import type { AgentTraceStep, EngineUsed } from '@/lib/agent/engines/types';
 
 export interface AiAgentListItem extends AiAgentRow {
   replies30d: number;
@@ -976,6 +978,8 @@ export interface PlaygroundResult {
   retrievalMethod?: 'semantic_rag' | 'keyword_fallback' | 'none';
   verificationVerdict?: 'supported' | 'blocked_fixed' | 'blocked_human' | 'needs_review';
   topic?: string;
+  engineUsed?: EngineUsed;
+  engineTrace?: AgentTraceStep[];
 }
 
 export async function runAgentPlaygroundAction(
@@ -1105,6 +1109,143 @@ export async function runAgentPlaygroundAction(
         : 'match_customer');
     const effectiveRagConfig = normalizeAgentRagConfig(input.ragConfig ?? savedAgent?.rag_config);
     const normalizedScope = normalizeKnowledgeScope(input.knowledgeScope);
+    const effectiveEngineType = normalizeEngineType(input.engineType ?? savedAgent?.engine_type);
+
+    if (effectiveEngineType === 'langgraph') {
+      const detectedLg = detectLanguage(userMessage);
+      const isRomanLg = isRomanizedText(detectedLg.code, userMessage);
+      const detectedLangName = isRomanLg
+        ? `Roman ${getLanguageInfo(detectedLg.code).name}`
+        : getLanguageInfo(detectedLg.code).name;
+
+      const lgResult = await runLangGraphAgent(
+        {
+          workspaceId,
+          workspaceName: wsName,
+          conversationId: `playground-${workspaceId}`,
+          channel: 'playground',
+          helpCenterUrl,
+          message: userMessage,
+          history: (input.history || []).map((h) => ({ role: h.role, content: h.content })),
+          agent: {
+            id: hasSavedAgent ? input.agentId! : null,
+            name: input.agentName || 'AI Assistant',
+            industry: resolvedIndustry,
+            tone: input.tone,
+            systemPrompt: input.systemPrompt,
+            guardrails: input.guardrails,
+            escalationRules: input.escalationRules,
+            knowledgeScope: normalizedScope,
+            answerMode: effectiveAnswerMode,
+            replyLanguageMode: effectiveReplyLanguageMode,
+            ragConfig: effectiveRagConfig,
+            engineType: 'langgraph',
+          },
+          autonomyPolicies,
+          dryRun: true,
+        },
+        {
+          services: {
+            generateReplyFn: async ({ system, messages }) => {
+              const userPrompt = messages
+                .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
+                .join('\n');
+              return tryWorkspaceChat(workspaceId, system, userPrompt, 550);
+            },
+          },
+        },
+      );
+
+      let lgReply = lgResult.replyText;
+      if (
+        input.language !== 'auto' &&
+        input.language !== 'en' &&
+        !lgResult.usingModel &&
+        lgReply
+      ) {
+        const translated = await translateAgentReply({
+          text: lgReply,
+          targetLanguageCode: input.language === 'roman_ur' ? 'ur' : input.language,
+          sourceLanguageCode: 'en',
+          romanize: input.language === 'roman_ur',
+        }).catch(() => null);
+        if (translated?.translatedText) lgReply = translated.translatedText;
+      }
+
+      const lgCited = lgResult.citedArticles
+        .filter((s) => s.kind !== 'knowledge')
+        .slice(0, 3)
+        .map((s) => ({ id: s.id, title: s.title, slug: s.slug ?? null }));
+      const verification = await verifyReplyClaimsAgainstKnowledge(
+        workspaceId,
+        lgReply,
+        lgCited[0]?.title ?? lgResult.citedArticles[0]?.title ?? null,
+        { customerQuestion: userMessage, knowledgeScope: normalizedScope },
+      );
+      const confidencePct = Math.min(
+        99,
+        Math.max(
+          35,
+          Math.round(
+            (lgResult.usingModel ? 0.58 : 0.4) * 100 +
+              (lgResult.retrievalConfidence === 'high'
+                ? 35
+                : lgResult.retrievalConfidence === 'medium'
+                  ? 24
+                  : 0),
+          ),
+        ),
+      );
+      const verdict: NonNullable<PlaygroundResult['verificationVerdict']> = lgResult.shouldHandover
+        ? 'blocked_human'
+        : verification.verdict;
+
+      await recordAiVerificationLog({
+        workspaceId,
+        agentId: hasSavedAgent ? input.agentId! : null,
+        agentName: input.agentName || 'AI Assistant',
+        channel: 'playground',
+        topic: lgResult.topic,
+        customerQuestion: userMessage,
+        draftReply: lgReply,
+        finalReply: lgReply,
+        verdict,
+        claims: verification.claims,
+        outcomeNote: `LangGraph Playground (${lgResult.trace.length} node steps)`,
+        confidence: Number((confidencePct / 100).toFixed(2)),
+        latencyMs: lgResult.latencyMs,
+        metadata: {
+          playground: true,
+          engineUsed: 'langgraph',
+          ragMode: effectiveRagConfig.mode,
+          ragTrace: lgResult.ragTrace ?? null,
+          retrievalMethod: lgResult.retrievalMethod,
+          langgraphTrace: lgResult.trace,
+        },
+      });
+
+      return {
+        success: true,
+        result: {
+          replyText: lgReply,
+          handoffTriggered: lgResult.shouldHandover,
+          handoffReason: lgResult.handoverReason ?? null,
+          citedArticles: lgCited,
+          claims: verification.claims,
+          confidencePct,
+          detectedLanguage: detectedLangName,
+          usingModel: lgResult.usingModel,
+          latencyMs: Date.now() - started,
+          ragMode: effectiveRagConfig.mode,
+          ragTrace: lgResult.ragTrace,
+          retrievalMethod: lgResult.retrievalMethod,
+          verificationVerdict: verdict,
+          topic: lgResult.topic,
+          engineUsed: 'langgraph',
+          engineTrace: lgResult.trace,
+        },
+      };
+    }
 
     // Run live Semantic RAG (with keyword fallback & Advanced RAG stages) strictly scoped by the agent's collections & Bot Knowledge toggle.
     const retrieved = await buildModelContext(workspaceId, userMessage, {

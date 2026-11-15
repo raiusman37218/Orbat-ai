@@ -242,7 +242,7 @@ export interface HelpDeskResponseResult {
   /** Retrieval confidence, for help-centre questions only. */
   retrievalConfidence?: RetrievalConfidence;
   /** Who wrote the answer: the built-in bot, or the workspace's own agent (LangGraph). */
-  engine?: 'built_in' | 'external_agent';
+  engine?: 'built_in' | 'external_agent' | 'langgraph' | 'adk';
   /** The retrieval-policy arm this help-centre reply was made under (learning/policy.ts). */
   policyArm?: PolicyArm;
   /** Agent mode: the specialist that answered (sub-agents.ts). */

@@ -18,6 +18,7 @@ import {
   listDashboardMessagesAction,
   listVisitorConversationsAction,
   loadHandoversAction,
+  resolveLangGraphApprovalAction,
   returnToAiAction,
   sendDashboardMessageAction,
   setConversationLanguageOverrideAction,
@@ -169,6 +170,26 @@ export interface InboxMessageTranslation {
   originalAgentInput: string | null;
 }
 
+export interface InboxLangGraphApproval {
+  runId: string | null;
+  threadId: string;
+  agentId: string | null;
+  agentName: string;
+  topic: string;
+  autonomyLevel: number;
+  reason: string;
+  draftReply: string;
+  pendingActions: Array<{
+    toolName: string;
+    summary: string;
+    args: Record<string, unknown>;
+  }>;
+  status: 'pending' | 'approved' | 'rejected';
+  resolvedBy?: string | null;
+  resolvedAt?: string | null;
+  finalReply?: string | null;
+}
+
 export interface InboxMessageItem {
   id: string;
   conversationId: string;
@@ -189,6 +210,7 @@ export interface InboxMessageItem {
   botRating: 'helpful' | 'not_helpful' | null;
   sources: CopilotSource[];
   translation: InboxMessageTranslation | null;
+  langgraphApproval: InboxLangGraphApproval | null;
   raw: Message;
 }
 
@@ -530,6 +552,41 @@ function extractSources(meta: Record<string, unknown> | null | undefined): Copil
     .filter((s): s is CopilotSource => Boolean(s));
 }
 
+function parseLangGraphApprovalMetadata(
+  meta: Record<string, unknown> | null,
+): InboxLangGraphApproval | null {
+  const raw = meta?.langgraph_approval;
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+  const r = raw as Record<string, unknown>;
+  const threadId = typeof r.threadId === 'string' ? r.threadId.trim() : '';
+  if (!threadId) return null;
+  const rawStatus = r.status;
+  const status: InboxLangGraphApproval['status'] =
+    rawStatus === 'approved' || rawStatus === 'rejected' ? rawStatus : 'pending';
+  const rawActions = Array.isArray(r.pendingActions) ? r.pendingActions : [];
+  return {
+    runId: typeof r.runId === 'string' ? r.runId : null,
+    threadId,
+    agentId: typeof r.agentId === 'string' ? r.agentId : null,
+    agentName: typeof r.agentName === 'string' && r.agentName.trim() ? r.agentName : 'AI Agent',
+    topic: typeof r.topic === 'string' && r.topic.trim() ? r.topic : 'General inquiries',
+    autonomyLevel: typeof r.autonomyLevel === 'number' ? r.autonomyLevel : 2,
+    reason: typeof r.reason === 'string' ? r.reason : 'Human approval required',
+    draftReply: typeof r.draftReply === 'string' ? r.draftReply : '',
+    pendingActions: rawActions
+      .filter((a): a is Record<string, unknown> => Boolean(a && typeof a === 'object'))
+      .map((a) => ({
+        toolName: String(a.toolName || ''),
+        summary: String(a.summary || ''),
+        args: (a.args && typeof a.args === 'object' ? a.args : {}) as Record<string, unknown>,
+      })),
+    status,
+    resolvedBy: typeof r.resolvedBy === 'string' ? r.resolvedBy : null,
+    resolvedAt: typeof r.resolvedAt === 'string' ? r.resolvedAt : null,
+    finalReply: typeof r.finalReply === 'string' ? r.finalReply : null,
+  };
+}
+
 export function mapMessageItem(
   msg: Message,
   visitorName: string,
@@ -575,6 +632,7 @@ export function mapMessageItem(
     botRating,
     sources: extractSources(meta),
     translation: parseTranslationMetadata(meta),
+    langgraphApproval: parseLangGraphApprovalMetadata(meta),
     raw: msg,
   };
 }
@@ -1639,6 +1697,24 @@ export async function rateInboxBotReply(
   } catch (err) {
     console.error('[Inbox]: Bot reply rating failed:', err);
     throw new Error(errorMessage(err, 'Could not save feedback.'));
+  }
+}
+
+export async function resolveInboxLangGraphApproval(
+  workspaceId: string,
+  params: {
+    conversationId: string;
+    messageId: string;
+    threadId: string;
+    approved: boolean;
+    editedReply?: string | null;
+  },
+) {
+  try {
+    return await resolveLangGraphApprovalAction(workspaceId, params);
+  } catch (err) {
+    console.error('[Inbox]: LangGraph approval resolution failed:', err);
+    throw new Error(errorMessage(err, 'Could not resolve AI approval request.'));
   }
 }
 

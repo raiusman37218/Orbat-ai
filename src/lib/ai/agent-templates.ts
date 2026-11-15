@@ -15,6 +15,7 @@ export interface AgentEngineConfig {
   maxSteps?: number;
   enableMemory?: boolean;
   workflowKey?: string | null;
+  externalWebhookUrl?: string | null;
 }
 
 export interface AgentRagConfig {

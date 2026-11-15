@@ -24,6 +24,7 @@
  *              priority?, internal_note? }
  */
 import { serviceClient } from '@/lib/pg/service';
+import type { AgentKnowledgeScope, AgentRagConfig } from '@/lib/ai/agent-templates';
 import { buildModelContext } from '@/lib/ai/help-answer';
 import { buildHandoverSummary, classifyByRules, noAnswerHandoverReply, replyLanguageOf } from '@/lib/ai/intent';
 import type { HelpDeskResponseResult, HumanContext } from '@/lib/ai/anthropic';
@@ -187,6 +188,12 @@ export interface ExternalAgentInput {
   humanContext?: HumanContext | null;
   /** The built-in bot's custom instructions, used when the agent has none of its own. */
   workspaceSystemPrompt?: string | null;
+  /** Optional per-agent workflow key passed to external webhook bridge. */
+  workflowKey?: string | null;
+  /** Optional per-agent HTTPS webhook URL override validated with checkAgentUrl. */
+  perAgentWebhookUrl?: string | null;
+  knowledgeScope?: AgentKnowledgeScope | null;
+  ragConfig?: Partial<AgentRagConfig> | null;
 }
 
 /**
@@ -197,7 +204,17 @@ export async function answerWithExternalAgent(
   input: ExternalAgentInput,
   config?: ExternalAgentConfig | null
 ): Promise<HelpDeskResponseResult | null> {
-  const agent = config === undefined ? await loadExternalAgent(input.workspaceId) : config;
+  const baseAgent = config === undefined ? await loadExternalAgent(input.workspaceId) : config;
+  const overrideUrl = input.perAgentWebhookUrl?.trim() || null;
+  const agent: ExternalAgentConfig | null = overrideUrl
+    ? {
+        enabled: true,
+        autoPilot: baseAgent?.autoPilot ?? true,
+        url: overrideUrl,
+        apiKey: baseAgent?.apiKey ?? null,
+        systemPrompt: input.workspaceSystemPrompt || baseAgent?.systemPrompt || null,
+      }
+    : baseAgent;
   if (!externalAgentActive(agent)) return null;
 
   const lang = replyLanguageOf(input.incomingMessage);
@@ -206,6 +223,8 @@ export async function answerWithExternalAgent(
       turns: input.turns.slice(-6),
       limit: 5,
       articlesOnly: true,
+      ...(input.knowledgeScope ? { knowledgeScope: input.knowledgeScope } : {}),
+      ...(input.ragConfig ? { ragConfig: input.ragConfig } : {}),
     }).catch(() => null);
 
     const { reply, latencyMs } = await callAgent(agent, {
@@ -221,6 +240,7 @@ export async function answerWithExternalAgent(
       sources: (retrieved?.sources || []).map((s) => ({ id: s.id, title: s.title, url: s.url })),
       system_prompt: agent.systemPrompt || input.workspaceSystemPrompt || null,
       language: lang,
+      ...(input.workflowKey ? { workflow_key: input.workflowKey } : {}),
       human_context: input.humanContext ? { last_reply: input.humanContext.lastReply, at: input.humanContext.at } : null,
     });
     console.log('[External Agent] Answered in', latencyMs, 'ms');

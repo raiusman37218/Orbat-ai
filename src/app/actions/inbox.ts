@@ -6,6 +6,8 @@ import { AccessError, getWorkspaceAccess } from '@/lib/team/access';
 import { getLanguageInfo } from '@/lib/ai/translator';
 import { userError } from '@/lib/errors/user-error';
 import { loadHandovers, type HandoverItem } from '@/lib/inbox/handovers';
+import { resumeLangGraphAgentRun } from '@/lib/agent/engines/langgraph-engine';
+import { dispatchOutboundMessage } from '@/lib/channels/dispatcher';
 import type {
   AgentStatus,
   CannedResponse,
@@ -731,4 +733,170 @@ export async function getVisitorsCountAction(workspaceId: string): Promise<numbe
 export async function loadHandoversAction(workspaceId: string): Promise<HandoverItem[]> {
   const { supabase } = await getWorkspaceAccess(workspaceId);
   return loadHandovers(supabase, workspaceId);
+}
+
+export async function resolveLangGraphApprovalAction(
+  workspaceId: string,
+  params: {
+    conversationId: string;
+    messageId: string;
+    threadId: string;
+    approved: boolean;
+    editedReply?: string | null;
+  },
+): Promise<{
+  status: 'approved' | 'rejected';
+  deliveredMessageId: string | null;
+  executedTools: Array<{ toolName: string; ok: boolean; summary: string }>;
+}> {
+  const { supabase, user } = await getWorkspaceAccess(workspaceId, 'reply');
+  const { data: conv, error: convErr } = await supabase
+    .from('conversations')
+    .select('id, workspace_id, channel, status, channel_metadata')
+    .eq('id', params.conversationId)
+    .eq('workspace_id', workspaceId)
+    .maybeSingle();
+
+  if (convErr || !conv) {
+    throw userError('Conversation not found in this workspace.');
+  }
+
+  const { data: noteMsg, error: noteErr } = await supabase
+    .from('messages')
+    .select('id, metadata, content')
+    .eq('id', params.messageId)
+    .eq('conversation_id', params.conversationId)
+    .maybeSingle();
+
+  if (noteErr || !noteMsg) {
+    throw userError('Approval request message not found.');
+  }
+
+  const rawMeta = (noteMsg.metadata || {}) as Record<string, unknown>;
+  const existingApproval = (
+    rawMeta.langgraph_approval && typeof rawMeta.langgraph_approval === 'object'
+      ? rawMeta.langgraph_approval
+      : {}
+  ) as Record<string, unknown>;
+  if (existingApproval.status === 'approved' || existingApproval.status === 'rejected') {
+    throw userError(`This approval request was already ${existingApproval.status}.`);
+  }
+
+  const resolvedThreadId = (
+    params.threadId ||
+    (typeof existingApproval.threadId === 'string' ? existingApproval.threadId : '')
+  ).trim();
+  if (!resolvedThreadId) {
+    throw userError('Missing LangGraph approval thread identifier.');
+  }
+
+  const fallbackDraft =
+    typeof existingApproval.draftReply === 'string'
+      ? existingApproval.draftReply
+      : typeof rawMeta.draft_reply === 'string'
+        ? rawMeta.draft_reply
+        : '';
+  let resumedReply = (params.editedReply || fallbackDraft).trim();
+  let executedTools: Array<{ toolName: string; ok: boolean; summary: string }> = [];
+
+  try {
+    const resumed = await resumeLangGraphAgentRun({
+      workspaceId,
+      threadId: resolvedThreadId,
+      approved: params.approved,
+      editedReply: params.editedReply,
+      resolvedBy: user.id,
+    });
+    if (resumed.replyText?.trim()) {
+      resumedReply = resumed.replyText.trim();
+    }
+    executedTools = resumed.executedTools || [];
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes('Workspace isolation violation')) {
+      throw userError(msg);
+    }
+    if (!msg.includes('not found or expired')) {
+      throw userError(msg || 'Failed to resume LangGraph workflow.');
+    }
+  }
+
+  const nowIso = new Date().toISOString();
+  const nextStatus: 'approved' | 'rejected' = params.approved ? 'approved' : 'rejected';
+
+  let deliveredMessageId: string | null = null;
+  if (params.approved && resumedReply) {
+    const { data: inserted, error: insertErr } = await supabase
+      .from('messages')
+      .insert({
+        conversation_id: params.conversationId,
+        sender_type: 'ai',
+        sender_id: null,
+        content: resumedReply,
+        is_internal: false,
+        metadata: {
+          approved_by: user.id,
+          engine: 'langgraph',
+          thread_id: resolvedThreadId,
+          agent_id: existingApproval.agentId ?? rawMeta.agent_id ?? null,
+          agent_name: existingApproval.agentName ?? rawMeta.agent_name ?? null,
+          executed_tools: executedTools,
+        },
+      })
+      .select('id')
+      .single();
+
+    if (insertErr || !inserted) {
+      throw userError(insertErr?.message || 'Could not deliver approved AI reply.');
+    }
+    deliveredMessageId = inserted.id as string;
+
+    await supabase
+      .from('conversations')
+      .update({
+        updated_at: nowIso,
+        status: conv.status === 'closed' ? 'closed' : 'open',
+        ai_needs_attention_at: null,
+        channel_metadata: {
+          ...((conv.channel_metadata as Record<string, unknown>) || {}),
+          last_langgraph_approval_at: nowIso,
+        },
+      })
+      .eq('id', params.conversationId)
+      .eq('workspace_id', workspaceId);
+
+    const channel = typeof conv.channel === 'string' ? conv.channel : 'web';
+    if (channel && channel !== 'web') {
+      await dispatchOutboundMessage({
+        conversationId: params.conversationId,
+        workspaceId,
+        content: resumedReply,
+        channel,
+      }).catch(() => {});
+    }
+  }
+
+  await supabase
+    .from('messages')
+    .update({
+      metadata: {
+        ...rawMeta,
+        langgraph_approval: {
+          ...existingApproval,
+          status: nextStatus,
+          resolvedBy: user.id,
+          resolvedAt: nowIso,
+          finalReply: params.approved ? resumedReply : null,
+          executedTools,
+        },
+      },
+    })
+    .eq('id', params.messageId)
+    .eq('conversation_id', params.conversationId);
+
+  return {
+    status: nextStatus,
+    deliveredMessageId,
+    executedTools,
+  };
 }
