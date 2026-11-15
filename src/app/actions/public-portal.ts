@@ -206,12 +206,26 @@ export async function getPublicPricingBundleAction(): Promise<PublicPricingBundl
 
   const rawRates = settingsRows[0]?.payg_rates || {};
   const paygRates: PaygRateCatalog = {
-    conversationBaseUsd: Number(rawRates.conversationBaseUsd ?? DEFAULT_PAYG_RATES.conversationBaseUsd),
-    aiLightUsd: Number(rawRates.aiLightUsd ?? DEFAULT_PAYG_RATES.aiLightUsd),
-    aiStandardUsd: Number(rawRates.aiStandardUsd ?? DEFAULT_PAYG_RATES.aiStandardUsd),
-    aiAdvancedUsd: Number(rawRates.aiAdvancedUsd ?? DEFAULT_PAYG_RATES.aiAdvancedUsd),
-    voiceMinuteUsd: Number(rawRates.voiceMinuteUsd ?? DEFAULT_PAYG_RATES.voiceMinuteUsd),
-    websiteAuditUsd: Number(rawRates.websiteAuditUsd ?? DEFAULT_PAYG_RATES.websiteAuditUsd),
+    conversationBaseUsd: Number(
+      rawRates.conversationBaseUsd ??
+        rawRates.conversation_base ??
+        DEFAULT_PAYG_RATES.conversationBaseUsd,
+    ),
+    aiLightUsd: Number(
+      rawRates.aiLightUsd ?? rawRates.ai_light ?? DEFAULT_PAYG_RATES.aiLightUsd,
+    ),
+    aiStandardUsd: Number(
+      rawRates.aiStandardUsd ?? rawRates.ai_standard ?? DEFAULT_PAYG_RATES.aiStandardUsd,
+    ),
+    aiAdvancedUsd: Number(
+      rawRates.aiAdvancedUsd ?? rawRates.ai_advanced ?? DEFAULT_PAYG_RATES.aiAdvancedUsd,
+    ),
+    voiceMinuteUsd: Number(
+      rawRates.voiceMinuteUsd ?? rawRates.voice_minute ?? DEFAULT_PAYG_RATES.voiceMinuteUsd,
+    ),
+    websiteAuditUsd: Number(
+      rawRates.websiteAuditUsd ?? rawRates.website_audit ?? DEFAULT_PAYG_RATES.websiteAuditUsd,
+    ),
   };
 
   return {

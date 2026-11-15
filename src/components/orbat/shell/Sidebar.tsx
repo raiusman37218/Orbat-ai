@@ -1,5 +1,6 @@
 'use client';
 
+import { ShieldCheck } from 'lucide-react';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
 import { Avatar } from '@/components/orbat/primitives';
@@ -138,6 +139,26 @@ export function Sidebar({
 
       <div className="flex flex-col gap-2.5">
         {!compact && usage ? <UsageCard usage={usage} onNavigate={onNavigate} /> : null}
+        {agent.isSuperAdmin ? (
+          <Link
+            href="/admin"
+            onClick={onNavigate}
+            aria-label={compact ? 'Super Admin console' : undefined}
+            title={compact ? 'Super Admin console' : undefined}
+            className={cn(
+              'flex h-10 items-center gap-3 rounded-full border border-o-border bg-o-surface text-[14px] font-semibold text-o-text no-underline hover:bg-[var(--hover)]',
+              compact ? 'w-11 justify-center self-center' : 'px-3.5',
+            )}
+          >
+            <ShieldCheck size={18} strokeWidth={2} className="flex-none text-o-forest" aria-hidden="true" />
+            {!compact ? <span className="flex-1 truncate">Super Admin</span> : null}
+            {!compact ? (
+              <span className="rounded-full bg-o-mint px-2 py-0.5 text-[11px] font-bold text-o-forest">
+                Platform
+              </span>
+            ) : null}
+          </Link>
+        ) : null}
         <Link
           href="/app/profile"
           onClick={onNavigate}

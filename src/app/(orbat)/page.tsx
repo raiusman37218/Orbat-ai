@@ -1,12 +1,28 @@
-import type { Metadata } from 'next';
 import { LandingPage } from '@/components/orbat/landing/LandingPage';
+import { sessionUser } from '@/lib/auth/session-user';
+import { createClient } from '@/lib/pg/server';
 
-export const metadata: Metadata = {
-  title: 'ORBAT AI — Instant answers. Real people when it matters.',
-  description:
-    'ORBAT’s AI agent resolves most conversations across chat, WhatsApp, email and calls, then hands the rest to your team with the full story.',
-};
+export default async function HomePage() {
+  let isSignedIn = false;
+  let isSuperAdmin = false;
 
-export default function HomePage() {
-  return <LandingPage />;
+  try {
+    const user = await sessionUser().catch(() => null);
+    if (user?.id) {
+      isSignedIn = true;
+      const db = await createClient();
+      const [agentRes, accessRes] = await Promise.all([
+        db.from('agents').select('is_super_admin').eq('id', user.id).maybeSingle(),
+        db.from('platform_access').select('role').eq('user_id', user.id).maybeSingle(),
+      ]);
+      isSuperAdmin =
+        Boolean(agentRes.data?.is_super_admin) ||
+        accessRes.data?.role === 'owner' ||
+        accessRes.data?.role === 'admin';
+    }
+  } catch {
+    // Render public landing state if session lookup fails
+  }
+
+  return <LandingPage isSignedIn={isSignedIn} isSuperAdmin={isSuperAdmin} />;
 }

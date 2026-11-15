@@ -62,12 +62,20 @@ function fmtUsd(amount: number): string {
   }).format(Number(amount || 0));
 }
 
-export function CheckoutScreen() {
+export function CheckoutScreen({
+  initialPlanSlug,
+  initialBillingPeriod,
+}: {
+  initialPlanSlug?: string;
+  initialBillingPeriod?: BillingPeriod;
+} = {}) {
   const { workspace, agent } = useShellSession();
   const { show } = useOrbToast();
 
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod | null>(null);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod | null>(
+    initialBillingPeriod ?? null,
+  );
   const [seatCount, setSeatCount] = useState(3);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodKind>('card');
   const [companyName, setCompanyName] = useState<string | null>(null);
@@ -95,14 +103,22 @@ export function CheckoutScreen() {
   );
 
   const plans = data?.plans ?? [];
+  const requestedPlan = initialPlanSlug
+    ? plans.find(
+        (p) =>
+          p.slug.toLowerCase() === initialPlanSlug.toLowerCase() || p.id === initialPlanSlug,
+      )
+    : null;
   const defaultPlan =
+    requestedPlan ??
     plans.find((p) => p.slug === 'pro') ??
     plans.find((p) => p.slug !== data?.currentPlanSlug) ??
     plans[0] ??
     null;
 
   const activePlan = plans.find((p) => p.id === selectedPlanId) ?? defaultPlan;
-  const activePeriod: BillingPeriod = billingPeriod ?? data?.currentPeriod ?? 'monthly';
+  const activePeriod: BillingPeriod =
+    billingPeriod ?? initialBillingPeriod ?? data?.currentPeriod ?? 'monthly';
 
   const effectiveCompany = companyName ?? data?.profile.billingCompanyName ?? workspace.name;
   const effectiveEmail = billingEmail ?? data?.profile.billingEmail ?? agent.email;

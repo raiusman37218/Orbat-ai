@@ -665,7 +665,7 @@ export function TeamScreen() {
                       {fmtInt(data.aiWorkload.repliesToday)} AI replies today
                     </div>
                   </div>
-                  <ButtonLink size="sm" variant="ghost" href="/app/ai-agents">
+                  <ButtonLink size="sm" variant="ghost" href="/app/agents">
                     Configure
                   </ButtonLink>
                 </div>

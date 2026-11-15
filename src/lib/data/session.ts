@@ -30,11 +30,20 @@ export async function requireShellSession(returnTo: string): Promise<ShellSessio
   // Signed in but no workspace yet: same place the old dashboard sends them.
   if (!agent?.workspace_id) redirect('/onboarding');
 
-  const { data: workspace, error: workspaceError } = await db
-    .from('workspaces')
-    .select('id, name, logo_url')
-    .eq('id', agent.workspace_id)
-    .maybeSingle();
+  const [workspaceRes, accessRes] = await Promise.all([
+    db
+      .from('workspaces')
+      .select('id, name, logo_url')
+      .eq('id', agent.workspace_id)
+      .maybeSingle(),
+    db
+      .from('platform_access')
+      .select('role')
+      .eq('user_id', user.id)
+      .maybeSingle(),
+  ]);
+
+  const { data: workspace, error: workspaceError } = workspaceRes;
 
   if (workspaceError) {
     console.error('[App Shell] workspace lookup failed:', workspaceError);
@@ -45,6 +54,9 @@ export async function requireShellSession(returnTo: string): Promise<ShellSessio
   const status: AgentPresence =
     agent.status === 'online' || agent.status === 'away' ? agent.status : 'offline';
 
+  const hasPlatformAccess =
+    accessRes.data?.role === 'owner' || accessRes.data?.role === 'admin';
+
   return {
     agent: {
       id: agent.id,
@@ -53,7 +65,7 @@ export async function requireShellSession(returnTo: string): Promise<ShellSessio
       avatarUrl: agent.avatar_url ?? null,
       role: isRole(agent.role) ? agent.role : 'agent',
       status,
-      isSuperAdmin: Boolean(agent.is_super_admin),
+      isSuperAdmin: Boolean(agent.is_super_admin) || hasPlatformAccess,
     },
     workspace: {
       id: workspace.id,

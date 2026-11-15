@@ -6,6 +6,7 @@ import {
   MessageSquare,
   Moon,
   Search,
+  ShieldCheck,
   Sun,
   Ticket,
   User,
@@ -43,6 +44,7 @@ export function CommandPalette({
   theme,
   onToggleTheme,
   onSignOut,
+  isSuperAdmin = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -51,6 +53,7 @@ export function CommandPalette({
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
   onSignOut: () => void;
+  isSuperAdmin?: boolean;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -116,6 +119,17 @@ export function CommandPalette({
         g.items.map((i) => ({ id: `go:${i.id}`, label: i.label, hint: g.label, icon: ArrowRight, run: go(i.href) })),
       ),
       { id: 'go:profile', label: 'My profile', hint: 'Status, languages, notifications', icon: User, run: go('/app/profile') },
+      ...(isSuperAdmin
+        ? [
+            {
+              id: 'go:super-admin',
+              label: 'Super Admin console',
+              hint: 'Platform management & workspaces',
+              icon: ShieldCheck,
+              run: go('/admin'),
+            },
+          ]
+        : []),
     ];
     const actions: Command[] = [
       {
@@ -169,7 +183,7 @@ export function CommandPalette({
       { label: 'Go to', items: filter(pages) },
       { label: 'Actions', items: filter(actions) },
     ].filter((s) => s.items.length > 0);
-  }, [groups, theme, q, effectiveResults, onClose, onToggleTheme, onSignOut, router]);
+  }, [groups, theme, q, effectiveResults, onClose, onToggleTheme, onSignOut, router, isSuperAdmin]);
 
   const flat = sections.flatMap((s) => s.items);
   const current = Math.min(active, Math.max(0, flat.length - 1));

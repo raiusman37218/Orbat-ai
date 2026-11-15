@@ -1,51 +1,58 @@
-import React from 'react';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/pg/server';
 import { sessionUser } from '@/lib/auth/session-user';
+import { assertSuperAdmin } from '@/app/actions/platform';
 import { WorkspaceDetailView } from '@/components/admin/WorkspaceDetailView';
+import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
-interface PageProps {
+export const dynamic = 'force-dynamic';
+
+export default async function AdminWorkspaceDetailPage({
+  params,
+}: {
   params: Promise<{ id: string }>;
-}
-
-export const metadata = {
-  title: 'Workspace Detail — Orbat AI Super Admin',
-  description: 'Inspect workspace metrics, members, channels, and private platform owner notes.',
-};
-
-export default async function WorkspacePage({ params }: PageProps) {
+}) {
   const { id } = await params;
-  const user = await sessionUser();
+  const supabase = await createClient();
+  const user = await sessionUser(supabase);
 
   if (!user) {
-    redirect(`/login?redirect=/admin/workspaces/${id}`);
+    redirect('/login');
   }
 
-  const db = await createClient();
-
-  // Enforce server-side authorization: only platform super admin
-  const { data: agent } = await db
+  const { data: agent } = await supabase
     .from('agents')
-    .select('is_super_admin')
+    .select('id, is_super_admin')
     .eq('id', user.id)
-    .single();
+    .maybeSingle();
 
-  if (!agent?.is_super_admin) {
+  let isAuthorized = Boolean(agent?.is_super_admin);
+  if (!isAuthorized) {
+    try {
+      await assertSuperAdmin();
+      isAuthorized = true;
+    } catch {
+      isAuthorized = false;
+    }
+  }
+
+  if (!isAuthorized) {
     return (
-      <div className="flex h-screen w-screen flex-col items-center justify-center bg-canvas text-ink p-6">
-        <div className="max-w-md w-full p-8 rounded-2xl border border-danger/30 bg-surface text-center space-y-4 shadow-lg">
-          <div className="w-12 h-12 rounded-xl bg-danger/10 text-danger flex items-center justify-center mx-auto text-xl font-bold">
-            403
+      <div className="min-h-screen bg-bg flex items-center justify-center p-4">
+        <div className="max-w-md w-full bg-surface border border-line rounded-xl p-8 text-center shadow-sm">
+          <div className="w-12 h-12 rounded-full bg-danger/10 text-danger flex items-center justify-center mx-auto mb-4">
+            <ShieldAlert className="w-6 h-6" />
           </div>
-          <h1 className="text-xl font-bold text-ink tracking-tight">403 - Forbidden</h1>
-          <p className="text-sm text-ink-3">
-            Access denied. Platform super administrator privileges are required to view this workspace.
+          <h1 className="text-lg font-semibold text-ink mb-2">403 - Forbidden</h1>
+          <p className="text-xs text-ink-2 mb-6">
+            Platform super administrator privileges are required to view workspace details.
           </p>
           <a
             href="/app"
-            className="inline-block px-4 py-2 rounded-xl bg-accent text-accent-ink text-xs font-semibold hover:opacity-90 transition-opacity"
+            className="inline-flex items-center gap-2 px-4 py-2 bg-accent hover:bg-accent-hover text-white text-xs font-medium rounded-lg transition-colors"
           >
-            Return to Dashboard
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Return to Workspace
           </a>
         </div>
       </div>

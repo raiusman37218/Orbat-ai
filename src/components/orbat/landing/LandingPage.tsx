@@ -112,7 +112,22 @@ const HERO_CONVOS = [
     avColor: '#6B1238',
     tagBg: '#FDF2E3',
     tagColor: '#A4510B',
-    active: true,
+    subtitle: 'Website chat · VIP',
+    customerMsg1: 'Hi, where’s order #2048? I need it by Saturday — it’s a gift.',
+    aiMsg:
+      'It shipped Nov 5, but tracking hasn’t moved. I can’t promise Saturday, so I’m bringing in Alex.',
+    eventPill: 'Alex joined · summary attached',
+    agentSender: 'Alex · Support',
+    agentMsg: 'Free express re-ship is on its way, arriving Friday. Sorry for the wait!',
+    customerMsg2: 'You’re the best, thank you!',
+    resolvedBadge: 'Resolved in 3m 12s · CSAT 5/5',
+    summary: [
+      { k: 'Intent', v: 'Delivery by Saturday (gift)' },
+      { k: 'Already tried', v: 'Tracking link, carrier status' },
+      { k: 'Customer', v: 'VIP · 9 orders · $1,284' },
+      { k: 'Why handed off', v: 'Asked for a guarantee' },
+    ],
+    suggestedStep: 'Offer free express re-ship. Within your refund limit.',
   },
   {
     ini: 'BA',
@@ -124,7 +139,22 @@ const HERO_CONVOS = [
     avColor: '#0B4A50',
     tagBg: '#F1ECFD',
     tagColor: '#6D3FD6',
-    active: false,
+    subtitle: 'WhatsApp · Lahore',
+    customerMsg1: 'Assalam o alaikum, mera order #9182 kab tak deliver hoga?',
+    aiMsg:
+      'Walaikum assalam Bilal! Aapka parcel TCS ke paas hai aur aaj shaam 6 baje tak deliver ho jayega.',
+    eventPill: 'Live courier webhook verified · TCS #77410',
+    agentSender: 'Nova · Autopilot',
+    agentMsg: 'Tracking link SMS bhi bhej diya gaya hai. Koi aur madad chahiye?',
+    customerMsg2: 'Bohat shukriya, mil gaya link!',
+    resolvedBadge: 'Resolved by AI in 24s · CSAT 5/5',
+    summary: [
+      { k: 'Intent', v: 'Delivery ETA check (Roman Urdu)' },
+      { k: 'Already tried', v: 'Verified TCS live webhook' },
+      { k: 'Customer', v: 'Repeat buyer · 4 orders · PKR 42,000' },
+      { k: 'Resolution', v: 'Autopilot · 98% confidence' },
+    ],
+    suggestedStep: 'No human action needed. Auto-tagged as Shipping Inquiry.',
   },
   {
     ini: 'MR',
@@ -136,7 +166,22 @@ const HERO_CONVOS = [
     avColor: '#6B3410',
     tagBg: '#E2F6D5',
     tagColor: '#163300',
-    active: false,
+    subtitle: 'Instagram DM · Milan',
+    customerMsg1: 'Code WELCOME15 says expired at checkout on the espresso grinder.',
+    aiMsg:
+      'WELCOME15 ended yesterday, but I generated a fresh 15% code for your cart: MARCO15.',
+    eventPill: 'Shopify discount created · limit 1 use',
+    agentSender: 'Nova · Autopilot',
+    agentMsg: 'I’ve also applied MARCO15 directly to your active checkout session.',
+    customerMsg2: 'Worked immediately, just placed the order!',
+    resolvedBadge: 'Resolved by AI in 41s · $240 cart saved',
+    summary: [
+      { k: 'Intent', v: 'Promo code recovery at checkout' },
+      { k: 'Already tried', v: 'Checked promo rules & cart value' },
+      { k: 'Customer', v: 'New customer · Cart $240' },
+      { k: 'Action taken', v: 'Issued single-use 15% code' },
+    ],
+    suggestedStep: 'Completed within autonomous promo policy (max 15%).',
   },
   {
     ini: 'AR',
@@ -148,7 +193,22 @@ const HERO_CONVOS = [
     avColor: '#0F4D2F',
     tagBg: '#F4F5F1',
     tagColor: '#454745',
-    active: false,
+    subtitle: 'Email · Billing priority',
+    customerMsg1: 'I see two $68 charges on my Visa ending 4012 for order #3109.',
+    aiMsg:
+      'I checked Stripe: one is a captured charge and the second is an uncaptured pre-authorization hold.',
+    eventPill: 'Sentinel redacted card PAN · Stripe hold released',
+    agentSender: 'Maya · Billing Lead',
+    agentMsg: 'I’ve voided the duplicate authorization hold and sent the Stripe receipt to your email.',
+    customerMsg2: 'Got the receipt, appreciate the fast help!',
+    resolvedBadge: 'Resolved in 4m 05s · PCI DSS clean',
+    summary: [
+      { k: 'Intent', v: 'Duplicate charge investigation' },
+      { k: 'Already tried', v: 'Stripe payment intent lookup' },
+      { k: 'Customer', v: 'Subscriber · $68/mo plan' },
+      { k: 'Why handed off', v: 'Billing dispute policy check' },
+    ],
+    suggestedStep: 'Send official void confirmation receipt from Stripe.',
   },
   {
     ini: 'PN',
@@ -160,15 +220,23 @@ const HERO_CONVOS = [
     avColor: '#3B1F73',
     tagBg: '#E2F6D5',
     tagColor: '#163300',
-    active: false,
+    subtitle: 'Website chat · Product FAQ',
+    customerMsg1: 'Can I wash the merino wool throw in a normal washing machine?',
+    aiMsg:
+      'Yes — use a cold gentle wool cycle (30°C max) with mild detergent, and lay flat to dry.',
+    eventPill: 'Cited from Care Guide v4 · 99% match',
+    agentSender: 'Nova · Autopilot',
+    agentMsg: 'Would you like me to send the full PDF care card to your email?',
+    customerMsg2: 'Yes please, thank you!',
+    resolvedBadge: 'Resolved by AI in 19s · CSAT 5/5',
+    summary: [
+      { k: 'Intent', v: 'Product care & material FAQ' },
+      { k: 'Already tried', v: 'Matched Merino Care Guide article' },
+      { k: 'Customer', v: 'Browsing · Merino Throw product page' },
+      { k: 'Resolution', v: 'Answered with verified citation' },
+    ],
+    suggestedStep: 'Knowledge article matched with high confidence.',
   },
-];
-
-const HERO_SUMMARY = [
-  { k: 'Intent', v: 'Delivery by Saturday (gift)' },
-  { k: 'Already tried', v: 'Tracking link, carrier status' },
-  { k: 'Customer', v: 'VIP · 9 orders · $1,284' },
-  { k: 'Why handed off', v: 'Asked for a guarantee' },
 ];
 
 const LOGOS: Array<{ n: string; w: number; ls: string; f: string }> = [
@@ -382,14 +450,22 @@ const FOOTER_COLS = [
   },
 ];
 
-export function LandingPage() {
+export function LandingPage({
+  isSignedIn = false,
+  isSuperAdmin = false,
+}: {
+  isSignedIn?: boolean;
+  isSuperAdmin?: boolean;
+} = {}) {
   const [activeTab, setActiveTab] = useState<ProductTabKey>('ai');
   const [activeLang, setActiveLang] = useState<LangKey>('Roman Urdu');
   const [openFaq, setOpenFaq] = useState<number>(0);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activeConvoIdx, setActiveConvoIdx] = useState<number>(0);
 
   const currentTab = TABS[activeTab];
   const currentLang = LANGS[activeLang];
+  const activeConvo = HERO_CONVOS[activeConvoIdx] ?? HERO_CONVOS[0];
   const marqueeLogos = [...LOGOS, ...LOGOS];
 
   function toggleTheme() {
@@ -478,15 +554,33 @@ export function LandingPage() {
                 <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
               </svg>
             </button>
-            <Link className="o-lp-navl o-lp-hide-mobile" href="/login">
-              Log in
-            </Link>
-            <a className="o-lp-pill o-lp-pill-sm o-lp-p-soft o-lp-hide-mobile" href="#demo">
-              Book a demo
-            </a>
-            <Link className="o-lp-pill o-lp-pill-sm o-lp-p-lime" href="/signup">
-              Start free trial
-            </Link>
+            {isSignedIn ? (
+              <>
+                {isSuperAdmin ? (
+                  <Link className="o-lp-navl o-lp-hide-mobile" href="/admin">
+                    Super Admin
+                  </Link>
+                ) : null}
+                <a className="o-lp-pill o-lp-pill-sm o-lp-p-soft o-lp-hide-mobile" href="#demo">
+                  Book a demo
+                </a>
+                <Link className="o-lp-pill o-lp-pill-sm o-lp-p-lime" href="/app">
+                  Open workspace
+                </Link>
+              </>
+            ) : (
+              <>
+                <Link className="o-lp-navl o-lp-hide-mobile" href="/login">
+                  Log in
+                </Link>
+                <a className="o-lp-pill o-lp-pill-sm o-lp-p-soft o-lp-hide-mobile" href="#demo">
+                  Book a demo
+                </a>
+                <Link className="o-lp-pill o-lp-pill-sm o-lp-p-lime" href="/signup">
+                  Start free trial
+                </Link>
+              </>
+            )}
             <button
               type="button"
               className="o-lp-mobile-toggle"
@@ -532,16 +626,39 @@ export function LandingPage() {
               Resources
             </Link>
             <div style={{ display: 'flex', gap: 8, paddingTop: 8, flexWrap: 'wrap' }}>
-              <Link className="o-lp-pill o-lp-pill-sm o-lp-p-soft" href="/login">
-                Log in
-              </Link>
-              <a
-                className="o-lp-pill o-lp-pill-sm o-lp-p-soft"
-                href="#demo"
-                onClick={() => setMobileMenuOpen(false)}
-              >
-                Book a demo
-              </a>
+              {isSignedIn ? (
+                <>
+                  {isSuperAdmin ? (
+                    <Link
+                      className="o-lp-pill o-lp-pill-sm o-lp-p-soft"
+                      href="/admin"
+                      onClick={() => setMobileMenuOpen(false)}
+                    >
+                      Super Admin
+                    </Link>
+                  ) : null}
+                  <Link
+                    className="o-lp-pill o-lp-pill-sm o-lp-p-lime"
+                    href="/app"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Open workspace
+                  </Link>
+                </>
+              ) : (
+                <>
+                  <Link className="o-lp-pill o-lp-pill-sm o-lp-p-soft" href="/login">
+                    Log in
+                  </Link>
+                  <a
+                    className="o-lp-pill o-lp-pill-sm o-lp-p-soft"
+                    href="#demo"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Book a demo
+                  </a>
+                </>
+              )}
             </div>
           </div>
         ) : null}
@@ -614,8 +731,8 @@ export function LandingPage() {
           </p>
 
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
-            <Link className="o-lp-pill o-lp-p-lime" href="/signup">
-              Start free — 14 days
+            <Link className="o-lp-pill o-lp-p-lime" href={isSignedIn ? '/app' : '/signup'}>
+              {isSignedIn ? 'Open workspace' : 'Start free — 14 days'}
               <svg
                 width="18"
                 height="18"
@@ -682,77 +799,92 @@ export function LandingPage() {
                   24 open
                 </span>
               </div>
-              {HERO_CONVOS.map((c) => (
-                <div
-                  key={c.n}
-                  style={{
-                    display: 'flex',
-                    gap: 10,
-                    padding: '12px 18px',
-                    borderTop: '1px solid var(--border)',
-                    background: c.active ? 'var(--ok-soft)' : 'var(--surface)',
-                    boxShadow: c.active ? 'inset 3px 0 0 #9FE870' : 'none',
-                  }}
-                >
-                  <span
+              {HERO_CONVOS.map((c, idx) => {
+                const isActive = idx === activeConvoIdx;
+                return (
+                  <div
+                    key={c.n}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={isActive}
+                    onClick={() => setActiveConvoIdx(idx)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        setActiveConvoIdx(idx);
+                      }
+                    }}
                     style={{
-                      flex: 'none',
-                      width: 32,
-                      height: 32,
-                      borderRadius: 99,
-                      display: 'grid',
-                      placeItems: 'center',
-                      fontSize: 12,
-                      fontWeight: 700,
-                      background: c.avBg,
-                      color: c.avColor,
+                      display: 'flex',
+                      gap: 10,
+                      padding: '12px 18px',
+                      borderTop: '1px solid var(--border)',
+                      background: isActive ? 'var(--ok-soft)' : 'var(--surface)',
+                      boxShadow: isActive ? 'inset 3px 0 0 #9FE870' : 'none',
+                      cursor: 'pointer',
+                      textAlign: 'left',
                     }}
                   >
-                    {c.ini}
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0 }}>
                     <span
                       style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        fontSize: 13.5,
-                        fontWeight: 600,
+                        flex: 'none',
+                        width: 32,
+                        height: 32,
+                        borderRadius: 99,
+                        display: 'grid',
+                        placeItems: 'center',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        background: c.avBg,
+                        color: c.avColor,
                       }}
                     >
-                      <span>{c.n}</span>
-                      <span style={{ fontWeight: 400, color: 'var(--text-3)', fontSize: 12 }}>
-                        {c.t}
+                      {c.ini}
+                    </span>
+                    <span style={{ flex: 1, minWidth: 0 }}>
+                      <span
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          fontSize: 13.5,
+                          fontWeight: 600,
+                        }}
+                      >
+                        <span>{c.n}</span>
+                        <span style={{ fontWeight: 400, color: 'var(--text-3)', fontSize: 12 }}>
+                          {c.t}
+                        </span>
+                      </span>
+                      <span
+                        style={{
+                          display: 'block',
+                          fontSize: 12.5,
+                          color: 'var(--text-3)',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {c.p}
+                      </span>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          marginTop: 4,
+                          fontSize: 11,
+                          fontWeight: 600,
+                          padding: '1px 7px',
+                          borderRadius: 99,
+                          background: c.tagBg,
+                          color: c.tagColor,
+                        }}
+                      >
+                        {c.tag}
                       </span>
                     </span>
-                    <span
-                      style={{
-                        display: 'block',
-                        fontSize: 12.5,
-                        color: 'var(--text-3)',
-                        whiteSpace: 'nowrap',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                      }}
-                    >
-                      {c.p}
-                    </span>
-                    <span
-                      style={{
-                        display: 'inline-block',
-                        marginTop: 4,
-                        fontSize: 11,
-                        fontWeight: 600,
-                        padding: '1px 7px',
-                        borderRadius: 99,
-                        background: c.tagBg,
-                        color: c.tagColor,
-                      }}
-                    >
-                      {c.tag}
-                    </span>
-                  </span>
-                </div>
-              ))}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Chat pane */}
@@ -776,15 +908,17 @@ export function LandingPage() {
                     placeItems: 'center',
                     fontSize: 12,
                     fontWeight: 700,
-                    background: '#FAD4E4',
-                    color: '#6B1238',
+                    background: activeConvo.avBg,
+                    color: activeConvo.avColor,
                   }}
                 >
-                  SJ
+                  {activeConvo.ini}
                 </span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontWeight: 600, fontSize: 14.5 }}>Sarah Johnson</div>
-                  <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>Website chat · VIP</div>
+                <div style={{ flex: 1, textAlign: 'left' }}>
+                  <div style={{ fontWeight: 600, fontSize: 14.5 }}>{activeConvo.n}</div>
+                  <div style={{ fontSize: 12.5, color: 'var(--text-3)' }}>
+                    {activeConvo.subtitle}
+                  </div>
                 </div>
                 <span
                   style={{
@@ -811,6 +945,7 @@ export function LandingPage() {
                   display: 'flex',
                   flexDirection: 'column',
                   gap: 10,
+                  textAlign: 'left',
                 }}
               >
                 <div
@@ -821,7 +956,7 @@ export function LandingPage() {
                     borderRadius: '4px 16px 16px 16px',
                   }}
                 >
-                  Hi, where’s order #2048? I need it by Saturday — it’s a gift.
+                  {activeConvo.customerMsg1}
                 </div>
 
                 <div
@@ -843,8 +978,7 @@ export function LandingPage() {
                   >
                     Nova · AI
                   </b>
-                  It shipped Nov 5, but tracking hasn’t moved. I can’t promise Saturday, so I’m
-                  bringing in Alex.
+                  {activeConvo.aiMsg}
                 </div>
 
                 <div
@@ -859,7 +993,7 @@ export function LandingPage() {
                     boxShadow: '0 0 0 1px var(--border)',
                   }}
                 >
-                  Alex joined · summary attached
+                  {activeConvo.eventPill}
                 </div>
 
                 <div
@@ -879,9 +1013,9 @@ export function LandingPage() {
                       marginBottom: 2,
                     }}
                   >
-                    Alex · Support
+                    {activeConvo.agentSender}
                   </b>
-                  Free express re-ship is on its way, arriving Friday. Sorry for the wait!
+                  {activeConvo.agentMsg}
                 </div>
 
                 <div
@@ -892,7 +1026,7 @@ export function LandingPage() {
                     borderRadius: '4px 16px 16px 16px',
                   }}
                 >
-                  You’re the best, thank you!
+                  {activeConvo.customerMsg2}
                 </div>
 
                 <div
@@ -907,7 +1041,7 @@ export function LandingPage() {
                     background: '#9FE870',
                   }}
                 >
-                  Resolved in 3m 12s · CSAT 5/5
+                  {activeConvo.resolvedBadge}
                 </div>
               </div>
 
@@ -932,6 +1066,7 @@ export function LandingPage() {
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
+                    textAlign: 'left',
                   }}
                 >
                   Reply, or type / for saved replies
@@ -949,7 +1084,8 @@ export function LandingPage() {
                 >
                   AI draft
                 </span>
-                <span
+                <Link
+                  href={isSignedIn ? '/app/inbox' : '/signup'}
                   style={{
                     padding: '7px 12px',
                     borderRadius: 99,
@@ -958,17 +1094,18 @@ export function LandingPage() {
                     fontSize: 12.5,
                     fontWeight: 700,
                     flexShrink: 0,
+                    textDecoration: 'none',
                   }}
                 >
                   Send
-                </span>
+                </Link>
               </div>
             </div>
 
             {/* Context pane */}
-            <div className="o-lp-shot-ctx">
+            <div className="o-lp-shot-ctx" style={{ textAlign: 'left' }}>
               <div style={{ fontWeight: 700, fontSize: 14 }}>Handoff summary</div>
-              {HERO_SUMMARY.map((r) => (
+              {activeConvo.summary.map((r) => (
                 <div key={r.k}>
                   <div
                     style={{
@@ -996,7 +1133,7 @@ export function LandingPage() {
                   Suggested next step
                 </div>
                 <div style={{ fontSize: 13, color: 'var(--forest)', marginTop: 3 }}>
-                  Offer free express re-ship. Within your refund limit.
+                  {activeConvo.suggestedStep}
                 </div>
               </div>
             </div>
@@ -2131,18 +2268,18 @@ export function LandingPage() {
               </p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                 <Link
-                  href="/signup"
+                  href={isSignedIn ? '/app' : '/signup'}
                   className="o-lp-pill"
                   style={{ background: '#163300', color: '#FFFFFF' }}
                 >
-                  Start free trial
+                  {isSignedIn ? 'Open workspace' : 'Start free trial'}
                 </Link>
                 <Link
-                  href="/login"
+                  href="/widget"
                   className="o-lp-pill"
                   style={{ background: 'rgba(22, 51, 0, 0.1)', color: '#163300' }}
                 >
-                  Book a demo
+                  Try live widget
                 </Link>
               </div>
             </div>
@@ -2313,15 +2450,18 @@ export function LandingPage() {
         >
           <span>© 2026 ORBAT AI</span>
           <span style={{ display: 'flex', gap: 20 }}>
-            <a href="#security" style={{ color: '#CFE0C2', textDecoration: 'none' }}>
+            <Link href="/privacy" style={{ color: '#CFE0C2', textDecoration: 'none' }}>
               Privacy
-            </a>
-            <a href="#security" style={{ color: '#CFE0C2', textDecoration: 'none' }}>
+            </Link>
+            <Link href="/terms" style={{ color: '#CFE0C2', textDecoration: 'none' }}>
               Terms
-            </a>
-            <a href="#security" style={{ color: '#CFE0C2', textDecoration: 'none' }}>
+            </Link>
+            <Link
+              href="/privacy#information-we-collect"
+              style={{ color: '#CFE0C2', textDecoration: 'none' }}
+            >
               Cookies
-            </a>
+            </Link>
           </span>
         </div>
       </footer>

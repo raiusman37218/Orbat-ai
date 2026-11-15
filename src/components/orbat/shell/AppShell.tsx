@@ -144,6 +144,7 @@ export function AppShell({ session, children }: { session: ShellSession; childre
         theme={theme}
         onToggleTheme={toggle}
         onSignOut={handleSignOut}
+        isSuperAdmin={session.agent.isSuperAdmin}
       />
 
       <Modal open={helpOpen} onClose={() => setHelpOpen(false)} title="Keyboard shortcuts">

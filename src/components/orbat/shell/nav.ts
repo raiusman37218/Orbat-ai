@@ -94,11 +94,14 @@ const EXTRA_PAGES: { href: string; label: string; group: string }[] = [
   { href: '/app/states', label: 'System states', group: 'Workspace' },
   { href: '/app/handoff', label: 'Handoff', group: 'Workspace' },
   { href: '/app/automation/journeys', label: 'Journeys', group: 'AI & Knowledge' },
+  { href: '/app/journeys', label: 'Journeys', group: 'AI & Knowledge' },
   { href: '/app/team/schedule', label: 'Schedule', group: 'Admin' },
   { href: '/app/compliance/policies', label: 'Policies', group: 'Admin' },
   { href: '/app/compliance/website-audit', label: 'Website audit', group: 'Admin' },
   { href: '/app/channels/connect', label: 'Connect a CRM', group: 'Admin' },
+  { href: '/app/crm', label: 'Connect a CRM', group: 'Admin' },
   { href: '/app/settings/emails', label: 'Email templates', group: 'Admin' },
+  { href: '/app/emails', label: 'Email templates', group: 'Admin' },
   { href: '/app/profile', label: 'My profile', group: 'Account' },
 ];
 
@@ -118,6 +121,9 @@ function matches(pathname: string, href: string): boolean {
    /app/agents/templates highlights "Agent templates", not "AI Agents". */
 export function activeNavId(pathname: string): string | null {
   if (pathname.startsWith('/app/agents/') && pathname !== '/app/agents/templates') return 'builder';
+  if (matches(pathname, '/app/crm')) return 'channels';
+  if (matches(pathname, '/app/emails')) return 'settings';
+  if (matches(pathname, '/app/journeys')) return 'automation';
   let best: NavItem | null = null;
   for (const g of NAV) {
     for (const item of g.items) {

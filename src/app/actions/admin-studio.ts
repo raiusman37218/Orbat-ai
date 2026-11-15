@@ -63,9 +63,34 @@ export interface SuperAdminStaffInvitationRow {
   id: string;
   email: string;
   name: string | null;
+  token: string;
   status: string;
   createdAt: string;
   expiresAt: string;
+}
+
+function normalizePaygRates(raw?: Record<string, number> | null): Record<string, number> {
+  const r = raw ?? {};
+  const conversationBaseUsd = Number(r.conversationBaseUsd ?? r.conversation_base ?? 0.1);
+  const aiLightUsd = Number(r.aiLightUsd ?? r.ai_light ?? 0.01);
+  const aiStandardUsd = Number(r.aiStandardUsd ?? r.ai_standard ?? 0.03);
+  const aiAdvancedUsd = Number(r.aiAdvancedUsd ?? r.ai_advanced ?? 0.08);
+  const voiceMinuteUsd = Number(r.voiceMinuteUsd ?? r.voice_minute ?? 0.08);
+  const websiteAuditUsd = Number(r.websiteAuditUsd ?? r.website_audit ?? 4.0);
+  return {
+    conversationBaseUsd,
+    aiLightUsd,
+    aiStandardUsd,
+    aiAdvancedUsd,
+    voiceMinuteUsd,
+    websiteAuditUsd,
+    conversation_base: conversationBaseUsd,
+    ai_light: aiLightUsd,
+    ai_standard: aiStandardUsd,
+    ai_advanced: aiAdvancedUsd,
+    voice_minute: voiceMinuteUsd,
+    website_audit: websiteAuditUsd,
+  };
 }
 
 export interface SuperAdminConsoleBundle {
@@ -205,8 +230,16 @@ export async function getSuperAdminConsoleBundleAction(): Promise<
          ORDER BY ter.created_at DESC
          LIMIT 20`,
       ).catch(() => []),
-      queryRows<{ id: string; email: string; name: string | null; status: string; created_at: string; expires_at: string }>(
-        `SELECT id, email, name, status, created_at, expires_at
+      queryRows<{
+        id: string;
+        email: string;
+        name: string | null;
+        token: string | null;
+        status: string;
+        created_at: string;
+        expires_at: string;
+      }>(
+        `SELECT id, email, name, token, status, created_at, expires_at
          FROM public.platform_super_admin_invitations
          WHERE status = 'pending'
          ORDER BY created_at DESC LIMIT 20`,
@@ -313,20 +346,14 @@ export async function getSuperAdminConsoleBundleAction(): Promise<
         },
         platformSettings: {
           ...platformSettings,
-          paygRates: extraSettingsRows[0]?.payg_rates ?? {
-            conversation_base: 0.1,
-            ai_light: 0.01,
-            ai_standard: 0.03,
-            ai_advanced: 0.08,
-            voice_minute: 0.08,
-            website_audit: 4.0,
-          },
+          paygRates: normalizePaygRates(extraSettingsRows[0]?.payg_rates),
         },
         staff,
         pendingStaffInvites: inviteRows.map((i) => ({
           id: i.id,
           email: i.email,
           name: i.name,
+          token: i.token ?? '',
           status: i.status,
           createdAt: i.created_at,
           expiresAt: i.expires_at,
@@ -489,7 +516,7 @@ export async function adminSavePlatformGovernanceAction(input: {
     if (input.paygRates) {
       await query(
         `UPDATE public.platform_settings SET payg_rates = $1::jsonb, updated_at = now() WHERE id = 'default'`,
-        [JSON.stringify(input.paygRates)],
+        [JSON.stringify(normalizePaygRates(input.paygRates))],
       );
     }
     return { success: true };
@@ -501,7 +528,7 @@ export async function adminSavePlatformGovernanceAction(input: {
 export async function adminInviteStaffAction(
   email: string,
   name: string,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; token?: string; error?: string }> {
   try {
     const { agent } = await assertPlatformOwner();
     const cleanEmail = (email || '').trim().toLowerCase();
@@ -521,7 +548,7 @@ export async function adminInviteStaffAction(
       action: 'platform_staff_invited',
       details: { email: cleanEmail },
     });
-    return { success: true };
+    return { success: true, token };
   } catch (err) {
     return { success: false, error: errorMessage(err, 'Could not invite staff member.') };
   }

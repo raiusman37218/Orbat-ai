@@ -57,6 +57,7 @@ import {
   adminToggleSettingLockAction,
   AdminWorkspaceControlData,
 } from '@/app/actions/platform-control';
+import { switchWorkspaceAction } from '@/app/actions/platform';
 import { exportWorkspaceDataAction, scheduleWorkspaceDeletionAction, cancelWorkspaceDeletionAction } from '@/app/actions/platform-management';
 import { PLAN_FEATURES, PLAN_LIMITS, PlanFeatureKey, PlanLimitKey } from '@/lib/plans/features';
 import { Button } from '@/components/ui/Button';
@@ -197,7 +198,7 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-[1360px] px-4 py-6 sm:px-8 sm:py-8 space-y-6">
       {/* Breadcrumb Navigation */}
       <nav aria-label="Breadcrumb" className="flex items-center gap-2 text-xs text-ink-3">
         <Link href="/admin" className="hover:text-ink transition-colors flex items-center gap-1">
@@ -205,7 +206,7 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
           <span>Platform Admin</span>
         </Link>
         <ChevronRight className="w-3 h-3" />
-        <Link href="/admin/workspaces" className="hover:text-ink transition-colors">
+        <Link href="/admin?tab=workspaces" className="hover:text-ink transition-colors">
           <span>Workspaces</span>
         </Link>
         <ChevronRight className="w-3 h-3" />
@@ -253,7 +254,23 @@ export function WorkspaceDetailView({ workspaceId }: WorkspaceDetailViewProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={async () => {
+              try {
+                await switchWorkspaceAction({ workspaceId });
+                router.push('/app');
+              } catch (err: any) {
+                toast.error(errorMessage(err, 'Could not switch into workspace.'));
+              }
+            }}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>Open in App</span>
+          </Button>
+
           <Button
             variant="secondary"
             size="sm"

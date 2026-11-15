@@ -2,138 +2,139 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowRight, Menu, X } from 'lucide-react';
-import { Logo } from '@/components/ui/Logo';
-import { ThemeToggle } from '@/components/ui/ThemeToggle';
+import { Menu, X } from 'lucide-react';
+import { OrbatMark } from '@/components/orbat/shell/Sidebar';
 
-const menuItems = [
-  { name: 'Features', href: '#features' },
-  { name: 'Team', href: '#team' },
-  { name: 'Testimonials', href: '#testimonials' },
-  { name: 'Pricing', href: '#pricing' },
-  { name: 'FAQ', href: '#faq' },
-];
-
-export function LandingNav() {
+export function LandingNav({ isSuperAdmin = false }: { isSuperAdmin?: boolean }) {
+  const [scrolled, setScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
 
   useEffect(() => {
-    const handleScroll = () => {
-      setIsScrolled(window.scrollY > 40);
-    };
-    window.addEventListener('scroll', handleScroll);
+    const handleScroll = () => setScrolled(window.scrollY > 24);
+    handleScroll();
+    window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  const navItems = [
+    { label: 'Product', href: '/#product' },
+    { label: 'Industries', href: '/#industries' },
+    { label: 'Pricing', href: '/pricing' },
+    { label: 'Security', href: '/#security' },
+    { label: 'Help Center', href: '/help' },
+  ];
+
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 px-3 sm:px-6 pt-3 pb-2 transition-all duration-300" data-orbat-no-nav="" data-zentry-no-nav="">
-      <div
-        className={`mx-auto transition-all duration-300 px-4 sm:px-6 py-2.5 flex items-center justify-between gap-4 ${
-          isScrolled
-            ? 'max-w-4xl rounded-full bg-white/85 dark:bg-[#060c1c]/85 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 shadow-[0_8px_32px_rgba(0,0,0,0.08)]'
-            : 'max-w-6xl rounded-2xl bg-white/70 dark:bg-[#060c1c]/70 backdrop-blur-md border border-slate-200/60 dark:border-white/10 shadow-xs'
-        }`}
-      >
-        {/* Logo */}
-        <Link href="/" className="flex items-center gap-2 select-none shrink-0">
-          <Logo size={32} />
+    <header
+      className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        scrolled
+          ? 'bg-white/85 backdrop-blur-xl border-b border-slate-200/80 shadow-[0_1px_12px_-4px_rgba(15,23,42,0.06)] py-3'
+          : 'bg-white/60 backdrop-blur-md border-b border-transparent py-4'
+      }`}
+    >
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2.5 group no-underline">
+          <OrbatMark size={32} />
+          <span className="font-o-display text-lg font-black tracking-tight text-slate-900">
+            ORBAT
+          </span>
         </Link>
 
-        {/* Desktop Navigation Links */}
-        <nav className="hidden md:flex items-center gap-1 sm:gap-2 text-sm font-medium">
-          {menuItems.map((item) => (
+        {/* Desktop Nav */}
+        <nav className="hidden md:flex items-center gap-7">
+          {navItems.map((item) => (
             <Link
-              key={item.name}
+              key={item.label}
               href={item.href}
-              className="px-3.5 py-1.5 rounded-full text-[#596171] hover:text-[#4f46e5] dark:text-slate-300 dark:hover:text-white hover:bg-[#ededfc] dark:hover:bg-white/10 transition-colors"
+              className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
             >
-              {item.name}
+              {item.label}
             </Link>
           ))}
-          <a
-            href="/demo.html"
-            target="_blank"
-            rel="noreferrer"
-            className="px-3.5 py-1.5 rounded-full text-[#596171] hover:text-[#4f46e5] dark:text-slate-300 dark:hover:text-white hover:bg-[#ededfc] dark:hover:bg-white/10 transition-colors inline-flex items-center gap-1.5"
-          >
-            <span>Live Demo</span>
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          </a>
         </nav>
 
-        {/* Right Actions */}
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0">
-          <ThemeToggle className="inline-flex shrink-0" />
-
+        {/* Desktop Actions */}
+        <div className="hidden md:flex items-center gap-3">
+          {isSuperAdmin && (
+            <Link
+              href="/admin"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-800 hover:bg-amber-100 text-xs font-semibold transition-all"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+              Super Admin
+            </Link>
+          )}
+          <Link
+            href="/widget"
+            className="text-sm font-medium text-slate-600 hover:text-slate-900 px-3 py-2 rounded-lg hover:bg-slate-100/80 transition-colors"
+          >
+            Live Widget
+          </Link>
           <Link
             href="/login"
-            className="hidden sm:inline-flex px-3.5 py-1.5 text-xs sm:text-sm font-semibold text-[#596171] hover:text-[#060c1c] dark:text-slate-300 dark:hover:text-white transition-colors"
+            className="text-sm font-semibold text-slate-700 hover:text-slate-900 px-3.5 py-2 rounded-lg hover:bg-slate-100/80 transition-colors"
           >
             Sign In
           </Link>
-
           <Link
             href="/signup"
-            className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 rounded-full bg-[#4f46e5] hover:bg-[#4338ca] text-white text-xs sm:text-sm font-semibold shadow-[0_2px_12px_rgba(79,70,229,0.3)] transition-all hover:scale-[1.02] active:scale-[0.98]"
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-slate-900 hover:bg-slate-800 px-4 py-2 rounded-xl shadow-sm transition-all active:scale-[0.98]"
           >
-            <span>Get Started</span>
-            <ArrowRight className="w-3.5 h-3.5" />
+            Start Free Trial
           </Link>
-
-          {/* Mobile hamburger trigger */}
-          <button
-            type="button"
-            onClick={() => setMobileMenuOpen((prev) => !prev)}
-            aria-label="Toggle navigation menu"
-            className="md:hidden w-9 h-9 flex items-center justify-center rounded-full text-[#060c1c] dark:text-white hover:bg-[#ededfc] dark:hover:bg-white/10 transition-colors border border-slate-200 dark:border-white/10"
-          >
-            {mobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
-          </button>
         </div>
+
+        {/* Mobile Toggle */}
+        <button
+          type="button"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="md:hidden p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
+          aria-label="Toggle Menu"
+        >
+          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
       </div>
 
       {/* Mobile Drawer */}
       {mobileMenuOpen && (
-        <div className="md:hidden mt-2 max-w-4xl mx-auto rounded-3xl bg-white/95 dark:bg-[#060c1c]/95 backdrop-blur-xl border border-slate-200/90 dark:border-white/15 p-5 shadow-2xl animate-in fade-in slide-in-from-top-2 duration-150">
-          <nav className="flex flex-col space-y-1 text-sm font-medium">
-            {menuItems.map((item) => (
+        <div className="md:hidden bg-white border-b border-slate-200 px-4 pt-3 pb-6 space-y-3 shadow-lg">
+          <div className="flex flex-col space-y-1">
+            {navItems.map((item) => (
               <Link
-                key={item.name}
+                key={item.label}
                 href={item.href}
                 onClick={() => setMobileMenuOpen(false)}
-                className="px-3.5 py-2.5 rounded-xl text-[#060c1c] dark:text-white hover:bg-[#ededfc] dark:hover:bg-white/10"
+                className="px-3 py-2 rounded-lg text-sm font-medium text-slate-700 hover:bg-slate-100"
               >
-                {item.name}
+                {item.label}
               </Link>
             ))}
-            <a
-              href="/demo.html"
-              target="_blank"
-              rel="noreferrer"
+          </div>
+          <div className="pt-3 border-t border-slate-100 flex flex-col gap-2">
+            {isSuperAdmin && (
+              <Link
+                href="/admin"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full text-center py-2.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold"
+              >
+                Super Admin Console
+              </Link>
+            )}
+            <Link
+              href="/login"
               onClick={() => setMobileMenuOpen(false)}
-              className="px-3.5 py-2.5 rounded-xl text-[#060c1c] dark:text-white hover:bg-[#ededfc] dark:hover:bg-white/10 flex items-center justify-between"
+              className="w-full text-center py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
-              <span>Live Demo</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-            </a>
-            <div className="pt-3 mt-2 border-t border-slate-100 dark:border-white/10 flex flex-col gap-2">
-              <Link
-                href="/login"
-                onClick={() => setMobileMenuOpen(false)}
-                className="px-3.5 py-2.5 text-center rounded-xl text-sm font-semibold border border-slate-200 dark:border-white/10 text-[#060c1c] dark:text-white"
-              >
-                Sign In
-              </Link>
-              <Link
-                href="/signup"
-                onClick={() => setMobileMenuOpen(false)}
-                className="px-3.5 py-2.5 text-center rounded-xl text-sm font-semibold bg-[#4f46e5] text-white shadow-md"
-              >
-                Get Started
-              </Link>
-            </div>
-          </nav>
+              Sign In
+            </Link>
+            <Link
+              href="/signup"
+              onClick={() => setMobileMenuOpen(false)}
+              className="w-full text-center py-2.5 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+            >
+              Start Free Trial
+            </Link>
+          </div>
         </div>
       )}
     </header>

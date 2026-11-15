@@ -60,7 +60,13 @@ function invoiceTone(status: WorkspaceInvoiceRecord['status']): BadgeTone {
   return 'bad';
 }
 
-export function BillingScreen() {
+export function BillingScreen({
+  selectedPlanSlug,
+  selectedBillingPeriod,
+}: {
+  selectedPlanSlug?: string;
+  selectedBillingPeriod?: 'monthly' | 'yearly';
+} = {}) {
   const { workspace } = useShellSession();
   const { show } = useOrbToast();
 
@@ -204,6 +210,12 @@ export function BillingScreen() {
     },
   ];
 
+  const checkoutHref = selectedPlanSlug
+    ? `/checkout?plan=${encodeURIComponent(selectedPlanSlug)}${
+        selectedBillingPeriod ? `&billing=${encodeURIComponent(selectedBillingPeriod)}` : ''
+      }`
+    : '/checkout';
+
   return (
     <PageContainer>
       <PageHeader
@@ -222,13 +234,31 @@ export function BillingScreen() {
                 Payment portal
               </Button>
             ) : null}
-            <ButtonLink href="/checkout" variant="primary" size="sm">
+            <ButtonLink href={checkoutHref} variant="primary" size="sm">
               Change or upgrade plan
               <ArrowUpRight size={14} aria-hidden="true" />
             </ButtonLink>
           </div>
         }
       />
+
+      {selectedPlanSlug ? (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[20px] border border-o-border bg-o-mint px-5 py-4 text-o-forest">
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[14.5px] font-bold">
+              Plan selected: <span className="capitalize">{selectedPlanSlug}</span>
+              {selectedBillingPeriod ? ` (${selectedBillingPeriod} billing)` : ''}
+            </span>
+            <span className="text-[13px] opacity-85">
+              Continue to checkout to review seat allocation, apply a coupon, and activate your plan.
+            </span>
+          </div>
+          <ButtonLink href={checkoutHref} variant="primary" size="sm">
+            Continue to checkout
+            <ArrowUpRight size={14} aria-hidden="true" />
+          </ButtonLink>
+        </div>
+      ) : null}
 
       {error ? (
         <ErrorState title="Could not load billing data" body={error} onRetry={reload} />

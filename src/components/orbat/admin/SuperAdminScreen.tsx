@@ -8,15 +8,19 @@ import {
   Bot,
   Building2,
   Check,
+  Copy,
   CreditCard,
   LayoutDashboard,
   Lock,
+  Moon,
   Plus,
   RefreshCw,
   Search,
   Settings,
   Shield,
+  SlidersHorizontal,
   Sparkles,
+  Sun,
   Users,
   X,
 } from 'lucide-react';
@@ -59,6 +63,7 @@ import {
   type SuperAdminConsoleBundle,
   type SuperAdminWorkspaceRow,
 } from '@/lib/data/super-admin';
+import { useTheme } from '@/components/orbat/shell/theme';
 import { useData } from '@/lib/data/use-data';
 import { cn } from '@/lib/utils';
 
@@ -176,7 +181,16 @@ function SuperAdminConsoleLoaded({
 }) {
   const router = useRouter();
   const { show } = useOrbToast();
+  const { theme, toggle: toggleTheme } = useTheme();
   const [section, setSection] = useState<AdminNavId>(initialTab);
+
+  function selectSection(next: AdminNavId) {
+    setSection(next);
+    if (typeof window !== 'undefined') {
+      const nextUrl = next === 'overview' ? '/admin' : `/admin?tab=${next}`;
+      window.history.replaceState(null, '', nextUrl);
+    }
+  }
   const [prevInitialTab, setPrevInitialTab] = useState<AdminNavId>(initialTab);
   if (initialTab !== prevInitialTab) {
     setPrevInitialTab(initialTab);
@@ -426,8 +440,17 @@ function SuperAdminConsoleLoaded({
   async function handleInviteStaff() {
     setInvitingStaff(true);
     try {
-      await invitePlatformStaff(inviteEmail, inviteName);
-      show({ message: `Platform staff invite recorded for ${inviteEmail}.`, tone: 'ok' });
+      const res = await invitePlatformStaff(inviteEmail, inviteName);
+      if (res.token && typeof window !== 'undefined' && navigator.clipboard) {
+        const inviteUrl = `${window.location.origin}/admin/invite?token=${res.token}`;
+        await navigator.clipboard.writeText(inviteUrl).catch(() => {});
+        show({
+          message: `Invite created for ${inviteEmail} — link copied to clipboard.`,
+          tone: 'ok',
+        });
+      } else {
+        show({ message: `Platform staff invite recorded for ${inviteEmail}.`, tone: 'ok' });
+      }
       setInviteOpen(false);
       setInviteEmail('');
       setInviteName('');
@@ -482,7 +505,12 @@ function SuperAdminConsoleLoaded({
       header: 'Workspace',
       cell: (w) => (
         <div className="min-w-0">
-          <p className="truncate font-semibold text-o-text">{w.name}</p>
+          <Link
+            href={`/admin/workspaces/${w.id}`}
+            className="block truncate font-semibold text-o-text no-underline hover:underline"
+          >
+            {w.name}
+          </Link>
           <p className="truncate text-[12.5px] text-o-text-3">
             {w.owner_email || 'No owner email'} {w.industry ? `· ${w.industry}` : ''}
           </p>
@@ -527,6 +555,14 @@ function SuperAdminConsoleLoaded({
       align: 'right',
       cell: (w) => (
         <div className="flex justify-end gap-1.5">
+          <ButtonLink
+            size="sm"
+            variant="ghost"
+            href={`/admin/workspaces/${w.id}`}
+            leading={<SlidersHorizontal size={13} />}
+          >
+            Manage
+          </ButtonLink>
           <Button size="sm" variant="secondary" onClick={() => void handleOpenWorkspace(w.id)}>
             Open
           </Button>
@@ -568,7 +604,7 @@ function SuperAdminConsoleLoaded({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setSection(item.id)}
+                  onClick={() => selectSection(item.id)}
                   className={cn(
                     'flex items-center gap-2.5 rounded-xl px-3 py-2 text-[14px] font-medium transition',
                     active
@@ -610,7 +646,16 @@ function SuperAdminConsoleLoaded({
               Platform-wide multi-tenant governance, AI provider routing, plans, and operator access.
             </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={toggleTheme}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              leading={theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            >
+              {theme === 'dark' ? 'Light' : 'Dark'}
+            </Button>
             <Button
               size="sm"
               variant="secondary"
@@ -619,7 +664,7 @@ function SuperAdminConsoleLoaded({
             >
               Refresh
             </Button>
-            <ButtonLink size="sm" variant="ghost" href="/app" className="lg:hidden">
+            <ButtonLink size="sm" variant="ghost" href="/app">
               Workspace app
             </ButtonLink>
           </div>
@@ -1256,7 +1301,28 @@ function SuperAdminConsoleLoaded({
                         <span>
                           <strong>{inv.name || inv.email}</strong> ({inv.email})
                         </span>
-                        <Badge tone="warn">{inv.status}</Badge>
+                        <div className="flex items-center gap-2">
+                          {inv.token ? (
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              leading={<Copy size={13} />}
+                              onClick={() => {
+                                if (typeof window !== 'undefined' && navigator.clipboard) {
+                                  const url = `${window.location.origin}/admin/invite?token=${inv.token}`;
+                                  void navigator.clipboard.writeText(url);
+                                  show({
+                                    message: 'Invite link copied to clipboard.',
+                                    tone: 'ok',
+                                  });
+                                }
+                              }}
+                            >
+                              Copy invite link
+                            </Button>
+                          ) : null}
+                          <Badge tone="warn">{inv.status}</Badge>
+                        </div>
                       </div>
                     ))}
                   </div>
