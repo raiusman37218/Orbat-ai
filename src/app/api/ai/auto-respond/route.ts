@@ -8,8 +8,8 @@ import {
 } from '@/lib/ai/anthropic';
 import { dispatchOutboundMessage } from '@/lib/channels/dispatcher';
 import { answerWithExternalAgent } from '@/lib/agent/external-agent';
-import { runLangGraphAgent } from '@/lib/agent/engines/langgraph-engine';
-import type { PendingApprovalPayload } from '@/lib/agent/engines/types';
+import { executeAgentWithRouter } from '@/lib/agent/engines/router';
+import type { EngineUsed, PendingApprovalPayload } from '@/lib/agent/engines/types';
 import { providerConfigFrom, warmHelpIndex } from '@/lib/ai/help-answer';
 import { getPlatformAiConfigServerOnly } from '@/lib/ai/platform-gateway';
 import {
@@ -1193,10 +1193,12 @@ async function executeAutoRespond(req: NextRequest, body: any) {
           engine: 'built_in',
         };
       } else {
-        // The workspace's own agent (Settings -> AI bot -> LangGraph) answers
-        // first when it is on. A request for a person always goes the built-in
-        // way, so reaching the team never depends on someone else's endpoint.
-        let langgraphPaused: PendingApprovalPayload | null = null;
+        // Run configured multi-agent engine (LangGraph / Google ADK / Hybrid Auto-Router)
+        // or external webhook before falling back to the built-in deterministic pipeline.
+        // Customer requests for a human always follow the built-in handover path cleanly.
+        const pausedHolder: {
+          current: { payload: PendingApprovalPayload; engine: EngineUsed } | null;
+        } = { current: null };
         const generate = async () => {
           if (!isAskingForHuman) {
             const external = await answerWithExternalAgent({
@@ -1215,68 +1217,86 @@ async function executeAutoRespond(req: NextRequest, body: any) {
             });
             if (external) return external;
 
-            if (activeAiAgent?.engine_type === 'langgraph') {
+            if (
+              activeAiAgent &&
+              (activeAiAgent.engine_type === 'langgraph' ||
+                activeAiAgent.engine_type === 'adk' ||
+                activeAiAgent.engine_type === 'hybrid')
+            ) {
               const visitorObj = conv.visitor as { name?: string | null; email?: string | null } | null;
-              const lgResult = await runLangGraphAgent({
-                workspaceId: workspace_id,
-                workspaceName: workspace?.name || 'Workspace',
-                conversationId: convId,
-                visitorMessageId: targetVisitorMsgId,
-                visitorId: conv.visitor_id ?? null,
-                visitorName: visitorObj?.name ?? null,
-                visitorEmail: visitorObj?.email ?? null,
-                channel: conv.channel || 'web',
-                helpCenterUrl: helpCenterUrlFor(workspace),
-                message: visitorText,
-                history: recentTurns,
-                humanContext: humanContext ? `${humanContext.lastReply} (${humanContext.at})` : null,
-                providerConfig: providerConfigFrom(aiSettings),
-                agent: {
-                  id: activeAiAgent.id,
-                  name: botName,
-                  industry:
-                    activeAiAgent.industry ||
-                    (workspace as { industry?: string | null } | null | undefined)?.industry ||
-                    'generic',
-                  tone: activeAiAgent.tone ?? null,
-                  systemPrompt: effectiveSystemPrompt,
-                  guardrails: activeAiAgent.guardrails,
-                  escalationRules: activeAiAgent.escalation_rules,
-                  knowledgeScope: activeAiAgent.knowledge_scope,
-                  answerMode: effectiveAnswerMode,
-                  replyLanguageMode: effectiveReplyStyle,
-                  ragConfig: activeAiAgent.rag_config
-                    ? { ...activeAiAgent.rag_config, citations: showCitations }
-                    : { citations: showCitations },
-                  engineType: 'langgraph',
-                  engineConfig: activeAiAgent.engine_config,
-                  modelConfig: activeAiAgent.model_config,
-                  handoffGroupId: effectiveHandoffGroupId,
+              const routed = await executeAgentWithRouter(
+                {
+                  workspaceId: workspace_id,
+                  workspaceName: workspace?.name || 'Workspace',
+                  conversationId: convId,
+                  visitorMessageId: targetVisitorMsgId,
+                  visitorId: conv.visitor_id ?? null,
+                  visitorName: visitorObj?.name ?? null,
+                  visitorEmail: visitorObj?.email ?? null,
+                  channel: conv.channel || 'web',
+                  helpCenterUrl: helpCenterUrlFor(workspace),
+                  message: visitorText,
+                  history: recentTurns,
+                  humanContext: humanContext ? `${humanContext.lastReply} (${humanContext.at})` : null,
+                  providerConfig: providerConfigFrom(aiSettings),
+                  agent: {
+                    id: activeAiAgent.id,
+                    name: botName,
+                    industry:
+                      activeAiAgent.industry ||
+                      (workspace as { industry?: string | null } | null | undefined)?.industry ||
+                      'generic',
+                    tone: activeAiAgent.tone ?? null,
+                    systemPrompt: effectiveSystemPrompt,
+                    guardrails: activeAiAgent.guardrails,
+                    escalationRules: activeAiAgent.escalation_rules,
+                    knowledgeScope: activeAiAgent.knowledge_scope,
+                    answerMode: effectiveAnswerMode,
+                    replyLanguageMode: effectiveReplyStyle,
+                    ragConfig: activeAiAgent.rag_config
+                      ? { ...activeAiAgent.rag_config, citations: showCitations }
+                      : { citations: showCitations },
+                    engineType: activeAiAgent.engine_type,
+                    engineConfig: activeAiAgent.engine_config,
+                    modelConfig: activeAiAgent.model_config,
+                    handoffGroupId: effectiveHandoffGroupId,
+                  },
                 },
-              }).catch((err) => {
-                console.warn('[Auto-Respond] LangGraph execution failed, falling back to built-in:', err);
+                { timeoutMs: 18_000 },
+              ).catch((err) => {
+                console.warn('[Auto-Respond] Agent router failed, falling back to built-in:', err);
                 return null;
               });
 
-              if (lgResult) {
-                if (lgResult.action === 'awaiting_approval' && lgResult.pendingApproval) {
-                  langgraphPaused = lgResult.pendingApproval;
+              if (routed?.result) {
+                const engineRes = routed.result;
+                if (engineRes.action === 'awaiting_approval' && engineRes.pendingApproval) {
+                  pausedHolder.current = {
+                    payload: engineRes.pendingApproval,
+                    engine: engineRes.engineUsed,
+                  };
                 }
+                const mappedEngine: 'built_in' | 'langgraph' | 'adk' =
+                  engineRes.engineUsed === 'adk'
+                    ? 'adk'
+                    : engineRes.engineUsed === 'langgraph'
+                      ? 'langgraph'
+                      : 'built_in';
                 return {
-                  replyText: lgResult.replyText,
-                  shouldHandover: lgResult.shouldHandover,
-                  handoverReason: lgResult.handoverReason ?? undefined,
-                  canAnswerFromDocs: lgResult.canAnswerFromDocs,
-                  intent: lgResult.intent as VisitorIntent,
+                  replyText: engineRes.replyText,
+                  shouldHandover: engineRes.shouldHandover,
+                  handoverReason: engineRes.handoverReason ?? undefined,
+                  canAnswerFromDocs: engineRes.canAnswerFromDocs,
+                  intent: engineRes.intent as VisitorIntent,
                   intentSource: 'rules' as const,
                   disableAi: false,
                   priority: 'high' as const,
                   citation: null,
-                  citedArticles: lgResult.citedArticles,
-                  usedArticleIds: lgResult.usedArticleIds,
-                  retrievalConfidence: lgResult.retrievalConfidence,
+                  citedArticles: engineRes.citedArticles,
+                  usedArticleIds: engineRes.usedArticleIds,
+                  retrievalConfidence: engineRes.retrievalConfidence,
                   quickReplies: null,
-                  engine: 'langgraph' as const,
+                  engine: mappedEngine,
                 };
               }
             }
@@ -1285,8 +1305,9 @@ async function executeAutoRespond(req: NextRequest, body: any) {
         };
 
         result = await Promise.race([generate(), timeoutPromise]);
-        if (langgraphPaused) {
-          const paused: PendingApprovalPayload = langgraphPaused;
+        if (pausedHolder.current) {
+          const paused: PendingApprovalPayload = pausedHolder.current.payload;
+          const engineBadge = pausedHolder.current.engine === 'adk' ? 'ADK' : 'LangGraph';
           const actionsSummary = paused.pendingActions.length
             ? `\n\nStaged CRM/workflow actions:\n${paused.pendingActions.map((a) => `• ${a.summary}`).join('\n')}`
             : '';
@@ -1294,7 +1315,7 @@ async function executeAutoRespond(req: NextRequest, body: any) {
             supabase,
             conversationId: conversation_id,
             visitorMessageId: targetVisitorMsgId,
-            content: `⏸️ LangGraph workflow paused (${paused.topic} · Level ${paused.autonomyLevel}): ${paused.reason}\n\nProposed reply:\n${paused.draftReply}${actionsSummary}`,
+            content: `⏸️ ${engineBadge} workflow paused (${paused.topic} · Level ${paused.autonomyLevel}): ${paused.reason}\n\nProposed reply:\n${paused.draftReply}${actionsSummary}`,
             metadata: {
               answered_message_id: targetVisitorMsgId,
               handover_for_message_id: targetVisitorMsgId,

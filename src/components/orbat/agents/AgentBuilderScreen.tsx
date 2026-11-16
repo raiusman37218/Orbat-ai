@@ -1,19 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  AlertTriangle,
   ArrowLeft,
   BookOpen,
   Check,
   History,
-  Play,
   Plus,
-  RotateCcw,
   Save,
-  Send,
   Sparkles,
+  Wrench,
   X,
 } from 'lucide-react';
 import {
@@ -38,22 +35,65 @@ import { PageContainer } from '@/components/orbat/shell/PageContainer';
 import { useShellSession } from '@/components/orbat/shell/session-context';
 import { timeAgo } from '@/components/orbat/overview/format';
 import {
+  DEFAULT_AGENT_MODEL_CONFIG,
+  type AgentEngineConfig,
+  type AgentEngineType,
+  type AgentModelConfig,
+} from '@/lib/ai/agent-templates';
+import { DEFAULT_MODELS } from '@/lib/ai/models';
+import {
+  DEFAULT_AGENT_ENGINE_CONFIG,
+  UNIFIED_TOOL_OPTION_DEFS,
+  detectAgentChannelConflicts,
+  generateAgentPromptDraft,
   getAgentBuilder,
+  isToolAllowedInConfig,
   normalizeAgentRagConfig,
+  normalizeEngineType,
   restoreAgentVersion,
+  runAgentEvalSuite,
   runAgentPlayground,
   saveAgentDraft,
   type AgentAnswerMode,
   type AgentBuilderBundle,
   type AgentCapabilities,
   type AgentEscalationRules,
+  type AgentEvalCase,
+  type AgentEvalSuiteResult,
   type AgentKnowledgeScope,
   type AgentRagConfig,
   type AgentReplyLanguageMode,
-  type PlaygroundResult,
   type PlaygroundTurn,
 } from '@/lib/data/agents';
 import { useData } from '@/lib/data/use-data';
+import {
+  BuilderPlaygroundPanel,
+  type BuilderChatLogEntry,
+} from './BuilderPlaygroundPanel';
+import {
+  AgentAiPromptGeneratorBox,
+  AgentChannelConflictBanner,
+  SimpleAgentSteps,
+} from './SimpleAgentSteps';
+
+function toggleAllowedToolList(
+  currentAllowed: string[] | undefined,
+  toolId: string,
+  nextChecked: boolean,
+): string[] {
+  const allIds = UNIFIED_TOOL_OPTION_DEFS.map((t) => t.id);
+  const effectiveSet = new Set(
+    !Array.isArray(currentAllowed) || currentAllowed.length === 0 ? allIds : currentAllowed,
+  );
+  if (nextChecked) {
+    effectiveSet.add(toolId);
+  } else {
+    effectiveSet.delete(toolId);
+  }
+  const normalized = allIds.filter((id) => effectiveSet.has(id));
+  // Empty array signifies "all tools enabled (default)".
+  return normalized.length === allIds.length ? [] : normalized;
+}
 
 type BuilderStep = 'identity' | 'instructions' | 'knowledge' | 'capabilities' | 'handoff' | 'appearance';
 
@@ -67,13 +107,6 @@ const STEPS: { id: BuilderStep; label: string }[] = [
 ];
 
 const CHANNEL_OPTIONS = ['web', 'email', 'whatsapp', 'instagram', 'voice', 'facebook'];
-
-interface ChatLogEntry {
-  id: string;
-  role: 'user' | 'assistant';
-  text: string;
-  meta?: PlaygroundResult;
-}
 
 export function AgentBuilderScreen({
   agentId,
@@ -163,22 +196,145 @@ function AgentBuilderEditor({
   const [badgeLabel, setBadgeLabel] = useState(a.appearance.badgeLabel);
   const [showCitations, setShowCitations] = useState(a.appearance.showCitations);
   const [welcomeMessage, setWelcomeMessage] = useState(a.appearance.welcomeMessage);
+  const [engineType, setEngineType] = useState<AgentEngineType>(() =>
+    normalizeEngineType(a.engine_type),
+  );
+  const [engineConfig, setEngineConfig] = useState<AgentEngineConfig>(() => ({
+    ...DEFAULT_AGENT_ENGINE_CONFIG,
+    ...(a.engine_config || {}),
+  }));
+  const [modelConfig, setModelConfig] = useState<AgentModelConfig>(() => ({
+    ...DEFAULT_AGENT_MODEL_CONFIG,
+    ...(a.model_config || {}),
+  }));
   const [dirty, setDirty] = useState(false);
+  const [builderMode, setBuilderMode] = useState<'simple' | 'advanced'>(() =>
+    bundle.isNew ? 'simple' : 'advanced',
+  );
+  const [simpleStep, setSimpleStep] = useState<1 | 2 | 3>(1);
+  const [pendingNavHref, setPendingNavHref] = useState<string | null>(null);
+  const [aiGoal, setAiGoal] = useState(a.description || '');
+  const [generatingDraft, setGeneratingDraft] = useState(false);
 
   const [saving, setSaving] = useState<'draft' | 'publish' | null>(null);
   const [versionsOpen, setVersionsOpen] = useState(false);
   const [restoringVerId, setRestoringVerId] = useState<string | null>(null);
 
-  // Playground state
+  // Playground & Eval state
   const [persona, setPersona] = useState<'standard' | 'vip' | 'upset' | 'non_english'>('standard');
   const [pgLang, setPgLang] = useState<'auto' | 'en' | 'roman_ur' | 'ur' | 'hi' | 'ar' | 'es'>('auto');
   const [pgInput, setPgInput] = useState('');
   const [pgBusy, setPgBusy] = useState(false);
-  const [chatLog, setChatLog] = useState<ChatLogEntry[]>([]);
+  const [chatLog, setChatLog] = useState<BuilderChatLogEntry[]>([]);
+  const [evalBusy, setEvalBusy] = useState(false);
+  const [evalResult, setEvalResult] = useState<AgentEvalSuiteResult | null>(null);
 
   const markDirty = () => setDirty(true);
 
-  const persistAgent = async (publishNow: boolean, bundleData: AgentBuilderBundle) => {
+  useEffect(() => {
+    if (!dirty || saving !== null) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = '';
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [dirty, saving]);
+
+  const navigateWithGuard = (href: string) => {
+    if (dirty && saving === null) {
+      setPendingNavHref(href);
+      return;
+    }
+    router.push(href);
+  };
+
+  const channelConflicts = useMemo(
+    () =>
+      detectAgentChannelConflicts({
+        currentAgentId: bundle.isNew ? 'new' : bundle.agent.id,
+        currentStatus: bundle.isNew ? 'live' : bundle.agent.status,
+        currentChannels: channels,
+        currentRoutingRules: bundle.agent.routing_rules,
+        allAgents: bundle.allAgents,
+      }),
+    [bundle.agent.id, bundle.agent.routing_rules, bundle.agent.status, bundle.allAgents, bundle.isNew, channels],
+  );
+
+  const hasCustomModelOverride = Boolean(modelConfig.provider || modelConfig.model);
+
+  const handleGenerateDraft = async () => {
+    setGeneratingDraft(true);
+    try {
+      const res = await generateAgentPromptDraft(workspaceId, {
+        goal: aiGoal,
+        agentName: name || null,
+        industry: industry || null,
+        channels,
+      });
+      if (!res.success) {
+        toast.show({ tone: 'bad', message: res.error });
+        return;
+      }
+      setRoleTitle(res.draft.roleTitle);
+      setDescription(res.draft.description);
+      setTone(res.draft.tone);
+      setAnswerMode(res.draft.answerMode);
+      setSystemPrompt(res.draft.systemPrompt);
+      setGuardrails(res.draft.guardrails);
+      markDirty();
+      toast.show({
+        tone: 'ok',
+        message: res.usedModel
+          ? 'AI drafted instructions & compliance guardrails.'
+          : 'Generated smart baseline instructions & guardrails.',
+      });
+    } finally {
+      setGeneratingDraft(false);
+    }
+  };
+
+  const handleRunEvalSuite = async () => {
+    const cases: AgentEvalCase[] = engineConfig.evalCases || [];
+    if (cases.length === 0) return;
+    setEvalBusy(true);
+    try {
+      const res = await runAgentEvalSuite(workspaceId, {
+        agentId: !bundle.isNew ? bundle.agent.id : null,
+        agentName: name || 'Support Assistant',
+        industry: industry || null,
+        tone,
+        systemPrompt,
+        guardrails,
+        escalationRules,
+        knowledgeScope,
+        answerMode,
+        replyLanguageMode,
+        ragConfig,
+        engineType,
+        engineConfig,
+        modelConfig,
+        cases,
+      });
+      if (!res.success) {
+        toast.show({ tone: 'bad', message: res.error });
+        return;
+      }
+      setEvalResult(res.suite);
+      toast.show({
+        tone: res.suite.passRatePct >= 75 ? 'ok' : 'info',
+        message: `Eval completed: ${res.suite.passCount}/${res.suite.totalCount} passed (${res.suite.passRatePct}%).`,
+      });
+    } finally {
+      setEvalBusy(false);
+    }
+  };
+
+  const persistAgent = async (
+    publishNow: boolean,
+    bundleData: AgentBuilderBundle,
+    redirectOverride?: string | null,
+  ): Promise<boolean> => {
     setSaving(publishNow ? 'publish' : 'draft');
     try {
       const res = await saveAgentDraft(workspaceId, {
@@ -198,10 +354,10 @@ function AgentBuilderEditor({
         knowledgeScope,
         capabilities,
         appearance: { badgeLabel, showCitations, welcomeMessage },
-        engineType: a.engine_type,
-        engineConfig: a.engine_config,
+        engineType,
+        engineConfig,
         ragConfig: { ...ragConfig, citations: showCitations },
-        modelConfig: a.model_config,
+        modelConfig,
         routingRules: a.routing_rules,
         isPrimary: bundleData.agent.is_primary,
         publishNow,
@@ -209,7 +365,7 @@ function AgentBuilderEditor({
 
       if (!res.success) {
         toast.show({ tone: 'bad', message: res.error });
-        return;
+        return false;
       }
 
       setDirty(false);
@@ -220,11 +376,14 @@ function AgentBuilderEditor({
           : `Saved draft changes for ${res.agent.name}.`,
       });
 
-      if (bundleData.isNew) {
+      if (redirectOverride) {
+        router.push(redirectOverride);
+      } else if (bundleData.isNew) {
         router.replace(`/app/agents/${res.agent.id}`);
       } else {
         onReload();
       }
+      return true;
     } finally {
       setSaving(null);
     }
@@ -273,7 +432,9 @@ function AgentBuilderEditor({
         answerMode,
         replyLanguageMode,
         ragConfig: { ...ragConfig, citations: showCitations },
-        engineType: a.engine_type,
+        engineType,
+        engineConfig,
+        modelConfig,
         message: prompt,
         persona,
         language: pgLang,
@@ -303,21 +464,21 @@ function AgentBuilderEditor({
       {/* Top sticky builder bar */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[16px] border border-o-border bg-o-surface px-4 py-3">
         <div className="flex flex-wrap items-center gap-2.5 min-w-0">
-          <ButtonLink
-            href="/app/agents"
+          <Button
             variant="ghost"
             size="sm"
             leading={<ArrowLeft size={14} />}
+            onClick={() => navigateWithGuard('/app/agents')}
           >
             Agents
-          </ButtonLink>
+          </Button>
 
           <Select
             aria-label="Switch AI agent"
             value={bundle.isNew ? 'new' : bundle.agent.id}
             onChange={(e) => {
               const target = e.target.value;
-              router.push(target === 'new' ? '/app/agents/new' : `/app/agents/${target}`);
+              navigateWithGuard(target === 'new' ? '/app/agents/new' : `/app/agents/${target}`);
             }}
             options={[
               ...bundle.allAgents.map((a) => ({
@@ -336,6 +497,36 @@ function AgentBuilderEditor({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <div
+            className="inline-flex rounded-full border border-o-border bg-o-surface-2 p-0.5"
+            role="group"
+            aria-label="Builder complexity mode"
+          >
+            <button
+              type="button"
+              onClick={() => setBuilderMode('simple')}
+              className={`rounded-full px-3 py-1 text-[12px] font-medium transition-colors ${
+                builderMode === 'simple'
+                  ? 'bg-o-surface text-o-text shadow-sm'
+                  : 'text-o-text-3 hover:text-o-text'
+              }`}
+            >
+              Simple (3 steps)
+            </button>
+            <button
+              type="button"
+              onClick={() => setBuilderMode('advanced')}
+              className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-[12px] font-medium transition-colors ${
+                builderMode === 'advanced'
+                  ? 'bg-o-surface text-o-text shadow-sm'
+                  : 'text-o-text-3 hover:text-o-text'
+              }`}
+            >
+              <Wrench size={11} />
+              Advanced
+            </button>
+          </div>
+
           {!bundle.isNew ? (
             <Button
               variant="ghost"
@@ -380,37 +571,115 @@ function AgentBuilderEditor({
         </Alert>
       ) : null}
 
-      {/* 6-step pill rail */}
-      <div
-        className="mb-4 flex gap-1.5 overflow-x-auto pb-1"
-        role="tablist"
-        aria-label="Agent configuration steps"
-      >
-        {STEPS.map((s) => {
-          const active = step === s.id;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              role="tab"
-              aria-selected={active}
-              onClick={() => setStep(s.id)}
-              className={`shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ${
-                active
-                  ? 'bg-o-ai text-white'
-                  : 'border border-o-border bg-o-surface text-o-text-2 hover:bg-o-surface-2 hover:text-o-text'
-              }`}
-            >
-              {s.label}
-            </button>
-          );
-        })}
-      </div>
+      {builderMode === 'advanced' ? (
+        <div
+          className="mb-4 flex gap-1.5 overflow-x-auto pb-1"
+          role="tablist"
+          aria-label="Agent configuration steps"
+        >
+          {STEPS.map((s) => {
+            const active = step === s.id;
+            return (
+              <button
+                key={s.id}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setStep(s.id)}
+                className={`shrink-0 rounded-full px-3.5 py-1.5 text-[13px] font-medium transition-colors ${
+                  active
+                    ? 'bg-o-ai text-white'
+                    : 'border border-o-border bg-o-surface text-o-text-2 hover:bg-o-surface-2 hover:text-o-text'
+                }`}
+              >
+                {s.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
 
       {/* Main Builder + Sticky Playground */}
       <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_400px] xl:items-start">
         <Card size="lg">
-          {step === 'identity' ? (
+          {builderMode === 'simple' ? (
+            <SimpleAgentSteps
+              canManage={canManage}
+              stepIndex={simpleStep}
+              onStepChange={setSimpleStep}
+              name={name}
+              onNameChange={(val) => {
+                setName(val);
+                markDirty();
+              }}
+              roleTitle={roleTitle}
+              onRoleTitleChange={(val) => {
+                setRoleTitle(val);
+                markDirty();
+              }}
+              industry={industry}
+              onIndustryChange={(val) => {
+                setIndustry(val);
+                markDirty();
+              }}
+              channels={channels}
+              channelOptions={CHANNEL_OPTIONS}
+              onToggleChannel={(ch) => {
+                setChannels((prev) =>
+                  prev.includes(ch) ? prev.filter((c) => c !== ch) : [...prev, ch],
+                );
+                markDirty();
+              }}
+              channelConflicts={channelConflicts}
+              aiGoal={aiGoal}
+              onAiGoalChange={setAiGoal}
+              generatingDraft={generatingDraft}
+              onGenerateDraft={handleGenerateDraft}
+              answerMode={answerMode}
+              onAnswerModeChange={(mode) => {
+                setAnswerMode(mode);
+                markDirty();
+              }}
+              tone={tone}
+              onToneChange={(nextTone) => {
+                setTone(nextTone);
+                markDirty();
+              }}
+              systemPrompt={systemPrompt}
+              onSystemPromptChange={(val) => {
+                setSystemPrompt(val);
+                markDirty();
+              }}
+              knowledgeScope={knowledgeScope}
+              onKnowledgeScopeChange={(updater) => {
+                setKnowledgeScope(updater);
+                markDirty();
+              }}
+              sections={bundle.sections}
+              botKnowledgeCount={bundle.botKnowledgeCount}
+              engineType={engineType}
+              onEngineTypeChange={(next) => {
+                setEngineType(next);
+                markDirty();
+              }}
+              ragConfig={ragConfig}
+              onRagModeChange={(mode) => {
+                setRagConfig((prev) => ({ ...prev, mode }));
+                markDirty();
+              }}
+              hasCustomModel={hasCustomModelOverride}
+              saving={saving}
+              onSaveDraft={() => {
+                void persistAgent(false, bundle);
+              }}
+              onPublishLive={() => {
+                void persistAgent(true, bundle);
+              }}
+              onSwitchToAdvanced={() => setBuilderMode('advanced')}
+            />
+          ) : (
+            <>
+              {step === 'identity' ? (
             <div className="space-y-4">
               <CardHeader
                 title="Agent identity & channels"
@@ -496,6 +765,7 @@ function AgentBuilderEditor({
                   })}
                 </div>
               </div>
+              <AgentChannelConflictBanner conflicts={channelConflicts} />
             </div>
           ) : null}
 
@@ -504,6 +774,13 @@ function AgentBuilderEditor({
               <CardHeader
                 title="Behavior & guardrails"
                 sub="Applied directly to every live customer response generated in Autopilot"
+              />
+              <AgentAiPromptGeneratorBox
+                canManage={canManage}
+                goal={aiGoal}
+                onGoalChange={setAiGoal}
+                busy={generatingDraft}
+                onGenerate={handleGenerateDraft}
               />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field label="Tone of voice">
@@ -870,15 +1147,242 @@ function AgentBuilderEditor({
           ) : null}
 
           {step === 'capabilities' ? (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <CardHeader
-                title="Declared capabilities & integrations"
-                sub="Workflow skills declared for this agent profile and compliance frameworks"
+                title="Orchestration engine, AI model & capabilities"
+                sub="Choose the built-in runtime engine (Google ADK, LangGraph, Hybrid, or Fast Built-in), optional per-agent model override, and skills"
+                actions={
+                  <Badge tone={hasCustomModelOverride ? 'ai' : 'neutral'}>
+                    {hasCustomModelOverride ? 'Custom Override' : 'Inherited Workspace Default'}
+                  </Badge>
+                }
               />
 
+              <div className="rounded-[12px] border border-o-border bg-o-surface-2 p-4 space-y-4">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                  <Field
+                    label="Agent execution engine"
+                    hint="Hybrid auto-routes stateful approvals to LangGraph and multi-domain queries to Google ADK."
+                  >
+                    <Select
+                      disabled={!canManage}
+                      value={engineType}
+                      onChange={(e) => {
+                        setEngineType(normalizeEngineType(e.target.value));
+                        markDirty();
+                      }}
+                    >
+                      <option value="hybrid">Auto / Hybrid (Recommended)</option>
+                      <option value="langgraph">LangGraph Workflows & Approvals</option>
+                      <option value="adk">Google ADK Multi-Agent Coordinator</option>
+                      <option value="builtin">Fast Built-in Deterministic</option>
+                    </Select>
+                  </Field>
+
+                  <Field
+                    label="Failover engine"
+                    hint="Backup runtime if the primary engine times out or encounters an error."
+                  >
+                    <Select
+                      disabled={!canManage}
+                      value={engineConfig.fallbackEngine || 'builtin'}
+                      onChange={(e) => {
+                        setEngineConfig((prev) => ({
+                          ...prev,
+                          fallbackEngine: normalizeEngineType(e.target.value),
+                        }));
+                        markDirty();
+                      }}
+                    >
+                      <option value="builtin">Fast Built-in (Safest)</option>
+                      <option value="langgraph">LangGraph</option>
+                      <option value="adk">Google ADK</option>
+                    </Select>
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 border-t border-o-border pt-4">
+                  <Field
+                    label="Per-agent model provider"
+                    hint="Override the workspace default or inherit platform AI settings."
+                  >
+                    <Select
+                      disabled={!canManage}
+                      value={modelConfig.provider || ''}
+                      onChange={(e) => {
+                        const nextProv = e.target.value || null;
+                        setModelConfig((prev) => ({
+                          ...prev,
+                          provider: nextProv,
+                          model:
+                            nextProv && !prev.model
+                              ? DEFAULT_MODELS[nextProv as keyof typeof DEFAULT_MODELS] || null
+                              : nextProv
+                                ? prev.model
+                                : null,
+                        }));
+                        markDirty();
+                      }}
+                    >
+                      <option value="">Inherit platform default</option>
+                      <option value="anthropic">Anthropic (Claude)</option>
+                      <option value="google">Google (Gemini)</option>
+                      <option value="openai">OpenAI (GPT)</option>
+                      <option value="deepseek">DeepSeek</option>
+                      <option value="compatible">OpenAI-compatible</option>
+                    </Select>
+                  </Field>
+
+                  <Field
+                    label="Model ID"
+                    hint="Exact model identifier for this agent (optional)."
+                  >
+                    <Input
+                      disabled={!canManage}
+                      value={modelConfig.model || ''}
+                      placeholder={
+                        modelConfig.provider &&
+                        modelConfig.provider in DEFAULT_MODELS
+                          ? DEFAULT_MODELS[modelConfig.provider as keyof typeof DEFAULT_MODELS] ||
+                            'Default model'
+                          : 'Inherit platform default'
+                      }
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setModelConfig((prev) => ({
+                          ...prev,
+                          model: val.trim() ? val : null,
+                        }));
+                        markDirty();
+                      }}
+                    />
+                  </Field>
+
+                  <Field
+                    label={`Temperature (${typeof modelConfig.temperature === 'number' ? modelConfig.temperature.toFixed(1) : '0.3'})`}
+                    hint="Lower keeps answers closer to docs; higher allows freer phrasing."
+                  >
+                    <input
+                      type="range"
+                      min={0}
+                      max={1}
+                      step={0.1}
+                      disabled={!canManage}
+                      value={typeof modelConfig.temperature === 'number' ? modelConfig.temperature : 0.3}
+                      onChange={(e) => {
+                        setModelConfig((prev) => ({
+                          ...prev,
+                          temperature: Number(e.target.value),
+                        }));
+                        markDirty();
+                      }}
+                      className="mt-2 w-full accent-o-accent"
+                    />
+                  </Field>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 border-t border-o-border pt-4">
+                  <Field
+                    label="Workflow / routing key (optional)"
+                    hint="Pin Hybrid routing hint or external orchestrator key (e.g. refund_v2, adk_vip)."
+                  >
+                    <Input
+                      disabled={!canManage}
+                      value={engineConfig.workflowKey || ''}
+                      placeholder="Optional workflow key"
+                      onChange={(e) => {
+                        setEngineConfig((prev) => ({
+                          ...prev,
+                          workflowKey: e.target.value || null,
+                        }));
+                        markDirty();
+                      }}
+                    />
+                  </Field>
+
+                  <Field
+                    label="External webhook URL override (optional)"
+                    hint="Optional HTTPS endpoint for bringing your own external LangGraph/ADK server."
+                  >
+                    <Input
+                      disabled={!canManage}
+                      value={engineConfig.externalWebhookUrl || ''}
+                      placeholder="https://your-agent.example.com/respond"
+                      onChange={(e) => {
+                        setEngineConfig((prev) => ({
+                          ...prev,
+                          externalWebhookUrl: e.target.value || null,
+                        }));
+                        markDirty();
+                      }}
+                    />
+                  </Field>
+                </div>
+              </div>
+
+              <div className="rounded-[12px] border border-o-border bg-o-surface-2 p-4 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <div className="text-[13px] font-semibold text-o-text">Tool &amp; CRM permissions</div>
+                    <p className="text-[12px] text-o-text-3">
+                      Select which built-in workspace tools this agent may call in LangGraph and Google ADK.
+                    </p>
+                  </div>
+                  <Badge tone={!engineConfig.allowedTools?.length ? 'ok' : 'ai'}>
+                    {!engineConfig.allowedTools?.length
+                      ? 'All built-in tools enabled'
+                      : `${engineConfig.allowedTools.length} custom tools selected`}
+                  </Badge>
+                </div>
+
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {UNIFIED_TOOL_OPTION_DEFS.map((tool) => {
+                    const checked = isToolAllowedInConfig(engineConfig.allowedTools, tool.id);
+                    const locked = Boolean(tool.alwaysEnabled);
+                    return (
+                      <label
+                        key={tool.id}
+                        className={`flex items-start gap-2.5 rounded-[10px] border p-2.5 text-[12.5px] transition-colors ${
+                          checked
+                            ? 'border-o-ai/30 bg-o-surface'
+                            : 'border-o-border bg-o-surface-2 opacity-75'
+                        } ${locked || !canManage ? 'cursor-default' : 'cursor-pointer hover:border-o-ai/50'}`}
+                      >
+                        <input
+                          type="checkbox"
+                          className="mt-0.5 h-4 w-4 shrink-0 rounded accent-o-accent"
+                          checked={checked}
+                          disabled={!canManage || locked}
+                          onChange={(e) => {
+                            const nextTools = toggleAllowedToolList(
+                              engineConfig.allowedTools,
+                              tool.id,
+                              e.target.checked,
+                            );
+                            setEngineConfig((prev) => ({
+                              ...prev,
+                              allowedTools: nextTools,
+                            }));
+                            markDirty();
+                          }}
+                        />
+                        <span className="min-w-0">
+                          <span className="flex flex-wrap items-center gap-1.5 font-medium text-o-text">
+                            {tool.label}
+                            {locked ? <Badge tone="neutral">Required</Badge> : null}
+                          </span>
+                          <span className="mt-0.5 block text-[11.5px] text-o-text-3">
+                            {tool.description}
+                          </span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
               <Alert>
-                <strong className="font-semibold">External tool webhooks:</strong> Declared capabilities guide how the assistant triages and collects required fields before handoff. Live third-party write webhooks (Shopify refunds, Stripe locks, CRM sync) connect in{' '}
-                <span className="font-semibold">Channels & apps</span>.
+                <strong className="font-semibold">Built-in tools & external webhooks:</strong> Every agent automatically has scoped access to Knowledge Base search, Customer 360 lookup, CRM Deal & Task staging, and Human Approval gates inside this workspace.
               </Alert>
 
               <div>
@@ -1124,185 +1628,32 @@ function AgentBuilderEditor({
               </Field>
             </div>
           ) : null}
+            </>
+          )}
         </Card>
 
-        {/* Right sticky live Playground */}
-        <Card className="xl:sticky xl:top-[76px]">
-          <CardHeader
-            title="Playground"
-            sub="Test draft prompt, Knowledge Base scope & claim verification live"
-            actions={
-              <div className="flex items-center gap-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  title="Simulate handoff"
-                  leading={<AlertTriangle size={13} />}
-                  onClick={() => sendPlayground(undefined, true)}
-                >
-                  Handoff
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  title="Reset conversation"
-                  leading={<RotateCcw size={13} />}
-                  onClick={() => setChatLog([])}
-                >
-                  Reset
-                </Button>
-              </div>
-            }
-          />
-
-          <div className="mb-3 grid grid-cols-2 gap-2">
-            <Select
-              aria-label="Test persona"
-              value={persona}
-              onChange={(e) => setPersona(e.target.value as typeof persona)}
-              options={[
-                { value: 'standard', label: 'Persona: Standard' },
-                { value: 'vip', label: 'Persona: VIP' },
-                { value: 'upset', label: 'Persona: Upset' },
-                { value: 'non_english', label: 'Persona: Multilingual' },
-              ]}
-            />
-            <Select
-              aria-label="Playground language"
-              value={pgLang}
-              onChange={(e) => setPgLang(e.target.value as typeof pgLang)}
-              options={[
-                { value: 'auto', label: 'Lang: Auto-detect' },
-                { value: 'en', label: 'Lang: English' },
-                { value: 'roman_ur', label: 'Lang: Roman Urdu' },
-                { value: 'ur', label: 'Lang: Urdu' },
-                { value: 'hi', label: 'Lang: Hindi' },
-                { value: 'ar', label: 'Lang: Arabic' },
-                { value: 'es', label: 'Lang: Spanish' },
-              ]}
-            />
-          </div>
-
-          <div className="h-[310px] space-y-2.5 overflow-y-auto rounded-[12px] border border-o-border bg-o-bg p-3">
-            {chatLog.length === 0 ? (
-              <div className="flex h-full flex-col items-center justify-center text-center">
-                <Sparkles size={22} className="text-o-ai-text" aria-hidden="true" />
-                <div className="mt-2 text-[13px] font-medium text-o-text">Test against real workspace docs</div>
-                <p className="mt-1 max-w-[260px] text-[12px] text-o-text-3">
-                  Runs your current unsaved instructions through retrieval + claim verification.
-                </p>
-                <div className="mt-3 flex flex-wrap justify-center gap-1.5">
-                  {['What are your refund terms?', 'How do I contact support?'].map((q) => (
-                    <button
-                      key={q}
-                      type="button"
-                      onClick={() => sendPlayground(q)}
-                      className="rounded-full border border-o-border bg-o-surface px-2.5 py-1 text-[11.5px] text-o-text-2 hover:border-o-ai hover:text-o-text"
-                    >
-                      <Play size={10} className="mr-1 inline" />
-                      {q}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              chatLog.map((entry) => (
-                <div
-                  key={entry.id}
-                  className={`rounded-[10px] p-2.5 text-[12.5px] leading-relaxed ${
-                    entry.role === 'user'
-                      ? 'ml-6 border border-o-border bg-o-surface text-o-text'
-                      : 'mr-4 bg-o-ai-soft/70 text-o-text'
-                  }`}
-                >
-                  <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-semibold text-o-text-3">
-                    <span>{entry.role === 'user' ? 'Customer' : name || 'AI Agent'}</span>
-                    {entry.meta ? (
-                      <span className="o-num">
-                        {entry.meta.confidencePct}% conf · {entry.meta.latencyMs}ms
-                      </span>
-                    ) : null}
-                  </div>
-                  <div className="whitespace-pre-wrap">{entry.text}</div>
-
-                  {entry.meta?.handoffTriggered ? (
-                    <div className="mt-2 rounded-lg bg-o-warn-soft px-2.5 py-1.5 text-[11.5px] font-medium text-o-warn">
-                      Handoff triggered: {entry.meta.handoffReason}
-                    </div>
-                  ) : null}
-
-                  {entry.meta?.citedArticles && entry.meta.citedArticles.length > 0 ? (
-                    <div className="mt-2 flex flex-wrap gap-1">
-                      {entry.meta.citedArticles.map((art) => (
-                        <Badge key={art.id} tone="neutral">
-                          {art.title}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : null}
-
-                  {entry.meta?.retrievalMethod || entry.meta?.topic || entry.meta?.verificationVerdict ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10.5px] text-o-text-3">
-                      {entry.meta.retrievalMethod ? (
-                        <Badge tone="neutral">
-                          {entry.meta.retrievalMethod === 'semantic_rag'
-                            ? `Semantic RAG (${entry.meta.ragMode || 'standard'})`
-                            : entry.meta.retrievalMethod === 'keyword_fallback'
-                              ? 'Keyword fallback'
-                              : 'No doc match'}
-                        </Badge>
-                      ) : null}
-                      {entry.meta.ragTrace?.reranked ? <Badge tone="ai">Reranked</Badge> : null}
-                      {entry.meta.ragTrace?.hydeUsed ? <Badge tone="ai">HyDE</Badge> : null}
-                      {entry.meta.ragTrace?.parentExpanded ? <Badge tone="ai">Context+</Badge> : null}
-                      {entry.meta.ragTrace?.correctiveRetried ? <Badge tone="warn">Corrective retry</Badge> : null}
-                      {entry.meta.topic ? <Badge tone="neutral">{entry.meta.topic}</Badge> : null}
-                      {entry.meta.verificationVerdict ? (
-                        <Badge
-                          tone={
-                            entry.meta.verificationVerdict === 'supported'
-                              ? 'ok'
-                              : entry.meta.verificationVerdict === 'blocked_human'
-                                ? 'bad'
-                                : 'warn'
-                          }
-                        >
-                          {entry.meta.verificationVerdict.replace('_', ' ')}
-                        </Badge>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              ))
-            )}
-          </div>
-
-          <form
-            className="mt-3 flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              sendPlayground();
-            }}
-          >
-            <Input
-              aria-label="Test message"
-              placeholder="Ask a test question…"
-              value={pgInput}
-              disabled={pgBusy}
-              onChange={(e) => setPgInput(e.target.value)}
-            />
-            <Button
-              type="submit"
-              variant="ai"
-              size="md"
-              loading={pgBusy}
-              aria-label="Send test message"
-              leading={<Send size={14} />}
-            >
-              Send
-            </Button>
-          </form>
-        </Card>
+        {/* Right sticky live Playground + X-Ray + Eval Suite */}
+        <BuilderPlaygroundPanel
+          canManage={canManage}
+          busy={pgBusy}
+          persona={persona}
+          onPersonaChange={setPersona}
+          language={pgLang}
+          onLanguageChange={setPgLang}
+          inputText={pgInput}
+          onInputTextChange={setPgInput}
+          onSend={sendPlayground}
+          onClear={() => setChatLog([])}
+          chatLog={chatLog}
+          evalCases={engineConfig.evalCases || []}
+          onEvalCasesChange={(nextCases) => {
+            setEngineConfig((prev) => ({ ...prev, evalCases: nextCases }));
+            markDirty();
+          }}
+          evalBusy={evalBusy}
+          evalResult={evalResult}
+          onRunEval={handleRunEvalSuite}
+        />
       </div>
 
       {/* Version History Modal */}
@@ -1345,6 +1696,53 @@ function AgentBuilderEditor({
             ))}
           </div>
         )}
+      </Modal>
+
+      {/* Unsaved Changes Confirmation Modal */}
+      <Modal
+        open={pendingNavHref !== null}
+        onClose={() => setPendingNavHref(null)}
+        title="Unsaved agent changes"
+        description="Save your configuration as a draft before switching pages, or discard your unsaved edits."
+        footer={
+          <>
+            <Button variant="ghost" size="md" onClick={() => setPendingNavHref(null)}>
+              Keep editing
+            </Button>
+            <Button
+              variant="secondary"
+              size="md"
+              onClick={() => {
+                const target = pendingNavHref;
+                setPendingNavHref(null);
+                setDirty(false);
+                if (target) router.push(target);
+              }}
+            >
+              Discard changes &amp; leave
+            </Button>
+            {canManage ? (
+              <Button
+                variant="ai"
+                size="md"
+                loading={saving === 'draft'}
+                disabled={saving !== null}
+                leading={<Save size={14} />}
+                onClick={async () => {
+                  const target = pendingNavHref;
+                  const ok = await persistAgent(false, bundle, target);
+                  if (ok) setPendingNavHref(null);
+                }}
+              >
+                Save draft &amp; leave
+              </Button>
+            ) : null}
+          </>
+        }
+      >
+        <p className="text-[13px] text-o-text-2">
+          Your unsaved changes to instructions, channel routing, tools, or eval cases will be lost if you navigate away without saving.
+        </p>
       </Modal>
     </PageContainer>
   );

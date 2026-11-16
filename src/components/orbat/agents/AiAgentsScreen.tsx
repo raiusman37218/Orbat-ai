@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
+  BookOpen,
   Bot,
   Check,
   FileWarning,
@@ -348,6 +349,65 @@ export function AiAgentsScreen() {
             </Card>
           </div>
 
+          {/* Workspace AI & RAG Control Center */}
+          <Card>
+            <CardHeader
+              title="Workspace AI & RAG Control Center"
+              sub="Default vector indexing, embedding provider, and baseline retrieval health across all agents"
+              actions={
+                <div className="flex flex-wrap items-center gap-2">
+                  <ButtonLink href="/app/knowledge" variant="secondary" size="sm" leading={<BookOpen size={13} />}>
+                    Knowledge Hub &amp; Indexer
+                  </ButtonLink>
+                  <ButtonLink href="/app/settings" variant="ghost" size="sm">
+                    AI Settings
+                  </ButtonLink>
+                </div>
+              }
+            />
+            <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+              <div className="rounded-[12px] border border-o-border bg-o-surface-2/60 p-3">
+                <div className="text-[11.5px] text-o-text-3">Published vs indexed docs</div>
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="o-num text-[18px] font-semibold text-o-text">
+                    {fmtInt(data.ragHealth.indexedArticlesCount)}/{fmtInt(data.ragHealth.totalPublishedArticles)}
+                  </span>
+                  <Badge
+                    tone={
+                      data.ragHealth.totalPublishedArticles > data.ragHealth.indexedArticlesCount
+                        ? 'warn'
+                        : 'ok'
+                    }
+                  >
+                    {data.ragHealth.totalPublishedArticles > data.ragHealth.indexedArticlesCount
+                      ? 'Needs re-index'
+                      : 'Synced'}
+                  </Badge>
+                </div>
+              </div>
+              <div className="rounded-[12px] border border-o-border bg-o-surface-2/60 p-3">
+                <div className="text-[11.5px] text-o-text-3">pgvector knowledge chunks</div>
+                <div className="o-num mt-1 text-[18px] font-semibold text-o-text">
+                  {fmtInt(data.ragHealth.totalChunksCount)}
+                </div>
+              </div>
+              <div className="rounded-[12px] border border-o-border bg-o-surface-2/60 p-3">
+                <div className="text-[11.5px] text-o-text-3">Default RAG pipeline</div>
+                <div className="mt-1.5">
+                  <Badge tone={data.ragHealth.defaultRagMode === 'advanced' ? 'ai' : 'neutral'}>
+                    {data.ragHealth.defaultRagMode === 'advanced' ? 'Advanced RAG (HyDE + Rerank)' : 'Standard RAG'}
+                  </Badge>
+                </div>
+              </div>
+              <div className="rounded-[12px] border border-o-border bg-o-surface-2/60 p-3">
+                <div className="text-[11.5px] text-o-text-3">Embedding backend</div>
+                <div className="mt-1 truncate text-[13px] font-medium text-o-text">
+                  {data.ragHealth.embeddingProvider}
+                </div>
+              </div>
+            </div>
+          </Card>
+
           {/* Agent Roster */}
           <Card>
             <CardHeader
@@ -659,6 +719,16 @@ export function AiAgentsScreen() {
                             <Badge tone={item.humanReview === 'correct' ? 'ok' : 'bad'}>
                               Reviewed: {item.humanReview}
                             </Badge>
+                          ) : null}
+                          {item.verdict !== 'supported' || item.humanReview === 'wrong' ? (
+                            <ButtonLink
+                              href={`/app/knowledge?fixTitle=${encodeURIComponent(item.customerQuestion.slice(0, 80))}&fixQuestion=${encodeURIComponent(item.customerQuestion)}`}
+                              variant="ghost"
+                              size="sm"
+                              leading={<BookOpen size={13} />}
+                            >
+                              Fix in KB
+                            </ButtonLink>
                           ) : null}
                           {canEditContent ? (
                             <>

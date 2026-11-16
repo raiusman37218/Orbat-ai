@@ -163,6 +163,23 @@ export function normalizeAgentRow(row: Record<string, unknown>): AiAgentRow {
         : DEFAULT_AGENT_ENGINE_CONFIG.maxSteps,
       enableMemory: engCfg.enableMemory !== false,
       workflowKey: engCfg.workflowKey ? String(engCfg.workflowKey) : null,
+      externalWebhookUrl: engCfg.externalWebhookUrl ? String(engCfg.externalWebhookUrl) : null,
+      allowedTools: Array.isArray(engCfg.allowedTools)
+        ? Array.from(new Set(engCfg.allowedTools.map(String).filter(Boolean)))
+        : [],
+      evalCases: Array.isArray(engCfg.evalCases)
+        ? (engCfg.evalCases as unknown[])
+            .filter((item): item is { id?: unknown; question?: unknown; expectHandoff?: unknown } =>
+              Boolean(item && typeof item === 'object' && typeof (item as { question?: unknown }).question === 'string'),
+            )
+            .slice(0, 8)
+            .map((item, idx) => ({
+              id: typeof item.id === 'string' && item.id.trim() ? item.id.trim() : `eval_${idx + 1}`,
+              question: String(item.question).trim(),
+              expectHandoff: Boolean(item.expectHandoff),
+            }))
+            .filter((item) => item.question.length > 0)
+        : [],
     },
     rag_config: normalizeAgentRagConfig(ragCfg),
     model_config: {

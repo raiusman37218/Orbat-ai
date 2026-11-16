@@ -3,15 +3,19 @@
 import {
   createAgentFromTemplateAction,
   deleteAiAgentAction,
+  generateAgentPromptDraftAction,
   getAgentBuilderAction,
   getAiAgentsBootstrapAction,
   restoreAgentVersionAction,
+  runAgentEvalSuiteAction,
   runAgentPlaygroundAction,
   saveAgentDraftAction,
   submitAgentReviewVerdictAction,
   toggleAiAgentStatusAction,
   type ActivityLogItem,
   type AgentBuilderBundle,
+  type AgentEvalCaseOutcome,
+  type AgentEvalSuiteResult,
   type AgentVersionItem,
   type AiAgentListItem,
   type AiAgentsBootstrap,
@@ -28,18 +32,26 @@ import {
   AGENT_TEMPLATE_INDUSTRIES,
   DEFAULT_AGENT_APPEARANCE,
   DEFAULT_AGENT_ENGINE_CONFIG,
+  DEFAULT_AGENT_MODEL_CONFIG,
   DEFAULT_AGENT_RAG_CONFIG,
+  DEFAULT_AGENT_ROUTING_RULES,
   DEFAULT_ESCALATION_RULES,
   DEFAULT_KNOWLEDGE_SCOPE,
+  UNIFIED_TOOL_OPTION_DEFS,
+  buildRuleBasedAgentPromptDraft,
+  detectAgentChannelConflicts,
   getAgentTemplate,
+  isToolAllowedInConfig,
   normalizeAgentRagConfig,
   normalizeEngineType,
   type AgentAnswerMode,
   type AgentAppearance,
   type AgentCapabilities,
+  type AgentChannelConflict,
   type AgentEngineConfig,
   type AgentEngineType,
   type AgentEscalationRules,
+  type AgentEvalCase,
   type AgentKnowledgeScope,
   type AgentModelConfig,
   type AgentRagConfig,
@@ -48,6 +60,9 @@ import {
   type AgentRoutingRules,
   type AgentStatus,
   type AgentTemplateSpec,
+  type GeneratedAgentPromptDraft,
+  type RetrievedChunkSummary,
+  type UnifiedToolOptionDef,
 } from '@/lib/ai/agent-templates';
 import type { AiAgentRow, VerificationClaim } from '@/lib/ai/agent-runtime';
 import { useWorkspaceLive } from '@/lib/realtime/use-workspace-live';
@@ -58,9 +73,13 @@ export type {
   AgentAppearance,
   AgentBuilderBundle,
   AgentCapabilities,
+  AgentChannelConflict,
   AgentEngineConfig,
   AgentEngineType,
   AgentEscalationRules,
+  AgentEvalCase,
+  AgentEvalCaseOutcome,
+  AgentEvalSuiteResult,
   AgentKnowledgeScope,
   AgentModelConfig,
   AgentRagConfig,
@@ -74,10 +93,13 @@ export type {
   AiAgentRow,
   AiAgentsBootstrap,
   EscalationBreakdownItem,
+  GeneratedAgentPromptDraft,
   KnowledgeGapSummary,
   PlaygroundResult,
   PlaygroundTurn,
+  RetrievedChunkSummary,
   SaveAgentDraftInput,
+  UnifiedToolOptionDef,
   VerificationClaim,
   VerificationReviewItem,
   WeeklyTrendPoint,
@@ -88,10 +110,16 @@ export {
   AGENT_TEMPLATE_INDUSTRIES,
   DEFAULT_AGENT_APPEARANCE,
   DEFAULT_AGENT_ENGINE_CONFIG,
+  DEFAULT_AGENT_MODEL_CONFIG,
   DEFAULT_AGENT_RAG_CONFIG,
+  DEFAULT_AGENT_ROUTING_RULES,
   DEFAULT_ESCALATION_RULES,
   DEFAULT_KNOWLEDGE_SCOPE,
+  UNIFIED_TOOL_OPTION_DEFS,
+  buildRuleBasedAgentPromptDraft,
+  detectAgentChannelConflicts,
   getAgentTemplate,
+  isToolAllowedInConfig,
   normalizeAgentRagConfig,
   normalizeEngineType,
 };
@@ -154,6 +182,20 @@ export function runAgentPlayground(
   input: Parameters<typeof runAgentPlaygroundAction>[1],
 ) {
   return runAgentPlaygroundAction(workspaceId, input);
+}
+
+export function generateAgentPromptDraft(
+  workspaceId: string,
+  input: Parameters<typeof generateAgentPromptDraftAction>[1],
+) {
+  return generateAgentPromptDraftAction(workspaceId, input);
+}
+
+export function runAgentEvalSuite(
+  workspaceId: string,
+  input: Parameters<typeof runAgentEvalSuiteAction>[1],
+) {
+  return runAgentEvalSuiteAction(workspaceId, input);
 }
 
 export function useAiAgentsLiveSync(

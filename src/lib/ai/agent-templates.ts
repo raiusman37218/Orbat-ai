@@ -10,12 +10,20 @@ export type AgentAnswerMode = 'agent' | 'strict';
 export type AgentEngineType = 'builtin' | 'langgraph' | 'adk' | 'hybrid';
 export type AgentRagMode = 'standard' | 'advanced';
 
+export interface AgentEvalCase {
+  id: string;
+  question: string;
+  expectHandoff?: boolean;
+}
+
 export interface AgentEngineConfig {
   fallbackEngine?: AgentEngineType | null;
   maxSteps?: number;
   enableMemory?: boolean;
   workflowKey?: string | null;
   externalWebhookUrl?: string | null;
+  allowedTools?: string[];
+  evalCases?: AgentEvalCase[];
 }
 
 export interface AgentRagConfig {
@@ -147,6 +155,9 @@ export const DEFAULT_AGENT_ENGINE_CONFIG: AgentEngineConfig = {
   maxSteps: 6,
   enableMemory: true,
   workflowKey: null,
+  externalWebhookUrl: null,
+  allowedTools: [],
+  evalCases: [],
 };
 
 export const DEFAULT_AGENT_RAG_CONFIG: AgentRagConfig = {
@@ -808,4 +819,231 @@ export function slugifyAgentName(name: string): string {
       .replace(/(^-|-$)/g, '')
       .slice(0, 48) || 'ai-agent'
   );
+}
+
+/* ── Part 8: Tool Permissions, Prompt Generator, Conflict Guard & Chunks ─ */
+
+export interface RetrievedChunkSummary {
+  id: string;
+  articleTitle: string;
+  sectionName: string;
+  score: number;
+  snippet: string;
+}
+
+export interface UnifiedToolOptionDef {
+  id: string;
+  label: string;
+  description: string;
+  category: 'knowledge' | 'crm_read' | 'crm_write' | 'handoff';
+  alwaysEnabled?: boolean;
+}
+
+export const UNIFIED_TOOL_OPTION_DEFS: UnifiedToolOptionDef[] = [
+  {
+    id: 'search_knowledge',
+    label: 'Knowledge Base Search',
+    description: 'Searches scoped Help Center articles and approved internal Q&As.',
+    category: 'knowledge',
+    alwaysEnabled: true,
+  },
+  {
+    id: 'crm_get_customer_360',
+    label: 'Customer 360 Lookup',
+    description: 'Reads recent orders, open tickets, deals, and CRM profile context.',
+    category: 'crm_read',
+  },
+  {
+    id: 'crm_create_or_update_deal',
+    label: 'CRM Deal Staging',
+    description: 'Stages qualified commercial deals from buying or pricing inquiries.',
+    category: 'crm_write',
+  },
+  {
+    id: 'crm_create_followup_task',
+    label: 'Follow-up Task Staging',
+    description: 'Creates high-priority internal CRM follow-up tasks on billing or refund tickets.',
+    category: 'crm_write',
+  },
+  {
+    id: 'escalate_to_team_group',
+    label: 'Team Group Escalation',
+    description: 'Routes uncertain or policy-sensitive conversations to human specialists.',
+    category: 'handoff',
+    alwaysEnabled: true,
+  },
+];
+
+/**
+ * Checks if a tool is permitted by `agent.engineConfig.allowedTools`.
+ * When `allowedTools` is omitted or empty, all tools remain enabled for backward compatibility.
+ */
+export function isToolAllowedInConfig(
+  allowedTools: string[] | null | undefined,
+  toolName: string,
+): boolean {
+  if (!Array.isArray(allowedTools) || allowedTools.length === 0) return true;
+  if (toolName === 'search_knowledge' || toolName === 'escalate_to_team_group' || toolName === 'request_human_approval') {
+    return true;
+  }
+  return allowedTools.includes(toolName);
+}
+
+export function toRetrievedChunkSummaries(
+  chunks: Array<{
+    id: string;
+    article_title?: string | null;
+    section_name?: string | null;
+    combined_score?: number | null;
+    similarity?: number | null;
+    content?: string | null;
+  }> | null | undefined,
+  limit = 5,
+): RetrievedChunkSummary[] {
+  if (!Array.isArray(chunks) || chunks.length === 0) return [];
+  return chunks.slice(0, Math.max(1, limit)).map((chunk) => {
+    const rawScore = Number(chunk.combined_score ?? chunk.similarity ?? 0);
+    const clampedScore = Number.isFinite(rawScore) ? Math.max(0, Math.min(1, rawScore)) : 0;
+    const rawContent = String(chunk.content || '').replace(/\s+/g, ' ').trim();
+    const snippet = rawContent.length > 220 ? `${rawContent.slice(0, 217)}...` : rawContent;
+    return {
+      id: String(chunk.id || ''),
+      articleTitle: String(chunk.article_title || 'Knowledge Source'),
+      sectionName: String(chunk.section_name || 'Help Center'),
+      score: Number(clampedScore.toFixed(3)),
+      snippet,
+    };
+  });
+}
+
+export interface GeneratedAgentPromptDraft {
+  roleTitle: string;
+  description: string;
+  tone: string;
+  answerMode: 'strict' | 'agent';
+  systemPrompt: string;
+  guardrails: string[];
+}
+
+export function buildRuleBasedAgentPromptDraft(input: {
+  goal: string;
+  agentName?: string | null;
+  industry?: string | null;
+  channels?: string[];
+}): GeneratedAgentPromptDraft {
+  const goal = (input.goal || '').trim() || 'Handle customer inquiries accurately from verified docs';
+  const name = (input.agentName || '').trim() || 'Orbat Specialist';
+  const lowerGoal = goal.toLowerCase();
+  const isSales = /\b(sales|lead|demo|pricing|quote|deal|upgrade|trial|book)\b/.test(lowerGoal);
+  const isBilling = /\b(billing|refund|invoice|charge|cancel|subscription|payment)\b/.test(lowerGoal);
+  const isTech = /\b(bug|error|api|webhook|troubleshoot|technical|integration|setup)\b/.test(lowerGoal);
+
+  const roleTitle = isSales
+    ? 'AI Sales & Onboarding Specialist'
+    : isBilling
+      ? 'AI Billing & Account Specialist'
+      : isTech
+        ? 'AI Technical Support Engineer'
+        : 'AI Customer Support Specialist';
+
+  const tone = isSales
+    ? 'Warm, consultative, action-oriented'
+    : isBilling
+      ? 'Empathetic, transparent, policy-accurate'
+      : 'Clear, helpful, step-by-step';
+
+  const channelsLabel =
+    Array.isArray(input.channels) && input.channels.length > 0
+      ? input.channels.join(', ')
+      : 'web, email';
+
+  const industryLabel = (input.industry || '').trim() || 'SaaS / Technology';
+
+  const systemPrompt = [
+    `You are ${name}, an ${roleTitle} serving ${industryLabel} customers across ${channelsLabel}.`,
+    `Primary mission: ${goal}.`,
+    '',
+    'Operating principles:',
+    '1. Ground every factual claim (pricing, SLA, policies, technical steps) strictly in retrieved Knowledge Base articles or verified Customer 360 CRM context.',
+    '2. Respond concisely in the customer’s language with clear bullet steps or next actions.',
+    isSales
+      ? '3. Qualify customer needs politely and stage CRM deals when clear commercial buying intent appears.'
+      : isBilling
+        ? '3. Never promise unauthorized refunds, credits, or fee waivers; summarize policy facts clearly and escalate disputed billing requests to human specialists.'
+        : '3. Ask at most one targeted clarifying question when required context is missing, otherwise provide the direct verified solution.',
+    '4. If retrieved documentation does not cover the request with high confidence, acknowledge the gap honestly and hand over to the human team.',
+  ].join('\n');
+
+  const guardrails = [
+    'Never invent pricing, refund timelines, or undocumented features outside retrieved sources.',
+    'Do not expose internal system notes, private bot-knowledge titles, or internal CRM IDs.',
+    isBilling
+      ? 'Require human approval before confirming any refund, credit, or subscription cancellation.'
+      : 'Escalate immediately when customer expresses frustration, legal threats, or security urgency.',
+  ];
+
+  return {
+    roleTitle,
+    description: goal.length > 140 ? `${goal.slice(0, 137)}...` : goal,
+    tone,
+    answerMode: isBilling ? 'strict' : 'agent',
+    systemPrompt,
+    guardrails,
+  };
+}
+
+export interface AgentChannelConflict {
+  agentId: string;
+  agentName: string;
+  sharedChannels: string[];
+  reason: string;
+}
+
+export function detectAgentChannelConflicts(input: {
+  currentAgentId: string;
+  currentStatus: AgentStatus;
+  currentChannels: string[];
+  currentRoutingRules?: Partial<AgentRoutingRules> | null;
+  allAgents: Array<{
+    id: string;
+    name: string;
+    status: AgentStatus;
+    isPrimary: boolean;
+    channels?: string[];
+    routingRules?: Partial<AgentRoutingRules> | null;
+  }>;
+}): AgentChannelConflict[] {
+  if (input.currentStatus !== 'live' && input.currentStatus !== 'draft') {
+    return [];
+  }
+  const normalizedChannels = new Set(
+    (input.currentChannels || []).map((c) => c.trim().toLowerCase()).filter(Boolean),
+  );
+  if (normalizedChannels.size === 0) return [];
+
+  const currentHasFilters =
+    ((input.currentRoutingRules?.keywords || []).length > 0) ||
+    ((input.currentRoutingRules?.intents || []).length > 0);
+
+  const conflicts: AgentChannelConflict[] = [];
+  for (const peer of input.allAgents) {
+    if (!peer.id || peer.id === input.currentAgentId || peer.status !== 'live') continue;
+    const peerChannels = (peer.channels || []).map((c) => c.trim().toLowerCase()).filter(Boolean);
+    const overlap = peerChannels.filter((c) => normalizedChannels.has(c));
+    if (overlap.length === 0) continue;
+
+    const peerHasFilters =
+      ((peer.routingRules?.keywords || []).length > 0) ||
+      ((peer.routingRules?.intents || []).length > 0);
+
+    if (!currentHasFilters && !peerHasFilters) {
+      conflicts.push({
+        agentId: peer.id,
+        agentName: peer.name,
+        sharedChannels: overlap,
+        reason: `Both agents are catch-all on ${overlap.join(', ')} with no routing keywords or intents to disambiguate traffic.`,
+      });
+    }
+  }
+  return conflicts;
 }

@@ -12,12 +12,14 @@ import {
   DEFAULT_ESCALATION_RULES,
   DEFAULT_KNOWLEDGE_SCOPE,
   DEFAULT_AGENT_RAG_CONFIG,
+  buildRuleBasedAgentPromptDraft,
   getAgentTemplate,
   isRestrictedKnowledgeScope,
   normalizeAgentRagConfig,
   normalizeEngineType,
   normalizeKnowledgeScope,
   slugifyAgentName,
+  toRetrievedChunkSummaries,
   type AgentAnswerMode,
   type AgentAppearance,
   type AgentCapabilities,
@@ -28,7 +30,9 @@ import {
   type AgentModelConfig,
   type AgentRagConfig,
   type AgentRagMode,
+  type GeneratedAgentPromptDraft,
   type RagTrace,
+  type RetrievedChunkSummary,
   type AgentReplyLanguageMode,
   type AgentRoutingRules,
   type AgentStatus,
@@ -51,8 +55,10 @@ import {
   resolveAutonomyDecision,
 } from '@/lib/ai/trust-ladder';
 import { detectLanguage, getLanguageInfo, isRomanizedText, translateAgentReply } from '@/lib/ai/translator';
-import { runLangGraphAgent } from '@/lib/agent/engines/langgraph-engine';
+import { executeAgentWithRouter, type EngineRouteDecision } from '@/lib/agent/engines/router';
+import { generateAgentModelText } from '@/lib/agent/engines/model-config';
 import type { AgentTraceStep, EngineUsed } from '@/lib/agent/engines/types';
+import { describeEmbeddingProvider } from '@/lib/ai/semantic-retrieval';
 
 export interface AiAgentListItem extends AiAgentRow {
   replies30d: number;
@@ -141,6 +147,13 @@ export interface AiAgentsBootstrap {
     blockedHumanCount: number;
     needsReviewCount: number;
   };
+  ragHealth: {
+    totalPublishedArticles: number;
+    indexedArticlesCount: number;
+    totalChunksCount: number;
+    defaultRagMode: AgentRagMode;
+    embeddingProvider: string;
+  };
 }
 
 export async function getAiAgentsBootstrapAction(workspaceId: string): Promise<AiAgentsBootstrap> {
@@ -159,6 +172,8 @@ export async function getAiAgentsBootstrapAction(workspaceId: string): Promise<A
     reviewRows,
     activityRows,
     medianRow,
+    ragHealthRows,
+    embeddingMeta,
   ] = await Promise.all([
     queryRows<Record<string, unknown>>(
       `SELECT * FROM public.ai_agents
@@ -266,6 +281,14 @@ export async function getAiAgentsBootstrapAction(workspaceId: string): Promise<A
          AND created_at >= now() - interval '30 days'`,
       [workspaceId],
     ),
+    queryRows<{ published_cnt: string; indexed_cnt: string; chunk_cnt: string }>(
+      `SELECT
+         (SELECT COUNT(*)::text FROM public.articles WHERE workspace_id = $1 AND status = 'published') AS published_cnt,
+         (SELECT COUNT(DISTINCT article_id)::text FROM public.article_chunks WHERE workspace_id = $1) AS indexed_cnt,
+         (SELECT COUNT(*)::text FROM public.article_chunks WHERE workspace_id = $1) AS chunk_cnt`,
+      [workspaceId],
+    ).catch(() => [{ published_cnt: '0', indexed_cnt: '0', chunk_cnt: '0' }]),
+    describeEmbeddingProvider().catch(() => ({ available: false, provider: null })),
   ]);
 
   const parsedAgents = rawAgents.map(normalizeAgentRow);
@@ -408,6 +431,17 @@ export async function getAiAgentsBootstrapAction(workspaceId: string): Promise<A
       blockedHumanCount: reviewQueue.filter((r) => r.verdict === 'blocked_human').length,
       needsReviewCount: reviewQueue.filter((r) => r.verdict === 'needs_review').length,
     },
+    ragHealth: {
+      totalPublishedArticles: Number(ragHealthRows[0]?.published_cnt || 0),
+      indexedArticlesCount: Number(ragHealthRows[0]?.indexed_cnt || 0),
+      totalChunksCount: Number(ragHealthRows[0]?.chunk_cnt || 0),
+      defaultRagMode:
+        (parsedAgents.find((a) => a.is_primary) || parsedAgents[0])?.rag_config?.mode ??
+        DEFAULT_AGENT_RAG_CONFIG.mode,
+      embeddingProvider: embeddingMeta.available
+        ? embeddingMeta.provider || 'Configured provider'
+        : 'Keyword fallback (no embedding key)',
+    },
   };
 }
 
@@ -452,7 +486,14 @@ export interface AgentBuilderBundle {
   canManage: boolean;
   isNew: boolean;
   agent: AiAgentRow;
-  allAgents: { id: string; name: string; status: AgentStatus; isPrimary: boolean }[];
+  allAgents: {
+    id: string;
+    name: string;
+    status: AgentStatus;
+    isPrimary: boolean;
+    channels: string[];
+    routingRules: AgentRoutingRules;
+  }[];
   versions: AgentVersionItem[];
   sections: { id: string; name: string; articleCount: number }[];
   botKnowledgeCount: number;
@@ -585,6 +626,8 @@ export async function getAgentBuilderAction(
       name: a.name,
       status: a.status,
       isPrimary: a.is_primary,
+      channels: a.channels,
+      routingRules: a.routing_rules ?? DEFAULT_AGENT_ROUTING_RULES,
     })),
     versions: versionRows.map((v) => ({
       id: v.id,
@@ -980,6 +1023,9 @@ export interface PlaygroundResult {
   topic?: string;
   engineUsed?: EngineUsed;
   engineTrace?: AgentTraceStep[];
+  engineRoutingReason?: string;
+  retrievedChunks?: RetrievedChunkSummary[];
+  executedTools?: Array<{ toolName: string; ok: boolean; summary: string }>;
 }
 
 export async function runAgentPlaygroundAction(
@@ -997,6 +1043,8 @@ export async function runAgentPlaygroundAction(
     replyLanguageMode?: AgentReplyLanguageMode;
     ragConfig?: Partial<AgentRagConfig>;
     engineType?: AgentEngineType;
+    engineConfig?: Partial<AgentEngineConfig>;
+    modelConfig?: Partial<AgentModelConfig>;
     message: string;
     persona: 'standard' | 'vip' | 'upset' | 'non_english';
     language: 'auto' | 'en' | 'ur' | 'roman_ur' | 'hi' | 'ar' | 'es';
@@ -1089,8 +1137,11 @@ export async function runAgentPlaygroundAction(
             reply_language_mode?: AgentReplyLanguageMode | null;
             rag_config?: Partial<AgentRagConfig> | null;
             engine_type?: AgentEngineType | null;
+            engine_config?: Partial<AgentEngineConfig> | null;
+            model_config?: Partial<AgentModelConfig> | null;
           }>(
-            `SELECT industry, answer_mode, reply_language_mode, rag_config, engine_type FROM public.ai_agents WHERE id = $1 AND workspace_id = $2 LIMIT 1`,
+            `SELECT industry, answer_mode, reply_language_mode, rag_config, engine_type, engine_config, model_config
+             FROM public.ai_agents WHERE id = $1 AND workspace_id = $2 LIMIT 1`,
             [input.agentId, workspaceId],
           ).catch(() => []),
           getAutonomyPoliciesForAgent(workspaceId, input.agentId!).catch(() => []),
@@ -1110,15 +1161,56 @@ export async function runAgentPlaygroundAction(
     const effectiveRagConfig = normalizeAgentRagConfig(input.ragConfig ?? savedAgent?.rag_config);
     const normalizedScope = normalizeKnowledgeScope(input.knowledgeScope);
     const effectiveEngineType = normalizeEngineType(input.engineType ?? savedAgent?.engine_type);
+    const effectiveEngineConfig: Partial<AgentEngineConfig> = {
+      ...(savedAgent?.engine_config || {}),
+      ...(input.engineConfig || {}),
+    };
+    const effectiveModelConfig: Partial<AgentModelConfig> = {
+      ...(savedAgent?.model_config || {}),
+      ...(input.modelConfig || {}),
+    };
+    const hasCustomModelOverride = Boolean(
+      effectiveModelConfig.provider?.trim() ||
+        effectiveModelConfig.model?.trim() ||
+        typeof effectiveModelConfig.temperature === 'number',
+    );
 
-    if (effectiveEngineType === 'langgraph') {
-      const detectedLg = detectLanguage(userMessage);
-      const isRomanLg = isRomanizedText(detectedLg.code, userMessage);
-      const detectedLangName = isRomanLg
-        ? `Roman ${getLanguageInfo(detectedLg.code).name}`
-        : getLanguageInfo(detectedLg.code).name;
+    let routerDecision: EngineRouteDecision | null = null;
+    if (
+      effectiveEngineType === 'langgraph' ||
+      effectiveEngineType === 'adk' ||
+      effectiveEngineType === 'hybrid'
+    ) {
+      const detectedEng = detectLanguage(userMessage);
+      const isRomanEng = isRomanizedText(detectedEng.code, userMessage);
+      const detectedLangName = isRomanEng
+        ? `Roman ${getLanguageInfo(detectedEng.code).name}`
+        : getLanguageInfo(detectedEng.code).name;
 
-      const lgResult = await runLangGraphAgent(
+      const playgroundGenerateFn = async ({
+        system,
+        messages,
+      }: {
+        system: string;
+        messages: { role: 'user' | 'assistant'; content: string }[];
+      }) => {
+        if (hasCustomModelOverride) {
+          const gen = await generateAgentModelText({
+            workspaceId,
+            conversationId: `playground-${workspaceId}`,
+            system,
+            messages,
+            modelConfig: effectiveModelConfig,
+            maxTokens: 550,
+            countReply: false,
+          }).catch(() => null);
+          if (gen?.text) return gen.text;
+        }
+        const userPrompt = messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join('\n');
+        return tryWorkspaceChat(workspaceId, system, userPrompt, 550);
+      };
+
+      const routedOutcome = await executeAgentWithRouter(
         {
           workspaceId,
           workspaceName: wsName,
@@ -1139,112 +1231,116 @@ export async function runAgentPlaygroundAction(
             answerMode: effectiveAnswerMode,
             replyLanguageMode: effectiveReplyLanguageMode,
             ragConfig: effectiveRagConfig,
-            engineType: 'langgraph',
+            engineType: effectiveEngineType,
+            engineConfig: effectiveEngineConfig,
+            modelConfig: effectiveModelConfig,
           },
           autonomyPolicies,
           dryRun: true,
         },
         {
-          services: {
-            generateReplyFn: async ({ system, messages }) => {
-              const userPrompt = messages
-                .map((m) => `${m.role.toUpperCase()}: ${m.content}`)
-                .join('\n');
-              return tryWorkspaceChat(workspaceId, system, userPrompt, 550);
-            },
-          },
+          langgraph: { services: { generateReplyFn: playgroundGenerateFn } },
+          adk: { services: { generateReplyFn: playgroundGenerateFn } },
+          timeoutMs: 18_000,
         },
       );
+      routerDecision = routedOutcome.decision;
 
-      let lgReply = lgResult.replyText;
-      if (
-        input.language !== 'auto' &&
-        input.language !== 'en' &&
-        !lgResult.usingModel &&
-        lgReply
-      ) {
-        const translated = await translateAgentReply({
-          text: lgReply,
-          targetLanguageCode: input.language === 'roman_ur' ? 'ur' : input.language,
-          sourceLanguageCode: 'en',
-          romanize: input.language === 'roman_ur',
-        }).catch(() => null);
-        if (translated?.translatedText) lgReply = translated.translatedText;
-      }
+      if (routedOutcome.result) {
+        const engineResult = routedOutcome.result;
+        let engineReply = engineResult.replyText;
+        if (
+          input.language !== 'auto' &&
+          input.language !== 'en' &&
+          !engineResult.usingModel &&
+          engineReply
+        ) {
+          const translated = await translateAgentReply({
+            text: engineReply,
+            targetLanguageCode: input.language === 'roman_ur' ? 'ur' : input.language,
+            sourceLanguageCode: 'en',
+            romanize: input.language === 'roman_ur',
+          }).catch(() => null);
+          if (translated?.translatedText) engineReply = translated.translatedText;
+        }
 
-      const lgCited = lgResult.citedArticles
-        .filter((s) => s.kind !== 'knowledge')
-        .slice(0, 3)
-        .map((s) => ({ id: s.id, title: s.title, slug: s.slug ?? null }));
-      const verification = await verifyReplyClaimsAgainstKnowledge(
-        workspaceId,
-        lgReply,
-        lgCited[0]?.title ?? lgResult.citedArticles[0]?.title ?? null,
-        { customerQuestion: userMessage, knowledgeScope: normalizedScope },
-      );
-      const confidencePct = Math.min(
-        99,
-        Math.max(
-          35,
-          Math.round(
-            (lgResult.usingModel ? 0.58 : 0.4) * 100 +
-              (lgResult.retrievalConfidence === 'high'
-                ? 35
-                : lgResult.retrievalConfidence === 'medium'
-                  ? 24
-                  : 0),
+        const engineCited = engineResult.citedArticles
+          .filter((s) => s.kind !== 'knowledge')
+          .slice(0, 3)
+          .map((s) => ({ id: s.id, title: s.title, slug: s.slug ?? null }));
+        const verification = await verifyReplyClaimsAgainstKnowledge(
+          workspaceId,
+          engineReply,
+          engineCited[0]?.title ?? engineResult.citedArticles[0]?.title ?? null,
+          { customerQuestion: userMessage, knowledgeScope: normalizedScope },
+        );
+        const confidencePct = Math.min(
+          99,
+          Math.max(
+            35,
+            Math.round(
+              (engineResult.usingModel ? 0.58 : 0.4) * 100 +
+                (engineResult.retrievalConfidence === 'high'
+                  ? 35
+                  : engineResult.retrievalConfidence === 'medium'
+                    ? 24
+                    : 0),
+            ),
           ),
-        ),
-      );
-      const verdict: NonNullable<PlaygroundResult['verificationVerdict']> = lgResult.shouldHandover
-        ? 'blocked_human'
-        : verification.verdict;
+        );
+        const verdict: NonNullable<PlaygroundResult['verificationVerdict']> =
+          engineResult.shouldHandover ? 'blocked_human' : verification.verdict;
 
-      await recordAiVerificationLog({
-        workspaceId,
-        agentId: hasSavedAgent ? input.agentId! : null,
-        agentName: input.agentName || 'AI Assistant',
-        channel: 'playground',
-        topic: lgResult.topic,
-        customerQuestion: userMessage,
-        draftReply: lgReply,
-        finalReply: lgReply,
-        verdict,
-        claims: verification.claims,
-        outcomeNote: `LangGraph Playground (${lgResult.trace.length} node steps)`,
-        confidence: Number((confidencePct / 100).toFixed(2)),
-        latencyMs: lgResult.latencyMs,
-        metadata: {
-          playground: true,
-          engineUsed: 'langgraph',
-          ragMode: effectiveRagConfig.mode,
-          ragTrace: lgResult.ragTrace ?? null,
-          retrievalMethod: lgResult.retrievalMethod,
-          langgraphTrace: lgResult.trace,
-        },
-      });
-
-      return {
-        success: true,
-        result: {
-          replyText: lgReply,
-          handoffTriggered: lgResult.shouldHandover,
-          handoffReason: lgResult.handoverReason ?? null,
-          citedArticles: lgCited,
+        await recordAiVerificationLog({
+          workspaceId,
+          agentId: hasSavedAgent ? input.agentId! : null,
+          agentName: input.agentName || 'AI Assistant',
+          channel: 'playground',
+          topic: engineResult.topic,
+          customerQuestion: userMessage,
+          draftReply: engineReply,
+          finalReply: engineReply,
+          verdict,
           claims: verification.claims,
-          confidencePct,
-          detectedLanguage: detectedLangName,
-          usingModel: lgResult.usingModel,
-          latencyMs: Date.now() - started,
-          ragMode: effectiveRagConfig.mode,
-          ragTrace: lgResult.ragTrace,
-          retrievalMethod: lgResult.retrievalMethod,
-          verificationVerdict: verdict,
-          topic: lgResult.topic,
-          engineUsed: 'langgraph',
-          engineTrace: lgResult.trace,
-        },
-      };
+          outcomeNote: `${engineResult.engineUsed.toUpperCase()} Playground (${engineResult.trace.length} trace step(s))`,
+          confidence: Number((confidencePct / 100).toFixed(2)),
+          latencyMs: engineResult.latencyMs,
+          metadata: {
+            playground: true,
+            engineUsed: engineResult.engineUsed,
+            routingReason: routedOutcome.decision.routingReason,
+            ragMode: effectiveRagConfig.mode,
+            ragTrace: engineResult.ragTrace ?? null,
+            retrievalMethod: engineResult.retrievalMethod,
+            engineTrace: engineResult.trace,
+          },
+        });
+
+        return {
+          success: true,
+          result: {
+            replyText: engineReply,
+            handoffTriggered: engineResult.shouldHandover,
+            handoffReason: engineResult.handoverReason ?? null,
+            citedArticles: engineCited,
+            claims: verification.claims,
+            confidencePct,
+            detectedLanguage: detectedLangName,
+            usingModel: engineResult.usingModel,
+            latencyMs: Date.now() - started,
+            ragMode: effectiveRagConfig.mode,
+            ragTrace: engineResult.ragTrace,
+            retrievalMethod: engineResult.retrievalMethod,
+            verificationVerdict: verdict,
+            topic: engineResult.topic,
+            engineUsed: engineResult.engineUsed,
+            engineTrace: engineResult.trace,
+            engineRoutingReason: routedOutcome.decision.routingReason,
+            retrievedChunks: engineResult.retrievedChunks || [],
+            executedTools: engineResult.executedTools || [],
+          },
+        };
+      }
     }
 
     // Run live Semantic RAG (with keyword fallback & Advanced RAG stages) strictly scoped by the agent's collections & Bot Knowledge toggle.
@@ -1342,15 +1438,34 @@ export async function runAgentPlaygroundAction(
       situation: input.persona === 'upset' ? ['Customer is frustrated in simulation.'] : undefined,
     });
 
-    const llmReply = await tryWorkspaceChat(
-      workspaceId,
-      prompt,
-      [
-        ...(input.history || []).slice(-6).map((h) => `${h.role.toUpperCase()}: ${h.content}`),
-        `USER: ${userMessage}`,
-      ].join('\n'),
-      550,
-    );
+    const chatMessages = [
+      ...(input.history || []).slice(-6).map((h) => ({ role: h.role, content: h.content })),
+      { role: 'user' as const, content: userMessage },
+    ];
+    let llmReply: string | null = null;
+    if (hasCustomModelOverride) {
+      const overridden = await generateAgentModelText({
+        workspaceId,
+        conversationId: `playground-${workspaceId}`,
+        system: prompt,
+        messages: chatMessages,
+        modelConfig: effectiveModelConfig,
+        maxTokens: 550,
+        countReply: false,
+      }).catch(() => null);
+      llmReply = overridden?.text ?? null;
+    }
+    if (!llmReply) {
+      llmReply = await tryWorkspaceChat(
+        workspaceId,
+        prompt,
+        [
+          ...(input.history || []).slice(-6).map((h) => `${h.role.toUpperCase()}: ${h.content}`),
+          `USER: ${userMessage}`,
+        ].join('\n'),
+        550,
+      );
+    }
 
     let replyText = llmReply;
     let usingModel = Boolean(llmReply);
@@ -1486,9 +1601,267 @@ export async function runAgentPlaygroundAction(
         retrievalMethod,
         verificationVerdict,
         topic: autonomy.topic,
+        engineUsed: 'builtin',
+        engineRoutingReason: routerDecision?.routingReason,
+        retrievedChunks: toRetrievedChunkSummaries(retrieved.chunks, 5),
+        executedTools:
+          (retrieved.chunks && retrieved.chunks.length > 0) || retrieved.sources.length > 0
+            ? [
+                {
+                  toolName: 'search_knowledge',
+                  ok: true,
+                  summary: `Searched Knowledge Base (${retrievalMethod}, ${retrieved.sources.length} source(s))`,
+                },
+              ]
+            : [],
       },
     };
   } catch (err) {
     return { success: false, error: errorMessage(err, 'Playground test failed.') };
+  }
+}
+
+export interface AgentEvalCaseOutcome {
+  id: string;
+  question: string;
+  expectHandoff: boolean;
+  passed: boolean;
+  handoffTriggered: boolean;
+  verificationVerdict: PlaygroundResult['verificationVerdict'];
+  confidencePct: number;
+  latencyMs: number;
+  engineUsed: EngineUsed | undefined;
+  replyPreview: string;
+  citedTitles: string[];
+  error?: string;
+}
+
+export interface AgentEvalSuiteResult {
+  totalCount: number;
+  passCount: number;
+  passRatePct: number;
+  avgLatencyMs: number;
+  avgConfidencePct: number;
+  results: AgentEvalCaseOutcome[];
+}
+
+function parsePromptDraftJson(
+  rawText: string | null | undefined,
+  fallback: GeneratedAgentPromptDraft,
+): GeneratedAgentPromptDraft | null {
+  if (!rawText) return null;
+  const cleaned = rawText
+    .replace(/^```(?:json)?\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+  const jsonStart = cleaned.indexOf('{');
+  const jsonEnd = cleaned.lastIndexOf('}');
+  if (jsonStart < 0 || jsonEnd <= jsonStart) return null;
+  try {
+    const parsed = JSON.parse(cleaned.slice(jsonStart, jsonEnd + 1)) as Partial<GeneratedAgentPromptDraft>;
+    const systemPrompt = typeof parsed.systemPrompt === 'string' ? parsed.systemPrompt.trim() : '';
+    if (!systemPrompt) return null;
+    const guardrails = Array.isArray(parsed.guardrails)
+      ? parsed.guardrails.map(String).map((s) => s.trim()).filter(Boolean).slice(0, 8)
+      : fallback.guardrails;
+    return {
+      roleTitle:
+        typeof parsed.roleTitle === 'string' && parsed.roleTitle.trim()
+          ? parsed.roleTitle.trim().slice(0, 80)
+          : fallback.roleTitle,
+      description:
+        typeof parsed.description === 'string' && parsed.description.trim()
+          ? parsed.description.trim().slice(0, 220)
+          : fallback.description,
+      tone:
+        typeof parsed.tone === 'string' && parsed.tone.trim()
+          ? parsed.tone.trim().slice(0, 120)
+          : fallback.tone,
+      answerMode: parsed.answerMode === 'strict' ? 'strict' : 'agent',
+      systemPrompt: systemPrompt.slice(0, 3500),
+      guardrails: guardrails.length > 0 ? guardrails : fallback.guardrails,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function generateAgentPromptDraftAction(
+  workspaceId: string,
+  input: {
+    goal: string;
+    agentName?: string | null;
+    industry?: string | null;
+    channels?: string[];
+  },
+): Promise<
+  | { success: true; draft: GeneratedAgentPromptDraft; usedModel: boolean }
+  | { success: false; error: string }
+> {
+  try {
+    await getWorkspaceAccess(workspaceId, 'manage_settings');
+    const goal = (input.goal || '').trim();
+    if (!goal) {
+      return { success: false, error: 'Describe what this agent should handle first.' };
+    }
+
+    const fallback = buildRuleBasedAgentPromptDraft({
+      goal,
+      agentName: input.agentName,
+      industry: input.industry,
+      channels: input.channels,
+    });
+
+    const llmRes = await generateAgentModelText({
+      workspaceId,
+      conversationId: `prompt-draft-${workspaceId}`,
+      system: [
+        'You design production customer support and sales AI agent specifications.',
+        'Return ONLY valid JSON with keys: roleTitle, description, tone, answerMode ("strict" or "agent"), systemPrompt, guardrails (array of 3-4 concise compliance strings).',
+        'Keep systemPrompt clear, actionable, grounded in Knowledge Base evidence, and under 1200 characters.',
+      ].join('\n'),
+      messages: [
+        {
+          role: 'user',
+          content: [
+            `Agent Name: ${input.agentName || 'Orbat Specialist'}`,
+            `Industry: ${input.industry || 'SaaS / Technology'}`,
+            `Channels: ${(input.channels || ['web', 'email']).join(', ')}`,
+            `Owner Goal: ${goal}`,
+          ].join('\n'),
+        },
+      ],
+      maxTokens: 700,
+      countReply: false,
+    }).catch(() => null);
+
+    const parsed = parsePromptDraftJson(llmRes?.text, fallback);
+    if (parsed) {
+      return { success: true, draft: parsed, usedModel: true };
+    }
+    return { success: true, draft: fallback, usedModel: false };
+  } catch (err) {
+    return { success: false, error: errorMessage(err, 'Could not generate instructions.') };
+  }
+}
+
+export async function runAgentEvalSuiteAction(
+  workspaceId: string,
+  input: {
+    agentId?: string | null;
+    agentName: string;
+    industry?: string | null;
+    tone: string;
+    systemPrompt: string;
+    guardrails: string[];
+    escalationRules: AgentEscalationRules;
+    knowledgeScope: AgentKnowledgeScope;
+    answerMode?: AgentAnswerMode;
+    replyLanguageMode?: AgentReplyLanguageMode;
+    ragConfig?: Partial<AgentRagConfig>;
+    engineType?: AgentEngineType;
+    engineConfig?: Partial<AgentEngineConfig>;
+    modelConfig?: Partial<AgentModelConfig>;
+    cases: Array<{ id: string; question: string; expectHandoff?: boolean }>;
+  },
+): Promise<{ success: true; suite: AgentEvalSuiteResult } | { success: false; error: string }> {
+  try {
+    await getWorkspaceAccess(workspaceId, 'view');
+    const validCases = (input.cases || [])
+      .map((c, idx) => ({
+        id: c.id?.trim() || `eval_${idx + 1}`,
+        question: (c.question || '').trim(),
+        expectHandoff: Boolean(c.expectHandoff),
+      }))
+      .filter((c) => c.question.length > 0)
+      .slice(0, 8);
+
+    if (validCases.length === 0) {
+      return { success: false, error: 'Add at least one test question before running evaluation.' };
+    }
+
+    const outcomes: AgentEvalCaseOutcome[] = [];
+    for (const item of validCases) {
+      const res = await runAgentPlaygroundAction(workspaceId, {
+        agentId: input.agentId,
+        agentName: input.agentName,
+        industry: input.industry,
+        tone: input.tone,
+        systemPrompt: input.systemPrompt,
+        guardrails: input.guardrails,
+        escalationRules: input.escalationRules,
+        knowledgeScope: input.knowledgeScope,
+        answerMode: input.answerMode,
+        replyLanguageMode: input.replyLanguageMode,
+        ragConfig: input.ragConfig,
+        engineType: input.engineType,
+        engineConfig: input.engineConfig,
+        modelConfig: input.modelConfig,
+        message: item.question,
+        persona: 'standard',
+        language: 'auto',
+      });
+
+      if (!res.success) {
+        outcomes.push({
+          id: item.id,
+          question: item.question,
+          expectHandoff: item.expectHandoff,
+          passed: false,
+          handoffTriggered: false,
+          verificationVerdict: undefined,
+          confidencePct: 0,
+          latencyMs: 0,
+          engineUsed: undefined,
+          replyPreview: '',
+          citedTitles: [],
+          error: res.error,
+        });
+        continue;
+      }
+
+      const r = res.result;
+      const passed = item.expectHandoff
+        ? r.handoffTriggered
+        : !r.handoffTriggered && r.verificationVerdict !== 'blocked_human';
+      const cleanedPreview = r.replyText.replace(/\s+/g, ' ').trim();
+      outcomes.push({
+        id: item.id,
+        question: item.question,
+        expectHandoff: item.expectHandoff,
+        passed,
+        handoffTriggered: r.handoffTriggered,
+        verificationVerdict: r.verificationVerdict,
+        confidencePct: r.confidencePct,
+        latencyMs: r.latencyMs,
+        engineUsed: r.engineUsed,
+        replyPreview: cleanedPreview.length > 180 ? `${cleanedPreview.slice(0, 177)}...` : cleanedPreview,
+        citedTitles: r.citedArticles.map((c) => c.title),
+      });
+    }
+
+    const totalCount = outcomes.length;
+    const passCount = outcomes.filter((o) => o.passed).length;
+    const passRatePct = Math.round((passCount / Math.max(1, totalCount)) * 100);
+    const avgLatencyMs = Math.round(
+      outcomes.reduce((acc, o) => acc + o.latencyMs, 0) / Math.max(1, totalCount),
+    );
+    const avgConfidencePct = Math.round(
+      outcomes.reduce((acc, o) => acc + o.confidencePct, 0) / Math.max(1, totalCount),
+    );
+
+    return {
+      success: true,
+      suite: {
+        totalCount,
+        passCount,
+        passRatePct,
+        avgLatencyMs,
+        avgConfidencePct,
+        results: outcomes,
+      },
+    };
+  } catch (err) {
+    return { success: false, error: errorMessage(err, 'Evaluation suite failed.') };
   }
 }

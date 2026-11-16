@@ -15,12 +15,17 @@ import { PostgresSaver } from '@langchain/langgraph-checkpoint-postgres';
 import {
   normalizeAgentRagConfig,
   normalizeKnowledgeScope,
+  isToolAllowedInConfig,
+  toRetrievedChunkSummaries,
+  type AgentModelConfig,
   type RagTrace,
+  type RetrievedChunkSummary,
 } from '@/lib/ai/agent-templates';
 import type { CitableArticle } from '@/lib/ai/help-answer';
 import { classifyByRules, localized, replyLanguageOf } from '@/lib/ai/intent';
-import { executePlatformAiReply, getPlatformAiConfigServerOnly } from '@/lib/ai/platform-gateway';
-import { chat, isConfigured, type ProviderConfig } from '@/lib/ai/provider';
+import type { ProviderConfig } from '@/lib/ai/provider';
+import { generateAgentModelText } from './model-config';
+import { persistAgentRun } from './run-store';
 import { buildSupportAgentPrompt } from '@/lib/ai/support-agent';
 import {
   getArticleSectionNames,
@@ -29,7 +34,7 @@ import {
   type AutonomyDecision,
   type AutonomyPolicyRecord,
 } from '@/lib/ai/trust-ladder';
-import { getDbPool, queryRows } from '@/lib/db';
+import { getDbPool } from '@/lib/db';
 import {
   executeAgentTool,
   type AgentToolContext,
@@ -91,6 +96,7 @@ export interface LangGraphRuntimeServices {
     system: string;
     messages: ChatTurn[];
     providerConfig?: ProviderConfig | null;
+    modelConfig?: Partial<AgentModelConfig> | null;
   }) => Promise<string | null>;
 }
 
@@ -123,6 +129,7 @@ interface RetrievalStatePayload {
   confidence: 'high' | 'medium' | 'low';
   retrievalMethod: 'semantic_rag' | 'keyword_fallback' | 'none';
   ragTrace?: RagTrace;
+  retrievedChunks?: RetrievedChunkSummary[];
 }
 
 /* ── Serializable LangGraph State Definition ────────────────────────────── */
@@ -229,36 +236,19 @@ async function defaultGenerateReply(params: {
   system: string;
   messages: ChatTurn[];
   providerConfig?: ProviderConfig | null;
+  modelConfig?: Partial<AgentModelConfig> | null;
 }): Promise<string | null> {
-  if (params.providerConfig && isConfigured(params.providerConfig)) {
-    const res = await chat(params.providerConfig, {
-      system: params.system,
-      messages: params.messages,
-      maxTokens: 550,
-      temperature: 0.1,
-      reasoning: 'fast',
-    });
-    return res.text?.trim() || null;
-  }
-
-  const platform = await getPlatformAiConfigServerOnly().catch(() => null);
-  if (platform?.isEnabled && platform.config && isConfigured(platform.config)) {
-    const exec = await executePlatformAiReply({
-      workspaceId: params.workspaceId,
-      conversationId: params.conversationId,
-      providerConfig: platform.config,
-      request: {
-        system: params.system,
-        messages: params.messages,
-        maxTokens: 550,
-        temperature: 0.1,
-        reasoning: 'fast',
-      },
-      countReply: false,
-    }).catch(() => null);
-    if (exec?.ok && exec.text) return exec.text.trim();
-  }
-  return null;
+  const res = await generateAgentModelText({
+    workspaceId: params.workspaceId,
+    conversationId: params.conversationId,
+    system: params.system,
+    messages: params.messages,
+    baseProviderConfig: params.providerConfig ?? null,
+    modelConfig: params.modelConfig ?? null,
+    maxTokens: 550,
+    countReply: false,
+  });
+  return res.text;
 }
 
 const COMMERCIAL_DEAL_PATTERN =
@@ -348,11 +338,19 @@ async function retrieveRagAndCrmNode(
     sources?: CitableArticle[];
     belowThreshold?: boolean;
     confidence?: 'high' | 'medium' | 'low';
-    chunks?: Array<{ similarity?: number; combined_score?: number }>;
+    chunks?: Array<{
+      id: string;
+      article_title?: string | null;
+      section_name?: string | null;
+      similarity?: number | null;
+      combined_score?: number | null;
+      content?: string | null;
+    }>;
     ragTrace?: RagTrace;
   }) || {};
 
   const sources = Array.isArray(rawRag.sources) ? rawRag.sources : [];
+  const retrievedChunks = toRetrievedChunkSummaries(rawRag.chunks, 5);
   const retrievalMethod: RetrievalStatePayload['retrievalMethod'] =
     rawRag.chunks && rawRag.chunks.length > 0
       ? 'semantic_rag'
@@ -361,7 +359,11 @@ async function retrieveRagAndCrmNode(
         : 'none';
 
   let customer360Summary: string | null = null;
-  if (state.needsCustomer360 && (state.visitorId || state.visitorEmail)) {
+  if (
+    state.needsCustomer360 &&
+    (state.visitorId || state.visitorEmail) &&
+    isToolAllowedInConfig(state.agent.engineConfig?.allowedTools, 'crm_get_customer_360')
+  ) {
     const crmRes = await executeAgentTool(toolCtx, 'crm_get_customer_360', {
       ...(state.visitorId ? { visitorId: state.visitorId } : {}),
       ...(state.visitorEmail ? { email: state.visitorEmail } : {}),
@@ -415,6 +417,7 @@ async function retrieveRagAndCrmNode(
       confidence: rawRag.confidence || (sources.length > 0 ? 'medium' : 'low'),
       retrievalMethod,
       ragTrace: rawRag.ragTrace,
+      retrievedChunks,
     },
     customer360Summary,
     executedTools,
@@ -513,7 +516,10 @@ async function planOrToolNode(
 
   // 3. Stage CRM actions when commercial intent or sensitive refund follow-up applies
   const visitorLabel = state.visitorName?.trim() || state.visitorEmail?.trim() || 'Workspace Visitor';
-  if (COMMERCIAL_DEAL_PATTERN.test(state.message)) {
+  if (
+    COMMERCIAL_DEAL_PATTERN.test(state.message) &&
+    isToolAllowedInConfig(state.agent.engineConfig?.allowedTools, 'crm_create_or_update_deal')
+  ) {
     stagedActions.push({
       toolName: 'crm_create_or_update_deal',
       summary: `Create qualified deal for ${visitorLabel}`,
@@ -528,7 +534,10 @@ async function planOrToolNode(
       },
     });
   }
-  if (REFUND_OR_CANCELLATION_PATTERN.test(state.message)) {
+  if (
+    REFUND_OR_CANCELLATION_PATTERN.test(state.message) &&
+    isToolAllowedInConfig(state.agent.engineConfig?.allowedTools, 'crm_create_followup_task')
+  ) {
     stagedActions.push({
       toolName: 'crm_create_followup_task',
       summary: `Schedule high-priority Billing/Refund follow-up for ${visitorLabel}`,
@@ -576,6 +585,7 @@ async function planOrToolNode(
     system: systemPrompt,
     messages: [...state.history.slice(-6), { role: 'user', content: state.message }],
     providerConfig: services.providerConfig ?? null,
+    modelConfig: state.agent.modelConfig ?? null,
   }).catch(() => null);
 
   const usingModel = Boolean(draftReply);
@@ -797,73 +807,6 @@ function createCompiledLangGraph(checkpointer: BaseCheckpointSaver) {
     .compile({ checkpointer });
 }
 
-/* ── Run Persistence Helper (`public.ai_agent_runs`) ────────────────────── */
-
-async function persistAgentRun(
-  params: {
-    workspaceId: string;
-    conversationId: string;
-    visitorMessageId?: string | null;
-    agentId?: string | null;
-    threadId: string;
-    status: 'running' | 'paused_approval' | 'completed' | 'rejected' | 'failed';
-    topic: string;
-    pendingAction?: Record<string, unknown>;
-    draftReply?: string | null;
-    finalReply?: string | null;
-    trace: AgentTraceStep[];
-    resolvedBy?: string | null;
-  },
-  db: DbQueryFn = queryRows,
-): Promise<string | null> {
-  if (!process.env.DATABASE_URL && db === queryRows) return null;
-  try {
-    const rows = await db<{ id: string }>(
-      `INSERT INTO public.ai_agent_runs (
-         workspace_id, conversation_id, visitor_message_id, agent_id, engine_type,
-         thread_id, status, topic, pending_action, draft_reply, final_reply, trace,
-         resolved_by, resolved_at, updated_at
-       )
-       VALUES (
-         $1, $2, $3, $4, 'langgraph',
-         $5, $6, $7, $8::jsonb, $9, $10, $11::jsonb,
-         $12, CASE WHEN $6 IN ('completed', 'rejected', 'failed') THEN now() ELSE NULL END, now()
-       )
-       ON CONFLICT (thread_id) DO UPDATE SET
-         status = EXCLUDED.status,
-         topic = EXCLUDED.topic,
-         pending_action = EXCLUDED.pending_action,
-         draft_reply = COALESCE(EXCLUDED.draft_reply, public.ai_agent_runs.draft_reply),
-         final_reply = COALESCE(EXCLUDED.final_reply, public.ai_agent_runs.final_reply),
-         trace = EXCLUDED.trace,
-         resolved_by = COALESCE(EXCLUDED.resolved_by, public.ai_agent_runs.resolved_by),
-         resolved_at = CASE
-           WHEN EXCLUDED.status IN ('completed', 'rejected', 'failed') THEN now()
-           ELSE public.ai_agent_runs.resolved_at
-         END,
-         updated_at = now()
-       RETURNING id`,
-      [
-        params.workspaceId,
-        params.conversationId,
-        params.visitorMessageId ?? null,
-        params.agentId ?? null,
-        params.threadId,
-        params.status,
-        params.topic,
-        JSON.stringify(params.pendingAction || {}),
-        params.draftReply ?? null,
-        params.finalReply ?? null,
-        JSON.stringify(params.trace || []),
-        params.resolvedBy ?? null,
-      ],
-    );
-    return rows[0]?.id ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function buildResultFromState(
   state: GraphState,
   startedAt: number,
@@ -900,6 +843,7 @@ function buildResultFromState(
       retrievalConfidence: state.retrieval.confidence || 'low',
       retrievalMethod: state.retrieval.retrievalMethod || 'none',
       ragTrace: state.retrieval.ragTrace,
+      retrievedChunks: state.retrieval.retrievedChunks || [],
       topic: pendingApproval.topic,
       intent: state.intent || 'help_center_question',
       usingModel: Boolean(state.usingModel),
@@ -933,6 +877,7 @@ function buildResultFromState(
     retrievalConfidence: state.retrieval?.confidence || 'low',
     retrievalMethod: state.retrieval?.retrievalMethod || 'none',
     ragTrace: state.retrieval?.ragTrace,
+    retrievedChunks: state.retrieval?.retrievedChunks || [],
     topic: state.autonomyDecision?.topic || 'General inquiries',
     intent: state.intent || 'help_center_question',
     usingModel: Boolean(state.usingModel),
@@ -1031,6 +976,7 @@ export async function runLangGraphAgent(
           conversationId: input.conversationId,
           visitorMessageId: input.visitorMessageId ?? null,
           agentId: input.agent.id,
+          engineType: 'langgraph',
           threadId,
           status: interruptPayload ? 'paused_approval' : 'completed',
           topic: interruptPayload?.topic || rawResult.autonomyDecision?.topic || 'General inquiries',
@@ -1105,6 +1051,7 @@ export async function resumeLangGraphAgentRun(params: {
           conversationId: resumedState.conversationId,
           visitorMessageId: resumedState.visitorMessageId ?? null,
           agentId: resumedState.agent?.id ?? null,
+          engineType: 'langgraph',
           threadId: params.threadId,
           status: params.approved ? 'completed' : 'rejected',
           topic: resumedState.autonomyDecision?.topic || 'General inquiries',

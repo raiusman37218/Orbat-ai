@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  BookOpen,
   Check,
   CheckCircle2,
   Lock,
@@ -506,7 +507,23 @@ export function AiQualityScreen() {
             </Card>
 
             <Card className="lg:sticky lg:top-[76px] lg:col-span-6">
-              <CardHeader title="Claim check inspector" sub="Line-by-line grounding against Knowledge Base" />
+              <CardHeader
+                title="Claim check inspector"
+                sub="Line-by-line grounding against Knowledge Base"
+                actions={
+                  activeCheck &&
+                  (activeCheck.verdict !== 'supported' || activeCheck.humanReview === 'wrong') ? (
+                    <ButtonLink
+                      href={`/app/knowledge?fixTitle=${encodeURIComponent(activeCheck.customerQuestion.slice(0, 80))}&fixQuestion=${encodeURIComponent(activeCheck.customerQuestion)}`}
+                      variant="secondary"
+                      size="sm"
+                      leading={<BookOpen size={13} />}
+                    >
+                      Fix in KB
+                    </ButtonLink>
+                  ) : null
+                }
+              />
               {!activeCheck ? (
                 <EmptyState
                   title="Select a check"

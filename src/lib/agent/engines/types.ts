@@ -8,7 +8,9 @@ import type {
   AgentRagConfig,
   AgentReplyLanguageMode,
   RagTrace,
+  RetrievedChunkSummary,
 } from '@/lib/ai/agent-templates';
+export type { RetrievedChunkSummary };
 import type { AutonomyDecision, AutonomyPolicyRecord } from '@/lib/ai/trust-ladder';
 import type { CitableArticle } from '@/lib/ai/help-answer';
 import type { ProviderConfig } from '@/lib/ai/provider';
@@ -98,6 +100,7 @@ export interface AgentExecutionResult {
   retrievalConfidence: 'high' | 'medium' | 'low';
   retrievalMethod: 'semantic_rag' | 'keyword_fallback' | 'none';
   ragTrace?: RagTrace;
+  retrievedChunks?: RetrievedChunkSummary[];
   topic: string;
   intent: string;
   usingModel: boolean;

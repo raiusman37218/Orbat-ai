@@ -6,6 +6,7 @@ import { AccessError, getWorkspaceAccess } from '@/lib/team/access';
 import { getLanguageInfo } from '@/lib/ai/translator';
 import { userError } from '@/lib/errors/user-error';
 import { loadHandovers, type HandoverItem } from '@/lib/inbox/handovers';
+import { resumeAdkAgentRun } from '@/lib/agent/engines/adk-engine';
 import { resumeLangGraphAgentRun } from '@/lib/agent/engines/langgraph-engine';
 import { dispatchOutboundMessage } from '@/lib/channels/dispatcher';
 import type {
@@ -799,14 +800,23 @@ export async function resolveLangGraphApprovalAction(
   let resumedReply = (params.editedReply || fallbackDraft).trim();
   let executedTools: Array<{ toolName: string; ok: boolean; summary: string }> = [];
 
+  const isAdkThread = resolvedThreadId.startsWith('adk:');
   try {
-    const resumed = await resumeLangGraphAgentRun({
-      workspaceId,
-      threadId: resolvedThreadId,
-      approved: params.approved,
-      editedReply: params.editedReply,
-      resolvedBy: user.id,
-    });
+    const resumed = isAdkThread
+      ? await resumeAdkAgentRun({
+          workspaceId,
+          threadId: resolvedThreadId,
+          approved: params.approved,
+          editedReply: params.editedReply,
+          resolvedBy: user.id,
+        })
+      : await resumeLangGraphAgentRun({
+          workspaceId,
+          threadId: resolvedThreadId,
+          approved: params.approved,
+          editedReply: params.editedReply,
+          resolvedBy: user.id,
+        });
     if (resumed.replyText?.trim()) {
       resumedReply = resumed.replyText.trim();
     }
@@ -817,7 +827,7 @@ export async function resolveLangGraphApprovalAction(
       throw userError(msg);
     }
     if (!msg.includes('not found or expired')) {
-      throw userError(msg || 'Failed to resume LangGraph workflow.');
+      throw userError(msg || 'Failed to resume agent workflow.');
     }
   }
 
@@ -836,7 +846,7 @@ export async function resolveLangGraphApprovalAction(
         is_internal: false,
         metadata: {
           approved_by: user.id,
-          engine: 'langgraph',
+          engine: isAdkThread ? 'adk' : 'langgraph',
           thread_id: resolvedThreadId,
           agent_id: existingApproval.agentId ?? rawMeta.agent_id ?? null,
           agent_name: existingApproval.agentName ?? rawMeta.agent_name ?? null,

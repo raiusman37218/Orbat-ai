@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   BookOpen,
@@ -226,19 +226,60 @@ export function KnowledgeScreen() {
     });
   }, [data?.articles, search, sectionFilter, statusFilter]);
 
-  const openNewArticleEditor = (prefillTitle = '', prefillGapId: string | null = null) => {
+  const openNewArticleEditor = (
+    prefillTitle = '',
+    prefillGapId: string | null = null,
+    prefillBody?: string,
+  ) => {
     setEditingArticle(null);
     setEdTitle(prefillTitle);
     setEdSlug('');
     setEdSectionId(data?.sections[0]?.id ?? '');
     setEdSummary('');
-    setEdContent(prefillTitle ? `## ${prefillTitle}\n\n` : '');
+    setEdContent(
+      prefillBody ?? (prefillTitle ? `## ${prefillTitle}\n\n` : ''),
+    );
     setEdLangsText('en');
     setEdStatus('draft');
     setEdGapId(prefillGapId);
     setEdPreview(false);
     setMode('editor');
   };
+
+  const fixParamAppliedRef = useRef(false);
+  useEffect(() => {
+    if (fixParamAppliedRef.current || !data || typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const fixTitle = (params.get('fixTitle') || '').trim();
+    const fixQuestion = (params.get('fixQuestion') || '').trim();
+    if (!fixTitle && !fixQuestion) return;
+
+    const heading = fixTitle || fixQuestion.slice(0, 80);
+    const bodyLines = [
+      `## ${heading}`,
+      '',
+      ...(fixQuestion
+        ? ['**Customer Question:**', fixQuestion, '', '**Verified Answer:**', 'Write concise verified steps or policy details here.']
+        : []),
+    ];
+
+    const timer = window.setTimeout(() => {
+      if (fixParamAppliedRef.current) return;
+      fixParamAppliedRef.current = true;
+      setEditingArticle(null);
+      setEdTitle(heading);
+      setEdSlug('');
+      setEdSectionId(data.sections[0]?.id ?? '');
+      setEdSummary('');
+      setEdContent(bodyLines.join('\n'));
+      setEdLangsText('en');
+      setEdStatus('draft');
+      setEdGapId(null);
+      setEdPreview(false);
+      setMode('editor');
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [data]);
 
   const openExistingArticle = async (summaryRow: KnowledgeArticleSummary) => {
     const res = await getKnowledgeArticleDetail(workspaceId, summaryRow.id);
