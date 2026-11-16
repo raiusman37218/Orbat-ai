@@ -43,6 +43,7 @@ const SERVER_ACTION_ALLOWED_ORIGINS = Array.from(
 );
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ['@google/adk'],
   experimental: {
     serverActions: {
       allowedOrigins: SERVER_ACTION_ALLOWED_ORIGINS,
