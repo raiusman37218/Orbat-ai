@@ -63,8 +63,9 @@ import {
   type SuperAdminConsoleBundle,
   type SuperAdminWorkspaceRow,
 } from '@/lib/data/super-admin';
+import { signOut } from '@/lib/data/auth';
 import { useTheme } from '@/components/orbat/shell/theme';
-import { useData } from '@/lib/data/use-data';
+import { clearDataCache, useData } from '@/lib/data/use-data';
 import { cn } from '@/lib/utils';
 
 export type AdminNavId =
@@ -89,10 +90,22 @@ const NAV_ITEMS: Array<{
 ];
 
 export function SuperAdminScreen({ initialTab = 'overview' }: { initialTab?: AdminNavId }) {
+  const [switchingAccount, setSwitchingAccount] = useState(false);
   const { data, error, loading, reload } = useData(
     () => loadSuperAdminConsole(),
     ['super-admin-console'],
+    { staleTimeMs: 0 },
   );
+
+  const handleSwitchToAdminLogin = async () => {
+    setSwitchingAccount(true);
+    try {
+      clearDataCache();
+      await signOut();
+    } finally {
+      window.location.assign('/login?redirect=/admin');
+    }
+  };
 
   if (loading && !data) {
     return (
@@ -147,9 +160,18 @@ export function SuperAdminScreen({ initialTab = 'overview' }: { initialTab?: Adm
                     Sign in to ORBAT
                   </ButtonLink>
                 ) : (
-                  <ButtonLink href="/app" variant="primary">
-                    Open my workspace
-                  </ButtonLink>
+                  <>
+                    <Button
+                      variant="primary"
+                      loading={switchingAccount}
+                      onClick={handleSwitchToAdminLogin}
+                    >
+                      Sign in as Super Admin
+                    </Button>
+                    <ButtonLink href="/app" variant="secondary">
+                      Open my workspace
+                    </ButtonLink>
+                  </>
                 )}
                 <ButtonLink href="/" variant="secondary">
                   Home
