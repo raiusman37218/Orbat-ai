@@ -639,6 +639,13 @@ function mapPgErrorToDbError(err: any): DbError {
   };
 }
 
+function quoteSqlLiteral(value: string): string {
+  if (value.includes('\0')) {
+    throw new Error('Invalid SQL literal: contains null byte');
+  }
+  return `'${value.replace(/'/g, "''")}'`;
+}
+
 async function runWithContext<T>(
   pool: Pool,
   ctx: DbClientContext | undefined,
@@ -648,15 +655,18 @@ async function runWithContext<T>(
     return fn(pool);
   }
 
+  const setExprs: string[] = [];
+  if (ctx.userId) {
+    setExprs.push(`set_config('request.jwt.claim.sub', ${quoteSqlLiteral(ctx.userId)}, true)`);
+  }
+  if (ctx.role) {
+    setExprs.push(`set_config('request.jwt.claim.role', ${quoteSqlLiteral(ctx.role)}, true)`);
+  }
+
   const client = await pool.connect();
   try {
-    await client.query('BEGIN');
-    if (ctx.userId) {
-      await client.query(`SELECT set_config('request.jwt.claim.sub', $1, true)`, [ctx.userId]);
-    }
-    if (ctx.role) {
-      await client.query(`SELECT set_config('request.jwt.claim.role', $1, true)`, [ctx.role]);
-    }
+    // Combine BEGIN + set_config(...) into one round-trip over the wire (cuts 3 RTTs to 1 RTT).
+    await client.query(`BEGIN; SELECT ${setExprs.join(', ')};`);
     const res = await fn(client);
     await client.query('COMMIT');
     return res;

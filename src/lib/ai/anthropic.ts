@@ -1,6 +1,7 @@
 import { serviceClient } from '@/lib/pg/service';
 import { autoAssignConversation } from '@/lib/team/auto-assign';
 import { notifyTeamByEmailLater } from '@/lib/team/agent-notify';
+import { createWorkspaceNotification } from '@/lib/notifications/workspace-notifications';
 import {
   answerFromHelpCenter,
   buildModelContext,
@@ -2144,10 +2145,21 @@ export async function executeHandoverToHuman({
       });
     }
 
-    // 4. Email the team (after assignment, so an on-shift assignee is told
+    // 4. Email & notify the team (after assignment, so an on-shift assignee is told
     // alone). Not when a person already took the conversation over.
     if (!humanTookOver) {
       notifyTeamByEmailLater({ workspaceId, conversationId, event: 'handover', reason });
+      await createWorkspaceNotification({
+        workspaceId,
+        recipientAgentId: assignedTo?.id ?? null,
+        kind: 'handoff',
+        title: assignedTo?.name
+          ? `Handoff assigned to ${assignedTo.name}`
+          : 'New AI handoff needs attention',
+        body: reason || 'A conversation was handed off to the team.',
+        href: `/app/inbox?c=${encodeURIComponent(conversationId)}`,
+        client: supabase,
+      });
     }
 
     return { assignedAgent: assignedTo };

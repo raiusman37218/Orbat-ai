@@ -4,7 +4,7 @@
  * without scanning historical tickets on every page load.
  */
 
-import type { ReportingEvent, ReportingEventType } from '@/types/database';
+import type { ReportingEvent } from '@/types/database';
 
 export interface SlaEventItem {
   id?: number | string;
@@ -21,11 +21,13 @@ export interface MetricFilterOptions {
   groupId?: string | null;
   agentId?: string | null;
   channel?: string | null;
+  granularity?: 'day' | 'hour';
+  timeZone?: string | null;
 }
 
 export interface DateBucket {
-  key: string;       // YYYY-MM-DD
-  label: string;     // e.g. "Oct 12"
+  key: string;       // YYYY-MM-DD (day) or YYYY-MM-DDTHH (hour)
+  label: string;     // e.g. "Oct 12" or "2pm"
   start: Date;
   end: Date;
 }
@@ -35,6 +37,9 @@ export interface CreatedVsSolvedPoint {
   label: string;
   created: number;
   solved: number;
+  aiResolved: number;
+  humanResolved: number;
+  stillOpen: number;
 }
 
 export interface BacklogPoint {
@@ -48,6 +53,39 @@ export interface BreakdownItem {
   label: string;
   count: number;
   percentage: number;
+  aiResolvedCount?: number;
+  aiResolutionPct?: number | null;
+}
+
+export interface AiAgentSummaryRow {
+  id: string;
+  name: string;
+  roleTitle: string | null;
+  status: 'live' | 'draft' | 'paused' | string;
+  isPrimary: boolean;
+  channels: string[];
+  totalReplies: number;
+  supportedCount: number;
+  flaggedCount: number;
+  escalatedCount: number;
+  groundingPct: number | null;
+  avgConfidencePct: number | null;
+}
+
+export interface WorkspaceAiRoi {
+  aiResolvedCount: number;
+  avgHandleMinutes: number;
+  hourlyRateUsd: number;
+  hoursSaved: number;
+  costSavedUsd: number;
+}
+
+export interface OverviewActionQueue {
+  urgentSlaCount: number;
+  breachedCount: number;
+  breachingSoonCount: number;
+  aiQualityFlagsCount: number;
+  waitingHandoffsCount: number;
 }
 
 export interface HeatmapCell {
@@ -137,6 +175,11 @@ export interface ReportsDashboardData {
   leaderboard: AgentLeaderboardRow[];
   recentFeedback: CsatFeedbackItem[];
   handoff?: HandoffReportMetrics;
+  aiAgents?: AiAgentSummaryRow[];
+  roi?: WorkspaceAiRoi;
+  actionQueue?: OverviewActionQueue;
+  granularity?: 'day' | 'hour';
+  timeZone?: string;
 }
 
 const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'] as const;
@@ -184,24 +227,165 @@ export function formatDuration(seconds: number | null | undefined): string {
   return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
 }
 
-/** Generates daily buckets between start and end dates in UTC. */
-export function generateDateBuckets(startDate: Date, endDate: Date): DateBucket[] {
-  const buckets: DateBucket[] = [];
-  const current = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
-  const end = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
 
-  while (current <= end) {
-    const key = current.toISOString().slice(0, 10);
-    const month = current.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
-    const day = current.getUTCDate();
+const zonedFormatterCache = new Map<string, Intl.DateTimeFormat>();
+
+export function normalizeTimeZone(tz?: string | null): string {
+  const candidate = (tz || '').trim();
+  if (!candidate) return 'UTC';
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: candidate });
+    return candidate;
+  } catch {
+    return 'UTC';
+  }
+}
+
+function getZonedFormatter(timeZone: string): Intl.DateTimeFormat {
+  let fmt = zonedFormatterCache.get(timeZone);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hourCycle: 'h23',
+    });
+    zonedFormatterCache.set(timeZone, fmt);
+  }
+  return fmt;
+}
+
+function getZonedParts(date: Date, timeZone: string): {
+  year: string;
+  month: string;
+  day: string;
+  hour: string;
+  minute: number;
+  second: number;
+} {
+  const parts = getZonedFormatter(timeZone).formatToParts(date);
+  let year = '1970';
+  let month = '01';
+  let day = '01';
+  let hour = '00';
+  let minute = 0;
+  let second = 0;
+  for (const p of parts) {
+    if (p.type === 'year') year = p.value;
+    else if (p.type === 'month') month = p.value;
+    else if (p.type === 'day') day = p.value;
+    else if (p.type === 'hour') hour = p.value === '24' ? '00' : p.value;
+    else if (p.type === 'minute') minute = Number(p.value) || 0;
+    else if (p.type === 'second') second = Number(p.value) || 0;
+  }
+  return { year, month, day, hour, minute, second };
+}
+
+function formatHourLabel(hour24: number): string {
+  const h = ((hour24 % 24) + 24) % 24;
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${h12}${h < 12 ? 'am' : 'pm'}`;
+}
+
+function formatDayLabel(monthStr: string, dayStr: string): string {
+  const monthIdx = Math.max(0, Math.min(11, (Number(monthStr) || 1) - 1));
+  return `${MONTH_SHORT[monthIdx]} ${Number(dayStr) || 1}`;
+}
+
+/** Generates daily buckets between start and end dates in the specified timezone (default UTC). */
+export function generateDateBuckets(startDate: Date, endDate: Date, timeZone = 'UTC'): DateBucket[] {
+  const tz = normalizeTimeZone(timeZone);
+  if (tz === 'UTC') {
+    const buckets: DateBucket[] = [];
+    const current = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth(), startDate.getUTCDate()));
+    const end = new Date(Date.UTC(endDate.getUTCFullYear(), endDate.getUTCMonth(), endDate.getUTCDate()));
+
+    while (current <= end) {
+      const key = current.toISOString().slice(0, 10);
+      const month = current.toLocaleString('en-US', { month: 'short', timeZone: 'UTC' });
+      const day = current.getUTCDate();
+      buckets.push({
+        key,
+        label: `${month} ${day}`,
+        start: new Date(current),
+        end: new Date(current.getTime() + 24 * 60 * 60 * 1000 - 1),
+      });
+      current.setUTCDate(current.getUTCDate() + 1);
+    }
+    return buckets;
+  }
+
+  const buckets: DateBucket[] = [];
+  const seenKeys = new Set<string>();
+  const endParts = getZonedParts(endDate, tz);
+  const endKey = `${endParts.year}-${endParts.month}-${endParts.day}`;
+
+  // Step hour-by-hour in UTC instants so non-UTC calendars (including DST transitions) capture every local date cleanly.
+  const startMidnightApprox = new Date(startDate.getTime() - 24 * 3_600_000);
+  const maxSteps = Math.max(24, Math.ceil((endDate.getTime() - startDate.getTime()) / 3_600_000) + 48);
+  let started = false;
+  const startParts = getZonedParts(startDate, tz);
+  const startKey = `${startParts.year}-${startParts.month}-${startParts.day}`;
+
+  for (let h = 0; h <= maxSteps; h++) {
+    const probe = new Date(startMidnightApprox.getTime() + h * 3_600_000);
+    const parts = getZonedParts(probe, tz);
+    const key = `${parts.year}-${parts.month}-${parts.day}`;
+    if (!started && key < startKey) continue;
+    started = true;
+    if (key > endKey) break;
+    if (!seenKeys.has(key)) {
+      seenKeys.add(key);
+      const bucketStartMs =
+        probe.getTime() - ((Number(parts.hour) * 3600 + parts.minute * 60 + parts.second) * 1000 + probe.getUTCMilliseconds());
+      buckets.push({
+        key,
+        label: formatDayLabel(parts.month, parts.day),
+        start: new Date(bucketStartMs),
+        end: new Date(bucketStartMs + 24 * 3_600_000 - 1),
+      });
+    }
+  }
+  return buckets;
+}
+
+/** Generates consecutive hourly buckets ending at the current hour in `timeZone` (default 24 hours). */
+export function generateHourBuckets(
+  endDate: Date,
+  timeZone = 'UTC',
+  hoursCount = 24,
+): DateBucket[] {
+  const tz = normalizeTimeZone(timeZone);
+  const count = Math.max(1, Math.min(168, Math.floor(hoursCount)));
+  const endParts = getZonedParts(endDate, tz);
+  const currentHourStartMs =
+    endDate.getTime() - ((endParts.minute * 60 + endParts.second) * 1000 + endDate.getUTCMilliseconds());
+
+  const buckets: DateBucket[] = [];
+  const keyCounts = new Map<string, number>();
+
+  for (let i = count - 1; i >= 0; i--) {
+    const startMs = currentHourStartMs - i * 3_600_000;
+    const slotStart = new Date(startMs);
+    const parts = getZonedParts(slotStart, tz);
+    const baseKey = `${parts.year}-${parts.month}-${parts.day}T${parts.hour}`;
+    const seen = (keyCounts.get(baseKey) || 0) + 1;
+    keyCounts.set(baseKey, seen);
+    const key = seen > 1 ? `${baseKey}#${seen}` : baseKey;
+
     buckets.push({
       key,
-      label: `${month} ${day}`,
-      start: new Date(current),
-      end: new Date(current.getTime() + 24 * 60 * 60 * 1000 - 1),
+      label: formatHourLabel(Number(parts.hour)),
+      start: slotStart,
+      end: new Date(startMs + 3_600_000 - 1),
     });
-    current.setUTCDate(current.getUTCDate() + 1);
   }
+
   return buckets;
 }
 
@@ -239,39 +423,165 @@ function toIsoTimestamp(value: string | Date): string {
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toISOString();
 }
 
-function toDateKey(value: string | Date): string {
-  return toIsoTimestamp(value).slice(0, 10);
+function buildBucketLookup(buckets: DateBucket[]): Map<string, DateBucket[]> {
+  const map = new Map<string, DateBucket[]>();
+  for (const b of buckets) {
+    const baseKey = b.key.split('#')[0];
+    const arr = map.get(baseKey);
+    if (arr) arr.push(b);
+    else map.set(baseKey, [b]);
+  }
+  return map;
 }
 
-/** 1. Created vs Solved timeline */
-export function calculateCreatedVsSolved(
-  events: ReportingEvent[],
-  buckets: DateBucket[]
-): CreatedVsSolvedPoint[] {
-  const pointMap = new Map<string, { created: number; solved: number }>();
-  for (const b of buckets) {
-    pointMap.set(b.key, { created: 0, solved: 0 });
+function resolveEventBucketKey(
+  occurredAt: string | Date,
+  granularity: 'day' | 'hour',
+  timeZone: string,
+  bucketLookup: Map<string, DateBucket[]>,
+): string | null {
+  const iso = toIsoTimestamp(occurredAt);
+  if (!iso) return null;
+
+  if (granularity === 'day' && timeZone === 'UTC') {
+    const key = iso.slice(0, 10);
+    return bucketLookup.has(key) ? key : null;
   }
 
+  const parsed = occurredAt instanceof Date ? occurredAt : new Date(iso);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const parts = getZonedParts(parsed, timeZone);
+  const baseKey =
+    granularity === 'hour'
+      ? `${parts.year}-${parts.month}-${parts.day}T${parts.hour}`
+      : `${parts.year}-${parts.month}-${parts.day}`;
+
+  const matches = bucketLookup.get(baseKey);
+  if (!matches || matches.length === 0) return null;
+  if (matches.length === 1) return matches[0].key;
+
+  const ts = parsed.getTime();
+  const exact = matches.find((b) => ts >= b.start.getTime() && ts <= b.end.getTime());
+  return (exact ?? matches[0]).key;
+}
+
+function eventOrderRank(eventType: string): number {
+  if (eventType === 'ticket_created') return 1;
+  if (eventType === 'ticket_reopened') return 2;
+  if (eventType === 'ticket_solved') return 3;
+  if (eventType === 'bot_resolved') return 4;
+  return 0;
+}
+
+/** 1. Created vs Solved timeline (including AI vs human resolution & still-open breakdown) */
+export function calculateCreatedVsSolved(
+  events: ReportingEvent[],
+  buckets: DateBucket[],
+  options?: { granularity?: 'day' | 'hour'; timeZone?: string | null },
+): CreatedVsSolvedPoint[] {
+  const granularity: 'day' | 'hour' =
+    options?.granularity ?? (buckets.some((b) => b.key.includes('T')) ? 'hour' : 'day');
+  const timeZone = normalizeTimeZone(options?.timeZone);
+  const bucketLookup = buildBucketLookup(buckets);
+
+  const pointMap = new Map<
+    string,
+    {
+      created: number;
+      solved: number;
+      aiResolved: number;
+      humanResolved: number;
+      stillOpen: number;
+      unmatchedCreated: number;
+      unmatchedSolved: number;
+    }
+  >();
+  for (const b of buckets) {
+    pointMap.set(b.key, {
+      created: 0,
+      solved: 0,
+      aiResolved: 0,
+      humanResolved: 0,
+      stillOpen: 0,
+      unmatchedCreated: 0,
+      unmatchedSolved: 0,
+    });
+  }
+
+  const botResolvedTicketIds = new Set<string>();
+  const latestTicketStatus = new Map<string, { status: 'open' | 'solved'; ts: number; rank: number }>();
+
   for (const e of events) {
-    const dayKey = toDateKey(e.occurred_at);
-    const pt = pointMap.get(dayKey);
+    if (e.event_type === 'bot_resolved' && e.ticket_id) {
+      botResolvedTicketIds.add(e.ticket_id);
+    }
+    const rank = eventOrderRank(e.event_type);
+    if (e.ticket_id && rank > 0) {
+      const ts = new Date(toIsoTimestamp(e.occurred_at)).getTime() || 0;
+      const status: 'open' | 'solved' =
+        e.event_type === 'ticket_solved' || e.event_type === 'bot_resolved' ? 'solved' : 'open';
+      const prev = latestTicketStatus.get(e.ticket_id);
+      if (!prev || ts > prev.ts || (ts === prev.ts && rank >= prev.rank)) {
+        latestTicketStatus.set(e.ticket_id, { status, ts, rank });
+      }
+    }
+  }
+
+  const matchedBotTicketIds = new Set<string>();
+
+  for (const e of events) {
+    const bucketKey = resolveEventBucketKey(e.occurred_at, granularity, timeZone, bucketLookup);
+    const pt = bucketKey ? pointMap.get(bucketKey) : undefined;
     if (!pt) continue;
 
     if (e.event_type === 'ticket_created') {
       pt.created += 1;
+      if (e.ticket_id) {
+        if (latestTicketStatus.get(e.ticket_id)?.status !== 'solved') {
+          pt.stillOpen += 1;
+        }
+      } else {
+        pt.unmatchedCreated += 1;
+      }
     } else if (e.event_type === 'ticket_solved') {
       pt.solved += 1;
+      if (!e.ticket_id) {
+        pt.unmatchedSolved += 1;
+      }
+      if (e.ticket_id && botResolvedTicketIds.has(e.ticket_id)) {
+        pt.aiResolved += 1;
+        matchedBotTicketIds.add(e.ticket_id);
+      } else {
+        pt.humanResolved += 1;
+      }
     }
+  }
+
+  // Fallback for standalone `bot_resolved` events emitted without a corresponding `ticket_solved`
+  for (const e of events) {
+    if (e.event_type !== 'bot_resolved') continue;
+    if (e.ticket_id && matchedBotTicketIds.has(e.ticket_id)) continue;
+    if (e.ticket_id) matchedBotTicketIds.add(e.ticket_id);
+
+    const bucketKey = resolveEventBucketKey(e.occurred_at, granularity, timeZone, bucketLookup);
+    const pt = bucketKey ? pointMap.get(bucketKey) : undefined;
+    if (!pt) continue;
+    pt.aiResolved += 1;
+    pt.solved += 1;
+    if (!e.ticket_id) pt.unmatchedSolved += 1;
   }
 
   return buckets.map((b) => {
     const pt = pointMap.get(b.key)!;
+    const extraOpen = Math.max(0, pt.unmatchedCreated - pt.unmatchedSolved);
     return {
       date: b.key,
       label: b.label,
       created: pt.created,
       solved: pt.solved,
+      aiResolved: pt.aiResolved,
+      humanResolved: pt.humanResolved,
+      stillOpen: pt.stillOpen + extraOpen,
     };
   });
 }
@@ -280,23 +590,29 @@ export function calculateCreatedVsSolved(
 export function calculateBacklogOverTime(
   initialBacklog: number,
   events: ReportingEvent[],
-  buckets: DateBucket[]
+  buckets: DateBucket[],
+  options?: { granularity?: 'day' | 'hour'; timeZone?: string | null },
 ): BacklogPoint[] {
+  const granularity: 'day' | 'hour' =
+    options?.granularity ?? (buckets.some((b) => b.key.includes('T')) ? 'hour' : 'day');
+  const timeZone = normalizeTimeZone(options?.timeZone);
+  const bucketLookup = buildBucketLookup(buckets);
+
   const dayDelta = new Map<string, number>();
   for (const b of buckets) {
     dayDelta.set(b.key, 0);
   }
 
   for (const e of events) {
-    const dayKey = toDateKey(e.occurred_at);
-    if (!dayDelta.has(dayKey)) continue;
+    const bucketKey = resolveEventBucketKey(e.occurred_at, granularity, timeZone, bucketLookup);
+    if (!bucketKey || !dayDelta.has(bucketKey)) continue;
 
     if (e.event_type === 'ticket_created') {
-      dayDelta.set(dayKey, dayDelta.get(dayKey)! + 1);
+      dayDelta.set(bucketKey, dayDelta.get(bucketKey)! + 1);
     } else if (e.event_type === 'ticket_solved') {
-      dayDelta.set(dayKey, dayDelta.get(dayKey)! - 1);
+      dayDelta.set(bucketKey, dayDelta.get(bucketKey)! - 1);
     } else if (e.event_type === 'ticket_reopened') {
-      dayDelta.set(dayKey, dayDelta.get(dayKey)! + 1);
+      dayDelta.set(bucketKey, dayDelta.get(bucketKey)! + 1);
     }
   }
 
@@ -430,22 +746,25 @@ export function calculateCsatMetrics(
   };
 }
 
-/** 6. Breakdowns by Channel, Priority, Tag */
+/** 6. Breakdowns by Channel (with AI deflection rate), Priority, Tag */
 export function calculateBreakdowns(events: ReportingEvent[]): {
   channelBreakdown: BreakdownItem[];
   priorityBreakdown: BreakdownItem[];
   tagBreakdown: BreakdownItem[];
 } {
   const channelMap = new Map<string, number>();
+  const channelBotResolvedMap = new Map<string, number>();
+  const channelBotHandoverMap = new Map<string, number>();
+  const seenBotResolvedTickets = new Set<string>();
   const priorityMap = new Map<string, number>();
   const tagMap = new Map<string, number>();
 
   let totalTickets = 0;
 
   for (const e of events) {
+    const ch = e.channel || 'chat';
     if (e.event_type === 'ticket_created') {
       totalTickets += 1;
-      const ch = e.channel || 'chat';
       channelMap.set(ch, (channelMap.get(ch) || 0) + 1);
 
       const pr = e.priority || 'normal';
@@ -459,22 +778,41 @@ export function calculateBreakdowns(events: ReportingEvent[]): {
           }
         }
       }
+    } else if (e.event_type === 'bot_resolved') {
+      if (e.ticket_id) {
+        if (seenBotResolvedTickets.has(e.ticket_id)) continue;
+        seenBotResolvedTickets.add(e.ticket_id);
+      }
+      channelBotResolvedMap.set(ch, (channelBotResolvedMap.get(ch) || 0) + 1);
+    } else if (e.event_type === 'bot_handover') {
+      channelBotHandoverMap.set(ch, (channelBotHandoverMap.get(ch) || 0) + 1);
     }
   }
 
-  const toBreakdown = (map: Map<string, number>): BreakdownItem[] => {
+  const toBreakdown = (map: Map<string, number>, includeAi = false): BreakdownItem[] => {
     return Array.from(map.entries())
-      .map(([key, count]) => ({
-        key,
-        label: key.charAt(0).toUpperCase() + key.slice(1).replace('_', ' '),
-        count,
-        percentage: totalTickets > 0 ? Number(((count / totalTickets) * 100).toFixed(1)) : 0,
-      }))
+      .map(([key, count]) => {
+        const base: BreakdownItem = {
+          key,
+          label: key.charAt(0).toUpperCase() + key.slice(1).replace('_', ' '),
+          count,
+          percentage: totalTickets > 0 ? Number(((count / totalTickets) * 100).toFixed(1)) : 0,
+        };
+        if (includeAi) {
+          const aiResolvedCount = channelBotResolvedMap.get(key) || 0;
+          const handovers = channelBotHandoverMap.get(key) || 0;
+          const denom = Math.max(count, aiResolvedCount + handovers);
+          base.aiResolvedCount = aiResolvedCount;
+          base.aiResolutionPct =
+            denom > 0 ? Number(((Math.min(aiResolvedCount, denom) / denom) * 100).toFixed(1)) : 0;
+        }
+        return base;
+      })
       .sort((a, b) => b.count - a.count);
   };
 
   return {
-    channelBreakdown: toBreakdown(channelMap),
+    channelBreakdown: toBreakdown(channelMap, true),
     priorityBreakdown: toBreakdown(priorityMap),
     tagBreakdown: toBreakdown(tagMap).slice(0, 10),
   };
@@ -627,6 +965,34 @@ export function calculateAgentLeaderboard(
     .sort((a, b) => b.solvedCount - a.solvedCount);
 }
 
+export function calculateWorkspaceRoi(
+  aiResolvedCount: number,
+  options?: { avgHandleMinutes?: number; hourlyRateUsd?: number },
+): WorkspaceAiRoi {
+  const cleanResolved = Number.isFinite(aiResolvedCount) ? Math.max(0, Math.round(aiResolvedCount)) : 0;
+  const avgHandleMinutes =
+    typeof options?.avgHandleMinutes === 'number' &&
+    Number.isFinite(options.avgHandleMinutes) &&
+    options.avgHandleMinutes > 0
+      ? Number(options.avgHandleMinutes.toFixed(1))
+      : 10;
+  const hourlyRateUsd =
+    typeof options?.hourlyRateUsd === 'number' &&
+    Number.isFinite(options.hourlyRateUsd) &&
+    options.hourlyRateUsd > 0
+      ? Math.round(options.hourlyRateUsd)
+      : 28;
+  const hoursSaved = Number(((cleanResolved * avgHandleMinutes) / 60).toFixed(1));
+  const costSavedUsd = Math.round(((cleanResolved * avgHandleMinutes) / 60) * hourlyRateUsd);
+  return {
+    aiResolvedCount: cleanResolved,
+    avgHandleMinutes,
+    hourlyRateUsd,
+    hoursSaved,
+    costSavedUsd,
+  };
+}
+
 /** Master calculation function */
 export function calculateReportsDashboard(
   events: ReportingEvent[],
@@ -639,10 +1005,15 @@ export function calculateReportsDashboard(
 ): ReportsDashboardData {
   const filteredEvents = filterReportingEvents(events, filters);
   const filteredSla = filterSlaEvents(slaEvents, filters);
-  const buckets = generateDateBuckets(startDate, endDate);
+  const granularity: 'day' | 'hour' = filters.granularity === 'hour' ? 'hour' : 'day';
+  const timeZone = normalizeTimeZone(filters.timeZone);
+  const buckets =
+    granularity === 'hour'
+      ? generateHourBuckets(endDate, timeZone, 24)
+      : generateDateBuckets(startDate, endDate, timeZone);
 
-  const createdVsSolved = calculateCreatedVsSolved(filteredEvents, buckets);
-  const backlogOverTime = calculateBacklogOverTime(initialBacklog, filteredEvents, buckets);
+  const createdVsSolved = calculateCreatedVsSolved(filteredEvents, buckets, { granularity, timeZone });
+  const backlogOverTime = calculateBacklogOverTime(initialBacklog, filteredEvents, buckets, { granularity, timeZone });
   const responseTimes = calculateResponseTimes(filteredEvents);
   const slaAchievement = calculateSlaAchievement(filteredSla);
 
@@ -700,6 +1071,8 @@ export function calculateReportsDashboard(
     peakHour: heatmapResult.peakHour,
     leaderboard,
     recentFeedback: csat.recentFeedback,
+    granularity,
+    timeZone,
   };
 }
 
@@ -714,9 +1087,23 @@ export function escapeCsv(val: unknown): string {
   return str;
 }
 
-export function exportCreatedVsSolvedCsv(data: CreatedVsSolvedPoint[]): string {
-  const headers = ['Date', 'Tickets Created', 'Tickets Solved'];
-  const rows = data.map((pt) => [escapeCsv(pt.date), escapeCsv(pt.created), escapeCsv(pt.solved)].join(','));
+export function exportCreatedVsSolvedCsv(
+  data: Array<
+    Pick<CreatedVsSolvedPoint, 'date' | 'created' | 'solved'> &
+      Partial<Pick<CreatedVsSolvedPoint, 'label' | 'aiResolved' | 'humanResolved' | 'stillOpen'>>
+  >,
+): string {
+  const headers = ['Date', 'Tickets Created', 'Tickets Solved', 'AI Resolved', 'Human Resolved', 'Still Open'];
+  const rows = data.map((pt) =>
+    [
+      escapeCsv(pt.date),
+      escapeCsv(pt.created),
+      escapeCsv(pt.solved),
+      escapeCsv(pt.aiResolved ?? 0),
+      escapeCsv(pt.humanResolved ?? Math.max(0, pt.solved - (pt.aiResolved ?? 0))),
+      escapeCsv(pt.stillOpen ?? Math.max(0, pt.created - pt.solved)),
+    ].join(','),
+  );
   return [headers.join(','), ...rows].join('\n');
 }
 

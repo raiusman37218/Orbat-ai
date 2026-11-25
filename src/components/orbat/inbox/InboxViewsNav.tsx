@@ -2,8 +2,8 @@
 
 /**
  * Left Inbox views rail (`212px` on `xl:` desktops) matching `Inbox.dc.html`:
- * conversation views with live counts, workspace team groups (read-only until
- * `conversations.group_id` exists), and saved filters honest unavailable state.
+ * conversation views with live counts, clickable workspace team groups, and
+ * persisted saved conversation filters.
  */
 
 import Link from 'next/link';
@@ -15,6 +15,9 @@ import {
   Clock,
   Inbox as InboxIcon,
   Layers,
+  Plus,
+  ShieldAlert,
+  Trash2,
   UserCheck,
   Users,
 } from 'lucide-react';
@@ -37,6 +40,7 @@ export const INBOX_VIEWS: InboxViewDefinition[] = [
   { key: 'mine', label: 'Assigned to me', shortLabel: 'Mine' },
   { key: 'unassigned', label: 'Unassigned', shortLabel: 'Unassigned' },
   { key: 'waiting', label: 'Handovers', shortLabel: 'Handover' },
+  { key: 'waiting_approval', label: 'Pending approval', shortLabel: 'Approval' },
   { key: 'ai', label: 'AI handling', shortLabel: 'AI' },
   { key: 'snoozed', label: 'Snoozed', shortLabel: 'Snoozed' },
   { key: 'resolved', label: 'Resolved', shortLabel: 'Resolved' },
@@ -54,6 +58,8 @@ function ViewIcon({ view }: { view: InboxViewKey }) {
       return <Users className={cls} aria-hidden="true" />;
     case 'waiting':
       return <AlertCircle className={cls} aria-hidden="true" />;
+    case 'waiting_approval':
+      return <ShieldAlert className={cls} aria-hidden="true" />;
     case 'ai':
       return <Bot className={cls} aria-hidden="true" />;
     case 'snoozed':
@@ -71,7 +77,14 @@ export function InboxViewsNav({
   onSelectView,
   counts,
   teamGroups,
+  selectedGroupId,
+  onSelectGroup,
+  groupCounts,
   savedFilters,
+  activeSavedFilterId,
+  onApplySavedFilter,
+  onOpenSaveFilter,
+  onDeleteSavedFilter,
   metaLoading,
   metaError,
   onRetryMeta,
@@ -80,7 +93,14 @@ export function InboxViewsNav({
   onSelectView: (view: InboxViewKey) => void;
   counts: Record<InboxViewKey, number>;
   teamGroups: InboxTeamGroup[];
+  selectedGroupId: string | null;
+  onSelectGroup: (groupId: string | null) => void;
+  groupCounts: Record<string, number>;
   savedFilters: InboxSavedFilter[];
+  activeSavedFilterId: string | null;
+  onApplySavedFilter: (filter: InboxSavedFilter) => void;
+  onOpenSaveFilter: () => void;
+  onDeleteSavedFilter: (viewId: string) => Promise<void>;
   metaLoading: boolean;
   metaError: string | null;
   onRetryMeta: () => void;
@@ -137,12 +157,22 @@ export function InboxViewsNav({
           <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-o-text-3">
             Team inboxes
           </span>
-          <Link
-            href="/app/tickets"
-            className="o-focus rounded text-[11px] font-medium text-o-accent-text hover:underline"
-          >
-            Tickets
-          </Link>
+          {selectedGroupId ? (
+            <button
+              type="button"
+              onClick={() => onSelectGroup(null)}
+              className="o-focus rounded text-[11px] font-medium text-o-accent-text hover:underline"
+            >
+              All teams
+            </button>
+          ) : (
+            <Link
+              href="/app/tickets"
+              className="o-focus rounded text-[11px] font-medium text-o-accent-text hover:underline"
+            >
+              Manage
+            </Link>
+          )}
         </div>
 
         {metaLoading ? (
@@ -158,35 +188,50 @@ export function InboxViewsNav({
           />
         ) : teamGroups.length === 0 ? (
           <p className="px-2 py-1.5 text-[12px] leading-relaxed text-o-text-3">
-            No team groups configured yet. Manage routing groups in Tickets or Team settings.
+            No team groups configured yet. Create groups in Tickets or Team settings.
           </p>
         ) : (
-          <div className="space-y-1">
-            {teamGroups.map((g) => (
-              <div
-                key={g.id}
-                title="Team groups filter tickets only; conversations do not yet carry a group assignment."
-                className="flex items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-[12.5px] text-o-text-2"
-              >
-                <span className="flex min-w-0 items-center gap-2">
+          <div className="space-y-0.5">
+            {teamGroups.map((g) => {
+              const active = selectedGroupId === g.id;
+              const openCount = groupCounts[g.id] ?? 0;
+              return (
+                <button
+                  key={g.id}
+                  type="button"
+                  onClick={() => onSelectGroup(active ? null : g.id)}
+                  aria-pressed={active}
+                  title={`${g.name} (${g.memberIds.length} member${g.memberIds.length === 1 ? '' : 's'})`}
+                  className={cn(
+                    'o-focus flex w-full items-center justify-between gap-2 rounded-[10px] px-2.5 py-1.5 text-left text-[12.5px] transition-colors',
+                    active
+                      ? 'bg-o-accent-soft font-semibold text-o-accent-text'
+                      : 'text-o-text-2 hover:bg-o-surface-2 hover:text-o-text',
+                  )}
+                >
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span
+                      aria-hidden="true"
+                      className={cn(
+                        'h-2 w-2 flex-none rounded-full',
+                        active ? 'bg-o-accent-text' : 'bg-o-border-2',
+                      )}
+                    />
+                    <span className="truncate">{g.name}</span>
+                  </span>
                   <span
-                    aria-hidden="true"
-                    className="h-2 w-2 flex-none rounded-full bg-o-border-2"
-                  />
-                  <span className="truncate">{g.name}</span>
-                </span>
-                <span className="text-[11px] tabular-nums text-o-text-3">
-                  {g.memberIds.length}
-                </span>
-              </div>
-            ))}
-            <p className="px-2 pt-1 text-[11px] leading-snug text-o-text-3">
-              Group queue filtering is available on{' '}
-              <Link href="/app/tickets" className="text-o-accent-text underline">
-                Tickets
-              </Link>
-              .
-            </p>
+                    className={cn(
+                      'rounded-full px-1.5 py-0.5 text-[11px] tabular-nums',
+                      active
+                        ? 'bg-o-surface/70 text-o-accent-text'
+                        : 'text-o-text-3',
+                    )}
+                  >
+                    {openCount}
+                  </span>
+                </button>
+              );
+            })}
           </div>
         )}
       </div>
@@ -194,30 +239,65 @@ export function InboxViewsNav({
       <div className="mt-5 border-t border-o-border pt-4">
         <div className="flex items-center justify-between px-2 pb-1.5">
           <span className="text-[11px] font-bold uppercase tracking-[0.06em] text-o-text-3">
-            Saved filters
+            Saved views
           </span>
+          <button
+            type="button"
+            onClick={onOpenSaveFilter}
+            className="o-focus inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[11px] font-medium text-o-accent-text hover:bg-o-accent-soft"
+            title="Save active view and filters"
+          >
+            <Plus className="h-3 w-3" aria-hidden="true" />
+            Save
+          </button>
         </div>
         {savedFilters.length === 0 ? (
           <div className="rounded-[12px] border border-dashed border-o-border bg-o-surface-2 px-2.5 py-2.5 text-[11.5px] leading-relaxed text-o-text-3">
             <div className="flex items-center gap-1.5 font-semibold text-o-text-2">
               <Bookmark className="h-3.5 w-3.5" aria-hidden="true" />
-              Not supported yet
+              No saved views
             </div>
             <p className="mt-1">
-              Saved views exist on{' '}
-              <Link href="/app/tickets" className="text-o-accent-text underline">
-                Tickets
-              </Link>
-              ; conversation filters are local to this session.
+              Click <span className="font-medium text-o-text-2">+ Save</span> to bookmark a channel, team inbox, or search filter.
             </p>
           </div>
         ) : (
           <ul className="space-y-0.5">
-            {savedFilters.map((f) => (
-              <li key={f.id} className="px-2.5 py-1.5 text-[12.5px] text-o-text-2">
-                {f.name}
-              </li>
-            ))}
+            {savedFilters.map((f) => {
+              const active = activeSavedFilterId === f.id;
+              return (
+                <li
+                  key={f.id}
+                  className={cn(
+                    'group flex items-center justify-between gap-1 rounded-[10px] px-1.5 py-1 transition-colors',
+                    active
+                      ? 'bg-o-accent-soft text-o-accent-text'
+                      : 'text-o-text-2 hover:bg-o-surface-2 hover:text-o-text',
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => onApplySavedFilter(f)}
+                    className={cn(
+                      'o-focus flex min-w-0 flex-1 items-center gap-1.5 rounded px-1 py-0.5 text-left text-[12.5px]',
+                      active ? 'font-semibold' : '',
+                    )}
+                  >
+                    <Bookmark className="h-3.5 w-3.5 flex-none opacity-80" aria-hidden="true" />
+                    <span className="truncate">{f.name}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void onDeleteSavedFilter(f.id)}
+                    aria-label={`Delete saved view ${f.name}`}
+                    title="Delete saved view"
+                    className="o-focus rounded p-1 text-o-text-3 opacity-0 transition-opacity hover:text-o-bad group-hover:opacity-100 focus:opacity-100"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

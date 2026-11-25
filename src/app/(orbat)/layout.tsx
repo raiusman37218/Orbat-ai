@@ -1,4 +1,4 @@
-import { Inter, Inter_Tight } from 'next/font/google';
+import localFont from 'next/font/local';
 import type { ReactNode } from 'react';
 import { OrbToastProvider } from '@/components/orbat/primitives/Toast';
 
@@ -6,16 +6,18 @@ import { OrbToastProvider } from '@/components/orbat/primitives/Toast';
    tokens live (src/components/orbat/orbat.css). Old pages never get the class,
    so both designs can run side by side until the cut-over. */
 
-const inter = Inter({
-  subsets: ['latin'],
-  weight: ['400', '500', '600', '700'],
+const inter = localFont({
+  src: '../../../public/fonts/inter-latin-wght-normal.woff2',
+  weight: '100 900',
+  style: 'normal',
   variable: '--font-inter',
   display: 'swap',
 });
 
-const interTight = Inter_Tight({
-  subsets: ['latin'],
-  weight: ['700', '800', '900'],
+const interTight = localFont({
+  src: '../../../public/fonts/inter-tight-latin-wght-normal.woff2',
+  weight: '100 900',
+  style: 'normal',
   variable: '--font-inter-tight',
   display: 'swap',
 });

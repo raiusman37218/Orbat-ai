@@ -7,24 +7,37 @@
  */
 
 import {
+  assignConversationGroupAction,
   claimConversationAction,
+  deleteConversationViewAction,
   deleteDashboardMessageAction,
   editDashboardMessageAction,
+  getConversationAiSummaryAction,
   getDashboardConversationAction,
   getLiveVisitorMetaAction,
+  getVisitorLifetimeStatsAction,
   getVisitorSnapshotAction,
   listCannedResponsesAction,
+  listConversationViewsAction,
   listDashboardConversationsAction,
   listDashboardMessagesAction,
   listVisitorConversationsAction,
   loadHandoversAction,
-  resolveLangGraphApprovalAction,
+  resumeAgentApprovalAction,
   returnToAiAction,
+  saveConversationViewAction,
+  searchAndFilterConversationsAction,
   sendDashboardMessageAction,
   setConversationLanguageOverrideAction,
   skipConversationAction,
   updateDashboardConversationAction,
+  updateVisitorNotesAction,
   bulkUpdateDashboardConversationsAction,
+  type ConversationAiSummary,
+  type SavedConversationView,
+  type SearchInboxCounts,
+  type SearchInboxParams,
+  type VisitorLifetimeStats,
 } from '@/app/actions/inbox';
 import {
   askCopilotQuestionAction,
@@ -52,7 +65,7 @@ import {
   parseHandoverNote,
   type HandoverItem,
 } from '@/lib/inbox/handovers';
-import { looksLikeImage, uploadChatImage } from '@/lib/image-upload';
+import { looksLikeImage, uploadChatAttachment } from '@/lib/image-upload';
 import {
   getLanguageInfo,
   isLikelyEnglishText,
@@ -104,9 +117,12 @@ export type InboxViewKey =
   | 'unassigned'
   | 'ai'
   | 'waiting'
+  | 'waiting_approval'
   | 'snoozed'
   | 'resolved'
   | 'all';
+
+export type { ConversationAiSummary, SavedConversationView, SearchInboxCounts, SearchInboxParams, VisitorLifetimeStats };
 
 export type InboxSortKey = 'newest' | 'waiting' | 'unread' | 'priority';
 
@@ -127,6 +143,7 @@ export interface InboxConversationItem {
   channelName: string;
   status: ConversationStatus;
   priority: ConversationPriority;
+  groupId: string | null;
   assignedAgentId: string | null;
   assignedAgentName: string | null;
   unreadCount: number;
@@ -199,6 +216,9 @@ export interface InboxMessageItem {
   content: string;
   attachmentUrl: string | null;
   attachmentIsImage: boolean;
+  attachmentIsAudio: boolean;
+  attachmentMimeType: string | null;
+  audioDurationSec: number | null;
   isInternal: boolean;
   createdAt: string;
   readAt: string | null;
@@ -254,10 +274,7 @@ export interface InboxTeamGroup {
   memberIds: string[];
 }
 
-export interface InboxSavedFilter {
-  id: string;
-  name: string;
-}
+export type InboxSavedFilter = SavedConversationView;
 
 export interface InboxCannedReply {
   id: string;
@@ -276,16 +293,7 @@ export interface InboxHelpArticle {
 
 export interface InboxMeta {
   agents: InboxAgent[];
-  /**
-   * TODO(backend): `ticket_groups` applies to tickets, while `conversations`
-   * has no `group_id` column or conversation filter endpoint by team group.
-   * Returned here as read-only workspace team metadata.
-   */
   teamGroups: InboxTeamGroup[];
-  /**
-   * TODO(backend): Saved filters exist only for tickets (`ticket_views`).
-   * Conversations have no saved-filter backend table or query endpoint yet.
-   */
   savedFilters: InboxSavedFilter[];
   cannedReplies: InboxCannedReply[];
   workspaceTags: WorkspaceTag[];
@@ -301,18 +309,18 @@ export interface InboxConversationDetail {
   activeLanguageCode: string;
   detectedLanguageCode: string | null;
   languageOverride: string | null;
-  /**
-   * TODO(backend): Per-conversation AI cost and confidence score are not
-   * persisted on `conversations` (`copilot_events` tracks workspace tokens).
-   */
-  aiCostUsd: null;
-  aiConfidencePercent: null;
+  aiCostUsd: number | null;
+  aiConfidencePercent: number | null;
+  aiAgentName: string | null;
+  aiEngineUsed: string | null;
+  pendingApprovalRun: ConversationAiSummary['pendingApprovalRun'];
 }
 
 export interface InboxCustomerContext {
   visitorId: string | null;
   name: string;
   email: string | null;
+  notes: string;
   isOnline: boolean;
   lastSeenAt: string | null;
   firstSeenAt: string | null;
@@ -344,16 +352,11 @@ export interface InboxCustomerContext {
    * TODO(backend): No e-commerce / Shopify order integration exists yet.
    */
   ordersUnavailableReason: string;
-  /**
-   * TODO(backend): Per-customer historical CSAT %, avg FRT, and resolution %
-   * have no aggregation endpoint yet.
-   */
-  customerMetricsUnavailableReason: string;
-  /**
-   * TODO(backend): `visitors.notes` has no edit/update server action; notes
-   * live as conversation internal messages via `createInternalNoteAction`.
-   */
-  notesEditable: false;
+  lifetimeCsatAvg: number | null;
+  csatCount: number;
+  avgFirstReplySec: number | null;
+  totalResolvedCount: number;
+  notesEditable: true;
 }
 
 export interface InboxCopilotState extends CopilotPanelState {
@@ -383,6 +386,17 @@ function isImageAttachmentUrl(url: string | null | undefined): boolean {
   if (!url) return false;
   if (/\.(jpe?g|png|gif|webp|bmp|heic|heif|avif)(\?|#|$)/i.test(url)) return true;
   return url.includes('/image/upload/');
+}
+
+function isAudioAttachmentUrl(
+  url: string | null | undefined,
+  meta: Record<string, unknown> | null | undefined,
+): boolean {
+  if (!url) return false;
+  if (meta?.is_audio === true || meta?.attachment_is_audio === true) return true;
+  if (typeof meta?.audio_mime === 'string' && meta.audio_mime.startsWith('audio/')) return true;
+  if (typeof meta?.mime_type === 'string' && meta.mime_type.startsWith('audio/')) return true;
+  return /\.(webm|m4a|mp3|ogg|oga)(\?|#|$)/i.test(url) || url.includes('/voice_notes/');
 }
 
 function previewText(conv: Conversation): string {
@@ -438,6 +452,7 @@ export function mapConversationItem(
     channelName: channelLabel(channel),
     status: conv.status || 'open',
     priority: conv.priority || 'normal',
+    groupId: conv.group_id || null,
     assignedAgentId: conv.assigned_agent_id || conv.agent_id || null,
     assignedAgentName: conv.agent?.name || null,
     unreadCount: conv.unread_count || 0,
@@ -621,6 +636,17 @@ export function mapMessageItem(
     content: msg.content || '',
     attachmentUrl: msg.attachment_url || null,
     attachmentIsImage: isImageAttachmentUrl(msg.attachment_url),
+    attachmentIsAudio: isAudioAttachmentUrl(msg.attachment_url, meta),
+    attachmentMimeType:
+      typeof meta?.audio_mime === 'string'
+        ? meta.audio_mime
+        : typeof meta?.mime_type === 'string'
+          ? meta.mime_type
+          : null,
+    audioDurationSec:
+      typeof meta?.audio_duration_sec === 'number' && Number.isFinite(meta.audio_duration_sec)
+        ? meta.audio_duration_sec
+        : null,
     isInternal: Boolean(msg.is_internal),
     createdAt: msg.created_at,
     readAt: msg.read_at || null,
@@ -766,6 +792,15 @@ export function matchesInboxView(
       );
     case 'waiting':
       return item.waitingForPerson && item.status !== 'closed';
+    case 'waiting_approval': {
+      const m = (item.raw.channel_metadata || {}) as Record<string, unknown>;
+      return (
+        item.status !== 'closed' &&
+        (String(item.raw.ai_paused_reason || '') === 'langgraph_approval' ||
+          String(item.raw.handoff_status || '') === 'waiting_approval' ||
+          Boolean(m.pending_langgraph_approval))
+      );
+    }
     case 'snoozed':
       return item.status === 'snoozed';
     case 'resolved':
@@ -786,6 +821,7 @@ export function computeInboxViewCounts(
     'unassigned',
     'ai',
     'waiting',
+    'waiting_approval',
     'snoozed',
     'resolved',
     'all',
@@ -855,11 +891,84 @@ export function sortInboxConversations(
 
 /* ── Server action & API wrappers ──────────────────────────────────────── */
 
+export interface SearchInboxConversationsResult {
+  conversations: InboxConversationItem[];
+  hasMore: boolean;
+  nextCursor: string | null;
+  total: number;
+  counts: Record<InboxViewKey, number>;
+  groupCounts: Record<string, number>;
+}
+
 /**
- * Loads conversations and maps pending/active handover metadata.
- *
- * TODO(backend): `listDashboardConversationsAction` loads pages of 30 ordered
- * by recency with no server-side view counts, search query, or team-group filter.
+ * Queries conversations server-side with full-text/trigram search, view tabs,
+ * team inbox (`groupId`), sorting, cursor pagination, and accurate tab counts.
+ */
+export async function searchInboxConversations(
+  workspaceId: string,
+  opts: {
+    view?: InboxViewKey;
+    channel?: InboxChannelFilter;
+    priority?: InboxPriorityFilter;
+    groupId?: string | null;
+    search?: string;
+    sort?: InboxSortKey;
+    cursor?: string | null;
+    limit?: number;
+  } = {},
+): Promise<SearchInboxConversationsResult> {
+  try {
+    const [searchRes, handoversRes] = await Promise.all([
+      searchAndFilterConversationsAction(workspaceId, {
+        view: opts.view ?? 'open',
+        channel: opts.channel ?? 'all',
+        priority: opts.priority ?? 'all',
+        groupId: opts.groupId ?? null,
+        search: opts.search ?? '',
+        sort: opts.sort ?? 'newest',
+        cursor: opts.cursor ?? null,
+        limit: opts.limit ?? 30,
+      }),
+      loadHandoversAction(workspaceId).catch((err) => {
+        console.error('[Inbox]: Failed to load handovers:', err);
+        return [] as HandoverItem[];
+      }),
+    ]);
+
+    const handoverMap = new Map<string, HandoverItem>();
+    for (const h of handoversRes) handoverMap.set(h.id, h);
+
+    const sc = searchRes.counts;
+    const counts: Record<InboxViewKey, number> = {
+      open: sc.open,
+      mine: sc.mine,
+      unassigned: sc.unassigned,
+      ai: sc.ai,
+      waiting: sc.waiting,
+      waiting_approval: sc.waiting_approval,
+      snoozed: sc.snoozed,
+      resolved: sc.resolved,
+      all: sc.all,
+    };
+
+    return {
+      conversations: searchRes.conversations.map((c) =>
+        mapConversationItem(c, handoverMap.get(c.id)),
+      ),
+      hasMore: searchRes.hasMore,
+      nextCursor: searchRes.nextCursor,
+      total: searchRes.total,
+      counts,
+      groupCounts: searchRes.groupCounts,
+    };
+  } catch (err) {
+    console.error('[Inbox]: Failed to search conversations:', err);
+    throw new Error(errorMessage(err, 'Could not load conversations.'));
+  }
+}
+
+/**
+ * Loads conversations and maps pending/active handover metadata (legacy paged list).
  */
 export async function listInboxConversations(
   workspaceId: string,
@@ -891,11 +1000,12 @@ export async function listInboxConversations(
 }
 
 export async function getInboxMeta(workspaceId: string): Promise<InboxMeta> {
-  const [bootstrapRes, cannedRes, tagsRes, handoversRes] = await Promise.allSettled([
+  const [bootstrapRes, cannedRes, tagsRes, handoversRes, viewsRes] = await Promise.allSettled([
     getTicketsBootstrapAction(workspaceId),
     listCannedResponsesAction(workspaceId),
     listTagsAction(workspaceId),
     loadHandoversAction(workspaceId),
+    listConversationViewsAction(workspaceId),
   ]);
 
   if (bootstrapRes.status === 'rejected') {
@@ -907,11 +1017,15 @@ export async function getInboxMeta(workspaceId: string): Promise<InboxMeta> {
   if (tagsRes.status === 'rejected') {
     console.error('[Inbox]: Failed to load workspace tags:', tagsRes.reason);
   }
+  if (viewsRes.status === 'rejected') {
+    console.error('[Inbox]: Failed to load saved conversation views:', viewsRes.reason);
+  }
 
   const bootstrap = bootstrapRes.status === 'fulfilled' ? bootstrapRes.value : null;
   const canned = cannedRes.status === 'fulfilled' ? cannedRes.value : [];
   const tags = tagsRes.status === 'fulfilled' ? tagsRes.value : [];
   const handovers = handoversRes.status === 'fulfilled' ? handoversRes.value : [];
+  const savedViews = viewsRes.status === 'fulfilled' ? viewsRes.value : [];
 
   const handoversByConversationId: Record<string, HandoverItem> = {};
   for (const h of handovers) handoversByConversationId[h.id] = h;
@@ -933,8 +1047,7 @@ export async function getInboxMeta(workspaceId: string): Promise<InboxMeta> {
       description: g.description,
       memberIds: g.member_ids,
     })),
-    // TODO(backend): No saved filters API exists for conversations (`ticket_views` is tickets-only).
-    savedFilters: [],
+    savedFilters: savedViews,
     cannedReplies: canned.map((c: CannedResponse) => ({
       id: c.id,
       title: c.title?.trim() || c.shortcut || 'Saved reply',
@@ -953,9 +1066,12 @@ export async function getConversationDetail(
   handover?: HandoverItem,
 ): Promise<InboxConversationDetail> {
   try {
-    const [convRaw, msgsRaw] = await Promise.all([
-      getDashboardConversationAction(workspaceId, conversationId),
-      listDashboardMessagesAction(workspaceId, conversationId),
+    const [[convRaw, msgsRaw], aiRes] = await Promise.all([
+      Promise.all([
+        getDashboardConversationAction(workspaceId, conversationId),
+        listDashboardMessagesAction(workspaceId, conversationId),
+      ]),
+      getConversationAiSummaryAction(workspaceId, conversationId).catch(() => null),
     ]);
 
     if (!convRaw) {
@@ -1016,9 +1132,11 @@ export async function getConversationDetail(
       activeLanguageCode,
       detectedLanguageCode: conversation.detectedLanguage,
       languageOverride: conversation.languageOverride,
-      // TODO(backend): Per-conversation AI cost and confidence score do not exist.
-      aiCostUsd: null,
-      aiConfidencePercent: null,
+      aiCostUsd: aiRes?.estimatedCostUsd ?? null,
+      aiConfidencePercent: aiRes?.latestConfidencePct ?? null,
+      aiAgentName: aiRes?.agentName ?? null,
+      aiEngineUsed: aiRes?.engineUsed ?? null,
+      pendingApprovalRun: aiRes?.pendingApprovalRun ?? null,
     };
   } catch (err) {
     console.error('[Inbox]: Failed to load conversation detail:', err);
@@ -1033,7 +1151,7 @@ export async function getCustomerContext(
   const visitorId = conversation.visitorId || null;
   const email = conversation.visitorEmail || null;
 
-  const [snapshotRes, metaRes, pastRes] = await Promise.allSettled([
+  const [snapshotRes, metaRes, pastRes, statsRes] = await Promise.allSettled([
     visitorId ? getVisitorSnapshotAction(workspaceId, visitorId) : Promise.resolve(null),
     visitorId
       ? getLiveVisitorMetaAction(workspaceId, [visitorId])
@@ -1041,6 +1159,14 @@ export async function getCustomerContext(
     visitorId || email
       ? listVisitorConversationsAction(workspaceId, visitorId, email, conversation.id)
       : Promise.resolve([]),
+    visitorId || email
+      ? getVisitorLifetimeStatsAction(workspaceId, visitorId, email)
+      : Promise.resolve({
+          lifetimeCsatAvg: null,
+          csatCount: 0,
+          avgFirstReplySec: null,
+          totalResolvedCount: 0,
+        }),
   ]);
 
   const visitor: Visitor | null =
@@ -1054,6 +1180,15 @@ export async function getCustomerContext(
       : { pageHistory: [], openTickets: [] };
 
   const past = pastRes.status === 'fulfilled' ? pastRes.value : [];
+  const lifetimeStats =
+    statsRes.status === 'fulfilled'
+      ? statsRes.value
+      : {
+          lifetimeCsatAvg: null,
+          csatCount: 0,
+          avgFirstReplySec: null,
+          totalResolvedCount: 0,
+        };
 
   const location = parseLocation(
     visitor?.location,
@@ -1102,13 +1237,14 @@ export async function getCustomerContext(
       updatedAt: c.updated_at || c.created_at,
       tags: Array.isArray(c.tags) ? c.tags : [],
     })),
+    notes: visitor?.notes || '',
+    notesEditable: true,
+    lifetimeCsatAvg: lifetimeStats.lifetimeCsatAvg,
+    csatCount: lifetimeStats.csatCount,
+    avgFirstReplySec: lifetimeStats.avgFirstReplySec,
+    totalResolvedCount: lifetimeStats.totalResolvedCount,
     // TODO(backend): Orders / Shopify history has no integration or endpoint.
     ordersUnavailableReason: 'No storefront or Shopify integration connected yet.',
-    // TODO(backend): Lifetime per-customer CSAT %, avg FRT, and resolution % have no endpoint.
-    customerMetricsUnavailableReason:
-      'Lifetime customer satisfaction aggregates are not yet available.',
-    // TODO(backend): `visitors.notes` has no update endpoint.
-    notesEditable: false,
   };
 }
 
@@ -1123,6 +1259,11 @@ export async function sendInboxMessage(
     isInternal?: boolean;
     replyToId?: string | null;
     attachmentUrl?: string | null;
+    attachmentMeta?: {
+      isAudio?: boolean;
+      mimeType?: string | null;
+      durationSec?: number | null;
+    };
     targetLanguageCode?: string | null;
     customerWritesRoman?: boolean;
   },
@@ -1201,14 +1342,34 @@ export async function sendInboxMessage(
     }
   }
 
+  const audioMeta =
+    params.attachmentUrl && params.attachmentMeta?.isAudio
+      ? {
+          is_audio: true,
+          audio_mime: params.attachmentMeta.mimeType || 'audio/webm',
+          audio_duration_sec:
+            typeof params.attachmentMeta.durationSec === 'number' &&
+            Number.isFinite(params.attachmentMeta.durationSec)
+              ? Math.max(0, Math.round(params.attachmentMeta.durationSec))
+              : null,
+        }
+      : null;
+
+  const mergedMetadata =
+    translationMetadata || audioMeta
+      ? { ...(translationMetadata || {}), ...(audioMeta || {}) }
+      : null;
+
+  const fallbackLabel = params.attachmentMeta?.isAudio ? 'Voice note' : 'Attachment';
+
   try {
     const res = await sendDashboardMessageAction(workspaceId, {
       conversationId: params.conversationId,
-      content: finalContent || (params.attachmentUrl ? 'Attachment' : ''),
+      content: finalContent || (params.attachmentUrl ? fallbackLabel : ''),
       isInternal,
       replyToId: isInternal ? null : params.replyToId ?? null,
       attachmentUrl: params.attachmentUrl ?? null,
-      metadata: translationMetadata,
+      metadata: mergedMetadata,
     });
 
     if (!isInternal && params.channel && params.channel !== 'web') {
@@ -1218,7 +1379,7 @@ export async function sendInboxMessage(
         body: JSON.stringify({
           conversationId: params.conversationId,
           workspaceId,
-          content: finalContent || (params.attachmentUrl ? '[Attachment]' : ''),
+          content: finalContent || (params.attachmentUrl ? `[${fallbackLabel}]` : ''),
           channel: params.channel,
         }),
       }).catch((err) => {
@@ -1265,31 +1426,57 @@ export async function deleteInboxMessage(
 }
 
 /**
- * Uploads an image, PDF, or plain-text file attachment (max 15 MB).
- *
- * TODO(backend): Voice note / audio attachments are rejected by `/api/upload`
- * (`ALLOWED_TYPES` allows images, PDF, and TXT only).
+ * Uploads an image, PDF, plain-text file (max 15 MB) or voice-note audio (max 10 MB).
  */
 export async function uploadInboxAttachment(
   file: File,
-): Promise<{ url: string; name: string; isImage: boolean }> {
-  const MAX_BYTES = 15 * 1024 * 1024;
-  if (file.size > MAX_BYTES) {
-    throw new Error('File is larger than the 15 MB limit.');
-  }
+  opts?: { durationSec?: number },
+): Promise<{
+  url: string;
+  name: string;
+  isImage: boolean;
+  isAudio: boolean;
+  mimeType: string | null;
+  durationSec: number | null;
+}> {
+  const normalizedMime = (file.type || '').split(';')[0]?.trim().toLowerCase() || '';
   const isImage = looksLikeImage(file);
+  const isAudio =
+    normalizedMime === 'audio/webm' ||
+    normalizedMime === 'audio/mp4' ||
+    normalizedMime === 'audio/mpeg' ||
+    normalizedMime === 'audio/ogg' ||
+    normalizedMime === 'audio/m4a' ||
+    normalizedMime === 'audio/x-m4a' ||
+    /\.(webm|m4a|mp3|ogg|oga)$/i.test(file.name || '');
   const allowedDoc =
-    file.type === 'application/pdf' ||
-    file.type === 'text/plain' ||
+    normalizedMime === 'application/pdf' ||
+    normalizedMime === 'text/plain' ||
     /\.(pdf|txt)$/i.test(file.name || '');
 
-  if (!isImage && !allowedDoc) {
-    throw new Error('Only images, PDFs, and plain-text files can be attached.');
+  const maxBytes = isAudio ? 10 * 1024 * 1024 : 15 * 1024 * 1024;
+  if (file.size > maxBytes) {
+    throw new Error(
+      isAudio
+        ? 'Voice note is larger than the 10 MB limit.'
+        : 'File is larger than the 15 MB limit.',
+    );
+  }
+
+  if (!isImage && !isAudio && !allowedDoc) {
+    throw new Error('Only images, voice audio (webm/mp4/mp3/ogg), PDFs, and TXT files are supported.');
   }
 
   try {
-    const url = await uploadChatImage(file);
-    return { url, name: file.name || 'attachment', isImage };
+    const uploaded = await uploadChatAttachment(file, { durationSec: opts?.durationSec });
+    return {
+      url: uploaded.url,
+      name: file.name || (isAudio ? 'voice-note.webm' : 'attachment'),
+      isImage: !uploaded.isAudio && isImage,
+      isAudio: uploaded.isAudio || isAudio,
+      mimeType: uploaded.mimeType || normalizedMime || null,
+      durationSec: uploaded.durationSec ?? opts?.durationSec ?? null,
+    };
   } catch (err) {
     console.error('[Inbox]: Attachment upload failed:', err);
     throw new Error(errorMessage(err, 'Could not upload file.'));
@@ -1700,23 +1887,81 @@ export async function rateInboxBotReply(
   }
 }
 
+export async function assignInboxConversationGroup(
+  workspaceId: string,
+  conversationId: string,
+  groupId: string | null,
+): Promise<{ groupId: string | null }> {
+  try {
+    return await assignConversationGroupAction(workspaceId, conversationId, groupId);
+  } catch (err) {
+    console.error('[Inbox]: Team group assignment failed:', err);
+    throw new Error(errorMessage(err, 'Could not assign team inbox.'));
+  }
+}
+
+export async function saveInboxConversationView(
+  workspaceId: string,
+  input: {
+    id?: string;
+    name: string;
+    filters?: InboxSavedFilter['filters'];
+    sort?: InboxSavedFilter['sort'];
+    shared?: boolean;
+  },
+): Promise<InboxSavedFilter> {
+  try {
+    return await saveConversationViewAction(workspaceId, input);
+  } catch (err) {
+    console.error('[Inbox]: Save conversation view failed:', err);
+    throw new Error(errorMessage(err, 'Could not save conversation view.'));
+  }
+}
+
+export async function deleteInboxConversationView(
+  workspaceId: string,
+  viewId: string,
+): Promise<void> {
+  try {
+    await deleteConversationViewAction(workspaceId, viewId);
+  } catch (err) {
+    console.error('[Inbox]: Delete conversation view failed:', err);
+    throw new Error(errorMessage(err, 'Could not delete saved view.'));
+  }
+}
+
+export async function updateCustomerVisitorNotes(
+  workspaceId: string,
+  visitorId: string,
+  notes: string,
+): Promise<{ notes: string | null }> {
+  try {
+    return await updateVisitorNotesAction(workspaceId, visitorId, notes);
+  } catch (err) {
+    console.error('[Inbox]: Update customer notes failed:', err);
+    throw new Error(errorMessage(err, 'Could not save customer note.'));
+  }
+}
+
 export async function resolveInboxLangGraphApproval(
   workspaceId: string,
   params: {
     conversationId: string;
-    messageId: string;
+    messageId?: string | null;
     threadId: string;
     approved: boolean;
     editedReply?: string | null;
   },
 ) {
   try {
-    return await resolveLangGraphApprovalAction(workspaceId, params);
+    return await resumeAgentApprovalAction(workspaceId, params);
   } catch (err) {
     console.error('[Inbox]: LangGraph approval resolution failed:', err);
     throw new Error(errorMessage(err, 'Could not resolve AI approval request.'));
   }
 }
+
+export const resumeInboxAgentApproval = resolveInboxLangGraphApproval;
 
 /* ── Realtime live sync wrapper ────────────────────────────────────────── */
 

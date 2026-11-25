@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
+import * as crypto from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { DatabaseService } from '../database/database.service';
 import { LoginDto } from './dto/login.dto';
@@ -45,6 +46,19 @@ export class AuthService {
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
     return this.db.transaction(async (client) => {
+      let preferredAgentId: string | null = null;
+      await client.query('SAVEPOINT sp_auth_acct');
+      try {
+        const acctRes = await client.query(
+          'SELECT id FROM public.auth_accounts WHERE LOWER(email) = $1 LIMIT 1',
+          [emailNormalized],
+        );
+        preferredAgentId = acctRes.rows[0]?.id || null;
+        await client.query('RELEASE SAVEPOINT sp_auth_acct');
+      } catch {
+        await client.query('ROLLBACK TO SAVEPOINT sp_auth_acct').catch(() => {});
+      }
+
       // 1. Create workspace
       const workspaceName = dto.workspaceName?.trim() || `${dto.name.trim()}'s Workspace`;
       const wsResult = await client.query(
@@ -58,9 +72,9 @@ export class AuthService {
       // 2. Create agent with role owner
       const agentResult = await client.query(
         `INSERT INTO public.agents (id, name, email, role, status, workspace_id, password_hash, is_active)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, true)
+         VALUES (COALESCE($7::uuid, gen_random_uuid()), $1, $2, $3, $4, $5, $6, true)
          RETURNING id, name, email, role, workspace_id, status, is_super_admin`,
-        [dto.name.trim(), emailNormalized, 'owner', 'online', workspace.id, passwordHash],
+        [dto.name.trim(), emailNormalized, 'owner', 'online', workspace.id, passwordHash, preferredAgentId],
       );
       const agent = agentResult.rows[0];
 
@@ -107,6 +121,8 @@ export class AuthService {
       `SELECT a.id, a.name, a.email, a.role, a.status, a.workspace_id, a.password_hash,
               a.is_active, a.is_super_admin, COALESCE(a.email_verified, true) AS email_verified,
               COALESCE(a.token_version, 1) AS token_version,
+              COALESCE(a.totp_enabled, false) AS totp_enabled,
+              a.totp_secret_encrypted,
               w.name as workspace_name, w.brand_color
        FROM public.agents a
        LEFT JOIN public.workspaces w ON w.id = a.workspace_id
@@ -127,7 +143,10 @@ export class AuthService {
     }
 
     if (agent.email_verified === false) {
-      throw new ForbiddenException('Please verify your email address before signing in.');
+      throw new ForbiddenException({
+        message: 'Please verify your email address before signing in.',
+        emailVerified: false,
+      });
     }
 
     // Verify password hash
@@ -140,6 +159,27 @@ export class AuthService {
     const isMatch = await bcrypt.compare(dto.password, agent.password_hash);
     if (!isMatch) {
       throw new UnauthorizedException('Invalid email or password.');
+    }
+
+    if (agent.totp_enabled) {
+      const code = typeof dto.totpCode === 'string' ? dto.totpCode.trim() : '';
+      if (!code) {
+        throw new ForbiddenException({
+          message: 'Two-factor authentication code is required.',
+          requiresMfa: true,
+        });
+      }
+      const sealed = agent.totp_secret_encrypted;
+      if (!sealed) {
+        throw new UnauthorizedException('Two-factor configuration is incomplete.');
+      }
+      const secret = this.unsealTotpSecret(sealed);
+      if (!this.verifyTotpCode(secret, code)) {
+        throw new UnauthorizedException({
+          message: 'Invalid authenticator code.',
+          requiresMfa: true,
+        });
+      }
     }
 
     // Generate tokens
@@ -607,5 +647,93 @@ export class AuthService {
       tokenType: 'Bearer',
       expiresIn: jwtExpiresIn,
     };
+  }
+
+  private unsealTotpSecret(sealed: string): string {
+    const parts = (sealed || '').split(':');
+    const [version, ivB64, tagB64, dataB64] = parts;
+    if (!ivB64 || !tagB64 || dataB64 === undefined) {
+      throw new UnauthorizedException('Unrecognised 2FA secret format.');
+    }
+
+    let key: Buffer;
+    if (version === 'v1') {
+      const rawKey = (process.env.CHANNEL_ENCRYPTION_KEY || '').trim();
+      if (!rawKey) {
+        throw new UnauthorizedException('2FA encryption key is not configured on backend.');
+      }
+      key = /^[0-9a-f]{64}$/i.test(rawKey)
+        ? Buffer.from(rawKey, 'hex')
+        : Buffer.from(rawKey, 'base64');
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivB64, 'base64'));
+      decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+      const plain = Buffer.concat([decipher.update(Buffer.from(dataB64, 'base64')), decipher.final()]).toString('utf8');
+      return JSON.parse(plain) as string;
+    }
+
+    if (version === 'v2jwt') {
+      const configuredJwt = (
+        this.configService.get<string>('jwt.secret') ||
+        process.env.JWT_SECRET ||
+        ''
+      ).trim();
+      const dbUrl = (process.env.DATABASE_URL || '').trim();
+      const jwtSecret =
+        configuredJwt ||
+        (dbUrl ? crypto.createHmac('sha256', 'orbat-jwt-signing-key-v1').update(dbUrl).digest('hex') : '');
+      if (!jwtSecret) {
+        throw new UnauthorizedException('JWT secret is missing for 2FA verification.');
+      }
+      key = crypto.createHash('sha256').update(`orbat:totp:${jwtSecret}`).digest();
+      const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(ivB64, 'base64'));
+      decipher.setAuthTag(Buffer.from(tagB64, 'base64'));
+      return Buffer.concat([decipher.update(Buffer.from(dataB64, 'base64')), decipher.final()]).toString('utf8');
+    }
+
+    throw new UnauthorizedException('Unsupported 2FA secret format.');
+  }
+
+  private verifyTotpCode(secret: string, code: string, window = 1, timeMs = Date.now()): boolean {
+    const normalized = (code || '').replace(/\s+/g, '');
+    if (!/^\d{6}$/.test(normalized)) return false;
+
+    const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const clean = (secret || '').toUpperCase().replace(/=+$/g, '').replace(/[^A-Z2-7]/g, '');
+    let bits = 0;
+    let value = 0;
+    const bytes: number[] = [];
+    for (let i = 0; i < clean.length; i++) {
+      const idx = alphabet.indexOf(clean[i]);
+      if (idx === -1) continue;
+      value = (value << 5) | idx;
+      bits += 5;
+      if (bits >= 8) {
+        bytes.push((value >>> (bits - 8)) & 255);
+        bits -= 8;
+      }
+    }
+    const key = Buffer.from(bytes);
+    const targetBuf = Buffer.from(normalized, 'utf8');
+
+    for (let delta = -window; delta <= window; delta++) {
+      const counter = Math.floor((timeMs + delta * 30_000) / 1000 / 30);
+      const counterBuf = Buffer.alloc(8);
+      counterBuf.writeUInt32BE(Math.floor(counter / 0x100000000), 0);
+      counterBuf.writeUInt32BE(counter >>> 0, 4);
+
+      const hmac = crypto.createHmac('sha1', key).update(counterBuf).digest();
+      const offset = hmac[hmac.length - 1] & 0x0f;
+      const binary =
+        ((hmac[offset] & 0x7f) << 24) |
+        ((hmac[offset + 1] & 0xff) << 16) |
+        ((hmac[offset + 2] & 0xff) << 8) |
+        (hmac[offset + 3] & 0xff);
+      const candidate = String(binary % 1_000_000).padStart(6, '0');
+      const candidateBuf = Buffer.from(candidate, 'utf8');
+      if (candidateBuf.length === targetBuf.length && crypto.timingSafeEqual(candidateBuf, targetBuf)) {
+        return true;
+      }
+    }
+    return false;
   }
 }

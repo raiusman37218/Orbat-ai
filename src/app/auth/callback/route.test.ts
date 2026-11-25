@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { GET, resolveBaseUrl, sanitizeNextPath } from './route';
+
+vi.mock('server-only', () => ({}));
+
+import { GET } from './route';
+import { resolveBaseUrl, sanitizeNextPath } from '@/lib/auth/callback-helpers';
 
 const fakeAuthState = vi.hoisted(() => ({
   workspaceId: 'ws-123' as string | null,

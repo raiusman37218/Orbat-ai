@@ -44,6 +44,7 @@ import {
   generateInboxNextSteps,
   generateInboxSummary,
   recordInboxCopilotFeedback,
+  updateCustomerVisitorNotes,
   updateInboxConversationTags,
   type InboxConversationDetail,
   type InboxCopilotState,
@@ -51,6 +52,15 @@ import {
   type WorkspaceTag,
 } from '@/lib/data/inbox';
 import { cn } from '@/lib/utils';
+
+function formatReplySeconds(sec: number): string {
+  if (sec < 60) return `${sec}s`;
+  const mins = Math.round(sec / 60);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  const rem = mins % 60;
+  return rem > 0 ? `${hrs}h ${rem}m` : `${hrs}h`;
+}
 
 type ContextTab = 'details' | 'copilot';
 
@@ -101,6 +111,37 @@ export function CustomerContextPanel({
   const [stepsBusy, setStepsBusy] = useState(false);
   const [askInput, setAskInput] = useState('');
   const [askBusy, setAskBusy] = useState(false);
+
+  // Editable customer profile notes (`visitors.notes`)
+  const visitorSyncKey = customer ? `${customer.visitorId ?? ''}:${customer.notes}` : '';
+  const [prevVisitorSyncKey, setPrevVisitorSyncKey] = useState(visitorSyncKey);
+  const [noteDraft, setNoteDraft] = useState(customer?.notes || '');
+  const [noteDirty, setNoteDirty] = useState(false);
+  const [noteSaving, setNoteSaving] = useState(false);
+
+  if (visitorSyncKey !== prevVisitorSyncKey) {
+    setPrevVisitorSyncKey(visitorSyncKey);
+    setNoteDraft(customer?.notes || '');
+    setNoteDirty(false);
+  }
+
+  const handleSaveCustomerNote = async () => {
+    if (!customer?.visitorId || noteSaving) return;
+    setNoteSaving(true);
+    try {
+      await updateCustomerVisitorNotes(workspaceId, customer.visitorId, noteDraft);
+      setNoteDirty(false);
+      toast.show({ message: 'Customer note saved.', tone: 'ok' });
+      await onConversationUpdated();
+    } catch (err) {
+      toast.show({
+        message: err instanceof Error ? err.message : 'Could not save customer note.',
+        tone: 'bad',
+      });
+    } finally {
+      setNoteSaving(false);
+    }
+  };
 
   if (!open) return null;
 
@@ -508,12 +549,33 @@ export function CustomerContextPanel({
                       : 'Not rated'}
                   </dd>
                 </div>
+                {customer && (
+                  <>
+                    <div className="flex items-center justify-between border-t border-o-border pt-1.5">
+                      <dt className="text-o-text-3">Lifetime CSAT</dt>
+                      <dd className="font-medium tabular-nums text-o-text">
+                        {customer.lifetimeCsatAvg != null
+                          ? `${customer.lifetimeCsatAvg} / 5 (${customer.csatCount})`
+                          : 'No ratings yet'}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-o-text-3">Avg first reply</dt>
+                      <dd className="font-medium tabular-nums text-o-text">
+                        {customer.avgFirstReplySec != null
+                          ? formatReplySeconds(customer.avgFirstReplySec)
+                          : 'Pending'}
+                      </dd>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <dt className="text-o-text-3">Resolved threads</dt>
+                      <dd className="font-medium tabular-nums text-o-text">
+                        {customer.totalResolvedCount}
+                      </dd>
+                    </div>
+                  </>
+                )}
               </dl>
-              {customer && (
-                <p className="mt-2 text-[11px] leading-snug text-o-text-3">
-                  {customer.customerMetricsUnavailableReason}
-                </p>
-              )}
             </section>
 
             {/* Orders (Shopify Gap — honest state) */}
@@ -587,23 +649,54 @@ export function CustomerContextPanel({
               </section>
             )}
 
-            {/* Notes guidance */}
+            {/* Editable customer profile notes + internal thread note quick switch */}
             <section className="p-4">
-              <h4 className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-o-text-3">
-                <Lock className="h-3.5 w-3.5" />
-                Internal notes
-              </h4>
-              <p className="text-[12px] leading-relaxed text-o-text-3">
-                Private team notes are stored inside this thread so teammates see full context in chronological order.
-              </p>
-              <Button
-                size="sm"
-                variant="secondary"
-                className="mt-2"
-                onClick={onSwitchToNoteComposer}
-              >
-                Write internal note
-              </Button>
+              <div className="mb-1.5 flex items-center justify-between gap-2">
+                <h4 className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-o-text-3">
+                  <Lock className="h-3.5 w-3.5" />
+                  Customer profile notes
+                </h4>
+                <button
+                  type="button"
+                  onClick={onSwitchToNoteComposer}
+                  className="o-focus rounded text-[11px] font-medium text-o-accent-text hover:underline"
+                >
+                  + Thread note
+                </button>
+              </div>
+              {customer?.visitorId ? (
+                <div className="space-y-2">
+                  <textarea
+                    rows={3}
+                    value={noteDraft}
+                    onChange={(e) => {
+                      setNoteDraft(e.target.value);
+                      setNoteDirty(e.target.value !== (customer.notes || ''));
+                    }}
+                    placeholder="Add persistent notes about this customer (VIP preferences, billing context)…"
+                    aria-label="Customer profile notes"
+                    className="o-textarea w-full text-[12.5px]"
+                  />
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] text-o-text-3">
+                      Shared across all threads for this contact
+                    </span>
+                    <Button
+                      size="sm"
+                      variant={noteDirty ? 'primary' : 'secondary'}
+                      loading={noteSaving}
+                      disabled={!noteDirty}
+                      onClick={() => void handleSaveCustomerNote()}
+                    >
+                      Save note
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-[12px] leading-relaxed text-o-text-3">
+                  Visitor record not linked yet; use thread internal notes below.
+                </p>
+              )}
             </section>
           </div>
         ) : (

@@ -19,23 +19,24 @@ import { useShellSession } from '@/components/orbat/shell/session-context';
 import { useData } from '@/lib/data/use-data';
 import {
   bulkUpdateInboxConversations,
-  computeInboxViewCounts,
   createTicketFromConversation,
+  deleteInboxConversationView,
   deleteInboxMessage,
-  filterInboxConversations,
   getConversationDetail,
   getCustomerContext,
   getInboxCopilotState,
   getInboxMeta,
-  listInboxConversations,
   mergeInboxConversations,
+  saveInboxConversationView,
+  searchInboxConversations,
   snoozeInboxConversation,
-  sortInboxConversations,
   updateInboxConversationStatus,
   useInboxLiveSync,
   type InboxAgent,
   type InboxChannelFilter,
+  type InboxConversationItem,
   type InboxPriorityFilter,
+  type InboxSavedFilter,
   type InboxSortKey,
   type InboxViewKey,
 } from '@/lib/data/inbox';
@@ -47,6 +48,7 @@ import {
   CreateTicketModal,
   DeleteMessageConfirm,
   MergeModal,
+  SaveConversationViewModal,
   SnoozeModal,
 } from './InboxModals';
 import { InboxViewsNav } from './InboxViewsNav';
@@ -54,6 +56,17 @@ import './inbox.css';
 
 const PAGE_SIZE = 30;
 const EMPTY_MAP: Record<string, InboxAgent> = {};
+const EMPTY_COUNTS: Record<InboxViewKey, number> = {
+  open: 0,
+  mine: 0,
+  unassigned: 0,
+  ai: 0,
+  waiting: 0,
+  waiting_approval: 0,
+  snoozed: 0,
+  resolved: 0,
+  all: 0,
+};
 
 function isTypingTarget(el: EventTarget | null): boolean {
   if (!(el instanceof HTMLElement)) return false;
@@ -83,6 +96,7 @@ export function InboxScreen({
   const { agent, workspace } = useShellSession();
   const toast = useOrbToast();
   const workspaceId = workspace.id;
+  void agent;
 
   const isLgDesktop = useMediaQuery('(min-width: 1024px)');
   const isXlDesktop = useMediaQuery('(min-width: 1280px)');
@@ -91,14 +105,26 @@ export function InboxScreen({
   const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   // List / View / Filter state
-  const [pageCount, setPageCount] = useState(1);
   const [activeView, setActiveView] = useState<InboxViewKey>(() =>
     initialConversationId ? 'all' : 'open',
   );
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [channelFilter, setChannelFilter] = useState<InboxChannelFilter>('all');
   const [priorityFilter, setPriorityFilter] = useState<InboxPriorityFilter>('all');
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const [activeSavedFilterId, setActiveSavedFilterId] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<InboxSortKey>('newest');
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [extraPages, setExtraPages] = useState<{
+    key: string;
+    rows: InboxConversationItem[];
+  }>({ key: '', rows: [] });
+
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 250);
+    return () => clearTimeout(t);
+  }, [search]);
 
   // Active thread selection + mobile single-pane / context drawer toggle
   const [userSelectedId, setUserSelectedId] = useState<string | null>(
@@ -130,26 +156,71 @@ export function InboxScreen({
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [mergeOpen, setMergeOpen] = useState(false);
   const [createTicketOpen, setCreateTicketOpen] = useState(false);
+  const [saveViewOpen, setSaveViewOpen] = useState(false);
   const [bulkAssignIds, setBulkAssignIds] = useState<string[] | null>(null);
   const [deleteMsgId, setDeleteMsgId] = useState<string | null>(null);
   const [modalBusy, setModalBusy] = useState(false);
 
-  // Data loading via shared useData hook (matching OverviewScreen pattern)
+  const filterKey = useMemo(
+    () =>
+      JSON.stringify([
+        workspaceId,
+        activeView,
+        channelFilter,
+        priorityFilter,
+        selectedGroupId,
+        debouncedSearch,
+        sortBy,
+      ]),
+    [
+      workspaceId,
+      activeView,
+      channelFilter,
+      priorityFilter,
+      selectedGroupId,
+      debouncedSearch,
+      sortBy,
+    ],
+  );
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
+    setCursor(null);
+    setExtraPages({ key: filterKey, rows: [] });
+  }
+
+  // Data loading via shared useData hook (server-side search, filters, counts & cursor pagination)
   const metaState = useData(
     () => getInboxMeta(workspaceId),
     ['inbox-meta', workspaceId],
   );
   const listState = useData(
-    () => listInboxConversations(workspaceId, 0, PAGE_SIZE * pageCount),
-    ['inbox-list', workspaceId, pageCount],
+    () =>
+      searchInboxConversations(workspaceId, {
+        view: activeView,
+        channel: channelFilter,
+        priority: priorityFilter,
+        groupId: selectedGroupId,
+        search: debouncedSearch,
+        sort: sortBy,
+        cursor,
+        limit: PAGE_SIZE,
+      }),
+    ['inbox-search', filterKey, cursor],
   );
 
   const meta = metaState.data ?? null;
-  const conversations = useMemo(
-    () => listState.data?.conversations ?? [],
-    [listState.data],
-  );
+  const visibleConversations = useMemo(() => {
+    const pageRows = listState.data?.conversations ?? [];
+    const prior = extraPages.key === filterKey ? extraPages.rows : [];
+    if (prior.length === 0) return pageRows;
+    const seen = new Set(prior.map((c) => c.id));
+    return [...prior, ...pageRows.filter((c) => !seen.has(c.id))];
+  }, [extraPages, filterKey, listState.data]);
   const hasMore = listState.data?.hasMore ?? false;
+  const viewCounts = listState.data?.counts ?? EMPTY_COUNTS;
+  const groupCounts = listState.data?.groupCounts ?? {};
+  const totalMatching = listState.data?.total ?? visibleConversations.length;
 
   const agentsById = useMemo(() => {
     if (!meta) return EMPTY_MAP;
@@ -157,30 +228,6 @@ export function InboxScreen({
     for (const a of meta.agents) map[a.id] = a;
     return map;
   }, [meta]);
-
-  const viewCounts = useMemo(
-    () => computeInboxViewCounts(conversations, agent.id),
-    [conversations, agent.id],
-  );
-
-  const visibleConversations = useMemo(() => {
-    const filtered = filterInboxConversations(conversations, {
-      view: activeView,
-      currentAgentId: agent.id,
-      channel: channelFilter,
-      priority: priorityFilter,
-      search,
-    });
-    return sortInboxConversations(filtered, sortBy);
-  }, [
-    conversations,
-    activeView,
-    agent.id,
-    channelFilter,
-    priorityFilter,
-    search,
-    sortBy,
-  ]);
 
   // Desktop automatically highlights the first visible thread until user clicks another
   const effectiveSelectedId =
@@ -242,11 +289,57 @@ export function InboxScreen({
   }, []);
 
   const refreshAll = useCallback(async () => {
+    setCursor(null);
+    setExtraPages({ key: filterKey, rows: [] });
     listState.reload();
     if (effectiveSelectedId) {
       detailState.reload();
+      customerState.reload();
     }
-  }, [listState, detailState, effectiveSelectedId]);
+  }, [filterKey, listState, detailState, customerState, effectiveSelectedId]);
+
+  const handleLoadMore = useCallback(() => {
+    const nextCursor = listState.data?.nextCursor;
+    if (!nextCursor || listState.loading) return;
+    setExtraPages({ key: filterKey, rows: visibleConversations });
+    setCursor(nextCursor);
+  }, [listState.data?.nextCursor, listState.loading, filterKey, visibleConversations]);
+
+  const handleApplySavedFilter = useCallback((f: InboxSavedFilter) => {
+    const fv = f.filters?.view;
+    const mappedView: InboxViewKey =
+      fv === 'ai_handled'
+        ? 'ai'
+        : fv === 'closed'
+          ? 'resolved'
+          : (fv as InboxViewKey) || 'open';
+    setActiveView(mappedView);
+    setChannelFilter((f.filters?.channel as InboxChannelFilter) || 'all');
+    setPriorityFilter((f.filters?.priority as InboxPriorityFilter) || 'all');
+    setSelectedGroupId(f.filters?.groupId ?? null);
+    const nextQ = f.filters?.search || '';
+    setSearch(nextQ);
+    setDebouncedSearch(nextQ);
+    setSortBy(f.sort?.field || 'newest');
+    setActiveSavedFilterId(f.id);
+  }, []);
+
+  const handleDeleteSavedFilter = useCallback(
+    async (viewId: string) => {
+      try {
+        await deleteInboxConversationView(workspaceId, viewId);
+        if (activeSavedFilterId === viewId) setActiveSavedFilterId(null);
+        metaState.reload();
+        toast.show({ message: 'Saved view deleted.', tone: 'ok' });
+      } catch (err) {
+        toast.show({
+          message: err instanceof Error ? err.message : 'Could not delete saved view.',
+          tone: 'bad',
+        });
+      }
+    },
+    [workspaceId, activeSavedFilterId, metaState, toast],
+  );
 
   useInboxLiveSync({
     workspaceId,
@@ -287,6 +380,7 @@ export function InboxScreen({
       snoozeOpen ||
       mergeOpen ||
       createTicketOpen ||
+      saveViewOpen ||
       Boolean(bulkAssignIds) ||
       Boolean(deleteMsgId);
 
@@ -344,6 +438,7 @@ export function InboxScreen({
     snoozeOpen,
     mergeOpen,
     createTicketOpen,
+    saveViewOpen,
     bulkAssignIds,
     deleteMsgId,
     visibleConversations,
@@ -403,10 +498,23 @@ export function InboxScreen({
       {/* Pane 1: Desktop Views Rail (212px on xl) */}
       <InboxViewsNav
         activeView={activeView}
-        onSelectView={setActiveView}
+        onSelectView={(v) => {
+          setActiveSavedFilterId(null);
+          setActiveView(v);
+        }}
         counts={viewCounts}
         teamGroups={meta?.teamGroups || []}
+        selectedGroupId={selectedGroupId}
+        onSelectGroup={(gid) => {
+          setActiveSavedFilterId(null);
+          setSelectedGroupId(gid);
+        }}
+        groupCounts={groupCounts}
         savedFilters={meta?.savedFilters || []}
+        activeSavedFilterId={activeSavedFilterId}
+        onApplySavedFilter={handleApplySavedFilter}
+        onOpenSaveFilter={() => setSaveViewOpen(true)}
+        onDeleteSavedFilter={handleDeleteSavedFilter}
         metaLoading={metaState.loading}
         metaError={metaState.error}
         onRetryMeta={metaState.reload}
@@ -422,29 +530,54 @@ export function InboxScreen({
       >
         <ConversationList
           conversations={visibleConversations}
-          totalLoaded={conversations.length}
+          totalLoaded={visibleConversations.length}
           selectedId={effectiveSelectedId}
           onSelect={handleSelectConversation}
           activeView={activeView}
-          onSelectView={setActiveView}
+          onSelectView={(v) => {
+            setActiveSavedFilterId(null);
+            setActiveView(v);
+          }}
           viewCounts={viewCounts}
+          selectedGroupName={
+            selectedGroupId
+              ? meta?.teamGroups.find((g) => g.id === selectedGroupId)?.name || 'Team'
+              : null
+          }
+          onClearGroup={() => {
+            setActiveSavedFilterId(null);
+            setSelectedGroupId(null);
+          }}
+          totalMatching={totalMatching}
           search={search}
-          onSearchChange={setSearch}
+          onSearchChange={(val) => {
+            setActiveSavedFilterId(null);
+            setSearch(val);
+          }}
           searchInputRef={searchInputRef}
           channelFilter={channelFilter}
-          onChannelFilterChange={setChannelFilter}
+          onChannelFilterChange={(val) => {
+            setActiveSavedFilterId(null);
+            setChannelFilter(val);
+          }}
           priorityFilter={priorityFilter}
-          onPriorityFilterChange={setPriorityFilter}
+          onPriorityFilterChange={(val) => {
+            setActiveSavedFilterId(null);
+            setPriorityFilter(val);
+          }}
           sortBy={sortBy}
-          onSortByChange={setSortBy}
-          loading={listState.loading && conversations.length === 0}
-          refreshing={listState.loading && conversations.length > 0}
+          onSortByChange={(val) => {
+            setActiveSavedFilterId(null);
+            setSortBy(val);
+          }}
+          loading={listState.loading && visibleConversations.length === 0}
+          refreshing={listState.loading && visibleConversations.length > 0 && !cursor}
           error={listState.error}
           onRetry={listState.reload}
-          onRefresh={listState.reload}
+          onRefresh={() => void refreshAll()}
           hasMore={hasMore}
-          loadingMore={listState.loading && pageCount > 1}
-          onLoadMore={() => setPageCount((p) => p + 1)}
+          loadingMore={listState.loading && Boolean(cursor)}
+          onLoadMore={handleLoadMore}
           bulkBusy={bulkBusy}
           onBulkResolve={handleBulkResolve}
           onBulkOpenAssign={(ids) => setBulkAssignIds(ids)}
@@ -468,6 +601,7 @@ export function InboxScreen({
           error={detailState.error}
           onRetry={detailState.reload}
           agents={meta?.agents || []}
+          teamGroups={meta?.teamGroups || []}
           cannedReplies={meta?.cannedReplies || []}
           copilotState={activeCopilot}
           contextOpen={contextOpen}
@@ -650,6 +784,51 @@ export function InboxScreen({
           } catch (err) {
             toast.show({
               message: err instanceof Error ? err.message : 'Delete failed.',
+              tone: 'bad',
+            });
+          } finally {
+            setModalBusy(false);
+          }
+        }}
+      />
+
+      <SaveConversationViewModal
+        open={saveViewOpen}
+        onClose={() => setSaveViewOpen(false)}
+        busy={modalBusy}
+        summaryLabel={[
+          `View: ${activeView}`,
+          channelFilter !== 'all' ? `Channel: ${channelFilter}` : null,
+          priorityFilter !== 'all' ? `Priority: ${priorityFilter}` : null,
+          selectedGroupId
+            ? `Team: ${meta?.teamGroups.find((g) => g.id === selectedGroupId)?.name || 'Group'}`
+            : null,
+          debouncedSearch ? `Search: "${debouncedSearch}"` : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
+        onConfirm={async ({ name, shared }) => {
+          setModalBusy(true);
+          try {
+            const saved = await saveInboxConversationView(workspaceId, {
+              name,
+              shared,
+              filters: {
+                view: activeView,
+                channel: channelFilter,
+                priority: priorityFilter,
+                groupId: selectedGroupId,
+                search: debouncedSearch || undefined,
+              },
+              sort: { field: sortBy, direction: 'desc' },
+            });
+            setSaveViewOpen(false);
+            setActiveSavedFilterId(saved.id);
+            metaState.reload();
+            toast.show({ message: `Saved view "${saved.name}".`, tone: 'ok' });
+          } catch (err) {
+            toast.show({
+              message: err instanceof Error ? err.message : 'Could not save view.',
               tone: 'bad',
             });
           } finally {

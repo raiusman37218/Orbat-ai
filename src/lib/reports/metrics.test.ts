@@ -3,7 +3,9 @@ import {
   calculateMedian,
   calculateAverage,
   formatDuration,
+  normalizeTimeZone,
   generateDateBuckets,
+  generateHourBuckets,
   calculateCreatedVsSolved,
   calculateBacklogOverTime,
   calculateResponseTimes,
@@ -13,12 +15,13 @@ import {
   calculateBusiestHoursHeatmap,
   calculateBotMetrics,
   calculateAgentLeaderboard,
+  calculateWorkspaceRoi,
+  calculateReportsDashboard,
   filterReportingEvents,
   escapeCsv,
   exportCreatedVsSolvedCsv,
   exportBacklogCsv,
   exportAgentLeaderboardCsv,
-  exportSummaryOverviewCsv,
   type SlaEventItem,
 } from './metrics';
 import type { ReportingEvent } from '@/types/database';
@@ -968,5 +971,153 @@ describe('Reports & CSAT Metrics Calculations', () => {
     expect(createdVsSolved[1].created).toBe(1);
     const backlog = calculateBacklogOverTime(0, events, buckets);
     expect(backlog[1].backlog).toBe(1);
+  });
+
+  describe('Prompt 2: Hourly buckets, AI/human/open split, per-channel AI rate & ROI', () => {
+    it('normalizes invalid timezones to UTC and builds 24 hourly buckets in workspace timezone', () => {
+      expect(normalizeTimeZone('Asia/Karachi')).toBe('Asia/Karachi');
+      expect(normalizeTimeZone('Not/A_Zone')).toBe('UTC');
+
+      const end = new Date('2026-11-16T18:20:00Z'); // 23:20 in Asia/Karachi (+05:00)
+      const buckets = generateHourBuckets(end, 'Asia/Karachi', 24);
+      expect(buckets).toHaveLength(24);
+      expect(buckets[0].key).toBe('2026-11-16T00');
+      expect(buckets[0].label).toBe('12am');
+      expect(buckets[23].key).toBe('2026-11-16T23');
+      expect(buckets[23].label).toBe('11pm');
+    });
+
+    it('splits createdVsSolved into aiResolved, humanResolved, and stillOpen across hourly buckets', () => {
+      const end = new Date('2026-11-16T18:20:00Z'); // 23:20 PKT
+      const buckets = generateHourBuckets(end, 'Asia/Karachi', 24);
+      const events: ReportingEvent[] = [
+        // Ticket t-ai: created 21:05 PKT (16:05Z), AI-solved 21:15 PKT (16:15Z)
+        {
+          id: 1,
+          workspace_id: 'ws-1',
+          ticket_id: 't-ai',
+          event_type: 'ticket_created',
+          occurred_at: '2026-11-16T16:05:00Z',
+          agent_id: null,
+          group_id: null,
+          channel: 'whatsapp',
+          priority: 'normal',
+          tags: [],
+          duration_seconds: null,
+          csat_rating: null,
+          csat_comment: null,
+          metadata: {},
+        },
+        {
+          id: 2,
+          workspace_id: 'ws-1',
+          ticket_id: 't-ai',
+          event_type: 'ticket_solved',
+          occurred_at: '2026-11-16T16:15:00Z',
+          agent_id: null,
+          group_id: null,
+          channel: 'whatsapp',
+          priority: 'normal',
+          tags: [],
+          duration_seconds: 600,
+          csat_rating: null,
+          csat_comment: null,
+          metadata: {},
+        },
+        {
+          id: 3,
+          workspace_id: 'ws-1',
+          ticket_id: 't-ai',
+          event_type: 'bot_resolved',
+          occurred_at: '2026-11-16T16:15:00Z',
+          agent_id: null,
+          group_id: null,
+          channel: 'whatsapp',
+          priority: 'normal',
+          tags: [],
+          duration_seconds: null,
+          csat_rating: null,
+          csat_comment: null,
+          metadata: {},
+        },
+        // Ticket t-human: created 22:10 PKT (17:10Z), human-solved 22:40 PKT (17:40Z)
+        {
+          id: 4,
+          workspace_id: 'ws-1',
+          ticket_id: 't-human',
+          event_type: 'ticket_created',
+          occurred_at: '2026-11-16T17:10:00Z',
+          agent_id: 'ag-1',
+          group_id: null,
+          channel: 'whatsapp',
+          priority: 'high',
+          tags: [],
+          duration_seconds: null,
+          csat_rating: null,
+          csat_comment: null,
+          metadata: {},
+        },
+        {
+          id: 5,
+          workspace_id: 'ws-1',
+          ticket_id: 't-human',
+          event_type: 'ticket_solved',
+          occurred_at: '2026-11-16T17:40:00Z',
+          agent_id: 'ag-1',
+          group_id: null,
+          channel: 'whatsapp',
+          priority: 'high',
+          tags: [],
+          duration_seconds: 1800,
+          csat_rating: null,
+          csat_comment: null,
+          metadata: {},
+        },
+        // Ticket t-open: created 22:20 PKT (17:20Z), still open
+        {
+          id: 6,
+          workspace_id: 'ws-1',
+          ticket_id: 't-open',
+          event_type: 'ticket_created',
+          occurred_at: '2026-11-16T17:20:00Z',
+          agent_id: null,
+          group_id: null,
+          channel: 'email',
+          priority: 'normal',
+          tags: [],
+          duration_seconds: null,
+          csat_rating: null,
+          csat_comment: null,
+          metadata: {},
+        },
+      ];
+
+      const dashboard = calculateReportsDashboard(events, [], [], 0, buckets[0].start, end, {
+        granularity: 'hour',
+        timeZone: 'Asia/Karachi',
+      });
+
+      const hour21 = dashboard.createdVsSolved.find((p) => p.date === '2026-11-16T21');
+      const hour22 = dashboard.createdVsSolved.find((p) => p.date === '2026-11-16T22');
+
+      expect(hour21).toMatchObject({ created: 1, solved: 1, aiResolved: 1, humanResolved: 0, stillOpen: 0 });
+      expect(hour22).toMatchObject({ created: 2, solved: 1, aiResolved: 0, humanResolved: 1, stillOpen: 1 });
+
+      const whatsapp = dashboard.channelBreakdown.find((c) => c.key === 'whatsapp');
+      const email = dashboard.channelBreakdown.find((c) => c.key === 'email');
+      expect(whatsapp?.aiResolutionPct).toBe(50);
+      expect(email?.aiResolutionPct).toBe(0);
+    });
+
+    it('calculates workspace AI ROI from aiResolved * avgHandleMinutes', () => {
+      const roi = calculateWorkspaceRoi(18, { avgHandleMinutes: 10, hourlyRateUsd: 30 });
+      expect(roi).toEqual({
+        aiResolvedCount: 18,
+        avgHandleMinutes: 10,
+        hourlyRateUsd: 30,
+        hoursSaved: 3,
+        costSavedUsd: 90,
+      });
+    });
   });
 });

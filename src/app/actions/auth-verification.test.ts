@@ -1,6 +1,11 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import crypto from 'node:crypto';
+import bcrypt from 'bcryptjs';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  completePasswordResetAction,
+  getSignupVerificationRequirementAction,
+  requestPasswordResetAction,
   sendSignupVerificationCodeAction,
   verifySignupCodeAction,
 } from './auth-verification';
@@ -14,11 +19,24 @@ vi.mock('server-only', () => ({}));
 // Mock dependencies
 const mockServiceClient = vi.fn();
 const mockSendSmtpEmail = vi.fn();
+const mockLoadWorkspaceSmtp = vi.fn();
+const mockSessionUser = vi.fn();
+const mockGetRequestOrigin = vi.fn();
+const mockBumpAgentTokenVersion = vi.fn();
+const dbBridge = {
+  query: null as any,
+  queryRows: null as any,
+};
 const authBridge = {
   getUsers: (): any[] => [],
   updateUserById: null as any,
   createUser: null as any,
 };
+
+vi.mock('@/lib/db', () => ({
+  query: (...args: any[]) => dbBridge.query(...args),
+  queryRows: (...args: any[]) => dbBridge.queryRows(...args),
+}));
 
 vi.mock('@/lib/pg/service', () => ({
   serviceClient: () => mockServiceClient(),
@@ -33,6 +51,20 @@ vi.mock('@/lib/auth/postgres-auth', () => ({
     authBridge.getUsers().find((u) => u.id === id) || null,
   createPgAuthUser: async (attrs: any) => authBridge.createUser(attrs),
   updatePgAuthUser: async (id: string, attrs: any) => authBridge.updateUserById(id, attrs),
+  bumpAgentTokenVersion: (...args: any[]) => mockBumpAgentTokenVersion(...args),
+}));
+
+vi.mock('@/lib/auth/session-user', () => ({
+  sessionUser: (...args: any[]) => mockSessionUser(...args),
+}));
+
+vi.mock('@/lib/request-origin', () => ({
+  getRequestOrigin: (...args: any[]) => mockGetRequestOrigin(...args),
+}));
+
+vi.mock('@/lib/email/workspace-smtp', () => ({
+  isSmtpReady: (smtp: any) => Boolean(smtp?.enabled && smtp?.host && smtp?.user && smtp?.pass),
+  loadWorkspaceSmtp: (...args: any[]) => mockLoadWorkspaceSmtp(...args),
 }));
 
 vi.mock('@/lib/email/smtp', () => ({
@@ -43,22 +75,148 @@ vi.mock('@/lib/email/smtp', () => ({
     html: '<p>Code</p>',
     text: 'Code',
   })),
+  passwordResetEmail: vi.fn(({ resetUrl }: { resetUrl: string }) => ({
+    subject: 'Reset your Orbat AI password',
+    html: `<p><a href="${resetUrl}">Reset password</a></p>`,
+    text: `Reset URL: ${resetUrl}`,
+  })),
 }));
 
 describe('auth-verification action suite', () => {
   let fakeUsers: any[] = [];
+  let fakeAgents: any[] = [];
   let fakeVerifications: any[] = [];
+  let fakeResetTokens: any[] = [];
+  let fakePlatformSettings: any;
+  let fakeWorkspaces: any[] = [];
   let updateUserByIdSpy: any;
   let createUserSpy: any;
+  const origNodeEnv = process.env.NODE_ENV;
+  const origDemoPreview = process.env.ORBAT_DEMO_AUTH_PREVIEW;
+  const origRequireEmail = process.env.PLATFORM_REQUIRE_EMAIL_VERIFICATION;
 
   beforeEach(() => {
     vi.clearAllMocks();
     fakeUsers = [];
+    fakeAgents = [];
     fakeVerifications = [];
+    fakeResetTokens = [];
+    fakeWorkspaces = [];
+    fakePlatformSettings = {
+      platform_name: 'Orbat AI',
+      smtp_settings: {
+        host: 'smtp.test.com',
+        port: 587,
+        user: 'support@test.com',
+        pass: 'secret',
+        enabled: true,
+      },
+      default_features: {},
+    };
+
+    mockGetRequestOrigin.mockResolvedValue('https://app.orbatai.test');
+    mockLoadWorkspaceSmtp.mockResolvedValue(null);
+    mockSessionUser.mockResolvedValue(null);
+    mockBumpAgentTokenVersion.mockImplementation(async (agentId: string) => {
+      const ag = fakeAgents.find((a) => a.id === agentId);
+      if (ag) ag.token_version = (ag.token_version || 1) + 1;
+      return ag?.token_version || 2;
+    });
+
+    dbBridge.queryRows = vi.fn(async (sql: string, params: any[] = []) => {
+      if (sql.includes('FROM public.agents') && sql.includes('WHERE LOWER(email)')) {
+        const clean = String(params[0] || '').toLowerCase();
+        return fakeAgents.filter((a) => a.email.toLowerCase() === clean).slice(0, 1);
+      }
+      if (sql.includes('FROM public.workspaces WHERE id = $1')) {
+        const ws = fakeWorkspaces.find((w) => w.id === params[0]);
+        return ws ? [ws] : [];
+      }
+      if (sql.includes('COUNT(*)::text AS cnt') && sql.includes('FROM public.password_reset_tokens')) {
+        const clean = String(params[0] || '').toLowerCase();
+        const cutoff = Date.now() - 60 * 60 * 1000;
+        const cnt = fakeResetTokens.filter(
+          (r) => r.email.toLowerCase() === clean && new Date(r.created_at).getTime() >= cutoff,
+        ).length;
+        return [{ cnt: String(cnt) }];
+      }
+      if (
+        sql.includes('UPDATE public.password_reset_tokens') &&
+        sql.includes('RETURNING id, user_id, email')
+      ) {
+        const hash = params[0];
+        const now = Date.now();
+        const row = fakeResetTokens.find(
+          (r) => r.token_hash === hash && r.used_at === null && new Date(r.expires_at).getTime() > now,
+        );
+        if (!row) return [];
+        row.used_at = new Date().toISOString();
+        return [{ id: row.id, user_id: row.user_id, email: row.email }];
+      }
+      if (sql.includes('SELECT used_at, expires_at') && sql.includes('FROM public.password_reset_tokens')) {
+        const row = fakeResetTokens.find((r) => r.token_hash === params[0]);
+        return row ? [{ used_at: row.used_at, expires_at: row.expires_at }] : [];
+      }
+      return [];
+    });
+
+    dbBridge.query = vi.fn(async (sql: string, params: any[] = []) => {
+      if (sql.includes('UPDATE public.password_reset_tokens') && sql.includes('AND used_at IS NULL')) {
+        const [userId, cleanEmail] = params;
+        const nowIso = new Date().toISOString();
+        for (const r of fakeResetTokens) {
+          if ((r.user_id === userId || r.email.toLowerCase() === String(cleanEmail).toLowerCase()) && !r.used_at) {
+            r.used_at = nowIso;
+          }
+        }
+        return { rows: [], rowCount: 1 };
+      }
+      if (sql.includes('INSERT INTO public.password_reset_tokens')) {
+        const [userId, email, tokenHash, expiresAt] = params;
+        fakeResetTokens.push({
+          id: 'prt-' + (fakeResetTokens.length + 1),
+          user_id: userId,
+          email,
+          token_hash: tokenHash,
+          expires_at: expiresAt,
+          used_at: null,
+          created_at: new Date().toISOString(),
+        });
+        return { rows: [], rowCount: 1 };
+      }
+      if (sql.includes('UPDATE public.agents') && sql.includes('SET password_hash = $1')) {
+        const [hash, id, email] = params;
+        for (const ag of fakeAgents) {
+          if (ag.id === id || ag.email.toLowerCase() === String(email || '').toLowerCase()) {
+            ag.password_hash = hash;
+            ag.email_verified = true;
+          }
+        }
+        return { rows: [], rowCount: 1 };
+      }
+      if (sql.includes('UPDATE public.agents') && sql.includes('token_version =')) {
+        const [email, excludeId] = params;
+        for (const ag of fakeAgents) {
+          if (ag.email.toLowerCase() === String(email || '').toLowerCase() && ag.id !== excludeId) {
+            ag.token_version = (ag.token_version || 1) + 1;
+          }
+        }
+        return { rows: [], rowCount: 1 };
+      }
+      return { rows: [], rowCount: 0 };
+    });
 
     updateUserByIdSpy = vi.fn(async (id: string, attrs: any) => {
       const u = fakeUsers.find((x) => x.id === id);
-      if (u) Object.assign(u, attrs);
+      const nextHash = attrs?.password ? await bcrypt.hash(attrs.password, 4) : undefined;
+      if (u) {
+        Object.assign(u, attrs);
+        if (nextHash) u.password_hash = nextHash;
+      }
+      const ag = fakeAgents.find((x) => x.id === id);
+      if (ag && nextHash) {
+        ag.password_hash = nextHash;
+      }
       return { data: { user: u }, error: null };
     });
 
@@ -152,7 +310,7 @@ describe('auth-verification action suite', () => {
                 }),
                 lt: vi.fn((col: string, val: any) => {
                   fakeVerifications = fakeVerifications.filter(
-                    (r) => new Date(r[col]).getTime() >= new Date(val).getTime()
+                    (r) => new Date(r[col]).getTime() >= new Date(val).getTime(),
                   );
                   return delObj;
                 }),
@@ -168,15 +326,7 @@ describe('auth-verification action suite', () => {
             select: vi.fn(() => ({
               eq: vi.fn(() => ({
                 maybeSingle: vi.fn(async () => ({
-                  data: {
-                    smtp_settings: {
-                      host: 'smtp.test.com',
-                      port: 587,
-                      user: 'support@test.com',
-                      pass: 'secret',
-                      enabled: true,
-                    },
-                  },
+                  data: fakePlatformSettings,
                   error: null,
                 })),
               })),
@@ -190,6 +340,12 @@ describe('auth-verification action suite', () => {
     });
 
     mockSendSmtpEmail.mockResolvedValue({ success: true });
+  });
+
+  afterEach(() => {
+    vi.stubEnv('NODE_ENV', origNodeEnv || 'test');
+    process.env.ORBAT_DEMO_AUTH_PREVIEW = origDemoPreview;
+    process.env.PLATFORM_REQUIRE_EMAIL_VERIFICATION = origRequireEmail;
   });
 
   // 1. Code is 6 digits
@@ -412,5 +568,138 @@ describe('auth-verification action suite', () => {
 
     expect(res.success).toBe(false);
     expect(res.error).toContain('Too many verification codes requested from this IP');
+  });
+
+  // 9. Password reset token generation, SMTP email dispatch, hash update, expiry, and replay prevention
+  it('generates a hashed 30-min reset token, sends email via SMTP, updates bcrypt password, and blocks replay', async () => {
+    const oldHash = await bcrypt.hash('OldPassword123!', 4);
+    fakeAgents.push({
+      id: 'agent-reset-1',
+      name: 'Farhan Lead',
+      email: 'farhan@acme.io',
+      workspace_id: 'ws-1',
+      password_hash: oldHash,
+      is_active: true,
+      token_version: 2,
+    });
+    fakeUsers.push({
+      id: 'agent-reset-1',
+      email: 'farhan@acme.io',
+      name: 'Farhan Lead',
+      password_hash: oldHash,
+      email_confirmed_at: null,
+    });
+
+    const reqRes = await requestPasswordResetAction('farhan@acme.io');
+    expect(reqRes.success).toBe(true);
+    expect(reqRes.delivery).toBe('email');
+    expect(reqRes.devResetUrl).toBeUndefined();
+    expect(fakeResetTokens).toHaveLength(1);
+    expect(fakeResetTokens[0].token_hash).toMatch(/^[0-9a-f]{64}$/);
+    const ttlMs = new Date(fakeResetTokens[0].expires_at).getTime() - Date.now();
+    expect(ttlMs).toBeGreaterThan(29 * 60 * 1000);
+    expect(ttlMs).toBeLessThanOrEqual(30 * 60 * 1000 + 2000);
+
+    expect(mockSendSmtpEmail).toHaveBeenCalledTimes(1);
+    const sentMail = mockSendSmtpEmail.mock.calls[0][1];
+    const urlMatch = String(sentMail.text || '').match(/https:\/\/app\.orbatai\.test\/forgot\?token=([^\s]+)/);
+    expect(urlMatch).not.toBeNull();
+    const rawToken = decodeURIComponent(urlMatch![1]);
+
+    // Verify stored hash matches SHA-256 of raw token (plaintext never persisted)
+    const expectedHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    expect(fakeResetTokens[0].token_hash).toBe(expectedHash);
+
+    // Complete password reset
+    const completeRes = await completePasswordResetAction(rawToken, 'FreshStrongPass99!');
+    expect(completeRes.success).toBe(true);
+
+    // Password hash actually changed and verifies via bcrypt
+    const updatedHash = fakeAgents[0].password_hash;
+    expect(updatedHash).not.toBe(oldHash);
+    expect(await bcrypt.compare('FreshStrongPass99!', updatedHash)).toBe(true);
+    expect(fakeAgents[0].token_version).toBeGreaterThan(2);
+
+    // Replay with exact same single-use token is blocked
+    const replayRes = await completePasswordResetAction(rawToken, 'AnotherPassword99!');
+    expect(replayRes.success).toBe(false);
+    expect(replayRes.error).toContain('already been used');
+  });
+
+  it('rejects expired, invalid, and too-short password reset attempts', async () => {
+    fakeAgents.push({
+      id: 'agent-exp-1',
+      name: 'Expired User',
+      email: 'expired@acme.io',
+      is_active: true,
+    });
+    const expiredRaw = 'expired-demo-token-abc';
+    fakeResetTokens.push({
+      id: 'prt-exp',
+      user_id: 'agent-exp-1',
+      email: 'expired@acme.io',
+      token_hash: crypto.createHash('sha256').update(expiredRaw).digest('hex'),
+      expires_at: new Date(Date.now() - 5 * 60 * 1000).toISOString(),
+      used_at: null,
+      created_at: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
+    });
+
+    const expRes = await completePasswordResetAction(expiredRaw, 'ValidPassword99!');
+    expect(expRes.success).toBe(false);
+    expect(expRes.error).toContain('expired');
+
+    const badRes = await completePasswordResetAction('totally-unknown-token', 'ValidPassword99!');
+    expect(badRes.success).toBe(false);
+    expect(badRes.error).toContain('Invalid or expired');
+
+    const shortRes = await completePasswordResetAction(expiredRaw, 'short');
+    expect(shortRes.success).toBe(false);
+    expect(shortRes.error).toContain('at least 8 characters');
+  });
+
+  it('never leaks reset tokens in production when SMTP is disabled, while allowing dev preview locally', async () => {
+    fakePlatformSettings = { smtp_settings: { enabled: false }, default_features: {} };
+    fakeAgents.push({
+      id: 'agent-nosmtp-1',
+      name: 'No Smtp',
+      email: 'nosmtp@acme.io',
+      workspace_id: 'ws-nosmtp',
+      is_active: true,
+    });
+
+    // Dev mode: explicit dev_preview link allowed when SMTP missing
+    vi.stubEnv('NODE_ENV', 'test');
+    const devRes = await requestPasswordResetAction('nosmtp@acme.io');
+    expect(devRes.success).toBe(true);
+    expect(devRes.delivery).toBe('dev_preview');
+    expect(devRes.devResetUrl).toContain('/forgot?token=');
+
+    // Production without SMTP and without admin demo session: fail closed, never leak token
+    vi.stubEnv('NODE_ENV', 'production');
+    process.env.ORBAT_DEMO_AUTH_PREVIEW = 'true';
+    mockSessionUser.mockResolvedValue(null);
+    const prodRes = await requestPasswordResetAction('nosmtp@acme.io');
+    expect(prodRes.success).toBe(false);
+    expect(prodRes.delivery).toBe('smtp_unconfigured');
+    expect(prodRes.devResetUrl).toBeUndefined();
+  });
+
+  it('resolves signup email verification requirement from env, platform defaults, and workspace policy', async () => {
+    delete process.env.PLATFORM_REQUIRE_EMAIL_VERIFICATION;
+    expect((await getSignupVerificationRequirementAction()).required).toBe(false);
+
+    process.env.PLATFORM_REQUIRE_EMAIL_VERIFICATION = 'true';
+    expect((await getSignupVerificationRequirementAction()).required).toBe(true);
+    delete process.env.PLATFORM_REQUIRE_EMAIL_VERIFICATION;
+
+    fakePlatformSettings.default_features = { require_email_verification: true };
+    expect((await getSignupVerificationRequirementAction()).required).toBe(true);
+    fakePlatformSettings.default_features = {};
+
+    fakeWorkspaces.push({
+      id: 'ws-strict-otp',
+      security_policies: { requireEmailVerification: true },
+    });
+    expect((await getSignupVerificationRequirementAction('ws-strict-otp')).required).toBe(true);
   });
 });

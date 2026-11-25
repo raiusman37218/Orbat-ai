@@ -14,10 +14,12 @@ import {
   Globe,
   Loader2,
   Lock,
+  Mic,
   Paperclip,
   Send,
   Smile,
   Sparkles,
+  Square,
   ThumbsDown,
   ThumbsUp,
   Wand2,
@@ -105,7 +107,17 @@ export function InboxComposer({
     url: string;
     name: string;
     isImage: boolean;
+    isAudio?: boolean;
+    mimeType?: string | null;
+    durationSec?: number | null;
   } | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [recordSeconds, setRecordSeconds] = useState(0);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recordChunksRef = useRef<Blob[]>([]);
+  const recordTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const recordSecondsRef = useRef(0);
   const [autoTranslateOutbound, setAutoTranslateOutbound] = useState(true);
 
   // Copilot suggest / rewrite state
@@ -325,6 +337,126 @@ export function InboxComposer({
     }
   };
 
+  useEffect(() => {
+    return () => {
+      if (recordTimerRef.current) clearInterval(recordTimerRef.current);
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+        try {
+          mediaRecorderRef.current.stop();
+        } catch {
+          // ignore cleanup stop errors
+        }
+      }
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getTracks().forEach((t) => t.stop());
+      }
+    };
+  }, []);
+
+  const handleToggleRecording = async () => {
+    if (recording) {
+      if (recordTimerRef.current) {
+        clearInterval(recordTimerRef.current);
+        recordTimerRef.current = null;
+      }
+      setRecording(false);
+      try {
+        mediaRecorderRef.current?.stop();
+      } catch {
+        mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      }
+      return;
+    }
+
+    if (
+      typeof navigator === 'undefined' ||
+      !navigator.mediaDevices?.getUserMedia ||
+      typeof MediaRecorder === 'undefined'
+    ) {
+      toast.show({
+        message: 'Voice recording is not supported in this browser.',
+        tone: 'bad',
+      });
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
+      recordChunksRef.current = [];
+      recordSecondsRef.current = 0;
+      setRecordSeconds(0);
+
+      const candidates = [
+        'audio/webm;codecs=opus',
+        'audio/webm',
+        'audio/mp4',
+        'audio/ogg;codecs=opus',
+      ];
+      const chosenMime =
+        candidates.find((m) => MediaRecorder.isTypeSupported(m)) || '';
+      const recorder = chosenMime
+        ? new MediaRecorder(stream, { mimeType: chosenMime })
+        : new MediaRecorder(stream);
+      mediaRecorderRef.current = recorder;
+
+      recorder.ondataavailable = (ev) => {
+        if (ev.data && ev.data.size > 0) {
+          recordChunksRef.current.push(ev.data);
+        }
+      };
+
+      recorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        mediaStreamRef.current = null;
+        mediaRecorderRef.current = null;
+        const durationSec = Math.max(1, recordSecondsRef.current);
+        const mimeType = recorder.mimeType || chosenMime || 'audio/webm';
+        const baseMime = mimeType.split(';')[0]?.trim() || 'audio/webm';
+        const ext = baseMime.includes('mp4')
+          ? 'm4a'
+          : baseMime.includes('ogg')
+            ? 'ogg'
+            : 'webm';
+        const blob = new Blob(recordChunksRef.current, { type: mimeType });
+        recordChunksRef.current = [];
+        if (blob.size === 0) return;
+
+        setUploading(true);
+        try {
+          const audioFile = new File([blob], `voice-note-${Date.now()}.${ext}`, {
+            type: mimeType,
+          });
+          const uploaded = await uploadInboxAttachment(audioFile, { durationSec });
+          setAttachment(uploaded);
+        } catch (err) {
+          toast.show({
+            message: err instanceof Error ? err.message : 'Voice note upload failed.',
+            tone: 'bad',
+          });
+        } finally {
+          setUploading(false);
+          setRecordSeconds(0);
+        }
+      };
+
+      recorder.start();
+      setRecording(true);
+      recordTimerRef.current = setInterval(() => {
+        recordSecondsRef.current += 1;
+        setRecordSeconds(recordSecondsRef.current);
+      }, 1000);
+    } catch (err) {
+      toast.show({
+        message:
+          err instanceof Error
+            ? err.message
+            : 'Microphone permission was denied or unavailable.',
+        tone: 'bad',
+      });
+    }
+  };
+
   const insertCanned = (item: InboxCannedReply, replaceSlash: boolean) => {
     if (replaceSlash) {
       onTextChange(text.replace(/\/[a-zA-Z0-9_-]*$/, item.content));
@@ -360,6 +492,13 @@ export function InboxComposer({
         isInternal: mode === 'note',
         replyToId: mode === 'reply' ? replyTo?.id ?? null : null,
         attachmentUrl: attachment?.url ?? null,
+        attachmentMeta: attachment
+          ? {
+              isAudio: Boolean(attachment.isAudio),
+              mimeType: attachment.mimeType ?? null,
+              durationSec: attachment.durationSec ?? null,
+            }
+          : undefined,
         targetLanguageCode:
           mode === 'reply' && autoTranslateOutbound ? activeLanguageCode : 'en',
       });
@@ -580,7 +719,7 @@ export function InboxComposer({
         </div>
       )}
 
-      {/* Attached file preview */}
+      {/* Attached file / voice note preview */}
       {attachment && (
         <div className="mb-2 inline-flex max-w-full items-center gap-2 rounded-[10px] border border-o-border bg-o-surface-2 px-2.5 py-1.5 text-[12px]">
           {attachment.isImage ? (
@@ -590,10 +729,21 @@ export function InboxComposer({
               alt={attachment.name}
               className="h-8 w-8 rounded object-cover"
             />
+          ) : attachment.isAudio ? (
+            <audio
+              controls
+              preload="metadata"
+              src={attachment.url}
+              className="h-8 max-w-[230px]"
+            />
           ) : (
             <FileText className="h-4 w-4 flex-none text-o-text-2" />
           )}
-          <span className="truncate font-medium text-o-text">{attachment.name}</span>
+          <span className="truncate font-medium text-o-text">
+            {attachment.isAudio && attachment.durationSec
+              ? `Voice note (${attachment.durationSec}s)`
+              : attachment.name}
+          </span>
           <button
             type="button"
             onClick={() => setAttachment(null)}
@@ -958,15 +1108,38 @@ export function InboxComposer({
               size="sm"
               variant="quiet"
               icon
-              disabled={uploading}
+              disabled={uploading || recording}
               onClick={() => fileInputRef.current?.click()}
-              aria-label="Attach image, PDF, or text file"
-              title="Attach image, PDF, or TXT"
+              aria-label="Attach image, audio, PDF, or text file"
+              title="Attach image, audio, PDF, or TXT"
             >
               {uploading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Paperclip className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              size="sm"
+              variant="quiet"
+              icon={!recording}
+              disabled={uploading || sending}
+              onClick={() => void handleToggleRecording()}
+              aria-label={recording ? 'Stop recording voice note' : 'Record voice note'}
+              title={recording ? 'Stop recording voice note' : 'Record voice note'}
+              className={
+                recording
+                  ? 'border border-o-bad/40 bg-o-bad/10 px-2 text-o-bad hover:bg-o-bad/15'
+                  : undefined
+              }
+            >
+              {recording ? (
+                <span className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold tabular-nums">
+                  <Square className="h-3 w-3 fill-current" />
+                  {`${Math.floor(recordSeconds / 60)}:${String(recordSeconds % 60).padStart(2, '0')}`}
+                </span>
+              ) : (
+                <Mic className="h-4 w-4" />
               )}
             </Button>
             <Button
@@ -982,7 +1155,7 @@ export function InboxComposer({
             <input
               ref={fileInputRef}
               type="file"
-              accept="image/*,.pdf,.txt"
+              accept="image/*,audio/webm,audio/mp4,audio/mpeg,audio/ogg,.pdf,.txt,.webm,.m4a,.mp3,.ogg"
               className="hidden"
               onChange={handlePickFile}
             />

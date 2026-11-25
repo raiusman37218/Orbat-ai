@@ -575,3 +575,94 @@ export function DeleteMessageConfirm({
     />
   );
 }
+
+/* ── Save Conversation View Modal ──────────────────────────────────────── */
+
+export function SaveConversationViewModal({
+  open,
+  onClose,
+  summaryLabel,
+  onConfirm,
+  busy,
+}: {
+  open: boolean;
+  onClose: () => void;
+  summaryLabel: string;
+  onConfirm: (input: { name: string; shared: boolean }) => Promise<void>;
+  busy: boolean;
+}) {
+  const [name, setName] = useState('');
+  const [shared, setShared] = useState(false);
+
+  const handleClose = () => {
+    setName('');
+    setShared(false);
+    onClose();
+  };
+
+  const handleSave = async () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    await onConfirm({ name: trimmed, shared });
+    setName('');
+    setShared(false);
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={handleClose}
+      title="Save conversation view"
+      description="Save the active inbox filter, team group, search query, and sort order for one-click reuse."
+      footer={
+        <>
+          <Button variant="secondary" onClick={handleClose} disabled={busy}>
+            Cancel
+          </Button>
+          <Button
+            variant="primary"
+            disabled={!name.trim()}
+            loading={busy}
+            onClick={() => void handleSave()}
+          >
+            Save view
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-3">
+        <div>
+          <label
+            htmlFor="save-conv-view-name"
+            className="mb-1.5 block text-[12px] font-medium text-o-text-2"
+          >
+            View name
+          </label>
+          <input
+            id="save-conv-view-name"
+            type="text"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            maxLength={80}
+            placeholder="e.g. VIP Billing Escalations"
+            className="w-full rounded-[10px] border border-o-border bg-o-surface px-3 py-2 text-[13.5px] text-o-text placeholder:text-o-text-3 focus:border-o-accent focus:outline-none"
+          />
+        </div>
+        {summaryLabel && (
+          <div className="rounded-[10px] border border-o-border bg-o-surface-2 px-3 py-2 text-[12px] text-o-text-2">
+            Filters: <span className="font-medium text-o-text">{summaryLabel}</span>
+          </div>
+        )}
+        <label className="flex cursor-pointer items-center gap-2.5 text-[13px] text-o-text-2">
+          <input
+            type="checkbox"
+            checked={shared}
+            onChange={(e) => setShared(e.target.checked)}
+            className="accent-o-accent-text"
+          />
+          <span>Share view with everyone in this workspace (admins only)</span>
+        </label>
+      </div>
+    </Modal>
+  );
+}

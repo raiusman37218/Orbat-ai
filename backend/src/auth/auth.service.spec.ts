@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { UnauthorizedException, ConflictException } from '@nestjs/common';
+import * as crypto from 'crypto';
+import { ForbiddenException, UnauthorizedException, ConflictException } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { DatabaseService } from '../database/database.service';
 import { JwtService } from '@nestjs/jwt';
@@ -96,6 +97,65 @@ describe('AuthService', () => {
       expect(result.refreshToken).toBe('mock_token');
       expect(result.user.email).toBe('test@example.com');
       expect(result.workspace?.name).toBe('Acme Corp');
+    });
+
+    it('enforces TOTP verification when totp_enabled is true on agent', async () => {
+      const realHash = await bcrypt.hash('correct_password', 4);
+      const base32 = 'JBSWY3DPEHPK3PXP';
+      const key = crypto.createHash('sha256').update('orbat:totp:test_secret').digest();
+      const iv = crypto.randomBytes(12);
+      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
+      const ct = Buffer.concat([cipher.update(base32, 'utf8'), cipher.final()]);
+      const sealed = ['v2jwt', iv.toString('base64'), cipher.getAuthTag().toString('base64'), ct.toString('base64')].join(':');
+
+      mockDb.query = vi.fn().mockResolvedValue({
+        rows: [
+          {
+            id: 'agent-mfa-1',
+            email: 'mfa@example.com',
+            name: 'MFA Agent',
+            role: 'owner',
+            workspace_id: 'ws-1',
+            workspace_name: 'Acme Corp',
+            brand_color: '#3B82F6',
+            password_hash: realHash,
+            is_active: true,
+            is_super_admin: false,
+            totp_enabled: true,
+            totp_secret_encrypted: sealed,
+          },
+        ],
+      });
+
+      await expect(
+        service.login({ email: 'mfa@example.com', password: 'correct_password' }),
+      ).rejects.toThrow(ForbiddenException);
+
+      await expect(
+        service.login({ email: 'mfa@example.com', password: 'correct_password', totpCode: '000000' }),
+      ).rejects.toThrow(UnauthorizedException);
+
+      // Compute current 6-digit RFC 6238 code for JBSWY3DPEHPK3PXP
+      const totpKey = Buffer.from('48656c6c6f21deadbeef', 'hex');
+      const counter = Math.floor(Date.now() / 1000 / 30);
+      const buf = Buffer.alloc(8);
+      buf.writeUInt32BE(Math.floor(counter / 0x100000000), 0);
+      buf.writeUInt32BE(counter >>> 0, 4);
+      const hmac = crypto.createHmac('sha1', totpKey).update(buf).digest();
+      const offset = hmac[hmac.length - 1] & 0x0f;
+      const bin =
+        ((hmac[offset] & 0x7f) << 24) |
+        ((hmac[offset + 1] & 0xff) << 16) |
+        ((hmac[offset + 2] & 0xff) << 8) |
+        (hmac[offset + 3] & 0xff);
+      const code = String(bin % 1_000_000).padStart(6, '0');
+
+      const okRes = await service.login({
+        email: 'mfa@example.com',
+        password: 'correct_password',
+        totpCode: code,
+      });
+      expect(okRes.accessToken).toBe('mock_token');
     });
   });
 

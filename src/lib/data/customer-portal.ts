@@ -11,7 +11,7 @@ import {
   type PortalTicketItem,
   type PortalTicketMessage,
 } from '@/app/actions/public-portal';
-import type { PortalCsatChoice } from '@/lib/portal/portal-helpers';
+import type { PortalCsatChoice } from '@/lib/portal/portal-types';
 
 export type { CustomerPortalBundle, PortalCsatChoice, PortalTicketItem, PortalTicketMessage };
 

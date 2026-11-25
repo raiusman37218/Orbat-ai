@@ -46,6 +46,7 @@ export interface Visitor {
   channel?: ChannelType;
   channel_user_id?: string | null;
   channel_metadata?: Record<string, any> | null;
+  notes?: string | null;
 }
 
 export type VisitorInsert = Partial<Visitor>;
@@ -155,6 +156,7 @@ export interface Conversation {
 
   // Compatibility / multi-tenant fields
   agent_id?: string | null;
+  group_id?: string | null;
   workspace_id?: string | null;
   tags?: string[] | null;
   csat_rating?: number | null;
@@ -1284,5 +1286,28 @@ export interface CopilotMessage {
   sources: CopilotSource[];
   event_id: string | null;
   feedback: 'up' | 'down' | null;
+  created_at: string;
+}
+
+/* ── Persistent In-App Notifications (migration 20261213090000) ─────────── */
+
+export type WorkspaceNotificationKind =
+  | 'handoff'
+  | 'mention'
+  | 'sla_warning'
+  | 'sla_breach'
+  | 'ai_approval'
+  | 'ai_flagged'
+  | 'system';
+
+export interface WorkspaceNotificationRow {
+  id: string;
+  workspace_id: string;
+  recipient_agent_id: string | null;
+  kind: WorkspaceNotificationKind;
+  title: string;
+  body: string;
+  href: string;
+  read_at: string | null;
   created_at: string;
 }

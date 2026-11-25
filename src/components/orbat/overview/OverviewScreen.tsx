@@ -1,6 +1,18 @@
 'use client';
 
-import { Activity, AlertTriangle, ArrowRight, Download, Info, MessageSquare, Sparkles, Users } from 'lucide-react';
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  ChevronRight,
+  Clock,
+  Download,
+  Info,
+  MessageSquare,
+  ShieldAlert,
+  Sparkles,
+  Users,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
@@ -23,11 +35,9 @@ import { PageContainer } from '@/components/orbat/shell/PageContainer';
 import { useShellSession } from '@/components/orbat/shell/session-context';
 import {
   OVERVIEW_RANGES,
-  getKnowledgeGaps,
-  getOverviewLive,
+  channelLabel,
+  getOverviewBootstrap,
   getOverviewReport,
-  listRecentActivity,
-  listRecentConversations,
   type OverviewLive,
   type OverviewRange,
   type OverviewReport,
@@ -36,21 +46,23 @@ import {
 import { useData } from '@/lib/data/use-data';
 import { exportSummaryOverviewCsv, formatDuration } from '@/lib/reports/metrics';
 import { STATUS_LABELS } from '@/lib/team/permissions';
-import { fmtInt, greeting, pctDelta, ptsDelta, timeAgo, type Delta } from './format';
+import { fmtInt, fmtPct, greeting, pctDelta, ptsDelta, timeAgo, type Delta } from './format';
 import { VolumeChart } from './VolumeChart';
 
-/* docs/design/design/Main.dc.html. Each section loads on its own, so one
-   slow or failing source never blanks the whole page. */
+/* Overview Command Center (live metrics, stacked AI/human/open volume,
+   per-channel deflection, Workspace AI ROI & Action Queue, live AI agents,
+   and real Postgres support activity feed). */
 export function OverviewScreen() {
   const { agent, workspace } = useShellSession();
   const [range, setRange] = useState<OverviewRange>('7d');
   const ws = workspace.id;
 
   const report = useData(() => getOverviewReport(ws, range), ['report', ws, range]);
-  const live = useData(() => getOverviewLive(ws), ['live', ws]);
-  const recent = useData(() => listRecentConversations(ws, 6), ['recent', ws]);
-  const gaps = useData(() => getKnowledgeGaps(ws), ['gaps', ws]);
-  const activity = useData(() => listRecentActivity(ws), ['activity', ws]);
+  const bootstrap = useData(() => getOverviewBootstrap(ws, 6), ['overview-bootstrap', ws]);
+  const live = { data: bootstrap.data?.live, error: bootstrap.error, reload: bootstrap.reload };
+  const recent = { data: bootstrap.data?.recent, error: bootstrap.error, reload: bootstrap.reload };
+  const gaps = { data: bootstrap.data?.gaps, error: bootstrap.error, reload: bootstrap.reload };
+  const activity = { data: bootstrap.data?.activity, error: bootstrap.error, reload: bootstrap.reload };
 
   const firstName = agent.name.split(' ')[0] || agent.name;
   const today = new Date().toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' });
@@ -104,18 +116,37 @@ export function OverviewScreen() {
 
       <Alerts live={live.data} gaps={gaps.data} />
 
-      <KpiGrid report={report.data} reportError={report.error} live={live.data} onRetry={report.reload} />
+      <RoiAndActionStrip report={report.data} />
+
+      <KpiGrid
+        report={report.data}
+        reportError={report.error}
+        live={live.data}
+        range={range}
+        onRetry={report.reload}
+      />
 
       <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <Card>
-          <h3 className="o-card__title">Conversation volume</h3>
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h3 className="o-card__title">Conversation volume</h3>
+            <span className="text-[12.5px] text-o-text-3">
+              {range === 'today'
+                ? `Last 24 hours (${report.data?.timeZone || 'UTC'})`
+                : 'AI resolved vs human resolved vs open'}
+            </span>
+          </div>
           <div className="mt-3">
             {report.error ? (
               <ErrorState body={report.error} onRetry={report.reload} className="py-10" />
             ) : !report.data ? (
               <Skeleton height={260} />
             ) : (
-              <VolumeChart points={report.data.series} />
+              <VolumeChart
+                points={report.data.series}
+                granularity={report.data.granularity}
+                timeZone={report.data.timeZone}
+              />
             )}
           </div>
         </Card>
@@ -130,30 +161,39 @@ export function OverviewScreen() {
       <div className="grid gap-4 xl:grid-cols-[2fr_1fr]">
         <RecentCard rows={recent.data} error={recent.error} onRetry={recent.reload} />
         <Card flush className="flex flex-col">
-          <SectionHead title="Recent activity" />
-          <div className="px-5 pb-4">
+          <SectionHead title="Recent activity" sub="Live workspace events" />
+          <div className="px-2 pb-3">
             {activity.error ? (
               <ErrorState body={activity.error} onRetry={activity.reload} className="py-8" />
             ) : !activity.data ? (
-              <div className="pt-3">
-                <SkeletonRows rows={3} />
+              <div className="p-3">
+                <SkeletonRows rows={4} />
               </div>
             ) : activity.data.length === 0 ? (
               <EmptyState
                 icon={<Activity size={22} />}
                 title="No activity feed yet"
-                body="Handoffs, solved tickets and published articles will be listed here."
+                body="Handoffs, solved tickets, SLA alerts, published articles and AI flags appear here."
                 className="py-8"
               />
             ) : (
-              <ul className="flex flex-col">
+              <ul className="flex flex-col divide-y divide-o-border/60">
                 {activity.data.map((e) => (
-                  <li key={e.id} className="flex gap-3 py-2.5">
-                    <span className={cn('mt-1.5 h-2 w-2 flex-none rounded-full', DOT[e.tone])} aria-hidden="true" />
-                    <div className="min-w-0">
-                      <div className="text-[14px]">{e.text}</div>
-                      <div className="text-[12.5px] text-o-text-3">{timeAgo(e.at)} ago</div>
-                    </div>
+                  <li key={e.id}>
+                    <Link
+                      href={e.href}
+                      className="o-row-hover flex items-start gap-3 rounded-[10px] px-3 py-2.5 transition-colors"
+                    >
+                      <span
+                        className={cn('mt-1.5 h-2 w-2 flex-none rounded-full', DOT[e.tone])}
+                        aria-hidden="true"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-[13.5px] leading-snug text-o-text">{e.text}</div>
+                        <div className="mt-0.5 text-[12px] text-o-text-3">{timeAgo(e.at)} ago</div>
+                      </div>
+                      <ChevronRight size={14} className="mt-1 flex-none text-o-text-3" aria-hidden="true" />
+                    </Link>
                   </li>
                 ))}
               </ul>
@@ -180,6 +220,164 @@ function SectionHead({ title, sub, link }: { title: string; sub?: ReactNode; lin
         </Link>
       ) : null}
     </div>
+  );
+}
+
+/* ---------- Workspace AI ROI & Action Queue strip ---------- */
+
+function RoiAndActionStrip({ report }: { report: OverviewReport | undefined }) {
+  const roi = report?.roi;
+  const queue = report?.actionQueue;
+  const channels = report?.channels ?? [];
+
+  return (
+    <section aria-label="Workspace AI ROI and Action Queue" className="grid gap-4 xl:grid-cols-[1.35fr_1fr]">
+      <Card className="flex flex-col justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <span
+              className="grid h-9 w-9 flex-none place-items-center rounded-[12px] bg-o-ai-soft text-o-ai-text"
+              aria-hidden="true"
+            >
+              <Sparkles size={17} strokeWidth={1.8} />
+            </span>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="o-card__title">Workspace AI ROI</h3>
+                <Badge tone="ai">Savings</Badge>
+              </div>
+              <p className="o-card__sub mt-0.5">
+                {roi
+                  ? `${fmtInt(roi.aiResolvedCount)} AI resolutions × ${roi.avgHandleMinutes}m handle @ $${roi.hourlyRateUsd}/hr`
+                  : 'Calculating estimated agent time & cost saved…'}
+              </p>
+            </div>
+          </div>
+
+          {!report || !roi ? (
+            <div className="flex gap-5">
+              <Skeleton width={88} height={36} />
+              <Skeleton width={88} height={36} />
+            </div>
+          ) : (
+            <dl className="flex flex-wrap gap-6">
+              <div className="flex flex-col-reverse">
+                <dt className="text-[12px] text-o-text-3">Agent hours saved</dt>
+                <dd className="o-num m-0 text-[22px] font-semibold tracking-[-0.02em] text-o-ai-text">
+                  {roi.hoursSaved.toLocaleString('en-US', { maximumFractionDigits: 1 })}h
+                </dd>
+              </div>
+              <div className="flex flex-col-reverse">
+                <dt className="text-[12px] text-o-text-3">Est. cost saved</dt>
+                <dd className="o-num m-0 text-[22px] font-semibold tracking-[-0.02em] text-o-ok">
+                  ${fmtInt(roi.costSavedUsd)}
+                </dd>
+              </div>
+            </dl>
+          )}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-2 border-t border-o-border pt-3">
+          <span className="text-[12px] font-medium text-o-text-3">AI deflection by channel:</span>
+          {!report ? (
+            <Skeleton width={160} height={22} />
+          ) : channels.length === 0 ? (
+            <span className="text-[12.5px] text-o-text-3">No channel activity in this period yet</span>
+          ) : (
+            channels.slice(0, 5).map((ch) => (
+              <span
+                key={ch.key}
+                className="inline-flex items-center gap-1.5 rounded-full bg-o-surface-2 px-2.5 py-0.5 text-[12px] font-medium text-o-text-2"
+              >
+                <span>{ch.label}</span>
+                <span className="o-num font-semibold text-o-ai-text">
+                  {ch.aiResolutionPct == null ? '—' : fmtPct(ch.aiResolutionPct)}
+                </span>
+              </span>
+            ))
+          )}
+        </div>
+      </Card>
+
+      <Card className="flex flex-col justify-between gap-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h3 className="o-card__title">Action queue</h3>
+            <p className="o-card__sub mt-0.5">Items needing human attention right now</p>
+          </div>
+          <Link href="/app/tickets" className="text-[13px] font-medium text-o-accent-text hover:underline">
+            Tickets →
+          </Link>
+        </div>
+
+        {!report || !queue ? (
+          <SkeletonRows rows={3} />
+        ) : (
+          <div className="grid gap-2 sm:grid-cols-3 xl:grid-cols-1">
+            <Link
+              href="/app/tickets"
+              className="o-row-hover flex items-center justify-between gap-3 rounded-[12px] border border-o-border px-3 py-2 transition-colors"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-[13.5px] font-medium">
+                <Clock
+                  size={15}
+                  className={cn(
+                    'flex-none',
+                    queue.breachedCount > 0
+                      ? 'text-o-bad'
+                      : queue.breachingSoonCount > 0
+                        ? 'text-o-warn'
+                        : 'text-o-ok',
+                  )}
+                  aria-hidden="true"
+                />
+                <span className="truncate">Urgent breaching SLAs</span>
+              </span>
+              <Badge
+                tone={queue.breachedCount > 0 ? 'bad' : queue.breachingSoonCount > 0 ? 'warn' : 'ok'}
+              >
+                {fmtInt(queue.urgentSlaCount)}
+                {queue.breachedCount > 0 ? ` (${fmtInt(queue.breachedCount)} breached)` : ''}
+              </Badge>
+            </Link>
+
+            <Link
+              href="/app/inbox"
+              className="o-row-hover flex items-center justify-between gap-3 rounded-[12px] border border-o-border px-3 py-2 transition-colors"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-[13.5px] font-medium">
+                <MessageSquare
+                  size={15}
+                  className={cn('flex-none', queue.waitingHandoffsCount > 0 ? 'text-o-warn' : 'text-o-text-3')}
+                  aria-hidden="true"
+                />
+                <span className="truncate">Human handoffs waiting</span>
+              </span>
+              <Badge tone={queue.waitingHandoffsCount > 0 ? 'warn' : 'neutral'}>
+                {fmtInt(queue.waitingHandoffsCount)}
+              </Badge>
+            </Link>
+
+            <Link
+              href="/app/ai-quality"
+              className="o-row-hover flex items-center justify-between gap-3 rounded-[12px] border border-o-border px-3 py-2 transition-colors"
+            >
+              <span className="flex min-w-0 items-center gap-2 text-[13.5px] font-medium">
+                <ShieldAlert
+                  size={15}
+                  className={cn('flex-none', queue.aiQualityFlagsCount > 0 ? 'text-o-ai' : 'text-o-text-3')}
+                  aria-hidden="true"
+                />
+                <span className="truncate">AI quality flags</span>
+              </span>
+              <Badge tone={queue.aiQualityFlagsCount > 0 ? 'ai' : 'neutral'}>
+                {fmtInt(queue.aiQualityFlagsCount)}
+              </Badge>
+            </Link>
+          </div>
+        )}
+      </Card>
+    </section>
   );
 }
 
@@ -261,16 +459,19 @@ function KpiGrid({
   report,
   reportError,
   live,
+  range,
   onRetry,
 }: {
   report: OverviewReport | undefined;
   reportError: string | null;
   live: OverviewLive | undefined;
+  range: OverviewRange;
   onRetry: () => void;
 }) {
   const s = report?.summary;
   const p = report?.previous ?? null;
   const pct = (v: number | null | undefined) => (v == null ? '—' : `${v}%`);
+  const periodFoot = range === 'today' ? 'vs prior 24h' : 'vs previous period';
 
   const online = live?.team.filter((m) => m.status === 'online') ?? [];
   const capped = online.filter((m) => m.capacity && m.capacity > 0);
@@ -283,7 +484,7 @@ function KpiGrid({
       label: 'Total conversations',
       value: s ? fmtInt(s.totalCreated) : null,
       delta: s && p ? pctDelta(s.totalCreated, p.totalCreated) : null,
-      foot: 'vs previous period',
+      foot: periodFoot,
     },
     { label: 'Open now', value: live ? fmtInt(live.openCount) : null, foot: 'new and open' },
     {
@@ -296,14 +497,14 @@ function KpiGrid({
       label: 'AI resolved',
       value: s ? fmtInt(s.botResolvedCount) : null,
       delta: s && p ? pctDelta(s.botResolvedCount, p.botResolvedCount) : null,
-      foot: 'vs previous period',
+      foot: periodFoot,
       ai: true,
     },
     {
       label: 'Solved',
       value: s ? fmtInt(s.totalSolved) : null,
       delta: s && p ? pctDelta(s.totalSolved, p.totalSolved) : null,
-      foot: 'vs previous period',
+      foot: periodFoot,
     },
     {
       label: 'AI resolution rate',
@@ -316,13 +517,13 @@ function KpiGrid({
       label: 'Avg. first response',
       value: s ? formatDuration(s.avgFrtSeconds) : null,
       delta: s && p ? pctDelta(s.avgFrtSeconds, p.avgFrtSeconds, { lowerIsBetter: true }) : null,
-      foot: 'vs previous period',
+      foot: periodFoot,
     },
     {
       label: 'Avg. resolution time',
       value: s ? formatDuration(s.avgResolutionSeconds) : null,
       delta: s && p ? pctDelta(s.avgResolutionSeconds, p.avgResolutionSeconds, { lowerIsBetter: true }) : null,
-      foot: 'vs previous period',
+      foot: periodFoot,
     },
     {
       label: 'Customer satisfaction',
@@ -405,7 +606,7 @@ function ChannelCard({
     <Card className="flex flex-col gap-4">
       <div>
         <h3 className="o-card__title">By channel</h3>
-        <p className="o-card__sub mt-0.5">Share of conversations in this period</p>
+        <p className="o-card__sub mt-0.5">Share of conversations and AI deflection rate</p>
       </div>
       {error ? (
         <ErrorState body={error} onRetry={onRetry} className="py-8" />
@@ -415,19 +616,37 @@ function ChannelCard({
         <EmptyState icon={<MessageSquare size={22} />} title="No conversations yet" className="py-8" />
       ) : (
         <ul className="flex flex-col gap-3.5">
-          {report.channels.slice(0, 6).map((c) => (
-            <li key={c.key} className="flex flex-col gap-1.5">
-              <div className="flex justify-between text-[14px]">
-                <span className="font-medium">{c.label}</span>
-                <span className="o-num text-o-text-2">
-                  {Math.round(c.percentage)}% · {fmtInt(c.count)}
-                </span>
-              </div>
-              <div className="h-2 overflow-hidden rounded-full bg-o-surface-2" aria-hidden="true">
-                <div className="h-2 rounded-full bg-o-accent-text" style={{ width: `${Math.min(100, c.percentage)}%` }} />
-              </div>
-            </li>
-          ))}
+          {report.channels.slice(0, 6).map((c) => {
+            const shareWidth = Math.min(100, c.percentage);
+            const aiInnerWidth = c.aiResolutionPct != null ? Math.min(100, c.aiResolutionPct) : 0;
+            return (
+              <li key={c.key} className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-2 text-[14px]">
+                  <span className="truncate font-medium">{c.label}</span>
+                  <span className="o-num flex items-center gap-2 text-o-text-2">
+                    {c.aiResolutionPct !== null ? (
+                      <span className="rounded-full bg-o-ai-soft px-2 py-0.5 text-[11.5px] font-semibold text-o-ai-text">
+                        AI {fmtPct(c.aiResolutionPct)}
+                      </span>
+                    ) : null}
+                    <span>
+                      {Math.round(c.percentage)}% · {fmtInt(c.count)}
+                    </span>
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-o-surface-2" aria-hidden="true">
+                  <div
+                    className="flex h-2 overflow-hidden rounded-full bg-o-accent-text"
+                    style={{ width: `${shareWidth}%` }}
+                  >
+                    {aiInnerWidth > 0 ? (
+                      <span className="h-full bg-o-ai" style={{ width: `${aiInnerWidth}%` }} />
+                    ) : null}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </Card>
@@ -496,7 +715,13 @@ function TeamCard({ live, error, onRetry }: { live: OverviewLive | undefined; er
   );
 }
 
-/* ---------- AI ---------- */
+/* ---------- AI agents ---------- */
+
+const AGENT_STATUS_BADGE: Record<string, { label: string; tone: BadgeTone }> = {
+  live: { label: 'Live', tone: 'ok' },
+  paused: { label: 'Paused', tone: 'warn' },
+  draft: { label: 'Draft', tone: 'neutral' },
+};
 
 function AiCard({
   report,
@@ -508,40 +733,80 @@ function AiCard({
   error: string | null;
 }) {
   const s = report?.summary;
+  const agents = report?.aiAgents ?? [];
+  const liveCount = agents.filter((a) => a.status === 'live').length;
+
   return (
     <Card flush className="flex flex-col">
-      <SectionHead title="AI assistant" sub="Answers from your help center" link={{ href: '/app/agents', label: 'Manage AI' }} />
-      <div className="flex flex-1 flex-col gap-4 p-5">
+      <SectionHead
+        title="AI agents"
+        sub={
+          report
+            ? agents.length > 0
+              ? `${liveCount} live · ${fmtInt(s?.botResolvedCount ?? 0)} resolved in period`
+              : 'Configure specialist AI agents for your channels'
+            : undefined
+        }
+        link={{ href: '/app/agents', label: 'Manage AI' }}
+      />
+      <div className="flex flex-1 flex-col gap-3 px-2 py-3">
         {error ? (
-          <p className="text-[14px] text-o-text-3">AI numbers are unavailable until the report loads.</p>
-        ) : !s ? (
-          <SkeletonRows rows={2} />
-        ) : (
-          <div className="flex flex-wrap items-center gap-4">
-            <span
-              className="grid h-10 w-10 flex-none place-items-center rounded-[30%] bg-o-ai-soft text-o-ai-text"
-              aria-hidden="true"
-            >
-              <Sparkles size={18} strokeWidth={1.75} />
-            </span>
-            <div className="min-w-0 flex-[1_1_160px]">
-              <div className="flex items-center gap-2">
-                <span className="font-semibold">AI assistant</span>
-                <Badge tone={s.totalBotInquiries > 0 ? 'ok' : 'neutral'}>
-                  {s.totalBotInquiries > 0 ? 'Active' : 'No replies yet'}
-                </Badge>
-              </div>
-              <div className="text-[13px] text-o-text-3">Website chat and connected channels</div>
-            </div>
-            <dl className="flex gap-6">
-              <Stat label="handled" value={fmtInt(s.totalBotInquiries)} />
-              <Stat label="resolved" value={s.botResolutionRatePercent == null ? '—' : `${s.botResolutionRatePercent}%`} />
-              <Stat label="handed off" value={fmtInt(s.botHandoverCount)} />
-            </dl>
+          <p className="px-3 text-[14px] text-o-text-3">AI numbers are unavailable until the report loads.</p>
+        ) : !report || !s ? (
+          <div className="px-3">
+            <SkeletonRows rows={3} />
           </div>
+        ) : agents.length === 0 ? (
+          <EmptyState
+            icon={<Sparkles size={22} />}
+            title="No AI agents configured yet"
+            body="Create or publish an AI agent to handle frontline replies across your channels."
+            action={
+              <Link href="/app/agents" className="text-[13.5px] font-medium text-o-accent-text hover:underline">
+                Set up AI agents →
+              </Link>
+            }
+            className="py-6"
+          />
+        ) : (
+          <ul className="flex flex-col divide-y divide-o-border/60">
+            {agents.slice(0, 5).map((a) => {
+              const badge = AGENT_STATUS_BADGE[a.status] ?? { label: a.status, tone: 'neutral' as BadgeTone };
+              const subParts = [
+                a.roleTitle,
+                a.channels.length > 0 ? a.channels.map((ch) => channelLabel(ch)).join(', ') : null,
+              ].filter(Boolean);
+
+              return (
+                <li key={a.id}>
+                  <Link
+                    href={`/app/agents/${encodeURIComponent(a.id)}`}
+                    className="o-row-hover flex flex-wrap items-center gap-3 rounded-[10px] px-3 py-2.5 transition-colors"
+                  >
+                    <Avatar ai name={a.name} size={36} />
+                    <div className="min-w-0 flex-[1_1_150px]">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="truncate text-[14.5px] font-semibold">{a.name}</span>
+                        <Badge tone={badge.tone}>{badge.label}</Badge>
+                        {a.isPrimary ? <Badge tone="ai">Primary</Badge> : null}
+                      </div>
+                      <div className="truncate text-[12.5px] text-o-text-3">
+                        {subParts.join(' · ') || 'Workspace AI agent'}
+                      </div>
+                    </div>
+                    <dl className="flex gap-5">
+                      <Stat label="replies" value={fmtInt(a.totalReplies)} />
+                      <Stat label="grounded" value={a.groundingPct == null ? '—' : `${a.groundingPct}%`} />
+                      <Stat label="escalated" value={fmtInt(a.escalatedCount)} />
+                    </dl>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         )}
         {gaps?.topQuestion ? (
-          <div className="mt-auto flex gap-2.5 rounded-[14px] bg-o-surface-2 px-3.5 py-3 text-[13.5px] text-o-text-2">
+          <div className="mx-3 mt-auto flex gap-2.5 rounded-[14px] bg-o-surface-2 px-3.5 py-3 text-[13.5px] text-o-text-2">
             <Info size={16} className="mt-0.5 flex-none text-o-ai" aria-hidden="true" />
             <span>
               Customers asked <b className="text-o-text">“{gaps.topQuestion.text}”</b>{' '}
@@ -560,9 +825,9 @@ function AiCard({
 
 function Stat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex flex-col-reverse">
-      <dt className="text-[12px] text-o-text-3">{label}</dt>
-      <dd className="o-num m-0 font-semibold">{value}</dd>
+    <div className="flex flex-col-reverse text-right">
+      <dt className="text-[11.5px] text-o-text-3">{label}</dt>
+      <dd className="o-num m-0 text-[13.5px] font-semibold">{value}</dd>
     </div>
   );
 }

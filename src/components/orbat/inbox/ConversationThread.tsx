@@ -35,6 +35,7 @@ import {
   Ticket,
   Trash2,
   UserPlus,
+  Users,
   X,
 } from 'lucide-react';
 import {
@@ -51,6 +52,7 @@ import {
 import { timeAgo } from '@/components/orbat/overview/format';
 import {
   assignInboxConversation,
+  assignInboxConversationGroup,
   autoAssignInboxConversation,
   claimInboxHandover,
   editInboxMessage,
@@ -70,12 +72,13 @@ import {
   type InboxCopilotState,
   type InboxLangGraphApproval,
   type InboxMessageItem,
+  type InboxTeamGroup,
 } from '@/lib/data/inbox';
 import { cn, formatTime } from '@/lib/utils';
 import type { ConversationPriority } from '@/types/database';
 import { InboxComposer } from './InboxComposer';
 
-type ThreadMenu = 'assign' | 'priority' | 'snooze' | 'more' | null;
+type ThreadMenu = 'assign' | 'group' | 'priority' | 'snooze' | 'more' | null;
 type CenterTab = 'messages' | 'timeline';
 
 function formatDayLabel(iso: string): string {
@@ -126,31 +129,36 @@ function LangGraphApprovalCard({
 }: {
   workspaceId: string;
   conversationId: string;
-  messageId: string;
+  messageId?: string | null;
   approval: InboxLangGraphApproval;
   createdAt: string;
   onResolved: () => Promise<void>;
 }) {
   const toast = useOrbToast();
+  const draftRef = useRef<HTMLTextAreaElement | null>(null);
+  const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(approval.finalReply || approval.draftReply);
-  const [submitting, setSubmitting] = useState<'approve' | 'reject' | null>(null);
+  const [submitting, setSubmitting] = useState<'approve' | 'edit' | 'reject' | null>(null);
 
-  const handleDecision = async (approved: boolean) => {
-    setSubmitting(approved ? 'approve' : 'reject');
+  const handleDecision = async (approved: boolean, isEdited = false) => {
+    setSubmitting(!approved ? 'reject' : isEdited ? 'edit' : 'approve');
     try {
       await resolveInboxLangGraphApproval(workspaceId, {
         conversationId,
-        messageId,
+        messageId: messageId ?? undefined,
         threadId: approval.threadId,
         approved,
         editedReply: approved ? draft : null,
       });
       toast.show({
         message: approved
-          ? 'LangGraph reply approved and delivered'
-          : 'LangGraph draft rejected cleanly',
+          ? isEdited
+            ? 'Edited AI reply approved and sent'
+            : 'AI reply approved and delivered'
+          : 'AI draft rejected and conversation assigned for human takeover',
         tone: 'ok',
       });
+      setEditing(false);
       await onResolved();
     } catch (err) {
       toast.show({
@@ -163,11 +171,11 @@ function LangGraphApprovalCard({
   };
 
   return (
-    <div className="mx-auto max-w-2xl rounded-[14px] border border-o-border bg-o-surface p-3.5 shadow-sm text-o-text">
+    <div className="mx-auto max-w-2xl rounded-[14px] border border-o-border bg-o-surface p-3.5 text-o-text shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="flex items-center gap-1.5 text-[12px] font-semibold">
+        <span className="flex flex-wrap items-center gap-1.5 text-[12px] font-semibold">
           <Bot className="h-3.5 w-3.5 text-o-accent" aria-hidden="true" />
-          LangGraph Approval · {approval.agentName}
+          Agent Approval · {approval.agentName}
           <Badge tone="neutral">{approval.topic}</Badge>
           <Badge
             tone={
@@ -181,8 +189,8 @@ function LangGraphApprovalCard({
             {approval.status === 'approved'
               ? 'Approved & Sent'
               : approval.status === 'rejected'
-                ? 'Rejected'
-                : `Paused · Level ${approval.autonomyLevel}`}
+                ? 'Rejected · Human Takeover'
+                : `Waiting Approval · Level ${approval.autonomyLevel}`}
           </Badge>
         </span>
         <span className="text-[11px] text-o-text-3">{formatTime(createdAt)}</span>
@@ -198,7 +206,7 @@ function LangGraphApprovalCard({
           <ul className="mt-1 space-y-1 text-[12px] text-o-text-2">
             {approval.pendingActions.map((act, idx) => (
               <li key={`${act.toolName}-${idx}`} className="flex items-center gap-1.5">
-                <Sparkles className="h-3 w-3 text-o-accent shrink-0" aria-hidden="true" />
+                <Sparkles className="h-3 w-3 shrink-0 text-o-accent" aria-hidden="true" />
                 <span>{act.summary || act.toolName}</span>
               </li>
             ))}
@@ -208,32 +216,84 @@ function LangGraphApprovalCard({
 
       {approval.status === 'pending' ? (
         <div className="mt-2.5 space-y-2.5">
-          <textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            rows={3}
-            aria-label="Proposed LangGraph AI reply"
-            className="w-full rounded-[10px] border border-o-border bg-o-bg px-3 py-2 text-[13px] leading-relaxed text-o-text focus:border-o-accent focus:outline-none"
-          />
+          {editing ? (
+            <textarea
+              ref={draftRef}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={3}
+              aria-label="Edit proposed AI reply"
+              className="w-full rounded-[10px] border border-o-border bg-o-bg px-3 py-2 text-[13px] leading-relaxed text-o-text focus:border-o-accent focus:outline-none"
+            />
+          ) : (
+            <div className="rounded-[10px] border border-o-border bg-o-bg px-3 py-2 text-[13px] leading-relaxed text-o-text">
+              <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-o-text-3">
+                Proposed reply draft
+              </div>
+              <p className="whitespace-pre-wrap break-words">
+                {draft || 'No draft text generated yet — click Edit & Send to compose.'}
+              </p>
+            </div>
+          )}
+
           <div className="flex flex-wrap items-center justify-end gap-2">
             <Button
               size="sm"
               variant="ghost"
               disabled={submitting !== null}
-              onClick={() => handleDecision(false)}
+              onClick={() => void handleDecision(false)}
             >
               <X className="h-3.5 w-3.5" aria-hidden="true" />
-              {submitting === 'reject' ? 'Rejecting…' : 'Reject'}
+              {submitting === 'reject' ? 'Taking over…' : 'Reject & Take Over'}
             </Button>
-            <Button
-              size="sm"
-              variant="primary"
-              disabled={submitting !== null || !draft.trim()}
-              onClick={() => handleDecision(true)}
-            >
-              <Check className="h-3.5 w-3.5" aria-hidden="true" />
-              {submitting === 'approve' ? 'Sending…' : 'Approve & Send'}
-            </Button>
+            {editing ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={submitting !== null}
+                  onClick={() => {
+                    setDraft(approval.finalReply || approval.draftReply);
+                    setEditing(false);
+                  }}
+                >
+                  Cancel edit
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={submitting !== null || !draft.trim()}
+                  onClick={() => void handleDecision(true, true)}
+                >
+                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                  {submitting === 'edit' ? 'Sending…' : 'Edit & Send'}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={submitting !== null}
+                  onClick={() => {
+                    setEditing(true);
+                    requestAnimationFrame(() => draftRef.current?.focus());
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                  Edit & Send
+                </Button>
+                <Button
+                  size="sm"
+                  variant="primary"
+                  disabled={submitting !== null || !draft.trim()}
+                  onClick={() => void handleDecision(true, false)}
+                >
+                  <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                  {submitting === 'approve' ? 'Sending…' : 'Approve & Send'}
+                </Button>
+              </>
+            )}
           </div>
         </div>
       ) : (
@@ -254,6 +314,7 @@ export function ConversationThread({
   error,
   onRetry,
   agents,
+  teamGroups = [],
   cannedReplies,
   copilotState,
   contextOpen,
@@ -279,6 +340,7 @@ export function ConversationThread({
   error: string | null;
   onRetry: () => void;
   agents: InboxAgent[];
+  teamGroups?: InboxTeamGroup[];
   cannedReplies: InboxCannedReply[];
   copilotState: InboxCopilotState | null;
   contextOpen: boolean;
@@ -648,7 +710,48 @@ export function ConversationThread({
     }
   };
 
+  const handleAssignGroup = async (groupId: string | null) => {
+    setOpenMenu(null);
+    setActionBusy(true);
+    try {
+      await assignInboxConversationGroup(workspaceId, conversation.id, groupId);
+      toast.show({
+        message: groupId ? 'Assigned to team inbox.' : 'Removed team inbox assignment.',
+        tone: 'ok',
+      });
+      await onRefresh();
+    } catch (err) {
+      toast.show({
+        message: err instanceof Error ? err.message : 'Team group update failed.',
+        tone: 'bad',
+      });
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
   const activeLangInfo = getLanguageInfo(detail.activeLanguageCode);
+  const currentGroup = conversation.groupId
+    ? teamGroups.find((g) => g.id === conversation.groupId) || null
+    : null;
+  const aiChipParts: string[] = [];
+  if (detail.aiAgentName) aiChipParts.push(detail.aiAgentName);
+  if (detail.aiConfidencePercent !== null) {
+    aiChipParts.push(`${detail.aiConfidencePercent}% conf`);
+  }
+  if (detail.aiCostUsd !== null) {
+    aiChipParts.push(
+      detail.aiCostUsd < 0.01
+        ? `$${detail.aiCostUsd.toFixed(4)}`
+        : `$${detail.aiCostUsd.toFixed(2)}`,
+    );
+  }
+  const showAiChip = aiChipParts.length > 0 || Boolean(detail.aiEngineUsed);
+  const aiChipText =
+    aiChipParts.length > 0 ? aiChipParts.join(' · ') : detail.aiEngineUsed || 'AI';
+  const hasInlinePendingApproval = messages.some(
+    (m) => m.isInternal && m.langgraphApproval?.status === 'pending',
+  );
 
   return (
     <div className="flex h-full min-w-0 flex-1 flex-col bg-o-bg">
@@ -686,6 +789,14 @@ export function ConversationThread({
               )}
               {isSnoozed && <Badge tone="neutral">Snoozed</Badge>}
               {isClosed && <Badge tone="ok">Resolved</Badge>}
+              {currentGroup && <Badge tone="neutral">{currentGroup.name}</Badge>}
+              {showAiChip && (
+                <span
+                  title={`Engine: ${detail.aiEngineUsed || 'AI Router'}${detail.aiCostUsd !== null ? ` · Total cost $${detail.aiCostUsd.toFixed(6)}` : ''}`}
+                >
+                  <Badge tone="ai">{aiChipText}</Badge>
+                </span>
+              )}
               {detail.linkedTicket && (
                 <Link
                   href="/app/tickets"
@@ -796,6 +907,61 @@ export function ConversationThread({
               </div>
             )}
           </div>
+
+          {/* Team Inbox group picker */}
+          {teamGroups.length > 0 && (
+            <div className="relative hidden md:block">
+              <Button
+                size="sm"
+                variant="secondary"
+                disabled={actionBusy}
+                onClick={() =>
+                  setOpenMenu((m) => (m === 'group' ? null : 'group'))
+                }
+                leading={<Users className="h-3.5 w-3.5" />}
+                trailing={<ChevronDown className="h-3 w-3 opacity-70" />}
+              >
+                <span className="max-w-[92px] truncate">
+                  {currentGroup ? currentGroup.name : 'Team'}
+                </span>
+              </Button>
+              {openMenu === 'group' && (
+                <div
+                  role="menu"
+                  className="absolute right-0 top-[calc(100%+6px)] z-30 w-52 rounded-[14px] border border-o-border bg-o-surface p-1.5 shadow-[var(--shadow-lg)]"
+                >
+                  <button
+                    type="button"
+                    role="menuitem"
+                    onClick={() => void handleAssignGroup(null)}
+                    className="o-focus flex w-full items-center justify-between rounded-[8px] px-2.5 py-1.5 text-left text-[12.5px] text-o-text-2 hover:bg-o-surface-2"
+                  >
+                    <span>No team inbox</span>
+                    {!conversation.groupId && (
+                      <Check className="h-3.5 w-3.5 text-o-accent-text" />
+                    )}
+                  </button>
+                  <div className="my-1 border-t border-o-border" />
+                  <div className="max-h-52 overflow-y-auto">
+                    {teamGroups.map((g) => (
+                      <button
+                        key={g.id}
+                        type="button"
+                        role="menuitem"
+                        onClick={() => void handleAssignGroup(g.id)}
+                        className="o-focus flex w-full items-center justify-between gap-2 rounded-[8px] px-2.5 py-1.5 text-left text-[12.5px] text-o-text hover:bg-o-surface-2"
+                      >
+                        <span className="truncate">{g.name}</span>
+                        {conversation.groupId === g.id && (
+                          <Check className="h-3.5 w-3.5 flex-none text-o-accent-text" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Priority picker */}
           <div className="relative hidden md:block">
@@ -1400,6 +1566,23 @@ export function ConversationThread({
                                       className="max-h-60 w-auto rounded-[10px] object-cover"
                                     />
                                   </a>
+                                ) : msg.attachmentIsAudio ? (
+                                  <div className="rounded-[10px] border border-o-border bg-o-surface-2 px-2.5 py-2">
+                                    <div className="mb-1 flex items-center justify-between gap-2 text-[11px] font-medium text-o-text-2">
+                                      <span>Voice note</span>
+                                      {msg.audioDurationSec != null && (
+                                        <span className="tabular-nums text-o-text-3">
+                                          {msg.audioDurationSec}s
+                                        </span>
+                                      )}
+                                    </div>
+                                    <audio
+                                      controls
+                                      preload="metadata"
+                                      src={msg.attachmentUrl}
+                                      className="h-8 w-56 max-w-full"
+                                    />
+                                  </div>
                                 ) : (
                                   <a
                                     href={msg.attachmentUrl}
@@ -1552,6 +1735,29 @@ export function ConversationThread({
                 </div>
               );
             })
+          )}
+          {detail.pendingApprovalRun && !hasInlinePendingApproval && (
+            <LangGraphApprovalCard
+              workspaceId={workspaceId}
+              conversationId={conversation.id}
+              approval={{
+                runId: detail.pendingApprovalRun.runId,
+                threadId: detail.pendingApprovalRun.threadId,
+                agentId: detail.pendingApprovalRun.agentId,
+                agentName: detail.pendingApprovalRun.agentName,
+                topic: detail.pendingApprovalRun.topic,
+                autonomyLevel: detail.pendingApprovalRun.autonomyLevel,
+                reason: detail.pendingApprovalRun.reason,
+                draftReply: detail.pendingApprovalRun.draftReply,
+                pendingActions: detail.pendingApprovalRun.pendingActions,
+                status: 'pending',
+                resolvedBy: null,
+                resolvedAt: null,
+                finalReply: null,
+              }}
+              createdAt={detail.pendingApprovalRun.createdAt}
+              onResolved={onRefresh}
+            />
           )}
         </div>
       )}

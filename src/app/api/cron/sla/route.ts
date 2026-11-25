@@ -1,14 +1,19 @@
 import { NextResponse } from 'next/server';
 import { hasServiceRole, serviceClient } from '@/lib/pg/service';
 import { processAutomationOutbox } from '@/lib/automation/outbox';
+import {
+  getLatestSlaEventId,
+  syncSlaEventNotifications,
+} from '@/lib/notifications/workspace-notifications';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * Records SLA breaches and sends the "due soon" warnings (fn_sla_tick), then
- * sends the alert emails it queued. Scheduled every 5 minutes in vercel.json
- * (Vercel's Hobby plan only allows daily crons: use Pro, or call this URL
- * every few minutes from any scheduler with `Authorization: Bearer $CRON_SECRET`).
+ * creates persistent in-app workspace notifications and sends the alert emails
+ * it queued. Scheduled every 5 minutes in vercel.json (Vercel's Hobby plan
+ * only allows daily crons: use Pro, or call this URL every few minutes from
+ * any scheduler with `Authorization: Bearer $CRON_SECRET`).
  *
  * Breaches are stamped with the moment they happened, not the moment this ran,
  * and the "SLA breached" / "Hours until breach" rule conditions read the
@@ -24,13 +29,25 @@ async function handle(request: Request) {
     return NextResponse.json({ error: 'DATABASE_URL is not set' }, { status: 500 });
   }
 
-  const { data, error } = await serviceClient().rpc('fn_sla_tick');
+  const supabase = serviceClient();
+  const lastEventId = await getLatestSlaEventId(supabase);
+
+  const { data, error } = await supabase.rpc('fn_sla_tick');
   if (error) {
     console.error('[SLA Cron Error]:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  const slaNotifications = await syncSlaEventNotifications({
+    lastEventId,
+    client: supabase,
+  });
   const outbox = await processAutomationOutbox({ limit: 100 });
-  return NextResponse.json({ events: data ?? 0, ...outbox });
+  return NextResponse.json({
+    events: data ?? 0,
+    notificationsCreated: slaNotifications.created,
+    ...outbox,
+  });
 }
 
 export const GET = handle;

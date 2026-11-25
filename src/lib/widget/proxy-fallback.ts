@@ -1,5 +1,6 @@
 import { queryRows } from '@/lib/db';
 import { normalizeSocketBaseUrl } from '@/lib/backend-url';
+import { createWorkspaceNotification } from '@/lib/notifications/workspace-notifications';
 
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -414,6 +415,37 @@ async function execVisitorRpc(fnName: string, body: Record<string, any>, extraCo
   const { neonParams } = spec.buildParams(vId, t, body, extraConvId);
 
   const result = await runNeonRpc(spec.sql, neonParams);
+  if (
+    fnName === 'fn_widget_request_handoff' &&
+    result &&
+    typeof result === 'object' &&
+    (result as { ok?: boolean }).ok === true &&
+    !(result as { idempotent?: boolean }).idempotent
+  ) {
+    const convId = String(neonParams[2] || '');
+    const reason = neonParams[3] ? String(neonParams[3]) : null;
+    if (convId) {
+      const convRows = await queryRows<{ workspace_id: string | null; visitor_name: string | null }>(
+        `SELECT c.workspace_id::text AS workspace_id, v.name AS visitor_name
+         FROM public.conversations c
+         LEFT JOIN public.visitors v ON v.id = c.visitor_id
+         WHERE c.id = $1 LIMIT 1`,
+        [convId],
+      ).catch(() => []);
+      const wsId = convRows[0]?.workspace_id;
+      if (wsId) {
+        const who = convRows[0]?.visitor_name?.trim() || 'Visitor';
+        await createWorkspaceNotification({
+          workspaceId: wsId,
+          recipientAgentId: null,
+          kind: 'handoff',
+          title: `${who} requested a human agent`,
+          body: reason || 'Customer requested human support from the widget.',
+          href: `/app/inbox?c=${encodeURIComponent(convId)}`,
+        });
+      }
+    }
+  }
   return spec.okOnly ? { ok: true } : result;
 }
 

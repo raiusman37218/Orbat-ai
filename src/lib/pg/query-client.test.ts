@@ -164,7 +164,14 @@ describe('PgCompatClient pure PostgreSQL adapter', () => {
     });
     expect(scalar.error).toBeNull();
     expect(scalar.data).toEqual({ inserted: true });
-    expect(calls.some((c) => c.sql.includes("request.jwt.claim.sub") && c.params[0] === 'agent-123')).toBe(true);
+    expect(
+      calls.some(
+        (c) =>
+          c.sql.includes('BEGIN;') &&
+          c.sql.includes("set_config('request.jwt.claim.sub', 'agent-123', true)") &&
+          c.sql.includes("set_config('request.jwt.claim.role', 'authenticated', true)"),
+      ),
+    ).toBe(true);
 
     const setof = await db.rpc('fn_inbox_summaries', { p_conversation_ids: ['conv-1'] });
     expect(setof.error).toBeNull();

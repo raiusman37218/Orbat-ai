@@ -267,18 +267,54 @@ export async function refreshBackendSession(): Promise<string | null> {
   return inFlightRefresh;
 }
 
-export async function backendLogin(email: string, password: string): Promise<AuthResponse> {
+export class MfaRequiredError extends Error {
+  readonly requiresMfa = true;
+  constructor(message = 'Enter the 6-digit code from your authenticator app.') {
+    super(message);
+    this.name = 'MfaRequiredError';
+  }
+}
+
+export class EmailVerificationRequiredError extends Error {
+  readonly emailVerified = false;
+  constructor(message = 'Please verify your email address with the 6-digit code before signing in.') {
+    super(message);
+    this.name = 'EmailVerificationRequiredError';
+  }
+}
+
+export async function backendLogin(
+  email: string,
+  password: string,
+  totpCode?: string,
+): Promise<AuthResponse> {
+  const payload: Record<string, string> = {
+    email: email.trim().toLowerCase(),
+    password,
+  };
+  if (totpCode && totpCode.trim()) {
+    payload.totpCode = totpCode.trim();
+  }
+
   const res = await fetchAuthEndpoint('/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
+    body: JSON.stringify(payload),
   });
 
   const body = await res.json().catch(() => null);
   if (!res.ok) {
-    const message = Array.isArray(body?.message)
-      ? body.message.join(', ')
-      : body?.message || `Login failed (${res.status}). Please check your credentials and backend connection.`;
+    const rawMsg = body?.message || body?.error;
+    const message = Array.isArray(rawMsg)
+      ? rawMsg.join(', ')
+      : rawMsg || `Login failed (${res.status}). Please check your credentials and backend connection.`;
+
+    if (body?.requiresMfa === true) {
+      throw new MfaRequiredError(message);
+    }
+    if (body?.emailVerified === false) {
+      throw new EmailVerificationRequiredError(message);
+    }
     throw new Error(message);
   }
 
@@ -362,8 +398,12 @@ export async function backendGetGoogleUrl(state?: string): Promise<{ configured:
       };
     }
     return body.data || body;
-  } catch (err: any) {
-    return { configured: false, url: null, message: err.message };
+  } catch (err: unknown) {
+    return {
+      configured: false,
+      url: null,
+      message: err instanceof Error ? err.message : 'Failed to load Google OAuth URL.',
+    };
   }
 }
 

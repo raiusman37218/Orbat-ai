@@ -43,7 +43,7 @@ import {
   type PublicOrderLookupResult,
 } from '@/lib/data/help-center';
 import { useData } from '@/lib/data/use-data';
-import { normalizeHelpLang, type PortalHelpLang } from '@/lib/portal/portal-helpers';
+import { normalizeHelpLang, type PortalHelpLang } from '@/lib/portal/portal-types';
 import { cn } from '@/lib/utils';
 
 const COPY_BY_LANG: Record<

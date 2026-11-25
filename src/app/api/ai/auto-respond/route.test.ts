@@ -236,6 +236,17 @@ vi.mock('@/lib/ai/trust-ladder', async (importOriginal) => {
   };
 });
 vi.mock('@/lib/agent/external-agent', () => ({ answerWithExternalAgent: vi.fn(async () => null) }));
+const routerSpy = vi.hoisted(() => vi.fn());
+vi.mock('@/lib/agent/engines/router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/agent/engines/router')>();
+  routerSpy.mockImplementation((...args: Parameters<typeof actual.executeAgentWithRouter>) =>
+    actual.executeAgentWithRouter(...args),
+  );
+  return {
+    ...actual,
+    executeAgentWithRouter: routerSpy,
+  };
+});
 vi.mock('@/lib/ai/anthropic', () => ({
   generateHelpDeskResponseWithHandover: vi.fn(),
   executeHandoverToHuman: vi.fn(async () => {}),
@@ -443,6 +454,15 @@ describe('the handoff to a person (migration 20261124090000)', () => {
     await respond(msg);
     expect(db.rpcCalls.find((c) => c.fn === 'request_handoff')?.args).toMatchObject({ p_reason: 'explicit_request' });
     expect(rpcNames()).not.toContain('offer_handoff');
+    expect(db.tables.workspace_notifications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          workspace_id: WS,
+          kind: 'handoff',
+          href: `/app/inbox?c=${CONV}`,
+        }),
+      ]),
+    );
   });
 
   it('tells channel visitors to reply 1 instead of tapping a button', async () => {
@@ -1223,6 +1243,83 @@ describe('Part 3: Trust Ladder enforcement & pre-delivery claim verification', (
         verdict: 'supported',
         topic: 'General inquiries',
       }),
+    );
+  });
+
+  it('persists an ai_approval notification when LangGraph pauses for human approval', async () => {
+    db.tables.ai_agents = [
+      buildLiveAgent({
+        engine_type: 'langgraph',
+      }),
+    ];
+    db.rpcResults.request_handoff = { data: { ok: true, status: 'waiting_for_agent' }, error: null };
+
+    routerSpy.mockResolvedValueOnce({
+      decision: {
+        configuredEngine: 'langgraph',
+        selectedEngine: 'langgraph',
+        routingReason: 'Explicitly pinned to "langgraph".',
+      },
+      result: {
+        replyText: 'I can issue your $480 refund once an admin approves.',
+        action: 'awaiting_approval',
+        engineUsed: 'langgraph',
+        shouldHandover: false,
+        handoverReason: null,
+        canAnswerFromDocs: true,
+        citedArticles: [],
+        usedArticleIds: [],
+        retrievalConfidence: 'high',
+        retrievalMethod: 'hybrid',
+        topic: 'Billing & refunds',
+        intent: 'help_center_question',
+        usingModel: true,
+        autonomyDecision: {
+          topic: 'Billing & refunds',
+          level: 2,
+          levelLabel: 'Level 2 · Suggest',
+          mode: 'suggest',
+          locked: false,
+          lockReason: null,
+          requiresApproval: true,
+          queueForSupervisorAudit: false,
+        },
+        pendingApproval: {
+          threadId: 'lg:ws-1:conv-1:msg-1',
+          runId: 'run-1',
+          agentId: 'ag-primary',
+          agentName: 'Nova',
+          topic: 'Billing & refunds',
+          autonomyLevel: 2,
+          reason: 'Refund exceeds auto-approval limit',
+          draftReply: 'I can issue your $480 refund once an admin approves.',
+          pendingActions: [
+            { toolName: 'issue_refund', summary: 'Refund $480.00', args: { amount: 480 } },
+          ],
+        },
+        executedTools: [],
+        trace: [],
+        threadId: 'lg:ws-1:conv-1:msg-1',
+        runId: 'run-1',
+        latencyMs: 42,
+      },
+    });
+
+    const msg = visitorSays('Please refund my $480 duplicate annual charge');
+    const res = await respond(msg);
+
+    expect(res.body.paused_for_approval).toBe(true);
+    expect(res.body.replied).toBe(false);
+    expect(db.tables.workspace_notifications).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          workspace_id: WS,
+          kind: 'ai_approval',
+          title: 'Nova paused for approval (Billing & refunds)',
+          body: 'Refund exceeds auto-approval limit',
+          href: `/app/inbox?c=${CONV}`,
+        }),
+      ]),
     );
   });
 });

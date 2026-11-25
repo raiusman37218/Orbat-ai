@@ -15,6 +15,26 @@ export interface ShellCounts {
   tickets: number;
 }
 
+export interface ShellBootstrap {
+  counts: ShellCounts;
+  usage: ShellUsage | null;
+}
+
+/** Fetches sidebar badge counts and usage/trial summary in one parallel HTTP GET,
+    avoiding Next.js Server Action queue serialization on shell mount. */
+export async function getShellBootstrap(workspaceId: string): Promise<ShellBootstrap> {
+  const params = new URLSearchParams({ workspace_id: workspaceId });
+  const res = await fetch(`/api/workspace/shell-bootstrap?${params}`, { cache: 'no-store' });
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body) {
+    throw new Error(body?.error || 'Could not load workspace shell.');
+  }
+  return {
+    counts: body.counts ?? { inbox: 0, tickets: 0 },
+    usage: body.usage ?? null,
+  };
+}
+
 export async function getShellCounts(workspaceId: string): Promise<ShellCounts> {
   return getShellCountsAction(workspaceId);
 }

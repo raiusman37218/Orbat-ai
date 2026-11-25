@@ -45,6 +45,7 @@ const SERVER_ACTION_ALLOWED_ORIGINS = Array.from(
 const nextConfig: NextConfig = {
   serverExternalPackages: ['@google/adk'],
   experimental: {
+    optimizePackageImports: ['lucide-react', 'recharts'],
     serverActions: {
       allowedOrigins: SERVER_ACTION_ALLOWED_ORIGINS,
     },

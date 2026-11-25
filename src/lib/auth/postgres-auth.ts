@@ -35,6 +35,17 @@ function normalizeEmail(email: string): string {
   return (email || '').trim().toLowerCase();
 }
 
+function getPgErrorInfo(err: unknown): { code: string; message: string } {
+  if (err && typeof err === 'object') {
+    const rec = err as { code?: unknown; message?: unknown };
+    return {
+      code: rec.code != null ? String(rec.code) : '',
+      message: typeof rec.message === 'string' ? rec.message : '',
+    };
+  }
+  return { code: '', message: '' };
+}
+
 function parseMeta(raw: unknown): Record<string, unknown> {
   if (!raw) return {};
   if (typeof raw === 'object' && !Array.isArray(raw)) return raw as Record<string, unknown>;
@@ -82,9 +93,9 @@ export async function findPgAuthUserByEmail(email: string): Promise<PgAuthUser |
         created_at: r.created_at ? new Date(r.created_at).toISOString() : undefined,
       };
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     // Allow fallback to public.agents if auth_accounts migration hasn't run yet
-    if (!String(err?.message || '').includes('auth_accounts')) {
+    if (!getPgErrorInfo(err).message.includes('auth_accounts')) {
       throw err;
     }
   }
@@ -223,14 +234,15 @@ export async function createPgAuthUser(params: {
        VALUES ($1, $2, $3, $4, $5, $6::jsonb)`,
       [id, normalized, passwordHash, name, confirmedAt, JSON.stringify(meta)],
     );
-  } catch (err: any) {
-    if (String(err?.code) === '23505') {
+  } catch (err: unknown) {
+    const info = getPgErrorInfo(err);
+    if (info.code === '23505') {
       return {
         data: { user: null },
         error: { message: 'An account with this email address has already been registered.' },
       };
     }
-    return { data: { user: null }, error: { message: err?.message || 'Failed to create user account.' } };
+    return { data: { user: null }, error: { message: info.message || 'Failed to create user account.' } };
   }
 
   // Keep auth.users stub in sync if present for legacy foreign keys in local dev DBs
@@ -326,8 +338,11 @@ export async function updatePgAuthUser(
 
     const updated = await findPgAuthUserById(cleanId);
     return { data: { user: updated }, error: null };
-  } catch (err: any) {
-    return { data: { user: null }, error: { message: err?.message || 'Failed to update user.' } };
+  } catch (err: unknown) {
+    return {
+      data: { user: null },
+      error: { message: getPgErrorInfo(err).message || 'Failed to update user.' },
+    };
   }
 }
 
@@ -339,11 +354,19 @@ export async function deletePgAuthUser(userId: string): Promise<void> {
 }
 
 export async function getPgPasswordHashForUser(userId: string, email?: string): Promise<string | null> {
-  const rows = await queryRows<{ password_hash: string | null }>(
-    `SELECT password_hash FROM public.auth_accounts WHERE id = $1 OR LOWER(email) = LOWER($2) LIMIT 1`,
+  const accountRows = await queryRows<{ password_hash: string | null }>(
+    `SELECT password_hash FROM public.auth_accounts WHERE id = $1 OR ($2 <> '' AND LOWER(email) = LOWER($2)) LIMIT 1`,
     [userId, email || ''],
   ).catch(() => []);
-  return rows[0]?.password_hash || null;
+  if (accountRows[0]?.password_hash) {
+    return accountRows[0].password_hash;
+  }
+
+  const agentRows = await queryRows<{ password_hash: string | null }>(
+    `SELECT password_hash FROM public.agents WHERE id = $1 OR ($2 <> '' AND LOWER(email) = LOWER($2)) LIMIT 1`,
+    [userId, email || ''],
+  ).catch(() => []);
+  return agentRows[0]?.password_hash || null;
 }
 
 export async function syncAuthAccountToAgent(params: {
@@ -404,10 +427,10 @@ export async function authenticatePgPassword(
        LIMIT 1`,
       [normalized],
     );
-  } catch (err: any) {
-    const msg = String(err?.message || '');
+  } catch (err: unknown) {
+    const msg = getPgErrorInfo(err).message;
     if (msg.includes('token_version') || msg.includes('totp_enabled') || msg.includes('email_verified')) {
-      rows = await queryRows<any>(
+      rows = await queryRows<Omit<PgAgentAuthRecord, 'email_verified' | 'token_version' | 'totp_enabled'>>(
         `SELECT a.id, a.name, a.email, a.role, a.status, a.workspace_id,
                 w.name AS workspace_name, w.brand_color,
                 a.password_hash, a.is_active, a.is_super_admin

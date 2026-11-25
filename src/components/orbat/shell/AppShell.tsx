@@ -5,9 +5,9 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { cn } from '@/lib/utils';
 import { Modal, OrbToastProvider } from '@/components/orbat/primitives';
 import { signOut } from '@/lib/data/auth';
-import { getShellCounts, getShellUsage } from '@/lib/data/shell';
+import { getShellBootstrap } from '@/lib/data/shell';
 import type { ShellSession } from '@/lib/data/types';
-import { useData } from '@/lib/data/use-data';
+import { clearDataCache, useData } from '@/lib/data/use-data';
 import { CommandPalette } from './CommandPalette';
 import { activeNavId, breadcrumbFor, usesCompactSidebar, visibleNav } from './nav';
 import { ShellSessionProvider } from './session-context';
@@ -44,17 +44,22 @@ export function AppShell({ session, children }: { session: ShellSession; childre
   const crumb = breadcrumbFor(pathname);
   const compact = usesCompactSidebar(pathname);
 
-  // Badges refresh on every navigation; the usage card only once.
+  // Single parallel GET for sidebar badges + usage/trial card (cached 30s, never blocks route Server Actions).
   const wsId = session.workspace.id;
-  const counts = useData(() => getShellCounts(wsId), ['counts', wsId, pathname]);
-  const usage = useData(() => getShellUsage(wsId, session.agent.role), ['usage', wsId, session.agent.role]);
-  const live = { counts: counts.data ?? null, usage: usage.data ?? null };
+  const shellBoot = useData(() => getShellBootstrap(wsId), ['shell-bootstrap', wsId], {
+    staleTimeMs: 30_000,
+  });
+  const live = {
+    counts: shellBoot.data?.counts ?? null,
+    usage: shellBoot.data?.usage ?? null,
+  };
 
   const closePalette = useCallback(() => setPaletteOpen(false), []);
   const handleSignOut = useCallback(async () => {
+    clearDataCache();
     await signOut();
-    window.location.assign('/login');
-  }, []);
+    router.push('/login');
+  }, [router]);
 
   // ⌘K / Ctrl+K anywhere; "?" opens shortcuts when not typing.
   useEffect(() => {
@@ -123,6 +128,7 @@ export function AppShell({ session, children }: { session: ShellSession; childre
             section={crumb.section}
             page={crumb.page}
             workspaceId={session.workspace.id}
+            userRole={session.agent.role}
             theme={theme}
             onToggleTheme={toggle}
             onOpenPalette={() => setPaletteOpen(true)}

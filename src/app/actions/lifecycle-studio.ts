@@ -8,6 +8,19 @@ import { getRequestOrigin } from '@/lib/request-origin';
 import { resolveServerBackendBaseUrl } from '@/lib/backend-url';
 import { inviteMemberAction } from '@/app/actions/team';
 import { ensurePrimaryAiAgent } from '@/lib/ai/agent-runtime';
+import {
+  isDemoChannel,
+  isDemoPersona,
+  type DemoChannel,
+  type DemoPersona,
+  type DemoScenarioKey,
+  type DemoSeedSummary,
+  type SimulateChatResult,
+} from '@/lib/lifecycle/demo-presets';
+import {
+  seedCompleteDemoWorkspace,
+  simulateCustomerInboundChat,
+} from '@/lib/lifecycle/demo-workspace';
 import { getWorkspaceAccess } from '@/lib/team/access';
 import {
   COMPLIANCE_FRAMEWORKS,
@@ -999,5 +1012,108 @@ export async function completeOnboardingWizardAction(
     };
   } catch (err) {
     return { success: false, error: errorMessage(err, 'Could not complete onboarding setup.') };
+  }
+}
+
+/**
+ * Populates the workspace with a complete, idempotent set of omnichannel conversations,
+ * SLA-tracked tickets (including breached/warning states), handoff queue items, paused
+ * LangGraph approvals, B2B CRM pipeline deals/companies/tasks, and KB chunks/embeddings.
+ */
+export async function seedCompleteDemoWorkspaceAction(
+  workspaceId: string,
+): Promise<{ success: true; summary: DemoSeedSummary } | { success: false; error: string }> {
+  try {
+    const access = await getWorkspaceAccess(workspaceId, 'manage_settings');
+    const summary = await seedCompleteDemoWorkspace(workspaceId, {
+      userId: access.user.id,
+      agentId: access.agent.id,
+      agentName: access.agent.name || access.user.email || 'Admin',
+    });
+    return { success: true, summary };
+  } catch (err) {
+    return {
+      success: false,
+      error: errorMessage(err, 'Could not populate demo workspace data.'),
+    };
+  }
+}
+
+/**
+ * Simulates an inbound visitor message on Web, WhatsApp, Email, or Instagram,
+ * persists it in Postgres, and executes the live AI auto-respond pipeline.
+ */
+export async function simulateCustomerInboundChatAction(input: {
+  workspaceId: string;
+  channel: DemoChannel;
+  persona: DemoPersona;
+  scenarioKey?: DemoScenarioKey | 'custom';
+  message: string;
+  conversationId?: string | null;
+}): Promise<SimulateChatResult> {
+  try {
+    const access = await getWorkspaceAccess(input.workspaceId, 'manage_settings');
+    if (!isDemoChannel(input.channel) || !isDemoPersona(input.persona)) {
+      return {
+        success: false,
+        conversationId: '',
+        inboundMessageId: '',
+        ticketNumber: null,
+        channel: isDemoChannel(input.channel) ? input.channel : 'web',
+        persona: isDemoPersona(input.persona) ? input.persona : 'new_visitor',
+        visitorName: 'Visitor',
+        visitorEmail: null,
+        aiReplied: false,
+        aiReplyText: null,
+        aiEngine: null,
+        aiAgentName: null,
+        status: 'no_reply',
+        reason: 'Unsupported demo channel or persona.',
+        handoffStatus: null,
+        approvalId: null,
+        runId: null,
+        citedArticles: [],
+        createdDeal: null,
+        inboxHref: '/app/inbox',
+        handoffHref: '/app/handoff',
+        error: 'Unsupported demo channel or persona.',
+      };
+    }
+
+    return await simulateCustomerInboundChat({
+      workspaceId: input.workspaceId,
+      userId: access.user.id,
+      agentId: access.agent.id,
+      channel: input.channel,
+      persona: input.persona,
+      scenarioKey: input.scenarioKey,
+      message: input.message,
+      conversationId: input.conversationId,
+    });
+  } catch (err) {
+    return {
+      success: false,
+      conversationId: input.conversationId || '',
+      inboundMessageId: '',
+      ticketNumber: null,
+      channel: isDemoChannel(input.channel) ? input.channel : 'web',
+      persona: isDemoPersona(input.persona) ? input.persona : 'new_visitor',
+      visitorName: 'Visitor',
+      visitorEmail: null,
+      aiReplied: false,
+      aiReplyText: null,
+      aiEngine: null,
+      aiAgentName: null,
+      status: 'no_reply',
+      reason: errorMessage(err, 'Could not simulate inbound customer message.'),
+      handoffStatus: null,
+      approvalId: null,
+      runId: null,
+      citedArticles: [],
+      createdDeal: null,
+      inboxHref: '/app/inbox',
+      handoffHref: '/app/handoff',
+      error: errorMessage(err, 'Could not simulate inbound customer message.'),
+    };
   }
 }

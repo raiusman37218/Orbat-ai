@@ -96,11 +96,17 @@ export async function testSmtpConnection(config: SMTPSettingsConfig): Promise<{ 
     const transporter = createSmtpTransporter(config);
     await transporter.verify();
     return { success: true };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[SMTP Verify Error]:', error);
-    let msg = error.message || 'Failed to connect to SMTP server. Please check your credentials.';
+    const errInfo = (error && typeof error === 'object' ? error : {}) as {
+      message?: unknown;
+      code?: unknown;
+    };
+    let msg =
+      (typeof errInfo.message === 'string' && errInfo.message) ||
+      'Failed to connect to SMTP server. Please check your credentials.';
     const host = (config.host || '').toLowerCase();
-    if (error.code === 'EAUTH' || msg.includes('EAUTH') || msg.includes('535') || msg.includes('BadCredentials')) {
+    if (errInfo.code === 'EAUTH' || msg.includes('EAUTH') || msg.includes('535') || msg.includes('BadCredentials')) {
       // A login sent to the wrong provider is refused the same way as a
       // wrong password, so check where the domain's mail actually lives.
       const provider = await detectMailProvider(config.user || '');
@@ -180,9 +186,13 @@ export async function sendSmtpEmail(
     });
 
     return { success: true, messageId: info.messageId };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('[SMTP Send Error]:', error);
-    let errMsg = error.message || 'Failed to send email';
+    const rawMsg =
+      error && typeof error === 'object' && 'message' in error && typeof error.message === 'string'
+        ? error.message
+        : '';
+    let errMsg = rawMsg || 'Failed to send email';
     if (errMsg.includes('553') && errMsg.includes('Sender address rejected')) {
       errMsg = `Sender address rejected. Most email providers (including Hostinger) require the "From" address to match your authenticated login username (${config.user}).`;
     } else if (errMsg.includes('535') || errMsg.includes('BadCredentials')) {
@@ -261,6 +271,35 @@ export function verificationCodeEmail(p: VerificationCodeEmailProps): RenderedEm
 
 export function generateVerificationCodeEmailHtml(props: VerificationCodeEmailProps): string {
   return verificationCodeEmail(props).html;
+}
+
+export interface PasswordResetEmailProps {
+  resetUrl: string;
+  name?: string | null;
+  platformName?: string;
+  brandColor?: string | null;
+  logoUrl?: string | null;
+  expiresMinutes?: number;
+}
+
+/** Single-use password reset link email rendered with the shared email layout. */
+export function passwordResetEmail(p: PasswordResetEmailProps): RenderedEmail {
+  const platform = p.platformName || 'Orbat AI';
+  const minutes = p.expiresMinutes ?? 30;
+  const { html, text } = renderEmail({
+    brandName: platform,
+    brandColor: p.brandColor,
+    logoUrl: p.logoUrl,
+    preheader: `Reset your ${platform} password. This link expires in ${minutes} minutes.`,
+    title: 'Reset your password',
+    paragraphs: [
+      `Hi ${p.name?.trim() || 'there'}, we received a request to reset your ${platform} password. Choose a new password using the secure button below:`,
+    ],
+    button: { label: 'Reset password', url: p.resetUrl },
+    afterButton: `This link expires in ${minutes} minutes and can only be used once. If the button does not work, copy and paste this URL into your browser:`,
+    footer: `You received this email because a password reset was requested for your ${platform} account. If you didn’t request this, you can safely ignore this message.`,
+  });
+  return { subject: `Reset your ${platform} password`, html, text };
 }
 
 export interface AdminInviteEmailProps {

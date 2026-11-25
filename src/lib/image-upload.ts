@@ -147,10 +147,25 @@ async function uploadDirect(apiBase: string, file: File, auth?: UploadAuth): Pro
   return (data.secure_url as string).replace(/\.(heic|heif|avif|bmp|tiff?)$/i, '.jpg');
 }
 
-/** Through our own /api/upload: the original route, used as a fallback. */
-async function uploadViaServer(apiBase: string, file: File, auth?: UploadAuth): Promise<string> {
+/** Through our own /api/upload: handles images, PDFs, TXT, and voice note audio. */
+async function uploadViaServer(
+  apiBase: string,
+  file: File,
+  auth?: UploadAuth,
+  durationSec?: number | null,
+): Promise<{
+  url: string;
+  mimeType: string;
+  isImage: boolean;
+  isAudio: boolean;
+  durationSec: number | null;
+  filename: string;
+}> {
   const form = new FormData();
   form.append('file', file);
+  if (typeof durationSec === 'number' && Number.isFinite(durationSec) && durationSec >= 0) {
+    form.append('durationSec', String(Math.round(durationSec)));
+  }
   const headers: Record<string, string> = {};
   if (auth?.visitorId) headers['x-zentry-visitor'] = auth.visitorId;
   if (auth?.visitorToken) headers['x-zentry-visitor-token'] = auth.visitorToken;
@@ -160,12 +175,62 @@ async function uploadViaServer(apiBase: string, file: File, auth?: UploadAuth): 
     headers,
     body: form,
   });
-  const data = await res.json().catch(() => ({}));
+  const data = (await res.json().catch(() => ({}))) as {
+    url?: string;
+    mimeType?: string;
+    isImage?: boolean;
+    isAudio?: boolean;
+    durationSec?: number | null;
+    filename?: string;
+    error?: string;
+  };
   if (!res.ok || !data?.url) {
-    if (res.status === 413) throw new Error('This picture is too large. Please choose a smaller one.');
+    if (res.status === 413) throw new Error('This file is too large. Please choose a smaller one.');
     throw new Error(data?.error || `Upload failed (${res.status})`);
   }
-  return data.url as string;
+  return {
+    url: data.url,
+    mimeType: data.mimeType || file.type || '',
+    isImage: Boolean(data.isImage),
+    isAudio: Boolean(data.isAudio),
+    durationSec: typeof data.durationSec === 'number' ? data.durationSec : durationSec ?? null,
+    filename: data.filename || file.name || 'attachment',
+  };
+}
+
+export async function uploadChatAttachment(
+  file: File,
+  options?: { durationSec?: number | null; apiBase?: string; auth?: UploadAuth },
+): Promise<{
+  url: string;
+  mimeType: string;
+  isImage: boolean;
+  isAudio: boolean;
+  durationSec: number | null;
+  filename: string;
+}> {
+  const apiBase = options?.apiBase || '';
+  const auth = options?.auth;
+  const isImage = looksLikeImage(file);
+  const ready = isImage ? await shrinkImage(file) : file;
+
+  if (isImage) {
+    try {
+      const url = await uploadDirect(apiBase, ready, auth);
+      return {
+        url,
+        mimeType: ready.type || 'image/jpeg',
+        isImage: true,
+        isAudio: false,
+        durationSec: null,
+        filename: ready.name || file.name || 'image.jpg',
+      };
+    } catch (directErr) {
+      console.warn('[upload] direct upload failed, trying the server route:', directErr);
+    }
+  }
+
+  return uploadViaServer(apiBase, ready, auth, options?.durationSec ?? null);
 }
 
 /**
@@ -180,24 +245,15 @@ export async function uploadChatImage(
   const apiBase = typeof apiBaseOrAuth === 'string' ? apiBaseOrAuth : '';
   const auth = typeof apiBaseOrAuth === 'object' && apiBaseOrAuth !== null ? apiBaseOrAuth : maybeAuth;
 
-  const isImage = looksLikeImage(file);
-  const ready = isImage ? await shrinkImage(file) : file;
-  // Direct upload is for pictures; documents (agents' PDFs) take the server route.
-  if (isImage) {
-    try {
-      return await uploadDirect(apiBase, ready, auth);
-    } catch (directErr) {
-      console.warn('[upload] direct upload failed, trying the server route:', directErr);
-    }
-  }
   try {
-    return await uploadViaServer(apiBase, ready, auth);
+    const uploaded = await uploadChatAttachment(file, { apiBase, auth });
+    return uploaded.url;
   } catch (err) {
     const msg = err instanceof Error ? err.message : '';
     throw new Error(
       msg && !/^Upload failed|^sign|^Cloudinary/.test(msg)
         ? msg
-        : "Couldn't send the picture. Please check your connection and try again."
+        : "Couldn't send the file. Please check your connection and try again."
     );
   }
 }

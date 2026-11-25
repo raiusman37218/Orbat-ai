@@ -2,7 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest, NextResponse } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
-  guardMemberResult: { ok: false } as any,
+  guardMemberResult: { ok: false } as {
+    ok: boolean;
+    access?: { user: { id: string } };
+    response?: NextResponse;
+  },
   verifyVisitorResult: null as { visitorId: string; workspaceId: string | null } | null,
 }));
 
@@ -11,7 +15,7 @@ vi.mock('@/lib/team/route-guard', () => ({
 }));
 
 vi.mock('@/lib/widget/visitor-token', () => ({
-  verifyVisitorToken: vi.fn(async (_id: unknown, _token: unknown) => mocks.verifyVisitorResult),
+  verifyVisitorToken: vi.fn(async () => mocks.verifyVisitorResult),
 }));
 
 vi.mock('@/lib/cloudinary', () => ({
@@ -189,6 +193,78 @@ describe('M-15b Upload Routes Authorization and CORS', () => {
       expect(res.status).toBe(200);
       const body = await res.json();
       expect(body.url).toContain('https://res.cloudinary.com');
+    });
+  });
+
+  describe('audio voice-note uploads', () => {
+    it('strips codec parameters from audio/webm;codecs=opus and returns audio metadata', async () => {
+      mocks.guardMemberResult = { ok: true, access: { user: { id: 'agent-1' } } };
+      mocks.verifyVisitorResult = null;
+
+      const fd = new FormData();
+      const audioBlob = new File([new Uint8Array([1, 2, 3, 4])], 'voice-note.webm', {
+        type: 'audio/webm;codecs=opus',
+      });
+      fd.append('file', audioBlob);
+      fd.append('durationSec', '14');
+
+      const req = new NextRequest('http://localhost/api/upload', {
+        method: 'POST',
+        body: fd,
+      });
+      const res = await uploadPost(req);
+
+      expect(res.status).toBe(200);
+      const body = await res.json();
+      expect(body.isAudio).toBe(true);
+      expect(body.mimeType).toBe('audio/webm');
+      expect(body.durationSec).toBe(14);
+      expect(body.url).toContain('https://res.cloudinary.com');
+    });
+
+    it('rejects audio files exceeding 10 MB with 400', async () => {
+      mocks.guardMemberResult = { ok: true, access: { user: { id: 'agent-1' } } };
+      mocks.verifyVisitorResult = null;
+
+      const oversized = new Uint8Array(10 * 1024 * 1024 + 128);
+      const fd = new FormData();
+      fd.append(
+        'file',
+        new File([oversized], 'long-voice.ogg', { type: 'audio/ogg;codecs=opus' }),
+      );
+
+      const req = new NextRequest('http://localhost/api/upload', {
+        method: 'POST',
+        body: fd,
+      });
+      const res = await uploadPost(req);
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toMatch(/10\s*MB/i);
+    });
+
+    it('rejects disallowed executable file types with 400', async () => {
+      mocks.guardMemberResult = { ok: true, access: { user: { id: 'agent-1' } } };
+      mocks.verifyVisitorResult = null;
+
+      const fd = new FormData();
+      fd.append(
+        'file',
+        new File([new Uint8Array([77, 90])], 'payload.exe', {
+          type: 'application/x-msdownload',
+        }),
+      );
+
+      const req = new NextRequest('http://localhost/api/upload', {
+        method: 'POST',
+        body: fd,
+      });
+      const res = await uploadPost(req);
+
+      expect(res.status).toBe(400);
+      const body = await res.json();
+      expect(body.error).toContain('not permitted');
     });
   });
 });

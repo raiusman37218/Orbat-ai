@@ -85,6 +85,9 @@ export function ConversationList({
   activeView,
   onSelectView,
   viewCounts,
+  selectedGroupName,
+  onClearGroup,
+  totalMatching,
   search,
   onSearchChange,
   searchInputRef,
@@ -114,6 +117,9 @@ export function ConversationList({
   activeView: InboxViewKey;
   onSelectView: (view: InboxViewKey) => void;
   viewCounts: Record<InboxViewKey, number>;
+  selectedGroupName?: string | null;
+  onClearGroup?: () => void;
+  totalMatching?: number;
   search: string;
   onSearchChange: (val: string) => void;
   searchInputRef: RefObject<HTMLInputElement | null>;
@@ -168,7 +174,10 @@ export function ConversationList({
   const activeViewLabel =
     INBOX_VIEWS.find((v) => v.key === activeView)?.label || 'Inbox';
   const hasFilters =
-    Boolean(search.trim()) || channelFilter !== 'all' || priorityFilter !== 'all';
+    Boolean(search.trim()) ||
+    channelFilter !== 'all' ||
+    priorityFilter !== 'all' ||
+    Boolean(selectedGroupName);
 
   return (
     <section
@@ -180,9 +189,9 @@ export function ConversationList({
         <div className="flex items-center justify-between gap-2">
           <div className="flex min-w-0 items-center gap-2">
             <h1 className="truncate font-display text-[17px] font-bold tracking-[-0.02em] text-o-text">
-              {activeViewLabel}
+              {selectedGroupName || activeViewLabel}
             </h1>
-            <Badge tone="neutral">{conversations.length}</Badge>
+            <Badge tone="neutral">{totalMatching ?? conversations.length}</Badge>
           </div>
           <div className="flex items-center gap-1">
             <Button
@@ -242,6 +251,20 @@ export function ConversationList({
             </button>
           )}
         </div>
+
+        {selectedGroupName && onClearGroup && (
+          <div className="flex items-center justify-between gap-2 rounded-[10px] border border-o-accent-text/20 bg-o-accent-soft px-2.5 py-1 text-[11.5px] font-medium text-o-accent-text">
+            <span className="truncate">Team inbox: {selectedGroupName}</span>
+            <button
+              type="button"
+              onClick={onClearGroup}
+              aria-label="Clear team inbox filter"
+              className="o-focus rounded p-0.5 hover:bg-o-surface/60"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+        )}
 
         {/* Quick view pills shown below xl (mobile + lg without 212px Views rail) */}
         <div
@@ -408,6 +431,7 @@ export function ConversationList({
                       onSearchChange('');
                       onChannelFilterChange('all');
                       onPriorityFilterChange('all');
+                      onClearGroup?.();
                     }}
                   >
                     Clear filters

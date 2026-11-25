@@ -15,6 +15,7 @@ import { createClient } from '@/lib/pg/server';
 import { queryRows } from '@/lib/db';
 import { processAutomationOutbox } from '@/lib/automation/outbox';
 import { getWorkspaceAccess } from '@/lib/team/access';
+import { notifyInternalNoteMentions } from '@/lib/notifications/workspace-notifications';
 import { roleCan, type Capability, type Role } from '@/lib/team/permissions';
 import { isValidEmail, sendSmtpEmail, teamMessageEmail } from '@/lib/email/smtp';
 import { loadWorkspaceSmtp } from '@/lib/email/workspace-smtp';
@@ -756,6 +757,18 @@ export async function replyToTicketAction(
     .select('id')
     .single();
   if (error || !inserted) throw dbError(error, 'Could not send the reply.');
+
+  if (input.internal) {
+    await notifyInternalNoteMentions({
+      workspaceId,
+      authorId: caller.agent.id,
+      authorName: caller.agent.name,
+      content: body,
+      contextLabel: `on Ticket #${ticket.number}`,
+      href: `/app/tickets?id=${encodeURIComponent(ticketId)}`,
+      client: caller.supabase,
+    });
+  }
 
   if (input.submitAs && SETTABLE_STATUSES.includes(input.submitAs) && input.submitAs !== ticket.status) {
     const { error: statusError } = await caller.supabase

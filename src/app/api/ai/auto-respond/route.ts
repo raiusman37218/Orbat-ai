@@ -41,6 +41,7 @@ import {
 } from '@/lib/ai/translator';
 import { getWorkspaceHelpCenterUrl } from '@/lib/domain';
 import { notifyTeamByEmailLater } from '@/lib/team/agent-notify';
+import { createWorkspaceNotification } from '@/lib/notifications/workspace-notifications';
 import { translateVisitorMessage } from '@/lib/ai/inbound-translation';
 import { checkWorkspaceFeature, checkWorkspaceLimit, incrementWorkspaceUsage } from '@/lib/plans/enforce';
 import { recordPolicyOutcome } from '@/lib/ai/learning/policy';
@@ -184,6 +185,7 @@ interface HandoffConversationView {
 /** What offer_handoff / request_handoff return. */
 interface HandoffRpcResult {
   ok?: boolean;
+  idempotent?: boolean;
   offered?: boolean;
   status?: string;
   reason?: string;
@@ -789,6 +791,18 @@ async function executeAutoRespond(req: NextRequest, body: any) {
             reason: 'handoff_accepted',
             detail: { status: handoffRes?.status ?? null },
           });
+          if (handoffRes?.ok !== false && !handoffRes?.idempotent) {
+            const visitorName = (conv.visitor as { name?: string | null } | null)?.name?.trim() || 'Visitor';
+            await createWorkspaceNotification({
+              workspaceId: workspace_id,
+              recipientAgentId: (conv as { assigned_agent_id?: string | null }).assigned_agent_id ?? null,
+              kind: 'handoff',
+              title: `${visitorName} requested human handoff`,
+              body: handoffRow.handoff_reason || visitorMsg.content,
+              href: `/app/inbox?c=${encodeURIComponent(conversation_id)}`,
+              client: supabase,
+            });
+          }
           return json({
             replied: Boolean(confirmation?.delivered),
             handoff_accepted: true,
@@ -1370,6 +1384,15 @@ async function executeAutoRespond(req: NextRequest, body: any) {
               pending_actions: paused.pendingActions.length,
             },
           }).catch(() => {});
+          await createWorkspaceNotification({
+            workspaceId: workspace_id,
+            recipientAgentId: (conv as { assigned_agent_id?: string | null }).assigned_agent_id ?? null,
+            kind: 'ai_approval',
+            title: `${botName} paused for approval (${paused.topic})`,
+            body: paused.reason || paused.draftReply,
+            href: `/app/inbox?c=${encodeURIComponent(conversation_id)}`,
+            client: supabase,
+          });
           return json({
             replied: false,
             paused_for_approval: true,
@@ -1790,6 +1813,18 @@ async function executeAutoRespond(req: NextRequest, body: any) {
           },
         }).catch(() => {});
 
+        if (mode === 'suggest') {
+          await createWorkspaceNotification({
+            workspaceId: workspace_id,
+            recipientAgentId: (conv as { assigned_agent_id?: string | null }).assigned_agent_id ?? null,
+            kind: 'ai_approval',
+            title: `${botName} drafted reply for approval (${autonomyDecision.topic})`,
+            body: rawEnglishDraft,
+            href: `/app/inbox?c=${encodeURIComponent(conversation_id)}`,
+            client: supabase,
+          });
+        }
+
         return json({
           replied: false,
           reason: `autonomy_${mode}`,
@@ -2107,6 +2142,17 @@ async function executeAutoRespond(req: NextRequest, body: any) {
             verification_method: verif.method ?? null,
           },
         });
+        if (finalVerdict === 'needs_review') {
+          await createWorkspaceNotification({
+            workspaceId: workspace_id,
+            recipientAgentId: null,
+            kind: 'ai_flagged',
+            title: `${botName} reply flagged for review`,
+            body: outcomeNote,
+            href: '/app/ai-quality',
+            client: supabase,
+          });
+        }
       } catch {
         // Non-fatal verification audit write
       }
@@ -2212,10 +2258,13 @@ async function executeAutoRespond(req: NextRequest, body: any) {
           await runLegacyHandover();
         } else {
           handoffOutcome = `request_${requestRes?.status || requestRes?.reason || 'unknown'}`;
+          let assignedHandoffAgentId: string | null =
+            (conv as { assigned_agent_id?: string | null }).assigned_agent_id ?? null;
           if (effectiveHandoffGroupId && !conv.assigned_agent_id) {
             try {
               const preferredAgent = await pickPreferredGroupAgent(supabase, workspace_id, effectiveHandoffGroupId);
               if (preferredAgent) {
+                assignedHandoffAgentId = preferredAgent.id;
                 await supabase
                   .from('conversations')
                   .update({ assigned_agent_id: preferredAgent.id })
@@ -2224,6 +2273,18 @@ async function executeAutoRespond(req: NextRequest, body: any) {
             } catch (groupErr) {
               console.warn('[Auto-Respond] Group pre-assignment after request_handoff failed:', groupErr);
             }
+          }
+          if (requestRes?.ok !== false && !requestRes?.idempotent) {
+            const visitorName = (conv.visitor as { name?: string | null } | null)?.name?.trim() || 'Visitor';
+            await createWorkspaceNotification({
+              workspaceId: workspace_id,
+              recipientAgentId: assignedHandoffAgentId,
+              kind: 'handoff',
+              title: `AI handoff requested for ${visitorName}`,
+              body: result.handoverReason || result.internalNote || visitorText,
+              href: `/app/inbox?c=${encodeURIComponent(conversation_id)}`,
+              client: supabase,
+            });
           }
         }
       } else if (handoffAction === 'legacy') {

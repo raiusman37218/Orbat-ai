@@ -122,6 +122,23 @@ function TicketDetailDrawerBody({
   const [deleting, setDeleting] = useState(false);
 
   const panelRef = useRef<HTMLDivElement>(null);
+  const composerTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const isInternalNoteMode = composerMode === 'note' || !canReply;
+  const mentionMatch = isInternalNoteMode ? replyBody.match(/(?:^|\s)@([a-zA-Z0-9._-]*)$/) : null;
+  const mentionResults = mentionMatch
+    ? agents
+        .filter((a) => {
+          const q = mentionMatch[1].toLowerCase();
+          return a.is_active && (!q || a.name.toLowerCase().includes(q));
+        })
+        .slice(0, 6)
+    : [];
+
+  const insertTicketMention = (targetAgent: { name: string }) => {
+    setReplyBody((prev) => prev.replace(/@[a-zA-Z0-9._-]*$/, `@${targetAgent.name} `));
+    requestAnimationFrame(() => composerTextareaRef.current?.focus());
+  };
 
   const fetchDetail = useCallback(
     async (silent = false) => {
@@ -953,13 +970,32 @@ function TicketDetailDrawerBody({
               ) : null}
             </div>
 
+            {mentionResults.length > 0 ? (
+              <div className="max-h-40 overflow-y-auto rounded-[12px] border border-o-border bg-o-surface p-1 shadow-[var(--shadow-md)]">
+                <div className="px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wider text-o-text-3">
+                  Mention teammate
+                </div>
+                {mentionResults.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => insertTicketMention(a)}
+                    className="o-focus flex w-full items-center justify-between rounded-[8px] px-2.5 py-1.5 text-left text-[13px] hover:bg-o-surface-2"
+                  >
+                    <span className="font-medium text-o-text">{a.name}</span>
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
             <Textarea
+              ref={composerTextareaRef}
               value={replyBody}
               onChange={(e) => setReplyBody(e.target.value)}
               rows={2}
               placeholder={
-                composerMode === 'note' || !canReply
-                  ? 'Write an internal note visible only to your team...'
+                isInternalNoteMode
+                  ? 'Write an internal note visible only to your team (@mention to notify)...'
                   : 'Write a reply to the requester...'
               }
               onKeyDown={(e) => {

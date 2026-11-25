@@ -1,4 +1,8 @@
+import type { NextRequest } from 'next/server';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+
+vi.mock('server-only', () => ({}));
+
 import {
   normalizeBackendBaseUrl,
   normalizeSocketBaseUrl,
@@ -65,7 +69,7 @@ describe('backend-url & Vercel proxy routing', () => {
 
   it('/api/backend proxy returns 503 JSON when backend URL is not configured on Vercel', async () => {
     process.env.VERCEL = '1';
-    const res = await GET(new Request('https://front.vercel.app/api/backend/health') as any, {
+    const res = await GET(new Request('https://front.vercel.app/api/backend/health') as unknown as NextRequest, {
       params: Promise.resolve({ path: ['health'] }),
     });
     expect(res.status).toBe(503);
@@ -81,7 +85,7 @@ describe('backend-url & Vercel proxy routing', () => {
         headers: { 'content-type': 'application/json' },
       }),
     );
-    globalThis.fetch = fetchSpy as any;
+    globalThis.fetch = fetchSpy as unknown as typeof fetch;
 
     const req = new Request('https://front.vercel.app/api/backend/api/v1/auth/login?foo=1', {
       method: 'POST',
@@ -92,7 +96,7 @@ describe('backend-url & Vercel proxy routing', () => {
       body: JSON.stringify({ email: 'a@b.com' }),
     });
 
-    const res = await POST(req as any, {
+    const res = await POST(req as unknown as NextRequest, {
       params: Promise.resolve({ path: ['api', 'v1', 'auth', 'login'] }),
     });
 
@@ -110,7 +114,7 @@ describe('backend-url & Vercel proxy routing', () => {
     const req = new Request(
       'https://front.vercel.app/api/backend/api/v1/auth/google/url?redirectUri=https%3A%2F%2Ffront.vercel.app%2Fauth%2Fcallback&state=mode%3Dsignup',
     );
-    const res = await GET(req as any, {
+    const res = await GET(req as unknown as NextRequest, {
       params: Promise.resolve({ path: ['api', 'v1', 'auth', 'google', 'url'] }),
     });
 

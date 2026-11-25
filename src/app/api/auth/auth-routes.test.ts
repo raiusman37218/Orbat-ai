@@ -10,15 +10,15 @@ const mockBumpAgentTokenVersion = vi.fn();
 const mockResendCode = vi.fn();
 
 vi.mock('@/lib/db', () => ({
-  query: (...args: any[]) => mockQuery(...args),
-  queryRows: (...args: any[]) => mockQueryRows(...args),
+  query: (...args: unknown[]) => mockQuery(...args),
+  queryRows: (...args: unknown[]) => mockQueryRows(...args),
 }));
 
 vi.mock('@/lib/auth/session-user', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/auth/session-user')>();
   return {
     ...actual,
-    sessionUser: (...args: any[]) => mockSessionUser(...args),
+    sessionUser: (...args: unknown[]) => mockSessionUser(...args),
   };
 });
 
@@ -26,13 +26,13 @@ vi.mock('@/lib/auth/postgres-auth', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/auth/postgres-auth')>();
   return {
     ...actual,
-    authenticatePgPassword: (...args: any[]) => mockAuthenticatePgPassword(...args),
-    bumpAgentTokenVersion: (...args: any[]) => mockBumpAgentTokenVersion(...args),
+    authenticatePgPassword: (...args: unknown[]) => mockAuthenticatePgPassword(...args),
+    bumpAgentTokenVersion: (...args: unknown[]) => mockBumpAgentTokenVersion(...args),
   };
 });
 
 vi.mock('@/app/actions/auth-verification', () => ({
-  resendSignupVerificationCodeAction: (...args: any[]) => mockResendCode(...args),
+  resendSignupVerificationCodeAction: (...args: unknown[]) => mockResendCode(...args),
 }));
 
 import { GET as getProviders } from './providers/route';
@@ -41,6 +41,7 @@ import { POST as postLogout } from './logout/route';
 import { GET as getSession, POST as postSession } from './session/route';
 import { GET as getSessions, POST as postSessions } from './sessions/route';
 import { GET as getMfa, POST as postMfa, DELETE as deleteMfa } from './mfa/route';
+import { handleBackendAuthFallback } from '@/lib/auth/backend-auth-fallback';
 import { generateTotpToken, sealTotpSecret } from '@/lib/auth/postgres-auth';
 
 describe('Pure PostgreSQL Auth API Routes', () => {
@@ -269,5 +270,61 @@ describe('Pure PostgreSQL Auth API Routes', () => {
     const delRes = await deleteMfa();
     expect(delRes.status).toBe(200);
     expect(await delRes.json()).toEqual({ ok: true });
+  });
+
+  it('handleBackendAuthFallback auth/login enforces TOTP consistently with /api/auth/login', async () => {
+    const secret = 'JBSWY3DPEHPK3PXP';
+    const sealed = sealTotpSecret(secret);
+
+    mockAuthenticatePgPassword.mockResolvedValue({
+      ok: true,
+      agent: {
+        id: 'agent-fallback-1',
+        name: 'Avery Agent',
+        email: 'avery@orbat.ai',
+        role: 'owner',
+        status: 'online',
+        workspace_id: 'ws-fallback-1',
+        workspace_name: 'Acme Support',
+        brand_color: '#635bff',
+        password_hash: 'hash',
+        is_active: true,
+        is_super_admin: false,
+        email_verified: true,
+        token_version: 2,
+        totp_enabled: true,
+      },
+    });
+
+    // Missing TOTP returns 403 requiresMfa: true
+    const resMissing = await handleBackendAuthFallback(
+      'auth/login',
+      'POST',
+      new Request('https://app.orbat.ai/api/backend/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: 'avery@orbat.ai', password: 'secret' }),
+      }),
+    );
+    expect(resMissing?.status).toBe(403);
+    expect(await resMissing?.json()).toMatchObject({ requiresMfa: true });
+
+    // Valid TOTP succeeds and issues session cookies
+    mockQueryRows
+      .mockResolvedValueOnce([{ totp_secret_encrypted: sealed }])
+      .mockResolvedValueOnce([]); // platform_access
+    const code = generateTotpToken(secret);
+    const resOk = await handleBackendAuthFallback(
+      'auth/login',
+      'POST',
+      new Request('https://app.orbat.ai/api/backend/api/v1/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email: 'avery@orbat.ai', password: 'secret', totpCode: code }),
+      }),
+    );
+    expect(resOk?.status).toBe(200);
+    const payload = await resOk?.json();
+    expect(payload?.success).toBe(true);
+    expect(payload?.data?.accessToken).toBeTruthy();
+    expect(resOk?.headers.get('set-cookie')).toContain('orbat_access_token=');
   });
 });

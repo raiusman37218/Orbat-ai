@@ -1,29 +1,42 @@
 'use client';
 
 import { listDashboardConversationsAction } from '@/app/actions/inbox';
+import { listRecentActivityAction, type ActivityFeedItem } from '@/app/actions/overview';
 import { getTicketsBootstrapAction } from '@/app/actions/tickets';
 import { getKnowledgeGapsSummaryAction } from '@/app/actions/unanswered';
-import type { ReportsDashboardData, ReportsSummary } from '@/lib/reports/metrics';
+import type {
+  AiAgentSummaryRow,
+  OverviewActionQueue,
+  ReportsDashboardData,
+  ReportsSummary,
+  WorkspaceAiRoi,
+} from '@/lib/reports/metrics';
 import type { AgentPresence } from './types';
 
 /* Data for the Overview screen (docs/design/design/Main.dc.html).
-   Period numbers come from /api/reports (the same engine as the old Reports
-   page, built on reporting_events); live numbers come from the ticket
-   bootstrap the tickets screen uses. */
+   Period numbers come from /api/reports (supporting 'today' hourly buckets in
+   workspace timezone plus 7d/30d/90d daily buckets); live numbers come from
+   the ticket bootstrap and Postgres activity feed. */
 
-export type OverviewRange = '7d' | '30d' | '90d';
+export type OverviewRange = 'today' | '7d' | '30d' | '90d';
 
 export const OVERVIEW_RANGES: { id: OverviewRange; label: string; days: number }[] = [
+  { id: 'today', label: 'Today', days: 1 },
   { id: '7d', label: '7 days', days: 7 },
   { id: '30d', label: '30 days', days: 30 },
   { id: '90d', label: '90 days', days: 90 },
 ];
+
+export type { AiAgentSummaryRow, OverviewActionQueue, WorkspaceAiRoi };
 
 export interface VolumePoint {
   date: string;
   label: string;
   created: number;
   solved: number;
+  aiResolved: number;
+  humanResolved: number;
+  stillOpen: number;
 }
 
 export interface ChannelShare {
@@ -31,6 +44,8 @@ export interface ChannelShare {
   label: string;
   count: number;
   percentage: number;
+  aiResolvedCount: number;
+  aiResolutionPct: number | null;
 }
 
 export interface OverviewReport {
@@ -39,19 +54,26 @@ export interface OverviewReport {
   previous: ReportsSummary | null;
   series: VolumePoint[];
   channels: ChannelShare[];
+  aiAgents: AiAgentSummaryRow[];
+  roi: WorkspaceAiRoi;
+  actionQueue: OverviewActionQueue;
+  granularity: 'day' | 'hour';
+  timeZone: string;
 }
 
 async function fetchReport(
   workspaceId: string,
-  start: Date,
-  end: Date,
-  includePrevious = false,
-): Promise<ReportsDashboardData & { previousSummary?: ReportsSummary | null }> {
+  range: OverviewRange,
+  includePrevious = true,
+): Promise<
+  ReportsDashboardData & {
+    previousSummary?: ReportsSummary | null;
+    meta?: { granularity?: 'day' | 'hour'; timezone?: string };
+  }
+> {
   const params = new URLSearchParams({
     workspace_id: workspaceId,
-    range: 'custom',
-    start_date: start.toISOString(),
-    end_date: end.toISOString(),
+    range,
   });
   if (includePrevious) {
     params.set('include_previous', '1');
@@ -59,26 +81,54 @@ async function fetchReport(
   const res = await fetch(`/api/reports?${params}`, { cache: 'no-store' });
   const body = await res.json().catch(() => null);
   if (!res.ok) throw new Error(body?.error || 'The report could not be loaded.');
-  return body as ReportsDashboardData & { previousSummary?: ReportsSummary | null };
+  return body as ReportsDashboardData & {
+    previousSummary?: ReportsSummary | null;
+    meta?: { granularity?: 'day' | 'hour'; timezone?: string };
+  };
 }
 
 export async function getOverviewReport(workspaceId: string, range: OverviewRange): Promise<OverviewReport> {
-  const days = OVERVIEW_RANGES.find((r) => r.id === range)?.days ?? 7;
-  const end = new Date();
-  const start = new Date(end.getTime() - days * 86_400_000);
-
-  const current = await fetchReport(workspaceId, start, end, true);
+  const current = await fetchReport(workspaceId, range, true);
+  const granularity = current.granularity ?? current.meta?.granularity ?? (range === 'today' ? 'hour' : 'day');
+  const timeZone = current.timeZone ?? current.meta?.timezone ?? 'UTC';
 
   return {
     summary: current.summary,
     previous: current.previousSummary ?? null,
-    series: current.createdVsSolved.map((p) => ({ date: p.date, label: p.label, created: p.created, solved: p.solved })),
+    series: current.createdVsSolved.map((p) => ({
+      date: p.date,
+      label: p.label,
+      created: p.created,
+      solved: p.solved,
+      aiResolved: p.aiResolved ?? 0,
+      humanResolved: p.humanResolved ?? Math.max(0, p.solved - (p.aiResolved ?? 0)),
+      stillOpen: p.stillOpen ?? Math.max(0, p.created - p.solved),
+    })),
     channels: current.channelBreakdown.map((c) => ({
       key: c.key,
-      label: c.label,
+      label: channelLabel(c.key),
       count: c.count,
       percentage: c.percentage,
+      aiResolvedCount: c.aiResolvedCount ?? 0,
+      aiResolutionPct: c.aiResolutionPct ?? null,
     })),
+    aiAgents: current.aiAgents ?? [],
+    roi: current.roi ?? {
+      aiResolvedCount: current.summary.botResolvedCount,
+      avgHandleMinutes: 10,
+      hourlyRateUsd: 28,
+      hoursSaved: Number(((current.summary.botResolvedCount * 10) / 60).toFixed(1)),
+      costSavedUsd: Math.round(((current.summary.botResolvedCount * 10) / 60) * 28),
+    },
+    actionQueue: current.actionQueue ?? {
+      urgentSlaCount: 0,
+      breachedCount: 0,
+      breachingSoonCount: 0,
+      aiQualityFlagsCount: 0,
+      waitingHandoffsCount: 0,
+    },
+    granularity,
+    timeZone,
   };
 }
 
@@ -183,18 +233,33 @@ export async function getKnowledgeGaps(workspaceId: string): Promise<KnowledgeGa
   return getKnowledgeGapsSummaryAction(workspaceId);
 }
 
-export interface ActivityItem {
-  id: string;
-  text: string;
-  at: string;
-  tone: 'ai' | 'ok' | 'bad' | 'accent' | 'warn';
+export type ActivityItem = ActivityFeedItem;
+
+export async function listRecentActivity(workspaceId: string): Promise<ActivityItem[]> {
+  return listRecentActivityAction(workspaceId, 15);
 }
 
-/* TODO(backend): no workspace activity feed of support events (handoffs,
-   solved tickets, failed workflows, published articles, low ratings).
-   `workspace_audit_logs` only records settings changes, for admins.
-   Tracked in docs/design/BACKEND_GAPS.md. */
-export async function listRecentActivity(workspaceId: string): Promise<ActivityItem[]> {
-  void workspaceId;
-  return [];
+export interface OverviewBootstrap {
+  live: OverviewLive;
+  recent: RecentConversation[];
+  gaps: KnowledgeGaps;
+  activity: ActivityItem[];
+}
+
+/** Loads live ticket/team stats, recent conversations, knowledge gaps, and recent activity
+    in one parallel HTTP GET so Overview never queues 4 sequential Server Actions. */
+export async function getOverviewBootstrap(
+  workspaceId: string,
+  recentLimit = 6,
+): Promise<OverviewBootstrap> {
+  const params = new URLSearchParams({
+    workspace_id: workspaceId,
+    recent_limit: String(recentLimit),
+  });
+  const res = await fetch(`/api/workspace/overview-bootstrap?${params}`, { cache: 'no-store' });
+  const body = await res.json().catch(() => null);
+  if (!res.ok || !body) {
+    throw new Error(body?.error || 'Overview data could not be loaded.');
+  }
+  return body as OverviewBootstrap;
 }

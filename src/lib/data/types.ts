@@ -26,14 +26,24 @@ export interface ShellSession {
   workspace: ShellWorkspace;
 }
 
-export type NotificationKind = 'handoff' | 'sla' | 'mention' | 'ai';
+export type NotificationKind =
+  | 'handoff'
+  | 'mention'
+  | 'sla_warning'
+  | 'sla_breach'
+  | 'ai_approval'
+  | 'ai_flagged'
+  | 'system';
 
 export interface AppNotification {
   id: string;
+  workspaceId?: string;
+  recipientAgentId?: string | null;
   kind: NotificationKind;
   title: string;
   body: string;
   href: string;
+  readAt: string | null;
   createdAt: string;
   unread: boolean;
 }

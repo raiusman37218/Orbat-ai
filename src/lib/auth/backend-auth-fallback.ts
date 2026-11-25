@@ -3,6 +3,11 @@ import bcrypt from 'bcryptjs';
 import { NextResponse } from 'next/server';
 import { query, queryRows } from '@/lib/db';
 import {
+  authenticatePgPassword,
+  unsealTotpSecret,
+  verifyTotpCode,
+} from '@/lib/auth/postgres-auth';
+import {
   decodeNestJwtPayload,
   signNestJwt,
   signNestRefreshJwt,
@@ -12,6 +17,14 @@ export interface GoogleOAuthCredentials {
   clientId: string;
   clientSecret: string;
   callbackUrl: string;
+}
+
+function getAuthFallbackError(err: unknown, fallback: string): string {
+  if (err && typeof err === 'object' && 'message' in err) {
+    const msg = (err as { message?: unknown }).message;
+    if (typeof msg === 'string' && msg.trim()) return msg;
+  }
+  return fallback;
 }
 
 export interface AuthSessionBundle {
@@ -219,7 +232,7 @@ export async function resolveGoogleOAuthCredentials(): Promise<GoogleOAuthCreden
 
   if (!clientId || !clientSecret) {
     try {
-      const rows = await queryRows<{ oauth_settings: Record<string, any> | null }>(
+      const rows = await queryRows<{ oauth_settings: Record<string, unknown> | null }>(
         `SELECT oauth_settings FROM public.platform_settings WHERE id = 'default' LIMIT 1`,
       );
       const oauth = rows?.[0]?.oauth_settings;
@@ -566,12 +579,12 @@ export async function handleBackendAuthFallback(
       const res = NextResponse.json({ success: true, data: bundle });
       applyAuthCookies(res, bundle, req);
       return res;
-    } catch (err: any) {
+    } catch (err: unknown) {
       return NextResponse.json(
         {
           success: false,
           statusCode: 401,
-          message: err?.message || 'Google authentication failed.',
+          message: getAuthFallbackError(err, 'Google authentication failed.'),
         },
         { status: 401 },
       );
@@ -583,62 +596,72 @@ export async function handleBackendAuthFallback(
       const body = await req.json().catch(() => ({}));
       const email = typeof body?.email === 'string' ? body.email.trim().toLowerCase() : '';
       const password = typeof body?.password === 'string' ? body.password : '';
+      const totpCode = typeof body?.totpCode === 'string' ? body.totpCode.trim() : '';
+
       if (!email || !password) {
         return NextResponse.json(
-          { success: false, statusCode: 401, message: 'Email and password are required.' },
-          { status: 401 },
+          { success: false, statusCode: 400, message: 'Email and password are required.' },
+          { status: 400 },
         );
       }
 
-      const rows = await queryRows<AgentRecord>(
-        `SELECT a.id, a.name, a.email, a.role, a.status, a.workspace_id,
-                w.name AS workspace_name, w.brand_color,
-                a.password_hash, a.is_active, a.is_super_admin, a.avatar_url,
-                COALESCE(a.email_verified, true) AS email_verified,
-                COALESCE(a.token_version, 1) AS token_version
-         FROM public.agents a
-         LEFT JOIN public.workspaces w ON w.id = a.workspace_id
-         WHERE LOWER(a.email) = $1
-         LIMIT 1`,
-        [email],
-      );
-
-      if (rows.length === 0) {
-        return NextResponse.json(
-          { success: false, statusCode: 401, message: 'Invalid email or password.' },
-          { status: 401 },
-        );
-      }
-
-      const agent = rows[0];
-      if (agent.is_active === false) {
+      const authResult = await authenticatePgPassword(email, password);
+      if (!authResult.ok) {
         return NextResponse.json(
           {
             success: false,
-            statusCode: 403,
-            message: 'Your account has been deactivated. Please contact your workspace administrator.',
+            statusCode: authResult.status,
+            message: authResult.error,
+            ...(authResult.emailVerified === false ? { emailVerified: false } : {}),
           },
-          { status: 403 },
+          { status: authResult.status },
         );
       }
 
-      if (!agent.password_hash) {
-        return NextResponse.json(
-          {
-            success: false,
-            statusCode: 401,
-            message: 'This account uses Google Sign-In. Please continue with Google.',
-          },
-          { status: 401 },
-        );
-      }
+      const agent = authResult.agent;
 
-      const matches = await bcrypt.compare(password, agent.password_hash);
-      if (!matches) {
-        return NextResponse.json(
-          { success: false, statusCode: 401, message: 'Invalid email or password.' },
-          { status: 401 },
-        );
+      if (agent.totp_enabled) {
+        if (!totpCode) {
+          return NextResponse.json(
+            {
+              success: false,
+              statusCode: 403,
+              requiresMfa: true,
+              message: 'Two-factor authentication code is required.',
+            },
+            { status: 403 },
+          );
+        }
+
+        const secretRows = await queryRows<{ totp_secret_encrypted: string | null }>(
+          'SELECT totp_secret_encrypted FROM public.agents WHERE id = $1 LIMIT 1',
+          [agent.id],
+        ).catch(() => []);
+
+        const sealed = secretRows[0]?.totp_secret_encrypted;
+        if (!sealed) {
+          return NextResponse.json(
+            {
+              success: false,
+              statusCode: 500,
+              message: 'Two-factor configuration is incomplete. Contact support.',
+            },
+            { status: 500 },
+          );
+        }
+
+        const secret = unsealTotpSecret(sealed);
+        if (!verifyTotpCode(secret, totpCode)) {
+          return NextResponse.json(
+            {
+              success: false,
+              statusCode: 401,
+              requiresMfa: true,
+              message: 'Invalid authenticator code.',
+            },
+            { status: 401 },
+          );
+        }
       }
 
       await query('UPDATE public.agents SET last_seen_at = now() WHERE id = $1', [agent.id]).catch(
@@ -648,9 +671,9 @@ export async function handleBackendAuthFallback(
       const res = NextResponse.json({ success: true, data: bundle });
       applyAuthCookies(res, bundle, req);
       return res;
-    } catch (err: any) {
+    } catch (err: unknown) {
       return NextResponse.json(
-        { success: false, statusCode: 500, message: err?.message || 'Login failed.' },
+        { success: false, statusCode: 500, message: getAuthFallbackError(err, 'Login failed.') },
         { status: 500 },
       );
     }
@@ -705,7 +728,7 @@ export async function handleBackendAuthFallback(
 
         if (!existingAgent.password_hash || passwordMatches) {
           const updateFields: string[] = [];
-          const updateParams: any[] = [existingAgent.id];
+          const updateParams: unknown[] = [existingAgent.id];
           if (!existingAgent.password_hash) {
             const passwordHash = await bcrypt.hash(password, 10);
             updateParams.push(passwordHash);
@@ -742,6 +765,12 @@ export async function handleBackendAuthFallback(
         );
       }
 
+      const accountRows = await queryRows<{ id: string }>(
+        'SELECT id FROM public.auth_accounts WHERE LOWER(email) = $1 LIMIT 1',
+        [email],
+      ).catch(() => []);
+      const agentId = accountRows[0]?.id || crypto.randomUUID();
+
       const passwordHash = await bcrypt.hash(password, 10);
       const wsRows = await queryRows<{ id: string; name: string; brand_color: string | null }>(
         `INSERT INTO public.workspaces (name, brand_color, greeting_title, greeting_message, owner_id)
@@ -765,7 +794,7 @@ export async function handleBackendAuthFallback(
          )
          VALUES ($1, $2, $3, 'owner', 'online', $4, $5, true, true, now(), 1)
          RETURNING id, name, email, role, workspace_id, is_super_admin`,
-        [crypto.randomUUID(), name, email, workspace.id, passwordHash],
+        [agentId, name, email, workspace.id, passwordHash],
       );
       const agent = agentRows[0];
 
@@ -789,9 +818,9 @@ export async function handleBackendAuthFallback(
       const res = NextResponse.json({ success: true, data: bundle }, { status: 201 });
       applyAuthCookies(res, bundle, req);
       return res;
-    } catch (err: any) {
+    } catch (err: unknown) {
       return NextResponse.json(
-        { success: false, statusCode: 500, message: err?.message || 'Signup failed.' },
+        { success: false, statusCode: 500, message: getAuthFallbackError(err, 'Signup failed.') },
         { status: 500 },
       );
     }
@@ -826,9 +855,9 @@ export async function handleBackendAuthFallback(
       const res = NextResponse.json({ success: true, data: bundle });
       applyAuthCookies(res, bundle, req);
       return res;
-    } catch (err: any) {
+    } catch (err: unknown) {
       return NextResponse.json(
-        { success: false, statusCode: 401, message: err?.message || 'Token refresh failed.' },
+        { success: false, statusCode: 401, message: getAuthFallbackError(err, 'Token refresh failed.') },
         { status: 401 },
       );
     }
@@ -867,9 +896,9 @@ export async function handleBackendAuthFallback(
           workspace: bundle.workspace,
         },
       });
-    } catch (err: any) {
+    } catch (err: unknown) {
       return NextResponse.json(
-        { success: false, statusCode: 401, message: err?.message || 'Unauthorized.' },
+        { success: false, statusCode: 401, message: getAuthFallbackError(err, 'Unauthorized.') },
         { status: 401 },
       );
     }

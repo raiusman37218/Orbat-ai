@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import {
   Activity,
+  Bell,
   Bot,
   Clock,
   Gauge,
@@ -34,8 +35,10 @@ import {
 } from '@/components/orbat/primitives';
 import { PageContainer, PageHeader } from '@/components/orbat/shell/PageContainer';
 import { useShellSession } from '@/components/orbat/shell/session-context';
+import { sendTestNotificationAction } from '@/lib/data/notifications';
 import { loadSystemStatesLive, requestWorkspaceAccess } from '@/lib/data/states';
 import { useData } from '@/lib/data/use-data';
+import { roleCan } from '@/lib/team/permissions';
 import { cn } from '@/lib/utils';
 
 type StateCardId =
@@ -68,8 +71,9 @@ const PROBE_TONE: Record<'operational' | 'degraded' | 'unavailable', BadgeTone> 
 };
 
 export function StatesScreen() {
-  const { workspace } = useShellSession();
+  const { agent, workspace } = useShellSession();
   const workspaceId = workspace.id;
+  const isAdmin = roleCan(agent.role, 'manage_settings');
   const { show } = useOrbToast();
   const { data, error, loading, reload } = useData(
     () => loadSystemStatesLive(workspaceId),
@@ -82,6 +86,28 @@ export function StatesScreen() {
   const [reqArea, setReqArea] = useState('Billing & workspace administration');
   const [reqNote, setReqNote] = useState('');
   const [submittingReq, setSubmittingReq] = useState(false);
+  const [sendingTestAlert, setSendingTestAlert] = useState(false);
+
+  async function handleSendTestAlert() {
+    setSendingTestAlert(true);
+    try {
+      await sendTestNotificationAction(workspaceId);
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('orbat:notifications-refresh'));
+      }
+      show({
+        message: 'Test alert sent — check the notification bell in the top bar.',
+        tone: 'ok',
+      });
+    } catch (err) {
+      show({
+        message: err instanceof Error ? err.message : 'Could not send test alert.',
+        tone: 'bad',
+      });
+    } finally {
+      setSendingTestAlert(false);
+    }
+  }
 
   async function handleRequestAccess() {
     setSubmittingReq(true);
@@ -146,15 +172,28 @@ export function StatesScreen() {
         title="System states & platform health"
         description="Live diagnostic checks across your database, realtime API, and AI engine, plus every recoverable application state in light and dark mode."
         actions={
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={reload}
-            loading={loading}
-            leading={<RefreshCw size={15} />}
-          >
-            Re-run health probes
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin ? (
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => void handleSendTestAlert()}
+                loading={sendingTestAlert}
+                leading={<Bell size={15} />}
+              >
+                Send Test Alert
+              </Button>
+            ) : null}
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={reload}
+              loading={loading}
+              leading={<RefreshCw size={15} />}
+            >
+              Re-run health probes
+            </Button>
+          </div>
         }
       />
 

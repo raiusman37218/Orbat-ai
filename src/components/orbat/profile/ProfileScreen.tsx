@@ -81,10 +81,12 @@ export function ProfileScreen() {
   // Password modal
   const [pwdModalOpen, setPwdModalOpen] = useState(false);
   const [pwdForm, setPwdForm] = useState({ currentPassword: '', newPassword: '', confirm: '' });
+  const [pwdError, setPwdError] = useState<string | null>(null);
 
   // 2FA Enroll modal
   const [mfaEnroll, setMfaEnroll] = useState<{ qrCode: string; secret: string } | null>(null);
   const [mfaCode, setMfaCode] = useState('');
+  const [mfaError, setMfaError] = useState<string | null>(null);
 
   const { data, error, loading, reload } = useData<MyProfileBundle>(
     () => fetchMyProfile(workspace!.id),
@@ -129,12 +131,17 @@ export function ProfileScreen() {
   };
 
   const handleChangePassword = async () => {
+    setPwdError(null);
     if (pwdForm.newPassword.length < 8) {
-      show({ message: 'Password must be at least 8 characters', tone: 'bad' });
+      const msg = 'Password must be at least 8 characters';
+      setPwdError(msg);
+      show({ message: msg, tone: 'bad' });
       return;
     }
     if (pwdForm.newPassword !== pwdForm.confirm) {
-      show({ message: 'New passwords do not match', tone: 'bad' });
+      const msg = 'New passwords do not match';
+      setPwdError(msg);
+      show({ message: msg, tone: 'bad' });
       return;
     }
     setBusyKey('change-pwd');
@@ -144,9 +151,12 @@ export function ProfileScreen() {
     });
     setBusyKey(null);
     if (!res.success) {
-      show({ message: res.error || 'Failed to update password', tone: 'bad' });
+      const msg = res.error || 'Failed to update password';
+      setPwdError(msg);
+      show({ message: msg, tone: 'bad' });
       return;
     }
+    setPwdError(null);
     setPwdModalOpen(false);
     setPwdForm({ currentPassword: '', newPassword: '', confirm: '' });
     show({ message: 'Password updated', tone: 'ok' });
@@ -154,6 +164,7 @@ export function ProfileScreen() {
   };
 
   const handleStartMfa = async () => {
+    setMfaError(null);
     setBusyKey('mfa-start');
     const res = await fetch('/api/auth/mfa', {
       method: 'POST',
@@ -174,19 +185,31 @@ export function ProfileScreen() {
   };
 
   const handleVerifyMfa = async () => {
+    const cleanCode = mfaCode.replace(/\D/g, '').slice(0, 6);
+    if (cleanCode.length !== 6) {
+      const msg = 'Enter the 6-digit code from your authenticator app.';
+      setMfaError(msg);
+      show({ message: msg, tone: 'bad' });
+      return;
+    }
+    setMfaError(null);
     setBusyKey('mfa-verify');
     const res = await fetch('/api/auth/mfa', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'verify', code: mfaCode }),
+      body: JSON.stringify({ action: 'verify', code: cleanCode }),
     });
     const payload = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
     setBusyKey(null);
     if (!res.ok) {
-      show({ message: payload.error || 'Invalid authenticator code', tone: 'bad' });
+      const msg = payload.error || 'Invalid authenticator code';
+      setMfaError(msg);
+      show({ message: msg, tone: 'bad' });
       return;
     }
+    setMfaError(null);
     setMfaEnroll(null);
+    setMfaCode('');
     show({ message: 'Two-factor authentication enabled', tone: 'ok' });
     reload();
   };
@@ -528,11 +551,20 @@ export function ProfileScreen() {
       {/* Password Modal */}
       <Modal
         open={pwdModalOpen}
-        onClose={() => setPwdModalOpen(false)}
+        onClose={() => {
+          setPwdModalOpen(false);
+          setPwdError(null);
+        }}
         title={data?.hasPassword ? 'Change password' : 'Set account password'}
         footer={
           <>
-            <Button variant="quiet" onClick={() => setPwdModalOpen(false)}>
+            <Button
+              variant="quiet"
+              onClick={() => {
+                setPwdModalOpen(false);
+                setPwdError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button variant="primary" loading={busyKey === 'change-pwd'} onClick={handleChangePassword}>
@@ -542,6 +574,7 @@ export function ProfileScreen() {
         }
       >
         <div className="flex flex-col gap-3">
+          {pwdError ? <Alert tone="bad">{pwdError}</Alert> : null}
           {data?.hasPassword ? (
             <Field label="Current password">
               <Input
@@ -571,12 +604,21 @@ export function ProfileScreen() {
       {/* MFA Setup Modal */}
       <Modal
         open={Boolean(mfaEnroll)}
-        onClose={() => setMfaEnroll(null)}
+        onClose={() => {
+          setMfaEnroll(null);
+          setMfaError(null);
+        }}
         title="Enable authenticator app (2FA)"
         description="Scan this QR code in your authenticator app, then enter the 6-digit verification code."
         footer={
           <>
-            <Button variant="quiet" onClick={() => setMfaEnroll(null)}>
+            <Button
+              variant="quiet"
+              onClick={() => {
+                setMfaEnroll(null);
+                setMfaError(null);
+              }}
+            >
               Cancel
             </Button>
             <Button variant="primary" loading={busyKey === 'mfa-verify'} onClick={handleVerifyMfa}>
@@ -596,13 +638,15 @@ export function ProfileScreen() {
             <Alert tone="ok" className="w-full text-center">
               Manual key: <code className="o-mono font-bold">{mfaEnroll.secret}</code>
             </Alert>
+            {mfaError ? <Alert tone="bad" className="w-full">{mfaError}</Alert> : null}
             <Field label="6-digit code" className="w-full">
               <Input
                 inputMode="numeric"
+                autoComplete="one-time-code"
                 maxLength={6}
                 placeholder="123456"
                 value={mfaCode}
-                onChange={(e) => setMfaCode(e.target.value)}
+                onChange={(e) => setMfaCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
               />
             </Field>
           </div>

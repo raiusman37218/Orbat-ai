@@ -11,6 +11,7 @@ import {
   executeHandoverToHuman,
 } from '@/lib/ai/anthropic';
 import { userError } from '@/lib/errors/user-error';
+import { createWorkspaceNotification } from '@/lib/notifications/workspace-notifications';
 
 
 /*
@@ -208,6 +209,15 @@ export async function triggerLangGraphAgent(params: LangGraphTriggerParams) {
         if (replyText) {
           await insertAndDispatchReply(supabase, conversationId, workspaceId, replyText, sender.channel);
         }
+        await createWorkspaceNotification({
+          workspaceId,
+          recipientAgentId: null,
+          kind: 'handoff',
+          title: `AI escalated ${sender.name || 'visitor'} conversation`,
+          body: data.internal_note || incomingMessage,
+          href: `/app/inbox?c=${encodeURIComponent(conversationId)}`,
+          client: supabase,
+        });
         return { success: true, action: 'escalate' };
       }
 
